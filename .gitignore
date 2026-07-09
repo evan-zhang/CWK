@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.DS_Store
+.env
+*.local.json
+cwk-mirror.local.json
+runs/
+knowledge/
+raw/
+collected-raw/
+*.log
