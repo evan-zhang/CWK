@@ -33,10 +33,11 @@ Do not copy secrets. Do not copy Evan's raw evidence into a colleague's mirror u
    - `docdb_root_file_id`
    - `history_run_name` if a baseline exists
    - `detail_cap`
-4. Provide `CWORK_APP_KEY` through the environment, or set `app_key` in the local config only when the file is private.
-5. Run a no-publish smoke test using existing raw samples.
-6. Run one live read-only pass with `--sync-docdb`.
-7. Enable nightly cron only after the live pass succeeds.
+4. Keep `sync_docdb=false` until smoke passes. Use `--sync-docdb` explicitly for live sync.
+5. Provide `CWORK_APP_KEY` through the environment, or set `app_key` in the local config only when the file is private.
+6. Run a no-publish smoke test using existing raw samples.
+7. Run one live read-only pass with `--sync-docdb`.
+8. Enable nightly cron only after the live pass succeeds.
 
 ## Commands
 

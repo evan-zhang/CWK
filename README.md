@@ -18,17 +18,33 @@ Internal/private v0.1.0. This repository intentionally excludes real raw evidenc
 
 ## Quick Start
 
-1. Copy the config template:
+1. Clone the private repository:
+
+```bash
+git clone https://github.com/evan-zhang/CWK.git
+cd CWK
+```
+
+2. Check local requirements:
+
+```bash
+python3 --version
+gh auth status
+```
+
+For live CWork and DocDB sync, the runtime Agent also needs local `cms-cwork-workflow`, `cms-docdb`, and either `CWORK_APP_KEY` or a private `app_key` in the config.
+
+3. Copy the config template:
 
 ```bash
 cp skill/templates/CONFIG.example.json cwk-mirror.local.json
 ```
 
-2. Fill `docdb_project_id` and `docdb_root_file_id`.
+4. Fill `docdb_project_id` and `docdb_root_file_id`.
 
-3. Provide CWork auth through `CWORK_APP_KEY` or a private local config.
+5. Provide CWork auth through `CWORK_APP_KEY` or a private local config.
 
-4. Run a no-publish smoke test:
+6. Run a no-publish smoke test:
 
 ```bash
 python3 scripts/cwk_nightly_pipeline.py \
@@ -39,7 +55,9 @@ python3 scripts/cwk_nightly_pipeline.py \
   --no-publish-mirror
 ```
 
-5. Run a live read-only pass:
+The smoke test should create `runs/nightly-smoke-*`. It may report `overall_pass=false` because the sample fixture is intentionally tiny; that is acceptable for smoke. The goal is command and rendering connectivity.
+
+7. Run a live read-only pass:
 
 ```bash
 python3 scripts/cwk_nightly_pipeline.py \
@@ -48,6 +66,8 @@ python3 scripts/cwk_nightly_pipeline.py \
   --date $(date +%F) \
   --sync-docdb
 ```
+
+A production-ready live run should report `overall_pass=true` and generate both `digest-human-v4.md` and `digest-human-v4.html`.
 
 ## Repository Layout
 

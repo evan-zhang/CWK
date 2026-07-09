@@ -119,6 +119,8 @@ def main() -> None:
     args.docdb_root_file_id = config_value(args, config, "docdb_root_file_id", None)
     if not args.sync_docdb:
         args.sync_docdb = bool(config.get("sync_docdb", False))
+    if args.no_publish_mirror:
+        args.sync_docdb = False
 
     run_dir = RUNS / args.run_name
     steps: list[dict] = []
@@ -211,8 +213,6 @@ def main() -> None:
     mirror_outputs = {} if args.no_publish_mirror else copy_to_mirror(run_dir, args.date)
 
     sync_manifest = None
-    if args.sync_docdb and args.no_publish_mirror:
-        raise SystemExit("--sync-docdb requires mirror publishing; remove --no-publish-mirror.")
     if args.sync_docdb:
         sync_manifest = RUNS / f"docdb-{args.run_name}-daily-runs-sync.json"
         sync_cmd = [
