@@ -25,7 +25,15 @@ git clone https://github.com/evan-zhang/CWK.git
 cd CWK
 ```
 
-2. Check local requirements:
+2. Run install check:
+
+```bash
+./install.sh
+```
+
+This creates `cwk-mirror.local.json` if missing, compiles scripts, and runs the sanitized smoke test.
+
+3. Check local requirements for live operation:
 
 ```bash
 python3 --version
@@ -34,17 +42,17 @@ gh auth status
 
 For live CWork and DocDB sync, the runtime Agent also needs local `cms-cwork-workflow`, `cms-docdb`, and either `CWORK_APP_KEY` or a private `app_key` in the config.
 
-3. Copy the config template:
+4. If you skipped `install.sh`, copy the config template:
 
 ```bash
 cp skill/templates/CONFIG.example.json cwk-mirror.local.json
 ```
 
-4. Fill `docdb_project_id` and `docdb_root_file_id`.
+5. Fill `docdb_project_id` and `docdb_root_file_id`.
 
-5. Provide CWork auth through `CWORK_APP_KEY` or a private local config.
+6. Provide CWork auth through `CWORK_APP_KEY` or a private local config.
 
-6. Run a no-publish smoke test:
+7. Run a no-publish smoke test:
 
 ```bash
 python3 scripts/cwk_nightly_pipeline.py \
@@ -57,7 +65,7 @@ python3 scripts/cwk_nightly_pipeline.py \
 
 The smoke test should create `runs/nightly-smoke-*`. It may report `overall_pass=false` because the sample fixture is intentionally tiny; that is acceptable for smoke. The goal is command and rendering connectivity.
 
-7. Run a live read-only pass:
+8. Run a live read-only pass:
 
 ```bash
 python3 scripts/cwk_nightly_pipeline.py \
@@ -78,6 +86,16 @@ docs/        Migration and operations docs
 examples/    Sanitized examples only
 tests/       Smoke fixtures only
 ```
+
+## Production Checklist
+
+- `make test` passes.
+- `cwk-mirror.local.json` is private and not committed.
+- `docdb_project_id` and `docdb_root_file_id` point to the target user's mirror folder.
+- Live run reports `overall_pass=true`.
+- Daily Markdown and HTML are generated.
+- No CWork mutating command appears in the run manifest.
+- Nightly cron is enabled only after one successful live read-only run.
 
 ## Safety
 
