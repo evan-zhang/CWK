@@ -10,7 +10,7 @@ fi
 
 if [ ! -f cwk-mirror.local.json ]; then
   cp skill/templates/CONFIG.example.json cwk-mirror.local.json
-  echo "Created cwk-mirror.local.json from template. Fill docdb_project_id and docdb_root_file_id before live sync."
+  echo "Created cwk-mirror.local.json from template. For the default personal mirror, provide only CWORK_APP_KEY or app_key."
 else
   echo "cwk-mirror.local.json already exists; leaving it unchanged."
 fi

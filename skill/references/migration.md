@@ -21,23 +21,32 @@ Do not copy secrets. Do not copy Evan's raw evidence into a colleague's mirror u
 - `cms-cwork-workflow` available locally.
 - `cms-auth-skills` or a valid `CWORK_APP_KEY`.
 - `cms-docdb` available when syncing to a knowledge base.
-- Write access to a personal or team knowledge-base folder named `工作协同镜像`.
+- Write access to the authorized user's personal knowledge base, or to an explicit team knowledge-base folder.
 - Cron support for nightly execution.
+
+## Required IDs and Permissions
+
+Do not treat all setup values as one credential. The default personal deployment has one authentication secret and auto-discovers the destination:
+
+- CWork appKey: provide `CWORK_APP_KEY` as an environment variable, or set private `app_key` in the local config. This authorizes read-only collection from 工作协同 and is also passed to DocDB sync as `XG_BIZ_API_KEY`.
+- DocDB destination: leave `docdb_project_id` and `docdb_root_file_id` empty to use the authorized user's personal knowledge base and auto-create or reuse `工作协同镜像`.
+- Shared/team destination: provide `docdb_project_id` and `docdb_root_file_id` only when writing to an explicit shared folder.
+
+The runtime Agent also needs local access to `cms-cwork-workflow` and `cms-docdb`. If auth is resolved through `cms-auth-skills` instead of `CWORK_APP_KEY`, set `CWK_SENDER_ID` and `CWK_ACCOUNT_ID` for the target user/account.
+
+`K` numbers are not required for CWK setup. They are archive/report identifiers from separate knowledge workflows.
 
 ## Setup
 
-1. Create a target knowledge-base folder for the user or team.
+1. Default: use the target user's personal knowledge base. Optional: create a team/shared target folder.
 2. Copy `CONFIG.example.json` to a local config file outside shared source control.
-3. Fill:
-   - `docdb_project_id`
-   - `docdb_root_file_id`
-   - `history_run_name` if a baseline exists
-   - `detail_cap`
-4. Keep `sync_docdb=false` until smoke passes. Use `--sync-docdb` explicitly for live sync.
-5. Provide `CWORK_APP_KEY` through the environment, or set `app_key` in the local config only when the file is private.
-6. Run a no-publish smoke test using existing raw samples.
-7. Run one live read-only pass with `--sync-docdb`.
-8. Enable nightly cron only after the live pass succeeds.
+3. Fill `app_key` only if not using the `CWORK_APP_KEY` environment variable.
+4. Optional: fill `docdb_project_id` and `docdb_root_file_id` only for a shared/team destination.
+5. Optional: fill `history_run_name` if a baseline exists, and tune `detail_cap`.
+6. Keep `sync_docdb=false` until smoke passes. Use `--sync-docdb` explicitly for live sync.
+7. Run a no-publish smoke test using existing raw samples.
+8. Run one live read-only pass with `--sync-docdb`.
+9. Enable nightly cron only after the live pass succeeds.
 
 ## Commands
 

@@ -91,6 +91,71 @@ def resolve_app_key(sender_id: str, account_id: str) -> str:
     return key
 
 
+def extract_id(payload: dict, keys: list[str]) -> str:
+    data = payload.get("data")
+    if isinstance(data, dict):
+        for key in keys:
+            if data.get(key):
+                return str(data[key])
+    if isinstance(data, (str, int)) and str(data):
+        return str(data)
+    raise RuntimeError(payload.get("resultMsg") or f"missing id in response; expected one of {keys}")
+
+
+def get_personal_project_id(env: dict[str, str]) -> str:
+    payload = run_json([sys.executable, str(DOCDB / "scripts/browse/get-personal-project-id.py")], env)
+    if payload.get("resultCode") != 1:
+        raise RuntimeError(payload.get("resultMsg") or "failed to resolve personal DocDB project id")
+    return extract_id(payload, ["projectId", "id"])
+
+
+def child_items(payload: dict) -> list[dict]:
+    data = payload.get("data")
+    if isinstance(data, list):
+        return [item for item in data if isinstance(item, dict)]
+    if isinstance(data, dict):
+        items: list[dict] = []
+        for key in ["folders", "files", "list", "rows", "items", "children"]:
+            value = data.get(key)
+            if isinstance(value, list):
+                items.extend(item for item in value if isinstance(item, dict))
+        return items
+    return []
+
+
+def ensure_root_folder(project_id: str, env: dict[str, str], dry_run: bool) -> str:
+    payload = run_json([sys.executable, str(DOCDB / "scripts/browse/get-level1-folders.py"), project_id], env)
+    if payload.get("resultCode") != 1:
+        raise RuntimeError(payload.get("resultMsg") or "failed to browse personal DocDB root")
+    for item in child_items(payload):
+        if item.get("name") == DEFAULT_ROOT_NAME and str(item.get("type")) in {"1", "folder", ""}:
+            return str(item.get("id") or item.get("fileId"))
+    if dry_run:
+        return "0"
+    payload = run_json(
+        [
+            sys.executable,
+            str(DOCDB / "scripts/upload/create-folder.py"),
+            "0",
+            DEFAULT_ROOT_NAME,
+            "--project-id",
+            project_id,
+        ],
+        env,
+    )
+    if payload.get("resultCode") != 1:
+        raise RuntimeError(payload.get("resultMsg") or f"failed to create {DEFAULT_ROOT_NAME} folder")
+    return extract_id(payload, ["folderId", "fileId", "id"])
+
+
+def resolve_docdb_target(project_id: str, root_file_id: str, env: dict[str, str], dry_run: bool) -> tuple[str, str]:
+    if not project_id:
+        project_id = get_personal_project_id(env)
+    if not root_file_id:
+        root_file_id = ensure_root_folder(project_id, env, dry_run)
+    return str(project_id), str(root_file_id)
+
+
 def iter_items(limit: int | None, only_prefix: str | None) -> list[SyncItem]:
     files = sorted(path for path in MIRROR.rglob("*") if path.is_file() and path.suffix.lower() in {".md", ".html"})
     if only_prefix:
@@ -326,12 +391,16 @@ def main() -> None:
     parser.add_argument("--create-missing-only", action="store_true")
     parser.add_argument("--manifest", default=None)
     args = parser.parse_args()
-    if not args.project_id or not args.root_file_id:
-        raise SystemExit("DocDB sync requires --project-id/--root-file-id or CWK_DOCDB_PROJECT_ID/CWK_DOCDB_ROOT_FILE_ID.")
 
-    app_key = os.environ.get("XG_BIZ_API_KEY") or os.environ.get("XG_APP_KEY") or resolve_app_key(args.sender_id, args.account_id)
+    app_key = (
+        os.environ.get("XG_BIZ_API_KEY")
+        or os.environ.get("XG_APP_KEY")
+        or os.environ.get("CWORK_APP_KEY")
+        or resolve_app_key(args.sender_id, args.account_id)
+    )
     env = os.environ.copy()
     env["XG_BIZ_API_KEY"] = app_key
+    args.project_id, args.root_file_id = resolve_docdb_target(args.project_id, args.root_file_id, env, args.dry_run)
 
     results = []
     for index, item in enumerate(iter_items(args.limit, args.only_prefix), 1):

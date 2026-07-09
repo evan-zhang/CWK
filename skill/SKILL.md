@@ -26,7 +26,7 @@ Forbidden unless the user explicitly asks for that separate action:
 Before running live collection, identify:
 - target user/team and whether this is a personal mirror or team mirror
 - CWork auth source: `CWORK_APP_KEY` preferred
-- knowledge-base target: `docdb_project_id` and `docdb_root_file_id`
+- knowledge-base target: default personal knowledge base, unless a team/shared `docdb_project_id` and `docdb_root_file_id` is explicitly required
 - local script package path
 
 For migration, read `references/migration.md`. For operation and failures, read `references/operations.md`.

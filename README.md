@@ -42,13 +42,25 @@ gh auth status
 
 For live CWork and DocDB sync, the runtime Agent also needs local `cms-cwork-workflow`, `cms-docdb`, and either `CWORK_APP_KEY` or a private `app_key` in the config.
 
+## What Each User Must Provide
+
+In the default personal-mirror deployment, one 工作协同 appKey is enough for authentication and destination discovery.
+
+- CWork appKey: `CWORK_APP_KEY` environment variable, or private `app_key` in `cwk-mirror.local.json`. This lets the collector read 工作协同 records and todos for the authorized user. The same key is also passed to DocDB sync as `XG_BIZ_API_KEY`. It is a secret and must not be committed.
+- DocDB project ID: `docdb_project_id`. Optional. Leave empty to use the authorized user's personal knowledge base.
+- DocDB root folder/file ID: `docdb_root_file_id`. Optional. Leave empty to find or create the default `工作协同镜像` folder.
+- Local Agent capabilities: the Agent/machine must have `cms-cwork-workflow`, `cms-docdb`, and auth helper access. These are runtime tools, not config IDs.
+- Optional account routing: `CWK_SENDER_ID` and `CWK_ACCOUNT_ID` are only needed when resolving auth through `cms-auth-skills` instead of providing `CWORK_APP_KEY`.
+
+`K` numbers are not setup credentials. They are archive/report identifiers produced by other knowledge workflows, and CWK users do not need to provide a `K` number to install or run this project.
+
 4. If you skipped `install.sh`, copy the config template:
 
 ```bash
 cp skill/templates/CONFIG.example.json cwk-mirror.local.json
 ```
 
-5. Fill `docdb_project_id` and `docdb_root_file_id`.
+5. For the default personal mirror, leave `docdb_project_id` and `docdb_root_file_id` empty. Fill them only when writing to a specific team/shared knowledge-base folder.
 
 6. Provide CWork auth through `CWORK_APP_KEY` or a private local config.
 
@@ -91,7 +103,7 @@ tests/       Smoke fixtures only
 
 - `make test` passes.
 - `cwk-mirror.local.json` is private and not committed.
-- `docdb_project_id` and `docdb_root_file_id` point to the target user's mirror folder.
+- Default personal knowledge-base discovery succeeds, or `docdb_project_id` and `docdb_root_file_id` point to an explicit shared mirror folder.
 - Live run reports `overall_pass=true`.
 - Daily Markdown and HTML are generated.
 - No CWork mutating command appears in the run manifest.

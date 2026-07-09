@@ -2,7 +2,7 @@
   "history_run_name": "",
   "detail_cap": 60,
   "sync_docdb": false,
-  "docdb_project_id": "replace-with-personal-or-team-knowledge-base-project-id",
-  "docdb_root_file_id": "replace-with-work-collaboration-mirror-folder-id",
+  "docdb_project_id": "",
+  "docdb_root_file_id": "",
   "app_key": ""
 }
