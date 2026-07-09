@@ -4,8 +4,8 @@ __pycache__/
 .env
 *.local.json
 cwk-mirror.local.json
-runs/
-knowledge/
-raw/
-collected-raw/
+/runs/
+/knowledge/
+/raw/
+/collected-raw/
 *.log
