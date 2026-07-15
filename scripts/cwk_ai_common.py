@@ -25,6 +25,13 @@ _SAFE_AGENTS: set[str] = set()
 AI_ENV_ALLOWLIST = {"OPENCLAW_GATEWAY_TOKEN", "OPENCLAW_GATEWAY_PASSWORD"}
 
 
+def ai_agent_workspace() -> Path:
+    workspace = PROJECT.resolve() / ".cwk-ai-runtime"
+    if workspace.is_symlink():
+        raise RuntimeError("CWK AI runtime workspace must not be a symlink")
+    return workspace
+
+
 def env_bool(name: str, default: bool = False) -> bool:
     value = os.environ.get(name)
     if value is None:
@@ -156,7 +163,11 @@ def invoke_openclaw_json(
 ) -> dict[str, Any]:
     if not model:
         raise ValueError(f"model is required for real AI stage {stage}")
+    runtime_workspace = ai_agent_workspace()
+    prompt_dir = runtime_workspace / "prompts"
     prompt_dir.mkdir(parents=True, exist_ok=True)
+    if prompt_dir.is_symlink():
+        raise RuntimeError("CWK AI prompt directory must not be a symlink")
     temp_path: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
@@ -172,8 +183,9 @@ def invoke_openclaw_json(
         agent_id = os.environ.get("CWK_AI_AGENT_ID", "cwk-ai-reviewer")
         assert_safe_ai_agent(agent_id)
         thinking = os.environ.get("CWK_AI_THINKING", "high")
+        prompt_path = temp_path.relative_to(runtime_workspace)
         instruction = (
-            f"Read the local prompt file {temp_path}. Follow it exactly. "
+            f"Read the prompt file {prompt_path} relative to your workspace. Follow it exactly. "
             "Return only the requested JSON object. Do not send messages or modify files."
         )
         proc = subprocess.run(
@@ -194,7 +206,7 @@ def invoke_openclaw_json(
                 str(timeout_seconds),
                 "--json",
             ],
-            cwd=str(PROJECT),
+            cwd=str(runtime_workspace),
             env=sanitized_ai_environment(),
             text=True,
             capture_output=True,
@@ -226,19 +238,31 @@ def sanitized_ai_environment() -> dict[str, str]:
 def safe_agent_policy(agent: dict[str, Any]) -> tuple[bool, str]:
     if agent.get("skills") != []:
         return False, "skills must be an explicit empty list"
+    declared_workspace = Path(str(agent.get("workspace", ""))).expanduser()
+    if not declared_workspace.is_absolute() or declared_workspace.is_symlink():
+        return False, "workspace must be a non-symlink absolute path"
+    workspace = Path(os.path.abspath(str(declared_workspace)))
+    if workspace != ai_agent_workspace():
+        return False, "workspace must match the fixed private CWK AI runtime workspace"
+    sandbox = agent.get("sandbox") or {}
+    if sandbox.get("mode") != "all" or sandbox.get("scope") != "agent" or sandbox.get("workspaceAccess") != "ro":
+        return False, "sandbox must use mode=all, scope=agent, workspaceAccess=ro"
     tools = agent.get("tools") or {}
     if tools.get("profile") != "minimal":
         return False, "tools.profile must be minimal"
-    allowed = set(tools.get("allow") or []) | set(tools.get("alsoAllow") or [])
-    if "read" not in allowed:
+    allow = tools.get("allow") or []
+    also_allow = tools.get("alsoAllow") or []
+    if not isinstance(allow, list) or not isinstance(also_allow, list):
+        return False, "tool allow lists must be arrays"
+    if set(allow) | set(also_allow) != {"read"}:
         return False, "read must be the only additional tool"
-    if not allowed.issubset({"read", "session_status"}):
-        return False, "only read and session_status may be allowed"
     return True, "ok"
 
 
 def assert_safe_ai_agent(agent_id: str) -> None:
-    if agent_id in _SAFE_AGENTS:
+    expected_workspace = ai_agent_workspace()
+    cache_key = f"{agent_id}:{expected_workspace}"
+    if cache_key in _SAFE_AGENTS:
         return
     proc = subprocess.run(
         ["openclaw", "config", "get", "agents.list", "--json"],
@@ -256,7 +280,7 @@ def assert_safe_ai_agent(agent_id: str) -> None:
     safe, reason = safe_agent_policy(agent)
     if not safe:
         raise RuntimeError(f"CWK AI agent {agent_id!r} is unsafe: {reason}")
-    _SAFE_AGENTS.add(agent_id)
+    _SAFE_AGENTS.add(cache_key)
 
 
 def _document_type(title: str) -> str:

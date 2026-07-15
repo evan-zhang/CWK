@@ -172,7 +172,7 @@ CWK_AI_THINKING=high
 - 跨篇归并：强模型。
 - 质量复核：强模型。
 
-真实模型调用必须使用专用 OpenClaw Agent。该 Agent 必须显式设置 `skills: []`、`tools.profile: minimal`，且唯一附加工具为 `read`；通用 Agent 会被 runtime preflight 拒绝。
+真实模型调用必须使用专用 OpenClaw Agent。该 Agent 必须显式设置 `skills: []`、`tools.profile: minimal`，且唯一附加工具为 `read`；同时必须使用 `mode=all/scope=agent/workspaceAccess=ro` sandbox，并将 workspace 精确固定为项目内 `.cwk-ai-runtime`。该路径不可由环境变量覆盖，也不得使用符号链接；通用 Agent 会被 runtime preflight 拒绝。
 
 不在代码中硬编码供应商密钥；模型 API 凭证走运行环境或 OpenClaw 已有模型配置。
 

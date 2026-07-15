@@ -7,7 +7,12 @@ CWK real AI calls must target a dedicated OpenClaw Agent. The Agent policy must 
 ```json
 {
   "id": "cwk-ai-reviewer",
-  "workspace": "/absolute/path/to/CWK",
+  "workspace": "/absolute/path/to/CWK/.cwk-ai-runtime",
+  "sandbox": {
+    "mode": "all",
+    "scope": "agent",
+    "workspaceAccess": "ro"
+  },
   "tools": {
     "profile": "minimal",
     "alsoAllow": ["read"]
@@ -16,7 +21,7 @@ CWK real AI calls must target a dedicated OpenClaw Agent. The Agent policy must 
 }
 ```
 
-This exposes only `session_status` and local file `read`. It does not expose runtime commands, filesystem mutation, CWork/DocDB plugins, messaging, cron, web, sessions, or Agent delegation.
+This exposes only local file `read`. A private `.cwk-ai-runtime` workspace containing only short-lived prompt files is mounted read-only inside an Agent-scoped sandbox. The runtime preflight requires the Agent workspace to match this fixed project-local directory; the path cannot be overridden by an environment variable, and neither it nor `prompts/` may be a symbolic link. The Agent cannot read CWK code, `.env`, run history, other projects, or host files. It does not expose runtime commands, filesystem mutation, CWork/DocDB plugins, messaging, cron, web, sessions, or Agent delegation.
 
 Do not point `CWK_AI_AGENT_ID` at `chat-main-agent`, an operations Agent, or any Agent with `coding`, `messaging`, or `full` tools.
 

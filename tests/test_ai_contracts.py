@@ -13,6 +13,7 @@ from cwk_ai_common import (  # noqa: E402
     EVENTS_SCHEMA,
     PRIORITIES_SCHEMA,
     RECORD_SCHEMA,
+    ai_agent_workspace,
     extract_json_object,
     fallback_record,
     normalize_record,
@@ -105,19 +106,73 @@ class AIContractTests(unittest.TestCase):
         self.assertEqual(priorities["priorities"][0]["priority"], "P2")
 
     def test_ai_agent_policy_allows_read_only_minimal_agent(self):
-        safe, _ = safe_agent_policy({"skills": [], "tools": {"profile": "minimal", "alsoAllow": ["read"]}})
+        base = {
+            "skills": [],
+            "workspace": str(ai_agent_workspace()),
+            "sandbox": {"mode": "all", "scope": "agent", "workspaceAccess": "ro"},
+        }
+        safe, _ = safe_agent_policy({**base, "tools": {"profile": "minimal", "alsoAllow": ["read"]}})
         self.assertTrue(safe)
-        unsafe, _ = safe_agent_policy({"skills": [], "tools": {"profile": "coding", "deny": ["message"]}})
+        unsafe, _ = safe_agent_policy({**base, "tools": {"profile": "coding", "deny": ["message"]}})
         self.assertFalse(unsafe)
+        unsafe, _ = safe_agent_policy({**base, "tools": {"profile": "minimal", "alsoAllow": ["read", "exec"]}})
+        self.assertFalse(unsafe)
+        unsafe, _ = safe_agent_policy({**base, "tools": {"profile": "minimal", "alsoAllow": ["read", "session_status"]}})
+        self.assertFalse(unsafe)
+        unsafe, _ = safe_agent_policy({"tools": {"profile": "minimal", "alsoAllow": ["read"]}})
+        self.assertFalse(unsafe)
+
+    def test_ai_agent_policy_rejects_workspace_outside_project(self):
+        agent = {
+            "skills": [],
+            "workspace": "/tmp/cwk-untrusted-workspace",
+            "sandbox": {"mode": "all", "scope": "agent", "workspaceAccess": "ro"},
+            "tools": {"profile": "minimal", "alsoAllow": ["read"]},
+        }
+        safe, reason = safe_agent_policy(agent)
+        self.assertFalse(safe)
+        self.assertIn("fixed private", reason)
+
+    def test_ai_agent_workspace_rejects_symlink(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project = Path(temp_dir) / "project"
+            outside = Path(temp_dir) / "outside"
+            project.mkdir()
+            outside.mkdir()
+            (project / ".cwk-ai-runtime").symlink_to(outside, target_is_directory=True)
+            with patch("cwk_ai_common.PROJECT", project):
+                with self.assertRaisesRegex(RuntimeError, "must not be a symlink"):
+                    ai_agent_workspace()
+
+    def test_ai_agent_policy_rejects_external_symlink_to_runtime(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            project = root / "project"
+            project.mkdir()
+            runtime = project / ".cwk-ai-runtime"
+            runtime.mkdir()
+            external_link = root / "external-workspace"
+            external_link.symlink_to(runtime, target_is_directory=True)
+            agent = {
+                "skills": [],
+                "workspace": str(external_link),
+                "sandbox": {"mode": "all", "scope": "agent", "workspaceAccess": "ro"},
+                "tools": {"profile": "minimal", "alsoAllow": ["read"]},
+            }
+            with patch("cwk_ai_common.PROJECT", project):
+                safe, reason = safe_agent_policy(agent)
+            self.assertFalse(safe)
+            self.assertIn("non-symlink", reason)
+
+    def test_ai_agent_workspace_cannot_be_overridden_by_environment(self):
+        expected = PROJECT.resolve() / ".cwk-ai-runtime"
+        with patch.dict("os.environ", {"CWK_AI_AGENT_WORKSPACE": "/tmp/cwk-untrusted-workspace"}):
+            self.assertEqual(ai_agent_workspace(), expected)
 
     def test_cluster_rejects_untraceable_evidence(self):
         records = [{"report_id": "1", "evidence_refs": [{"report_id": "1", "quote": "原文"}], "decisions": [], "action_items": [], "risks": []}]
         events = {"events": [{"record_ids": ["1"], "decisions": [{"text": "结论", "evidence": "编造证据"}], "action_items": [], "risks": []}]}
         self.assertTrue(validate_cluster_evidence(events, records))
-        unsafe, _ = safe_agent_policy({"skills": [], "tools": {"profile": "minimal", "alsoAllow": ["read", "exec"]}})
-        self.assertFalse(unsafe)
-        unsafe, _ = safe_agent_policy({"tools": {"profile": "minimal", "alsoAllow": ["read"]}})
-        self.assertFalse(unsafe)
 
     def test_manifest_command_redacts_secret_flags(self):
         self.assertEqual(redact_cmd(["collector", "--app-key", "secret-value"]), ["collector", "--app-key", "<redacted>"])

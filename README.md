@@ -141,7 +141,7 @@ python3 scripts/cwk_nightly_pipeline.py \
   --sync-docdb
 ```
 
-Real AI calls use `openclaw agent --json` through a dedicated `CWK_AI_AGENT_ID` and do not use `--deliver`. The configured Agent must have `tools.profile=minimal` and only add the `read` tool; CWK refuses to call a general-purpose or mutation-capable Agent. Temporary prompt files are deleted after each call. See `docs/AI-PILOT.md` for the runtime policy. Keep AI disabled in production cron until three pilot runs have been reviewed.
+Real AI calls use `openclaw agent --json` through a dedicated `CWK_AI_AGENT_ID` and do not use `--deliver`. The configured Agent must have `tools.profile=minimal`, only add `read`, and mount the private `.cwk-ai-runtime` prompt workspace read-only in an Agent-scoped sandbox; CWK refuses general-purpose or mutation-capable Agents. Temporary prompt files are deleted after each call. See `docs/AI-PILOT.md` for the runtime policy. Keep AI disabled in production cron until three pilot runs have been reviewed.
 
 ## Repository Layout
 

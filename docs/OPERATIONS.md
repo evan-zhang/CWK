@@ -63,7 +63,7 @@ A healthy run has:
 
 Keep the scheduled production job rules-only. Run AI pilots manually or from a separate isolated schedule:
 
-Before the first real call, provision a dedicated `cwk-ai-reviewer` Agent according to `docs/AI-PILOT.md`. CWK rejects an Agent unless its tool profile is `minimal` and its only additional tool is `read`.
+Before the first real call, provision a dedicated `cwk-ai-reviewer` Agent according to `docs/AI-PILOT.md`. CWK rejects an Agent unless its tool profile is `minimal`, its only additional tool is `read`, its sandbox is `mode=all/scope=agent/workspaceAccess=ro`, and its workspace exactly matches the fixed project-local `.cwk-ai-runtime` directory.
 
 ```bash
 CWK_AI_ENABLED=true \
@@ -77,7 +77,7 @@ python3 scripts/cwk_nightly_pipeline.py \
   --sync-docdb
 ```
 
-The runner creates temporary local prompt files under the run directory and removes them after each model call. OpenClaw Agent calls are never delivered to a chat channel. A failed AI stage sets `degraded=true` but does not fail or remove the rules digest.
+The runner creates temporary prompt files under the ignored `.cwk-ai-runtime/prompts/` directory and removes them after each model call. OpenClaw Agent calls are never delivered to a chat channel. A failed AI stage sets `degraded=true` but does not fail or remove the rules digest.
 
 ## Common Failures
 

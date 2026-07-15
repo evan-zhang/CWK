@@ -9,3 +9,4 @@ cwk-mirror.local.json
 /raw/
 /collected-raw/
 *.log
+/.cwk-ai-runtime/
