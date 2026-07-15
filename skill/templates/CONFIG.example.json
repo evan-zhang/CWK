@@ -1,6 +1,11 @@
 {
   "history_run_name": "",
   "detail_cap": 60,
+  "continuation_cap": 15,
+  "backfill_enabled": true,
+  "backfill_cap": 20,
+  "backfill_page_size": 20,
+  "collection_state_file": "state/collection-state.json",
   "sync_docdb": false,
   "docdb_project_id": "",
   "docdb_root_file_id": "",

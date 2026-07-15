@@ -56,6 +56,12 @@ A healthy run has:
 - `overall_pass=true` in `run.json`.
 - A daily Markdown file and daily HTML file.
 - Incremental-link counts in `incremental-link-preview-v1.md`.
+- Live collection is stateful. `state/collection-state.json` stores successful fingerprints, overflow, and historical backfill cursors; it remains local and gitignored.
+- Nightly collection prioritizes new and changed records, then a bounded set of unresolved continuations. `detail_cap` is a ceiling, not a fixed sample size.
+- Historical inbox, outbox, pending-report, pending-todo, and completed-todo pages are backfilled round-robin with a separate cap, so history cannot consume the daily incremental allowance.
+- The human digest reports new, updated, continuation, and historical-backfill counts separately.
+- `cwk_materialize_safe.py` incrementally writes redacted `history/`, `events/`, `entities/`, and `_index/` pages. Raw evidence is never copied by this stage.
+- DocDB sync is allowlisted to `daily/`, `runs/`, `history/`, `events/`, `entities/`, and `_index/`; `raw/` remains excluded.
 - DocDB sync manifest with no failed command.
 - For an AI pilot, `ai.degraded=false`, all AI stages are completed, and quality evidence IDs resolve to raw reports.
 

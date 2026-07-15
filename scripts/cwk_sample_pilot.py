@@ -157,6 +157,8 @@ class Item:
     created_at: str
     lane: str
     collection_mode: str
+    change_type: str
+    source_scopes: str
     path: str
     content: str
 
@@ -413,11 +415,13 @@ def load_items(source_dirs: list[Path]) -> list[Item]:
             created_at = meta.get("create_time") or meta.get("createTime") or first_match([r"Create Time:\s*(.+)$", r"created:\s*(.+)$"], text)
             lane = meta.get("source_lane") or infer_lane(path, meta, title)
             collection_mode = meta.get("collection_mode") or "reference-sample"
+            change_type = meta.get("change_type") or "unknown"
+            source_scopes = meta.get("source_scopes") or ""
             try:
                 source_path = str(path.relative_to(PROJECT))
             except ValueError:
                 source_path = str(Path("external-source") / path.parent.name / path.name)
-            items.append(Item(source_id, title, writer, created_at, lane, collection_mode, source_path, text))
+            items.append(Item(source_id, title, writer, created_at, lane, collection_mode, change_type, source_scopes, source_path, text))
     return items
 
 
@@ -430,6 +434,8 @@ def build_extractions(items: list[Item]) -> dict[str, dict]:
             "title": item.title,
             "source_lane": item.lane,
             "collection_mode": item.collection_mode,
+            "change_type": item.change_type,
+            "source_scopes": item.source_scopes,
             "item_nature": item_nature(item.lane, item.title),
             "attention_type": attention_type(item.lane, item.title),
             "event_anchor": title_anchor(item.title, entities),
@@ -613,7 +619,13 @@ def slug(value: str) -> str:
     return value[:80] or "untitled"
 
 
-def write_outputs(run_dir: Path, items: list[Item], extractions: dict[str, dict], relations: dict[str, list[dict]]) -> dict:
+def write_outputs(
+    run_dir: Path,
+    items: list[Item],
+    extractions: dict[str, dict],
+    relations: dict[str, list[dict]],
+    acceptance_profile: str = "sample",
+) -> dict:
     if run_dir.exists():
         shutil.rmtree(run_dir)
     for sub in ["raw", "extracted", "relations", "events", "entities"]:
@@ -673,7 +685,7 @@ def write_outputs(run_dir: Path, items: list[Item], extractions: dict[str, dict]
     digest = build_digest(items, extractions, relations, event_proposals, entity_proposals)
     (run_dir / "digest.md").write_text(digest, encoding="utf-8")
 
-    summary = build_acceptance(run_dir, items, extractions, relations, event_proposals, entity_proposals, raw_count)
+    summary = build_acceptance(run_dir, items, extractions, relations, event_proposals, entity_proposals, raw_count, acceptance_profile)
     (run_dir / "run.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     (run_dir / "ACCEPTANCE-RESULT.md").write_text(render_acceptance(summary), encoding="utf-8")
     return summary
@@ -757,8 +769,18 @@ def is_noise_line(line: str) -> bool:
     return False
 
 
-def build_acceptance(run_dir: Path, items: list[Item], extractions: dict[str, dict], relations: dict[str, list[dict]], events: list[dict], entities: list[dict], raw_count: int) -> dict:
+def build_acceptance(
+    run_dir: Path,
+    items: list[Item],
+    extractions: dict[str, dict],
+    relations: dict[str, list[dict]],
+    events: list[dict],
+    entities: list[dict],
+    raw_count: int,
+    acceptance_profile: str = "sample",
+) -> dict:
     lane_counts = Counter(item.lane for item in items)
+    change_type_counts = Counter(item.change_type for item in items)
     action_node_count = lane_counts.get("todo_backed", 0) + lane_counts.get("reply_chain", 0)
     recurring_count = sum(1 for ext in extractions.values() if ext["item_nature"] == "recurring_digest")
     all_relations = unique_relation_pairs(relations)
@@ -786,6 +808,7 @@ def build_acceptance(run_dir: Path, items: list[Item], extractions: dict[str, di
         "mutating_commands_called": [],
         "processed_count": len(items),
         "lane_counts": dict(lane_counts),
+        "change_type_counts": dict(change_type_counts),
         "action_node_count": action_node_count,
         "recurring_count": recurring_count,
         "raw_count": raw_count,
@@ -831,6 +854,16 @@ def build_acceptance(run_dir: Path, items: list[Item], extractions: dict[str, di
         "A7_non_mutation": not results["mutating_commands_called"],
         "A8_operability": True,
     }
+    if acceptance_profile == "incremental":
+        checks.update(
+            {
+                "A1_input_coverage": raw_count == len(items),
+                "A2_raw_evidence": raw_count == len(items),
+                "A3_structured_extraction": valid_extractions == len(items) and (not high_signal or len(anchored) >= int(len(high_signal) * 0.8)),
+                "A4_relationship_judgment": not all_relations or relation_quality,
+                "A5_event_entity_output": not items or (len(events) >= 1 and len(entities) >= 1),
+            }
+        )
     results["checks"] = checks
     results["overall_pass"] = all(checks.values())
     if not checks["A1_input_coverage"]:
@@ -901,6 +934,7 @@ def parse_args() -> argparse.Namespace:
         help="Directory containing raw CWork Markdown files. Can be passed multiple times.",
     )
     parser.add_argument("--run-name", default="sample-pilot", help="Run output directory name under project runs/.")
+    parser.add_argument("--acceptance-profile", choices=["sample", "incremental"], default="sample")
     return parser.parse_args()
 
 
@@ -911,7 +945,7 @@ def main() -> None:
     items = load_items(source_dirs)
     extractions = build_extractions(items)
     relations = build_relations(extractions)
-    summary = write_outputs(run_dir, items, extractions, relations)
+    summary = write_outputs(run_dir, items, extractions, relations, args.acceptance_profile)
     print(json.dumps(summary, ensure_ascii=False, indent=2))
 
 

@@ -10,3 +10,4 @@ cwk-mirror.local.json
 /collected-raw/
 *.log
 /.cwk-ai-runtime/
+/state/

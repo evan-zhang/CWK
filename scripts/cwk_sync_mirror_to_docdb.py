@@ -156,8 +156,12 @@ def resolve_docdb_target(project_id: str, root_file_id: str, env: dict[str, str]
     return str(project_id), str(root_file_id)
 
 
-def iter_items(limit: int | None, only_prefix: str | None) -> list[SyncItem]:
+def iter_items(limit: int | None, only_prefix: str | None, paths_manifest: str | None = None) -> list[SyncItem]:
     files = sorted(path for path in MIRROR.rglob("*") if path.is_file() and path.suffix.lower() in {".md", ".html"})
+    if paths_manifest:
+        payload = json.loads(Path(paths_manifest).expanduser().resolve().read_text(encoding="utf-8"))
+        allowed = {str(value) for value in (payload.get("changed_relative_paths") or [])}
+        files = [path for path in files if path.relative_to(MIRROR).as_posix() in allowed]
     if only_prefix:
         files = [path for path in files if path.relative_to(MIRROR).as_posix().startswith(only_prefix)]
     if limit is not None:
@@ -385,6 +389,7 @@ def main() -> None:
     parser.add_argument("--account-id", default=DEFAULT_ACCOUNT_ID)
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--only-prefix", default=None, help="Only sync relative paths with this prefix, e.g. raw/")
+    parser.add_argument("--paths-manifest", default=None, help="Only sync paths listed in a safe-materialize manifest.")
     parser.add_argument("--physical-prefix", action="append", default=[], help="Use physical-file upload for matching relative path prefixes.")
     parser.add_argument("--max-bytes", type=int, default=None, help="Skip files larger than this many bytes.")
     parser.add_argument("--dry-run", action="store_true")
@@ -403,7 +408,7 @@ def main() -> None:
     args.project_id, args.root_file_id = resolve_docdb_target(args.project_id, args.root_file_id, env, args.dry_run)
 
     results = []
-    for index, item in enumerate(iter_items(args.limit, args.only_prefix), 1):
+    for index, item in enumerate(iter_items(args.limit, args.only_prefix, args.paths_manifest), 1):
         existing = find_existing(item, args.project_id, args.root_file_id, env)
         results.append(
             upload_or_update(

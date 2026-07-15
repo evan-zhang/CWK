@@ -361,6 +361,11 @@ def main() -> None:
     parser.add_argument("--date", default=datetime.now().strftime("%Y-%m-%d"))
     parser.add_argument("--history-run-name", default=None)
     parser.add_argument("--detail-cap", type=int, default=None)
+    parser.add_argument("--continuation-cap", type=int, default=None)
+    parser.add_argument("--backfill-enabled", action=argparse.BooleanOptionalAction, default=None)
+    parser.add_argument("--backfill-cap", type=int, default=None)
+    parser.add_argument("--backfill-page-size", type=int, default=None)
+    parser.add_argument("--collection-state-file", default=None)
     parser.add_argument("--source-dir", action="append", default=[], help="Use existing raw source dir instead of collecting live CWork records.")
     parser.add_argument("--app-key", default=os.environ.get("CWORK_APP_KEY") or os.environ.get("XG_BIZ_API_KEY") or "")
     parser.add_argument("--no-publish-mirror", action="store_true", help="Run the pipeline without copying daily/run outputs into the mirror.")
@@ -379,6 +384,13 @@ def main() -> None:
     config = read_config(args.config)
     args.history_run_name = config_value(args, config, "history_run_name", os.environ.get("CWK_HISTORY_RUN_NAME", DEFAULT_HISTORY_RUN))
     args.detail_cap = int(config_value(args, config, "detail_cap", os.environ.get("CWK_DETAIL_CAP", 60)))
+    args.continuation_cap = int(config_value(args, config, "continuation_cap", os.environ.get("CWK_CONTINUATION_CAP", 15)))
+    if args.backfill_enabled is None:
+        env_backfill = env_bool("CWK_BACKFILL_ENABLED")
+        args.backfill_enabled = env_backfill if env_backfill is not None else bool(config.get("backfill_enabled", True))
+    args.backfill_cap = int(config_value(args, config, "backfill_cap", os.environ.get("CWK_BACKFILL_CAP", 20)))
+    args.backfill_page_size = int(config_value(args, config, "backfill_page_size", os.environ.get("CWK_BACKFILL_PAGE_SIZE", 20)))
+    args.collection_state_file = config_value(args, config, "collection_state_file", os.environ.get("CWK_COLLECTION_STATE_FILE", str(PROJECT / "state" / "collection-state.json")))
     args.app_key = config_value(args, config, "app_key", os.environ.get("CWORK_APP_KEY") or os.environ.get("XG_BIZ_API_KEY") or "")
     args.docdb_project_id = config_value(args, config, "docdb_project_id", os.environ.get("CWK_DOCDB_PROJECT_ID"))
     args.docdb_root_file_id = config_value(args, config, "docdb_root_file_id", os.environ.get("CWK_DOCDB_ROOT_FILE_ID"))
@@ -400,6 +412,7 @@ def main() -> None:
 
     run_dir = RUNS / args.run_name
     steps: list[dict] = []
+    collection_manifest = None
 
     if args.source_dir:
         source_dirs = [Path(p).expanduser().resolve() for p in args.source_dir]
@@ -415,6 +428,15 @@ def main() -> None:
                 collect_run,
                 "--detail-cap",
                 str(args.detail_cap),
+                "--continuation-cap",
+                str(args.continuation_cap),
+                "--backfill-cap",
+                str(args.backfill_cap),
+                "--backfill-page-size",
+                str(args.backfill_page_size),
+                "--state-file",
+                str(args.collection_state_file),
+                "--backfill-enabled" if args.backfill_enabled else "--no-backfill-enabled",
             ],
             env={**os.environ, "CWORK_APP_KEY": args.app_key},
             secrets=(args.app_key,),
@@ -422,6 +444,9 @@ def main() -> None:
         steps.append({"step": "collect_live", **result})
         require_ok("collect_live", result)
         source_dirs = [RUNS / collect_run / "collected-raw"]
+        collection_manifest_path = RUNS / collect_run / "collect-manifest.json"
+        if collection_manifest_path.exists():
+            collection_manifest = read_json(collection_manifest_path)
 
     sample_cmd = [
         sys.executable,
@@ -431,6 +456,8 @@ def main() -> None:
     ]
     for source_dir in source_dirs:
         sample_cmd.extend(["--source-dir", str(source_dir)])
+    if collection_manifest is not None:
+        sample_cmd.extend(["--acceptance-profile", "incremental"])
     result = run_cmd(sample_cmd)
     steps.append({"step": "sample_pilot", **result})
     require_ok("sample_pilot", result)
@@ -460,6 +487,26 @@ def main() -> None:
     )
     steps.append({"step": "daily_html", **result})
     require_ok("daily_html", result)
+
+    safe_materialize_manifest = None
+    safe_materialize_manifest_path = None
+    if not args.no_publish_mirror:
+        result = run_cmd(
+            [
+                sys.executable,
+                str(SCRIPTS / "cwk_materialize_safe.py"),
+                "--run-name",
+                args.run_name,
+            ]
+        )
+        steps.append({"step": "safe_materialize_knowledge", **result})
+        require_ok("safe_materialize_knowledge", result)
+        candidate_manifest = run_dir / "safe-materialize-manifest.json"
+        if candidate_manifest.exists():
+            safe_materialize_manifest_path = candidate_manifest
+            safe_materialize_manifest = read_json(candidate_manifest)
+    else:
+        steps.append({"step": "safe_materialize_knowledge", "returncode": 0, "stdout": "", "stderr": "", "skipped": True})
 
     incremental_report = run_dir / "incremental-link-preview-v1.md"
     if args.history_run_name:
@@ -495,6 +542,7 @@ def main() -> None:
     mirror_outputs = {} if args.no_publish_mirror else copy_to_mirror(run_dir, args.date, (args.app_key,))
 
     sync_manifest = None
+    structured_sync_manifests: list[str] = []
     if args.sync_docdb:
         sync_manifest = RUNS / f"docdb-{args.run_name}-daily-runs-sync.json"
         sync_cmd = [
@@ -534,6 +582,30 @@ def main() -> None:
         steps.append({"step": "sync_runs_docdb", **result})
         require_ok("sync_runs_docdb", result)
 
+        for prefix in ("history/", "events/", "entities/", "_index/"):
+            label = prefix.strip("/").replace("/", "-")
+            structured_manifest = RUNS / f"docdb-{args.run_name}-{label}-sync.json"
+            structured_cmd = [
+                sys.executable,
+                str(SCRIPTS / "cwk_sync_mirror_to_docdb.py"),
+                "--only-prefix",
+                prefix,
+                "--manifest",
+                str(structured_manifest),
+            ]
+            if safe_materialize_manifest_path:
+                structured_cmd.extend(["--paths-manifest", str(safe_materialize_manifest_path)])
+            if args.docdb_project_id:
+                structured_cmd.extend(["--project-id", args.docdb_project_id])
+            if args.docdb_root_file_id:
+                structured_cmd.extend(["--root-file-id", args.docdb_root_file_id])
+            if args.sync_dry_run:
+                structured_cmd.append("--dry-run")
+            result = run_cmd(structured_cmd)
+            steps.append({"step": f"sync_{label}_docdb", **result})
+            require_ok(f"sync_{label}_docdb", result)
+            structured_sync_manifests.append(str(structured_manifest.relative_to(PROJECT)))
+
     summary = read_json(run_dir / "run.json")
     manifest = {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
@@ -542,11 +614,25 @@ def main() -> None:
         "history_run_name": args.history_run_name,
         "source_dirs": [str(p) for p in source_dirs],
         "processed_count": summary.get("processed_count"),
+        "collection": {
+            key: collection_manifest.get(key)
+            for key in (
+                "candidate_count",
+                "selected_daily_count",
+                "selected_backfill_count",
+                "selected_change_counts",
+                "candidate_delta_counts",
+                "pending_count",
+                "backfill_run",
+            )
+        } if collection_manifest else None,
+        "safe_materialize": safe_materialize_manifest,
         "overall_pass": summary.get("overall_pass"),
         "degraded": bool(ai_manifest.get("degraded")),
         "ai": ai_manifest,
         "mirror_outputs": mirror_outputs,
         "sync_manifest": str(sync_manifest.relative_to(PROJECT)) if sync_manifest else None,
+        "structured_sync_manifests": structured_sync_manifests,
         "steps": steps,
     }
     manifest_path = write_manifest(run_dir, manifest, (args.app_key,))

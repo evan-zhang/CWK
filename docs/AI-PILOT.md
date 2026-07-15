@@ -59,3 +59,7 @@ from the model and AI clustering, and retained only in the deterministic rules
 path. A runtime lock prevents concurrent pilots and clears prompt remnants from
 an interrupted prior run. Any real credential found in a source must be rotated
 at its issuing system; local redaction does not revoke a credential.
+
+Historical records retain `collection_mode: historical-backfill` and
+`change_type: historical_backfill`. The human digest separates them from
+current new, updated, and continuation priorities.

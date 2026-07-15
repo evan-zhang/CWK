@@ -45,6 +45,8 @@ def load_raw_metadata(run_dir: Path) -> dict[str, dict]:
             "writer": writer or "未知",
             "create_time": create_time or "未知时间",
             "title": fields.get("title", ""),
+            "change_type": fields.get("change_type", "unknown"),
+            "collection_mode": fields.get("collection_mode", "reference-sample"),
         }
     return metadata
 
@@ -294,8 +296,10 @@ def render(run_dir: Path) -> str:
     events = [load_json(path) for path in sorted((run_dir / "events").glob("*.json"))]
     summary = load_run_summary(run_dir)
 
+    historical = [ext for ext in extracted if ext.get("change_type") == "historical_backfill" or ext.get("collection_mode") == "historical-backfill"]
+    daily = [ext for ext in extracted if ext not in historical]
     by_attention = defaultdict(list)
-    for ext in extracted:
+    for ext in daily:
         by_attention[ext.get("attention_type", "unknown")].append(ext)
     for values in by_attention.values():
         values.sort(key=sort_key)
@@ -307,17 +311,19 @@ def render(run_dir: Path) -> str:
 
     action_groups = group_items(action_items)
     awareness_groups = group_items(awareness)
+    daily_ids = {sid for ext in daily for sid in ext.get("source_ids", [])}
     event_rank = sorted(
-        [event for event in events if not is_generic_anchor(event.get("event", ""))],
+        [event for event in events if not is_generic_anchor(event.get("event", "")) and daily_ids.intersection(event.get("related_raw_ids", []))],
         key=lambda e: (-event_score(e, extracted_by_id)[0], -event_score(e, extracted_by_id)[1], -event_score(e, extracted_by_id)[2], e.get("event", "")),
     )
 
+    change_counts = summary.get("change_type_counts") or Counter(ext.get("change_type", "unknown") for ext in extracted)
     lines = [
         "# 工作协同每日简报（人读版 v4）",
         "",
         "## 一句话结论",
         "",
-        f"这轮只读处理 {summary.get('processed_count', len(extracted))} 条未读汇报，没有执行任何变更操作。机器层识别出 {required_count} 条明确待处理、{review_count} 条建议复核；人读层已按同类事项收束成 {len(action_groups)} 组，重点看持续事项变化，而不是逐条扫 inbox。",
+        f"这轮只读处理 {summary.get('processed_count', len(extracted))} 条工作协同：新增 {change_counts.get('new', 0)}、更新 {change_counts.get('updated', 0)}、延续 {change_counts.get('continuation', 0)}、历史回填 {len(historical)}。没有执行任何变更操作。机器层识别出 {required_count} 条明确待处理、{review_count} 条建议复核；人读层已按同类事项收束成 {len(action_groups)} 组。",
         "",
         "## 今天优先看",
         "",
@@ -345,6 +351,17 @@ def render(run_dir: Path) -> str:
         signal = event_signal(event)
         suffix = f"；待跟进：{signal}" if signal else "；暂无明确待跟进项"
         lines.append(f"- {name}：{count} 条证据，类型分布 {family_text}{suffix}")
+
+    lines += ["", "## 知识库历史补齐", ""]
+    if historical:
+        for ext in historical[:10]:
+            sid = primary_source_id(ext)
+            meta = metadata.get(sid, {})
+            lines.append(f"- `{sid}` {short_title(ext.get('title', ''))}（{meta.get('create_time', '未知时间')}，{meta.get('writer', '未知')}）")
+        if len(historical) > 10:
+            lines.append(f"- 另有 {len(historical) - 10} 条历史记录已进入结构化结果，本版不展开。")
+    else:
+        lines.append("- 本轮没有新增历史回填记录。")
 
     lines += [
         "",
