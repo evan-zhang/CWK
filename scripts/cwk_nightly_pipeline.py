@@ -65,6 +65,13 @@ def read_config(path: str | None) -> dict:
     return json.loads(config_path.read_text(encoding="utf-8"))
 
 
+def env_bool(name: str) -> bool | None:
+    value = os.environ.get(name)
+    if value is None:
+        return None
+    return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
 def config_value(args: argparse.Namespace, config: dict, name: str, default=None):
     value = getattr(args, name)
     if value not in (None, "", []):
@@ -129,13 +136,13 @@ def main() -> None:
     parser.add_argument("--docdb-root-file-id", default=None)
     args = parser.parse_args()
     config = read_config(args.config)
-    args.history_run_name = config_value(args, config, "history_run_name", DEFAULT_HISTORY_RUN)
-    args.detail_cap = int(config_value(args, config, "detail_cap", 60))
+    args.history_run_name = config_value(args, config, "history_run_name", os.environ.get("CWK_HISTORY_RUN_NAME", DEFAULT_HISTORY_RUN))
+    args.detail_cap = int(config_value(args, config, "detail_cap", os.environ.get("CWK_DETAIL_CAP", 60)))
     args.app_key = config_value(args, config, "app_key", os.environ.get("CWORK_APP_KEY") or os.environ.get("XG_BIZ_API_KEY") or "")
-    args.docdb_project_id = config_value(args, config, "docdb_project_id", None)
-    args.docdb_root_file_id = config_value(args, config, "docdb_root_file_id", None)
+    args.docdb_project_id = config_value(args, config, "docdb_project_id", os.environ.get("CWK_DOCDB_PROJECT_ID"))
+    args.docdb_root_file_id = config_value(args, config, "docdb_root_file_id", os.environ.get("CWK_DOCDB_ROOT_FILE_ID"))
     if not args.sync_docdb:
-        args.sync_docdb = bool(config.get("sync_docdb", False))
+        args.sync_docdb = bool(config.get("sync_docdb", env_bool("CWK_SYNC_DOCDB") or False))
     if args.no_publish_mirror:
         args.sync_docdb = False
 

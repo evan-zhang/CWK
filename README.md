@@ -46,25 +46,39 @@ For live CWork and DocDB sync, the runtime Agent also needs local `cms-cwork-wor
 
 In the default personal-mirror deployment, one 工作协同 appKey is enough for authentication and destination discovery.
 
-- CWork appKey: `CWORK_APP_KEY` environment variable, or private `app_key` in `cwk-mirror.local.json`. This lets the collector read 工作协同 records and todos for the authorized user. The same key is also passed to DocDB sync as `XG_BIZ_API_KEY`. It is a secret and must not be committed.
-- DocDB project ID: `docdb_project_id`. Optional. Leave empty to use the authorized user's personal knowledge base.
-- DocDB root folder/file ID: `docdb_root_file_id`. Optional. Leave empty to find or create the default `工作协同镜像` folder.
+- CWork appKey: `CWORK_APP_KEY` environment variable. This lets the collector read 工作协同 records and todos for the authorized user. The same key is also passed to DocDB sync as `XG_BIZ_API_KEY`. It is a secret and must not be committed. A private local `app_key` in `cwk-mirror.local.json` is still supported, but environment variables are preferred.
+- DocDB project ID: `CWK_DOCDB_PROJECT_ID`, or `docdb_project_id` in local config. Optional. Leave empty to use the authorized user's personal knowledge base.
+- DocDB root folder/file ID: `CWK_DOCDB_ROOT_FILE_ID`, or `docdb_root_file_id` in local config. Optional. Leave empty to find or create the default `工作协同镜像` folder.
 - Local Agent capabilities: the Agent/machine must have `cms-cwork-workflow`, `cms-docdb`, and auth helper access. These are runtime tools, not config IDs.
 - Optional account routing: `CWK_SENDER_ID` and `CWK_ACCOUNT_ID` are only needed when resolving auth through `cms-auth-skills` instead of providing `CWORK_APP_KEY`.
 
 `K` numbers are not setup credentials. They are archive/report identifiers produced by other knowledge workflows, and CWK users do not need to provide a `K` number to install or run this project.
 
-4. If you skipped `install.sh`, copy the config template:
+4. Create a private environment file if you want shell-based configuration:
+
+```bash
+cp .env.example .env
+```
+
+Then fill `CWORK_APP_KEY`. Keep `CWK_DOCDB_PROJECT_ID` and `CWK_DOCDB_ROOT_FILE_ID` empty unless you are intentionally writing to a specific shared knowledge-base folder.
+
+For one-off shell usage, exporting the key is enough:
+
+```bash
+export CWORK_APP_KEY=***
+```
+
+5. If you skipped `install.sh`, copy the config template:
 
 ```bash
 cp skill/templates/CONFIG.example.json cwk-mirror.local.json
 ```
 
-5. For the default personal mirror, leave `docdb_project_id` and `docdb_root_file_id` empty. Fill them only when writing to a specific team/shared knowledge-base folder.
+6. For the default personal mirror, leave `docdb_project_id` and `docdb_root_file_id` empty. Fill them only when writing to a specific team/shared knowledge-base folder.
 
-6. Provide CWork auth through `CWORK_APP_KEY` or a private local config.
+7. Provide CWork auth through `CWORK_APP_KEY` or a private local config.
 
-7. Run a no-publish smoke test:
+8. Run a no-publish smoke test:
 
 ```bash
 python3 scripts/cwk_nightly_pipeline.py \
@@ -77,7 +91,7 @@ python3 scripts/cwk_nightly_pipeline.py \
 
 The smoke test should create `runs/nightly-smoke-*`. It may report `overall_pass=false` because the sample fixture is intentionally tiny; that is acceptable for smoke. The goal is command and rendering connectivity.
 
-8. Run a live read-only pass:
+9. Run a live read-only pass:
 
 ```bash
 python3 scripts/cwk_nightly_pipeline.py \
