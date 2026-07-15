@@ -6,9 +6,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -17,6 +19,24 @@ PROJECT = Path(__file__).resolve().parents[1]
 SCRIPTS = PROJECT / "scripts"
 RUNS = PROJECT / "runs"
 MIRROR = PROJECT / "knowledge" / "工作协同镜像"
+
+
+def load_local_env(path: Path) -> None:
+    """Load a gitignored .env without overriding an existing process environment."""
+    if not path.exists():
+        return
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if not key or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key):
+            continue
+        os.environ.setdefault(key, value.strip().strip('"').strip("'"))
+
+
+load_local_env(PROJECT / ".env")
 DEFAULT_HISTORY_RUN = os.environ.get("CWK_HISTORY_RUN_NAME", "")
 
 
@@ -38,14 +58,16 @@ def redact_cmd(args: list[str]) -> list[str]:
 
 
 def run_cmd(args: list[str], dry_run: bool = False, env: dict[str, str] | None = None) -> dict:
+    started = time.monotonic()
     if dry_run:
-        return {"cmd": redact_cmd(args), "returncode": 0, "stdout": "", "stderr": "", "skipped": True}
+        return {"cmd": redact_cmd(args), "returncode": 0, "stdout": "", "stderr": "", "skipped": True, "duration_seconds": 0.0}
     proc = subprocess.run(args, cwd=str(PROJECT), env=env, text=True, capture_output=True)
     return {
         "cmd": redact_cmd(args),
         "returncode": proc.returncode,
         "stdout": proc.stdout[-4000:],
         "stderr": proc.stderr[-4000:],
+        "duration_seconds": round(time.monotonic() - started, 3),
     }
 
 
@@ -100,11 +122,22 @@ def copy_to_mirror(run_dir: Path, date: str) -> dict[str, str]:
         shutil.copy2(daily_html, dst)
         outputs["daily_html"] = str(dst.relative_to(PROJECT))
 
+    for src_name, output_key, daily_name in [
+        ("digest-ai-enhanced.md", "daily_ai_md", f"{date}-ai-enhanced.md"),
+        ("digest-ai-enhanced.html", "daily_ai_html", f"{date}-ai-enhanced.html"),
+    ]:
+        src = run_dir / src_name
+        if src.exists():
+            dst = daily_dir / daily_name
+            shutil.copy2(src, dst)
+            outputs[output_key] = str(dst.relative_to(PROJECT))
+
     run_publish_dir = MIRROR / "runs"
     run_publish_dir.mkdir(parents=True, exist_ok=True)
     for src_name, suffix in [
         ("ACCEPTANCE-RESULT.md", "acceptance"),
         ("incremental-link-preview-v1.md", "incremental-link-preview"),
+        ("quality-review.md", "ai-quality-review"),
     ]:
         src = run_dir / src_name
         if src.exists():
@@ -112,6 +145,147 @@ def copy_to_mirror(run_dir: Path, date: str) -> dict[str, str]:
             shutil.copy2(src, dst)
             outputs[suffix] = str(dst.relative_to(PROJECT))
     return outputs
+
+
+def relative_outputs(run_dir: Path, names: list[str]) -> dict[str, str]:
+    outputs = {}
+    for name in names:
+        path = run_dir / name
+        if path.exists():
+            outputs[name] = str(path.relative_to(PROJECT))
+    return outputs
+
+
+def run_ai_stages(args: argparse.Namespace, run_dir: Path, steps: list[dict]) -> dict:
+    ai = {
+        "enabled": True,
+        "dry_run": args.ai_dry_run,
+        "degraded": False,
+        "models": {
+            "record": "dry-run" if args.ai_dry_run else args.ai_record_model,
+            "cluster": "dry-run" if args.ai_dry_run else args.ai_cluster_model,
+            "quality": "dry-run" if args.ai_dry_run else args.ai_quality_model,
+        },
+        "stages": {},
+        "outputs": {},
+    }
+
+    def execute(stage: str, command: list[str]) -> bool:
+        result = run_cmd(command)
+        steps.append({"step": stage, **result})
+        ai["stages"][stage] = {
+            "status": "completed" if result["returncode"] == 0 else "failed",
+            "returncode": result["returncode"],
+            "duration_seconds": result["duration_seconds"],
+        }
+        if result["returncode"] != 0:
+            ai["degraded"] = True
+            ai["stages"][stage]["error"] = (result["stderr"] or result["stdout"])[-1000:]
+            return False
+        return True
+
+    common = ["--timeout-seconds", str(args.ai_timeout_seconds)]
+    dry_run = ["--dry-run"] if args.ai_dry_run else []
+    record_ok = execute(
+        "ai_record_understanding",
+        [
+            sys.executable,
+            str(SCRIPTS / "cwk_ai_record_understanding.py"),
+            "--run-name",
+            args.run_name,
+            "--model",
+            args.ai_record_model,
+            "--max-parallel",
+            str(args.ai_max_parallel),
+            *common,
+            *dry_run,
+        ],
+    )
+    record_summary = run_dir / "ai-record-summary.json"
+    if record_summary.exists():
+        summary = read_json(record_summary)
+        ai["stages"]["ai_record_understanding"].update(
+            {
+                "processed_count": summary.get("processed_count"),
+                "failed_count": summary.get("failed_count"),
+            }
+        )
+        ai["degraded"] = ai["degraded"] or bool(summary.get("degraded"))
+    if not record_ok:
+        ai["outputs"] = relative_outputs(run_dir, ["ai-record-summary.json"])
+        return ai
+
+    cluster_cmd = [
+        sys.executable,
+        str(SCRIPTS / "cwk_ai_event_clustering.py"),
+        "--run-name",
+        args.run_name,
+        "--model",
+        args.ai_cluster_model,
+        *common,
+        *dry_run,
+    ]
+    if args.history_run_name:
+        cluster_cmd.extend(["--history-run-name", args.history_run_name])
+    if not execute("ai_event_clustering", cluster_cmd):
+        ai["outputs"] = relative_outputs(run_dir, ["ai-record-summary.json"])
+        return ai
+
+    if not execute(
+        "ai_enhanced_digest",
+        [
+            sys.executable,
+            str(SCRIPTS / "cwk_ai_enhanced_digest.py"),
+            "--run-name",
+            args.run_name,
+            "--output",
+            str(run_dir / "digest-ai-enhanced.md"),
+        ],
+    ):
+        ai["outputs"] = relative_outputs(run_dir, ["ai-events.json", "ai-daily-priorities.json"])
+        return ai
+
+    if not execute(
+        "ai_enhanced_html",
+        [
+            sys.executable,
+            str(SCRIPTS / "cwk_daily_html.py"),
+            "--input",
+            str(run_dir / "digest-ai-enhanced.md"),
+            "--output",
+            str(run_dir / "digest-ai-enhanced.html"),
+        ],
+    ):
+        ai["outputs"] = relative_outputs(run_dir, ["digest-ai-enhanced.md"])
+        return ai
+
+    execute(
+        "ai_quality_review",
+        [
+            sys.executable,
+            str(SCRIPTS / "cwk_ai_quality_review.py"),
+            "--run-name",
+            args.run_name,
+            "--model",
+            args.ai_quality_model,
+            *common,
+            *dry_run,
+        ],
+    )
+    ai["outputs"] = relative_outputs(
+        run_dir,
+        [
+            "ai-record-summary.json",
+            "ai-clustering-summary.json",
+            "ai-events.json",
+            "ai-daily-priorities.json",
+            "digest-ai-enhanced.md",
+            "digest-ai-enhanced.html",
+            "quality-review.json",
+            "quality-review.md",
+        ],
+    )
+    return ai
 
 
 def write_manifest(run_dir: Path, manifest: dict) -> Path:
@@ -134,6 +308,13 @@ def main() -> None:
     parser.add_argument("--sync-dry-run", action="store_true", help="Dry-run docdb sync even when --sync-docdb is set.")
     parser.add_argument("--docdb-project-id", default=None)
     parser.add_argument("--docdb-root-file-id", default=None)
+    parser.add_argument("--ai-enabled", action=argparse.BooleanOptionalAction, default=None)
+    parser.add_argument("--ai-dry-run", action=argparse.BooleanOptionalAction, default=None)
+    parser.add_argument("--ai-record-model", default=os.environ.get("CWK_AI_RECORD_MODEL"))
+    parser.add_argument("--ai-cluster-model", default=os.environ.get("CWK_AI_CLUSTER_MODEL"))
+    parser.add_argument("--ai-quality-model", default=os.environ.get("CWK_AI_QUALITY_MODEL"))
+    parser.add_argument("--ai-max-parallel", type=int, default=int(os.environ["CWK_AI_MAX_PARALLEL"]) if os.environ.get("CWK_AI_MAX_PARALLEL") else None)
+    parser.add_argument("--ai-timeout-seconds", type=int, default=int(os.environ["CWK_AI_TIMEOUT_SECONDS"]) if os.environ.get("CWK_AI_TIMEOUT_SECONDS") else None)
     args = parser.parse_args()
     config = read_config(args.config)
     args.history_run_name = config_value(args, config, "history_run_name", os.environ.get("CWK_HISTORY_RUN_NAME", DEFAULT_HISTORY_RUN))
@@ -145,6 +326,17 @@ def main() -> None:
         args.sync_docdb = bool(config.get("sync_docdb", env_bool("CWK_SYNC_DOCDB") or False))
     if args.no_publish_mirror:
         args.sync_docdb = False
+    if args.ai_enabled is None:
+        env_ai_enabled = env_bool("CWK_AI_ENABLED")
+        args.ai_enabled = env_ai_enabled if env_ai_enabled is not None else bool(config.get("ai_enabled", False))
+    if args.ai_dry_run is None:
+        env_ai_dry_run = env_bool("CWK_AI_DRY_RUN")
+        args.ai_dry_run = env_ai_dry_run if env_ai_dry_run is not None else bool(config.get("ai_dry_run", False))
+    args.ai_record_model = config_value(args, config, "ai_record_model", os.environ.get("CWK_AI_RECORD_MODEL", ""))
+    args.ai_cluster_model = config_value(args, config, "ai_cluster_model", os.environ.get("CWK_AI_CLUSTER_MODEL", ""))
+    args.ai_quality_model = config_value(args, config, "ai_quality_model", os.environ.get("CWK_AI_QUALITY_MODEL", ""))
+    args.ai_max_parallel = int(config_value(args, config, "ai_max_parallel", os.environ.get("CWK_AI_MAX_PARALLEL", 4)))
+    args.ai_timeout_seconds = int(config_value(args, config, "ai_timeout_seconds", os.environ.get("CWK_AI_TIMEOUT_SECONDS", 120)))
 
     run_dir = RUNS / args.run_name
     steps: list[dict] = []
@@ -233,6 +425,12 @@ def main() -> None:
         )
         steps.append({"step": "incremental_link_preview", "returncode": 0, "stdout": "", "stderr": "", "skipped": True})
 
+    ai_manifest = (
+        run_ai_stages(args, run_dir, steps)
+        if args.ai_enabled
+        else {"enabled": False, "dry_run": False, "degraded": False, "models": {}, "stages": {}, "outputs": {}}
+    )
+
     mirror_outputs = {} if args.no_publish_mirror else copy_to_mirror(run_dir, args.date)
 
     sync_manifest = None
@@ -284,6 +482,8 @@ def main() -> None:
         "source_dirs": [str(p) for p in source_dirs],
         "processed_count": summary.get("processed_count"),
         "overall_pass": summary.get("overall_pass"),
+        "degraded": bool(ai_manifest.get("degraded")),
+        "ai": ai_manifest,
         "mirror_outputs": mirror_outputs,
         "sync_manifest": str(sync_manifest.relative_to(PROJECT)) if sync_manifest else None,
         "steps": steps,

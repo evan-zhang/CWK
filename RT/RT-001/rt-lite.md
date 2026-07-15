@@ -39,6 +39,8 @@ CWK_AI_QUALITY_MODEL=
 CWK_AI_MAX_PARALLEL=4
 CWK_AI_TIMEOUT_SECONDS=120
 CWK_AI_DRY_RUN=false
+CWK_AI_AGENT_ID=cwk-ai-reviewer
+CWK_AI_THINKING=high
 ```
 
 ### 2.4 新增输出
@@ -56,6 +58,7 @@ CWK_AI_DRY_RUN=false
 - 不调用 CWork mutating command。
 - 不提交真实 raw/run/AI 输出到 GitHub。
 - 不在 manifest/log 中记录密钥、appKey、token。
+- 真实模型调用必须通过无 Skills、仅允许 `read` 的专用 OpenClaw Agent。
 - AI 失败不能导致规则版 nightly 失败。
 - AI 增强版上线前必须并行 pilot，不直接替换规则版。
 

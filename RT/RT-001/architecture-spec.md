@@ -162,6 +162,8 @@ CWK_AI_CLUSTER_MODEL=
 CWK_AI_QUALITY_MODEL=
 CWK_AI_MAX_PARALLEL=4
 CWK_AI_TIMEOUT_SECONDS=120
+CWK_AI_AGENT_ID=cwk-ai-reviewer
+CWK_AI_THINKING=high
 ```
 
 推荐默认策略：
@@ -169,6 +171,8 @@ CWK_AI_TIMEOUT_SECONDS=120
 - 单篇理解：中高质量模型，可并发。
 - 跨篇归并：强模型。
 - 质量复核：强模型。
+
+真实模型调用必须使用专用 OpenClaw Agent。该 Agent 必须显式设置 `skills: []`、`tools.profile: minimal`，且唯一附加工具为 `read`；通用 Agent 会被 runtime preflight 拒绝。
 
 不在代码中硬编码供应商密钥；模型 API 凭证走运行环境或 OpenClaw 已有模型配置。
 
@@ -195,6 +199,8 @@ CWK_AI_ENABLED=false make test
 
 # fixture 模式验证 AI stage 编排，不调用真实模型
 CWK_AI_ENABLED=true CWK_AI_DRY_RUN=true make test
+
+# 真实调用前检查专用只读 Agent，见 docs/AI-PILOT.md
 
 # 生产试运行，生成规则版 + AI 增强版
 CWK_AI_ENABLED=true \

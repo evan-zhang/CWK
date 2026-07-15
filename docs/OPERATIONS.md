@@ -26,6 +26,19 @@ runs/nightly-YYYYMMDD-HHMM/
   nightly-pipeline-manifest.json
 ```
 
+When `CWK_AI_ENABLED=true`, the run also contains:
+
+```text
+ai-understanding/*.json
+ai-record-summary.json
+ai-events.json
+ai-daily-priorities.json
+digest-ai-enhanced.md
+digest-ai-enhanced.html
+quality-review.json
+quality-review.md
+```
+
 Mirror:
 
 ```text
@@ -44,6 +57,27 @@ A healthy run has:
 - A daily Markdown file and daily HTML file.
 - Incremental-link counts in `incremental-link-preview-v1.md`.
 - DocDB sync manifest with no failed command.
+- For an AI pilot, `ai.degraded=false`, all AI stages are completed, and quality evidence IDs resolve to raw reports.
+
+## AI Pilot Run
+
+Keep the scheduled production job rules-only. Run AI pilots manually or from a separate isolated schedule:
+
+Before the first real call, provision a dedicated `cwk-ai-reviewer` Agent according to `docs/AI-PILOT.md`. CWK rejects an Agent unless its tool profile is `minimal` and its only additional tool is `read`.
+
+```bash
+CWK_AI_ENABLED=true \
+CWK_AI_RECORD_MODEL=provider/model \
+CWK_AI_CLUSTER_MODEL=provider/model \
+CWK_AI_QUALITY_MODEL=provider/model \
+python3 scripts/cwk_nightly_pipeline.py \
+  --config /path/to/cwk-mirror.local.json \
+  --run-name ai-pilot-$(date +%Y%m%d-%H%M) \
+  --date $(date +%F) \
+  --sync-docdb
+```
+
+The runner creates temporary local prompt files under the run directory and removes them after each model call. OpenClaw Agent calls are never delivered to a chat channel. A failed AI stage sets `degraded=true` but does not fail or remove the rules digest.
 
 ## Common Failures
 
@@ -52,6 +86,8 @@ A healthy run has:
 - Too many suspected links: review `incremental-link-preview-v1.md`, keep strong merge disabled.
 - DocDB server busy: rerun sync; raw evidence can use physical-file upload.
 - Cron model rejected: use an allowlisted model such as `newapi-anthropic-vip/MiniMax-latest-cloud`.
+- AI stage missing model: set all three `CWK_AI_*_MODEL` values or use `CWK_AI_DRY_RUN=true` for orchestration tests.
+- AI output invalid JSON/evidence: inspect the stage error in the nightly manifest; keep the rules digest as the published baseline.
 
 ## Safety Rules
 

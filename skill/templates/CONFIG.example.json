@@ -4,5 +4,12 @@
   "sync_docdb": false,
   "docdb_project_id": "",
   "docdb_root_file_id": "",
+  "ai_enabled": false,
+  "ai_dry_run": false,
+  "ai_record_model": "",
+  "ai_cluster_model": "",
+  "ai_quality_model": "",
+  "ai_max_parallel": 4,
+  "ai_timeout_seconds": 120,
   "app_key": ""
 }

@@ -1,0 +1,419 @@
+#!/usr/bin/env python3
+"""Shared runtime and validation helpers for the optional CWK AI stages."""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import subprocess
+import tempfile
+import uuid
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+from zoneinfo import ZoneInfo
+
+
+PROJECT = Path(__file__).resolve().parents[1]
+SHANGHAI = ZoneInfo("Asia/Shanghai")
+RECORD_SCHEMA = "cwk.ai_record_understanding.v1"
+EVENTS_SCHEMA = "cwk.ai_events.v1"
+PRIORITIES_SCHEMA = "cwk.ai_daily_priorities.v1"
+QUALITY_SCHEMA = "cwk.ai_quality_review.v1"
+_SAFE_AGENTS: set[str] = set()
+AI_ENV_ALLOWLIST = {"OPENCLAW_GATEWAY_TOKEN", "OPENCLAW_GATEWAY_PASSWORD"}
+
+
+def env_bool(name: str, default: bool = False) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def load_json(path: Path) -> dict[str, Any]:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
+    if not text.startswith("---\n"):
+        return {}, text
+    end = text.find("\n---", 4)
+    if end < 0:
+        return {}, text
+    meta: dict[str, str] = {}
+    for line in text[4:end].splitlines():
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        meta[key.strip()] = value.strip().strip('"').strip("'")
+    return meta, text[end + 4 :].lstrip("\n")
+
+
+def clean_evidence(value: str, limit: int = 180) -> str:
+    value = re.sub(r"```.*?```", " ", value or "", flags=re.S)
+    value = re.sub(r"<[^>]+>|&nbsp;", " ", value)
+    value = re.sub(r"[*_`#|]", " ", value)
+    value = re.sub(r"\s+", " ", value).strip(" -:：,，;；")
+    return value[:limit]
+
+
+def first_readable_sentence(body: str, fallback: str) -> str:
+    cleaned = re.sub(r"```.*?```", " ", body, flags=re.S)
+    lines = []
+    for raw_line in cleaned.splitlines():
+        if raw_line.lstrip().startswith("#"):
+            continue
+        line = clean_evidence(raw_line)
+        if len(line) < 8 or line.startswith(("report id", "title", "reference_")):
+            continue
+        if line.startswith(("{", "[", '"nodeName"', '"content"')):
+            continue
+        lines.append(line)
+    return (lines[0] if lines else clean_evidence(fallback))[:180]
+
+
+def to_shanghai(value: str) -> str:
+    if not value:
+        return ""
+    normalized = value.strip().replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(normalized)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=SHANGHAI)
+        return parsed.astimezone(SHANGHAI).strftime("%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return value[:19]
+
+
+def extract_json_object(text: str) -> dict[str, Any]:
+    """Extract one JSON object from plain text or an OpenClaw JSON envelope."""
+    text = text.strip()
+    candidates = [text]
+    fenced = re.findall(r"```(?:json)?\s*(\{.*?\})\s*```", text, flags=re.S | re.I)
+    candidates.extend(fenced)
+    decoder = json.JSONDecoder()
+    for candidate in candidates:
+        try:
+            value = json.loads(candidate)
+        except json.JSONDecodeError:
+            value = None
+        if isinstance(value, dict):
+            nested = _find_nested_json(value)
+            return nested or value
+        for index, char in enumerate(candidate):
+            if char != "{":
+                continue
+            try:
+                value, _ = decoder.raw_decode(candidate[index:])
+            except json.JSONDecodeError:
+                continue
+            if isinstance(value, dict):
+                nested = _find_nested_json(value)
+                return nested or value
+    raise ValueError("model output did not contain a JSON object")
+
+
+def _find_nested_json(value: Any) -> dict[str, Any] | None:
+    if isinstance(value, dict):
+        if "schema_version" in value:
+            return value
+        preferred_keys = ("text", "content", "message", "output", "response", "reply")
+        for key in preferred_keys:
+            child = value.get(key)
+            if isinstance(child, str):
+                try:
+                    parsed = extract_json_object(child)
+                except ValueError:
+                    continue
+                if "schema_version" in parsed:
+                    return parsed
+        for child in value.values():
+            found = _find_nested_json(child)
+            if found:
+                return found
+    elif isinstance(value, list):
+        for child in value:
+            found = _find_nested_json(child)
+            if found:
+                return found
+    return None
+
+
+def invoke_openclaw_json(
+    prompt: str,
+    *,
+    model: str,
+    stage: str,
+    timeout_seconds: int,
+    prompt_dir: Path,
+) -> dict[str, Any]:
+    if not model:
+        raise ValueError(f"model is required for real AI stage {stage}")
+    prompt_dir.mkdir(parents=True, exist_ok=True)
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            prefix=f"{stage}-",
+            suffix=".md",
+            dir=prompt_dir,
+            delete=False,
+        ) as handle:
+            handle.write(prompt)
+            temp_path = Path(handle.name)
+        agent_id = os.environ.get("CWK_AI_AGENT_ID", "cwk-ai-reviewer")
+        assert_safe_ai_agent(agent_id)
+        thinking = os.environ.get("CWK_AI_THINKING", "high")
+        instruction = (
+            f"Read the local prompt file {temp_path}. Follow it exactly. "
+            "Return only the requested JSON object. Do not send messages or modify files."
+        )
+        proc = subprocess.run(
+            [
+                "openclaw",
+                "agent",
+                "--agent",
+                agent_id,
+                "--session-id",
+                str(uuid.uuid4()),
+                "--model",
+                model,
+                "--message",
+                instruction,
+                "--thinking",
+                thinking,
+                "--timeout",
+                str(timeout_seconds),
+                "--json",
+            ],
+            cwd=str(PROJECT),
+            env=sanitized_ai_environment(),
+            text=True,
+            capture_output=True,
+            timeout=timeout_seconds + 30,
+        )
+        if proc.returncode != 0:
+            error = clean_evidence(proc.stderr or proc.stdout, 500)
+            raise RuntimeError(f"OpenClaw model call failed: {error}")
+        return extract_json_object(proc.stdout)
+    finally:
+        if temp_path and temp_path.exists():
+            temp_path.unlink()
+
+
+def sanitized_ai_environment() -> dict[str, str]:
+    """Keep runtime settings while withholding unrelated application/provider secrets."""
+    sanitized = {}
+    for key, value in os.environ.items():
+        upper = key.upper()
+        looks_secret = upper.endswith(("_API_KEY", "_APP_KEY", "_TOKEN", "_SECRET", "_PASSWORD"))
+        if looks_secret and upper not in AI_ENV_ALLOWLIST:
+            continue
+        sanitized[key] = value
+    sanitized.pop("CWORK_APP_KEY", None)
+    sanitized.pop("XG_BIZ_API_KEY", None)
+    return sanitized
+
+
+def safe_agent_policy(agent: dict[str, Any]) -> tuple[bool, str]:
+    if agent.get("skills") != []:
+        return False, "skills must be an explicit empty list"
+    tools = agent.get("tools") or {}
+    if tools.get("profile") != "minimal":
+        return False, "tools.profile must be minimal"
+    allowed = set(tools.get("allow") or []) | set(tools.get("alsoAllow") or [])
+    if "read" not in allowed:
+        return False, "read must be the only additional tool"
+    if not allowed.issubset({"read", "session_status"}):
+        return False, "only read and session_status may be allowed"
+    return True, "ok"
+
+
+def assert_safe_ai_agent(agent_id: str) -> None:
+    if agent_id in _SAFE_AGENTS:
+        return
+    proc = subprocess.run(
+        ["openclaw", "config", "get", "agents.list", "--json"],
+        cwd=str(PROJECT),
+        text=True,
+        capture_output=True,
+        timeout=30,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError("could not inspect OpenClaw agent policy")
+    agents = json.loads(proc.stdout)
+    agent = next((item for item in agents if item.get("id") == agent_id), None)
+    if not agent:
+        raise RuntimeError(f"CWK AI agent {agent_id!r} is not configured")
+    safe, reason = safe_agent_policy(agent)
+    if not safe:
+        raise RuntimeError(f"CWK AI agent {agent_id!r} is unsafe: {reason}")
+    _SAFE_AGENTS.add(agent_id)
+
+
+def _document_type(title: str) -> str:
+    mapping = [
+        ("会议纪要", "meeting_minutes"),
+        ("周报", "weekly_report"),
+        ("日报", "daily_report"),
+        ("合同", "contract_legal"),
+        ("法务", "contract_legal"),
+        ("申请", "request"),
+        ("方案", "technical_plan"),
+    ]
+    return next((kind for token, kind in mapping if token in title), "other")
+
+
+def fallback_record(raw_path: Path, extracted: dict[str, Any], status: str = "dry_run") -> dict[str, Any]:
+    text = raw_path.read_text(encoding="utf-8", errors="ignore")
+    meta, body = parse_frontmatter(text)
+    report_id = str(meta.get("report_id") or (extracted.get("source_ids") or [raw_path.stem])[0])
+    title = meta.get("title") or extracted.get("title") or raw_path.stem
+    evidence = first_readable_sentence(body, title)
+    actions = [clean_evidence(item) for item in extracted.get("actions", []) if clean_evidence(item)]
+    risks = [clean_evidence(item) for item in extracted.get("risks", []) if clean_evidence(item)]
+    decisions = [clean_evidence(item) for item in extracted.get("decision_points", []) if clean_evidence(item)]
+    raw_entities = extracted.get("entities", {})
+    entities = {
+        "people": raw_entities.get("people", []),
+        "teams": raw_entities.get("orgs", []),
+        "systems": raw_entities.get("systems", []),
+        "products": raw_entities.get("products", []),
+        "projects": raw_entities.get("projects", []),
+    }
+    attention = extracted.get("attention_type", "")
+    priority = {"requires_action": "must_read", "optional_review": "review", "awareness_only": "FYI"}.get(attention, "archive")
+    return {
+        "schema_version": RECORD_SCHEMA,
+        "ai_status": status,
+        "report_id": report_id,
+        "title": title,
+        "writer": meta.get("writer", ""),
+        "created_at_shanghai": to_shanghai(meta.get("create_time", "")),
+        "source_lane": meta.get("source_lane") or extracted.get("source_lane", "unknown"),
+        "document_type": _document_type(title),
+        "event_anchor": extracted.get("event_anchor") or title[:30],
+        "event_anchor_confidence": 0.55,
+        "summary": evidence,
+        "background": evidence,
+        "decisions": [{"text": item, "evidence": evidence} for item in decisions[:5]],
+        "action_items": [
+            {"task": item, "owner": None, "due_date": None, "status": "unknown", "evidence": evidence}
+            for item in actions[:8]
+        ],
+        "risks": [{"risk": item, "severity": "unknown", "evidence": evidence} for item in risks[:5]],
+        "entities": entities,
+        "priority_hint": priority,
+        "noise_flags": [],
+        "evidence_refs": [{"report_id": report_id, "quote": evidence}],
+    }
+
+
+def _quote_in_source(quote: str, source: str) -> bool:
+    normalized_quote = re.sub(r"\s+", "", quote or "")
+    normalized_source = re.sub(r"\s+", "", source or "")
+    return bool(normalized_quote) and normalized_quote in normalized_source
+
+
+def validate_record(payload: dict[str, Any], report_id: str, evidence_source: str | None = None) -> list[str]:
+    errors = []
+    required = ("title", "summary", "event_anchor", "entities", "action_items", "risks", "evidence_refs")
+    if payload.get("schema_version") != RECORD_SCHEMA:
+        errors.append("invalid schema_version")
+    if str(payload.get("report_id")) != str(report_id):
+        errors.append("report_id mismatch")
+    for key in required:
+        if key not in payload:
+            errors.append(f"missing {key}")
+    refs = payload.get("evidence_refs")
+    if not isinstance(refs, list) or not any(str(ref.get("report_id")) == str(report_id) and ref.get("quote") for ref in refs if isinstance(ref, dict)):
+        errors.append("missing traceable evidence_refs")
+    if evidence_source is not None:
+        for ref in refs or []:
+            if isinstance(ref, dict) and ref.get("quote") and not _quote_in_source(str(ref["quote"]), evidence_source):
+                errors.append("evidence_ref quote not found in source")
+        for collection, evidence_key in (("decisions", "evidence"), ("action_items", "evidence"), ("risks", "evidence")):
+            for item in payload.get(collection, []):
+                evidence = item.get(evidence_key, "") if isinstance(item, dict) else ""
+                if not _quote_in_source(str(evidence), evidence_source):
+                    errors.append(f"{collection} item missing exact source evidence")
+    return errors
+
+
+def normalize_record(payload: dict[str, Any], fallback: dict[str, Any]) -> dict[str, Any]:
+    """Fill non-evidentiary structural gaps from the deterministic extraction."""
+    normalized = dict(fallback)
+    normalized.update(payload)
+    filled = []
+    for key in (
+        "title",
+        "writer",
+        "created_at_shanghai",
+        "source_lane",
+        "document_type",
+        "event_anchor",
+        "event_anchor_confidence",
+        "background",
+        "entities",
+        "priority_hint",
+        "noise_flags",
+    ):
+        if key not in payload or payload.get(key) in (None, ""):
+            normalized[key] = fallback.get(key)
+            filled.append(key)
+    normalized["schema_version"] = RECORD_SCHEMA
+    normalized["report_id"] = fallback["report_id"]
+    for key in ("title", "writer", "created_at_shanghai", "source_lane"):
+        if normalized.get(key) != fallback.get(key):
+            filled.append(f"deterministic_{key}")
+        normalized[key] = fallback.get(key)
+    normalized["normalization_flags"] = sorted(set(payload.get("normalization_flags", []) + filled))
+    return normalized
+
+
+def validate_events(payload: dict[str, Any], valid_ids: set[str]) -> list[str]:
+    errors = []
+    if payload.get("schema_version") != EVENTS_SCHEMA:
+        errors.append("invalid events schema_version")
+    events = payload.get("events")
+    if not isinstance(events, list):
+        return errors + ["events must be a list"]
+    for index, event in enumerate(events):
+        for key in ("event_id", "event_title", "event_type", "status", "priority", "merged_summary", "why_it_matters"):
+            if key not in event or event.get(key) in (None, ""):
+                errors.append(f"event {index} missing {key}")
+        ids = {str(item) for item in event.get("record_ids", [])}
+        if not ids or not ids.issubset(valid_ids):
+            errors.append(f"event {index} has invalid record_ids")
+        if event.get("status") not in {"new", "continuing", "updated", "blocked", "closed", "unknown"}:
+            errors.append(f"event {index} has invalid status")
+        if event.get("priority") not in {"P0", "P1", "P2", "FYI"}:
+            errors.append(f"event {index} has invalid priority")
+    return errors
+
+
+def validate_priorities(payload: dict[str, Any], valid_ids: set[str]) -> list[str]:
+    errors = []
+    if payload.get("schema_version") != PRIORITIES_SCHEMA:
+        errors.append("invalid priorities schema_version")
+    priorities = payload.get("priorities")
+    if not isinstance(priorities, list):
+        return errors + ["priorities must be a list"]
+    for index, item in enumerate(priorities):
+        for key in ("rank", "event_id", "title", "priority", "status", "summary", "why_it_matters"):
+            if key not in item or item.get(key) in (None, ""):
+                errors.append(f"priority {index} missing {key}")
+        ids = {str(value) for value in item.get("record_ids", [])}
+        if not ids or not ids.issubset(valid_ids):
+            errors.append(f"priority {index} has invalid record_ids")
+        if item.get("priority") not in {"P0", "P1", "P2", "FYI"}:
+            errors.append(f"priority {index} has invalid priority")
+    return errors

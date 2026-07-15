@@ -14,7 +14,7 @@ It turns work-collaboration messages, todos, handled items, and reply chains int
 
 ## Status
 
-Internal/private v0.1.0. This repository intentionally excludes real raw evidence, real run outputs, secrets, and personal knowledge-base data.
+Internal/private v0.1.0 stable baseline, with RT-001 AI pilot implementation in progress. This repository intentionally excludes real raw evidence, real run outputs, secrets, prompts, AI outputs, and personal knowledge-base data.
 
 ## Quick Start
 
@@ -62,6 +62,8 @@ cp .env.example .env
 
 Then fill `CWORK_APP_KEY`. Keep `CWK_DOCDB_PROJECT_ID` and `CWK_DOCDB_ROOT_FILE_ID` empty unless you are intentionally writing to a specific shared knowledge-base folder.
 
+`cwk_nightly_pipeline.py` automatically loads the gitignored project `.env` and never overrides variables already exported by the parent process.
+
 For one-off shell usage, exporting the key is enough:
 
 ```bash
@@ -103,6 +105,44 @@ python3 scripts/cwk_nightly_pipeline.py \
 
 A production-ready live run should report `overall_pass=true` and generate both `digest-human-v4.md` and `digest-human-v4.html`.
 
+## AI Quality Pilot
+
+The stable nightly remains rules-only by default. RT-001 adds a side-by-side AI pipeline without replacing the rules digest:
+
+- per-report structured understanding with evidence quotes
+- cross-report event clustering and priority ranking
+- `digest-ai-enhanced.md/html`
+- `quality-review.json/md`
+- graceful degradation when a model or stage fails
+
+First verify the complete AI orchestration without calling a model:
+
+```bash
+CWK_AI_ENABLED=true CWK_AI_DRY_RUN=true make smoke-ai
+```
+
+For a real local pilot, configure three models in the private `.env`:
+
+```bash
+CWK_AI_ENABLED=true
+CWK_AI_DRY_RUN=false
+CWK_AI_RECORD_MODEL=provider/model
+CWK_AI_CLUSTER_MODEL=provider/model
+CWK_AI_QUALITY_MODEL=provider/model
+```
+
+Then run a side-by-side read-only pass:
+
+```bash
+python3 scripts/cwk_nightly_pipeline.py \
+  --config cwk-mirror.local.json \
+  --run-name ai-pilot-$(date +%Y%m%d-%H%M) \
+  --date $(date +%F) \
+  --sync-docdb
+```
+
+Real AI calls use `openclaw agent --json` through a dedicated `CWK_AI_AGENT_ID` and do not use `--deliver`. The configured Agent must have `tools.profile=minimal` and only add the `read` tool; CWK refuses to call a general-purpose or mutation-capable Agent. Temporary prompt files are deleted after each call. See `docs/AI-PILOT.md` for the runtime policy. Keep AI disabled in production cron until three pilot runs have been reviewed.
+
 ## Repository Layout
 
 ```text
@@ -122,6 +162,9 @@ tests/       Smoke fixtures only
 - Daily Markdown and HTML are generated.
 - No CWork mutating command appears in the run manifest.
 - Nightly cron is enabled only after one successful live read-only run.
+- AI pilot output is side-by-side; it does not replace the rules baseline.
+- Every AI event and priority contains valid source `report_id` values.
+- `degraded=false` is required before treating an AI pilot as technically healthy.
 
 ## Safety
 
