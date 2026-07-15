@@ -8,7 +8,10 @@ import os
 import re
 import subprocess
 import tempfile
+import time
 import uuid
+import fcntl
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -23,6 +26,10 @@ PRIORITIES_SCHEMA = "cwk.ai_daily_priorities.v1"
 QUALITY_SCHEMA = "cwk.ai_quality_review.v1"
 _SAFE_AGENTS: set[str] = set()
 AI_ENV_ALLOWLIST = {"OPENCLAW_GATEWAY_TOKEN", "OPENCLAW_GATEWAY_PASSWORD"}
+SENSITIVE_TEXT_PATTERNS = (
+    re.compile(r"\bsk-[A-Za-z0-9_-]{20,}\b"),
+    re.compile(r"\bBearer\s+[A-Za-z0-9._~+/=-]{20,}\b", re.I),
+)
 
 
 def ai_agent_workspace() -> Path:
@@ -32,11 +39,37 @@ def ai_agent_workspace() -> Path:
     return workspace
 
 
+@contextmanager
+def ai_runtime_guard():
+    """Prevent concurrent AI pilots and clear prompt remnants from interrupted runs."""
+    workspace = ai_agent_workspace()
+    workspace.mkdir(parents=True, exist_ok=True)
+    lock_path = workspace / ".pilot.lock"
+    with lock_path.open("a+", encoding="utf-8") as handle:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise RuntimeError("another CWK AI pilot is already using the runtime workspace") from exc
+        prompt_dir = workspace / "prompts"
+        if prompt_dir.exists():
+            for path in prompt_dir.iterdir():
+                if path.is_file() and not path.is_symlink():
+                    path.unlink()
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
 def env_bool(name: str, default: bool = False) -> bool:
     value = os.environ.get(name)
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def contains_sensitive_text(value: str) -> bool:
+    return any(pattern.search(value or "") for pattern in SENSITIVE_TEXT_PATTERNS)
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -163,6 +196,8 @@ def invoke_openclaw_json(
 ) -> dict[str, Any]:
     if not model:
         raise ValueError(f"model is required for real AI stage {stage}")
+    if contains_sensitive_text(prompt):
+        raise RuntimeError(f"sensitive content blocked before AI stage {stage}")
     runtime_workspace = ai_agent_workspace()
     prompt_dir = runtime_workspace / "prompts"
     prompt_dir.mkdir(parents=True, exist_ok=True)
@@ -183,39 +218,47 @@ def invoke_openclaw_json(
         agent_id = os.environ.get("CWK_AI_AGENT_ID", "cwk-ai-reviewer")
         assert_safe_ai_agent(agent_id)
         thinking = os.environ.get("CWK_AI_THINKING", "high")
-        prompt_path = temp_path.relative_to(runtime_workspace)
+        prompt_path = Path("/agent") / temp_path.relative_to(runtime_workspace)
         instruction = (
-            f"Read the prompt file {prompt_path} relative to your workspace. Follow it exactly. "
+            f"Read the sandbox-mounted prompt file {prompt_path}. Follow it exactly. "
             "Return only the requested JSON object. Do not send messages or modify files."
         )
-        proc = subprocess.run(
-            [
-                "openclaw",
-                "agent",
-                "--agent",
-                agent_id,
-                "--session-id",
-                str(uuid.uuid4()),
-                "--model",
-                model,
-                "--message",
-                instruction,
-                "--thinking",
-                thinking,
-                "--timeout",
-                str(timeout_seconds),
-                "--json",
-            ],
-            cwd=str(runtime_workspace),
-            env=sanitized_ai_environment(),
-            text=True,
-            capture_output=True,
-            timeout=timeout_seconds + 30,
-        )
-        if proc.returncode != 0:
-            error = clean_evidence(proc.stderr or proc.stdout, 500)
-            raise RuntimeError(f"OpenClaw model call failed: {error}")
-        return extract_json_object(proc.stdout)
+        attempts = max(1, int(os.environ.get("CWK_AI_CALL_RETRIES", "3")))
+        last_error = "unknown model failure"
+        for attempt in range(attempts):
+            try:
+                proc = subprocess.run(
+                    [
+                        "openclaw",
+                        "agent",
+                        "--agent",
+                        agent_id,
+                        "--session-id",
+                        str(uuid.uuid4()),
+                        "--model",
+                        model,
+                        "--message",
+                        instruction,
+                        "--thinking",
+                        thinking,
+                        "--timeout",
+                        str(timeout_seconds),
+                        "--json",
+                    ],
+                    cwd=str(runtime_workspace),
+                    env=sanitized_ai_environment(),
+                    text=True,
+                    capture_output=True,
+                    timeout=timeout_seconds + 30,
+                )
+                if proc.returncode == 0:
+                    return extract_json_object(proc.stdout)
+                last_error = clean_evidence(proc.stderr or proc.stdout, 500)
+            except subprocess.TimeoutExpired:
+                last_error = f"model call timed out after {timeout_seconds + 30}s"
+            if attempt + 1 < attempts:
+                time.sleep(2**attempt)
+        raise RuntimeError(f"OpenClaw model call failed after {attempts} attempts: {last_error}")
     finally:
         if temp_path and temp_path.exists():
             temp_path.unlink()
@@ -401,6 +444,35 @@ def normalize_record(payload: dict[str, Any], fallback: dict[str, Any]) -> dict[
         normalized[key] = fallback.get(key)
     normalized["normalization_flags"] = sorted(set(payload.get("normalization_flags", []) + filled))
     return normalized
+
+
+def sanitize_record_evidence(payload: dict[str, Any], fallback: dict[str, Any], evidence_source: str) -> dict[str, Any]:
+    """Prune model items whose evidence cannot be traced verbatim to the source."""
+    sanitized = dict(payload)
+    pruned = False
+    for collection in ("decisions", "action_items", "risks"):
+        items = payload.get(collection, [])
+        kept = [
+            item
+            for item in items
+            if isinstance(item, dict) and _quote_in_source(str(item.get("evidence", "")), evidence_source)
+        ]
+        pruned = pruned or len(kept) != len(items)
+        sanitized[collection] = kept
+    refs = [
+        ref
+        for ref in payload.get("evidence_refs", [])
+        if isinstance(ref, dict)
+        and str(ref.get("report_id")) == str(fallback["report_id"])
+        and _quote_in_source(str(ref.get("quote", "")), evidence_source)
+    ]
+    if not refs:
+        refs = fallback.get("evidence_refs", [])
+        pruned = True
+    sanitized["evidence_refs"] = refs
+    if pruned:
+        sanitized["normalization_flags"] = sorted(set(sanitized.get("normalization_flags", []) + ["untraceable_evidence_pruned"]))
+    return sanitized
 
 
 def validate_events(payload: dict[str, Any], valid_ids: set[str]) -> list[str]:

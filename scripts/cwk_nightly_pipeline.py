@@ -14,6 +14,8 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from cwk_ai_common import ai_runtime_guard
+
 
 PROJECT = Path(__file__).resolve().parents[1]
 SCRIPTS = PROJECT / "scripts"
@@ -41,6 +43,10 @@ DEFAULT_HISTORY_RUN = os.environ.get("CWK_HISTORY_RUN_NAME", "")
 
 
 SECRET_FLAGS = {"--app-key", "--api-key", "--token"}
+SECRET_PATTERNS = (
+    re.compile(r"\bsk-[A-Za-z0-9_-]{20,}\b"),
+    re.compile(r"\b(?:Bearer\s+)[A-Za-z0-9._~+/=-]{20,}\b", re.I),
+)
 
 
 def redact_cmd(args: list[str]) -> list[str]:
@@ -57,7 +63,49 @@ def redact_cmd(args: list[str]) -> list[str]:
     return redacted
 
 
-def run_cmd(args: list[str], dry_run: bool = False, env: dict[str, str] | None = None) -> dict:
+def redact_text(value: str, secrets: tuple[str, ...] = ()) -> str:
+    redacted = value
+    for secret in secrets:
+        if secret:
+            redacted = redacted.replace(secret, "<redacted>")
+    for pattern in SECRET_PATTERNS:
+        redacted = pattern.sub("<redacted>", redacted)
+    return redacted
+
+
+def sanitize_value(value, secrets: tuple[str, ...] = ()):
+    if isinstance(value, dict):
+        return {key: sanitize_value(item, secrets) for key, item in value.items()}
+    if isinstance(value, list):
+        return [sanitize_value(item, secrets) for item in value]
+    if isinstance(value, str):
+        return redact_text(value, secrets)
+    return value
+
+
+def find_publish_secrets(paths: list[Path], secrets: tuple[str, ...] = ()) -> list[str]:
+    findings: list[str] = []
+    for path in paths:
+        if not path.exists() or not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if any(secret and secret in text for secret in secrets) or any(pattern.search(text) for pattern in SECRET_PATTERNS):
+            findings.append(path.name)
+    return findings
+
+
+def require_publish_safe(paths: list[Path], secrets: tuple[str, ...] = ()) -> None:
+    findings = find_publish_secrets(paths, secrets)
+    if findings:
+        raise RuntimeError("secret gate blocked publishable artifacts: " + ", ".join(findings))
+
+
+def run_cmd(
+    args: list[str],
+    dry_run: bool = False,
+    env: dict[str, str] | None = None,
+    secrets: tuple[str, ...] = (),
+) -> dict:
     started = time.monotonic()
     if dry_run:
         return {"cmd": redact_cmd(args), "returncode": 0, "stdout": "", "stderr": "", "skipped": True, "duration_seconds": 0.0}
@@ -65,8 +113,8 @@ def run_cmd(args: list[str], dry_run: bool = False, env: dict[str, str] | None =
     return {
         "cmd": redact_cmd(args),
         "returncode": proc.returncode,
-        "stdout": proc.stdout[-4000:],
-        "stderr": proc.stderr[-4000:],
+        "stdout": redact_text(proc.stdout[-4000:], secrets),
+        "stderr": redact_text(proc.stderr[-4000:], secrets),
         "duration_seconds": round(time.monotonic() - started, 3),
     }
 
@@ -101,7 +149,7 @@ def config_value(args: argparse.Namespace, config: dict, name: str, default=None
     return config.get(name) if name in config else default
 
 
-def copy_to_mirror(run_dir: Path, date: str) -> dict[str, str]:
+def copy_to_mirror(run_dir: Path, date: str, secrets: tuple[str, ...] = ()) -> dict[str, str]:
     month = date[:7]
     daily_md = run_dir / "digest-human-v4.md"
     if not daily_md.exists():
@@ -109,6 +157,17 @@ def copy_to_mirror(run_dir: Path, date: str) -> dict[str, str]:
     if not daily_md.exists():
         daily_md = run_dir / "digest.md"
     daily_html = run_dir / "digest-human-v4.html"
+
+    publishable = [
+        daily_md,
+        daily_html,
+        run_dir / "digest-ai-enhanced.md",
+        run_dir / "digest-ai-enhanced.html",
+        run_dir / "ACCEPTANCE-RESULT.md",
+        run_dir / "incremental-link-preview-v1.md",
+        run_dir / "quality-review.md",
+    ]
+    require_publish_safe(publishable, secrets)
 
     outputs: dict[str, str] = {}
     daily_dir = MIRROR / "daily" / month
@@ -208,6 +267,7 @@ def run_ai_stages(args: argparse.Namespace, run_dir: Path, steps: list[dict]) ->
             {
                 "processed_count": summary.get("processed_count"),
                 "failed_count": summary.get("failed_count"),
+                "skipped_sensitive_count": summary.get("skipped_sensitive_count", 0),
             }
         )
         ai["degraded"] = ai["degraded"] or bool(summary.get("degraded"))
@@ -288,9 +348,9 @@ def run_ai_stages(args: argparse.Namespace, run_dir: Path, steps: list[dict]) ->
     return ai
 
 
-def write_manifest(run_dir: Path, manifest: dict) -> Path:
+def write_manifest(run_dir: Path, manifest: dict, secrets: tuple[str, ...] = ()) -> Path:
     path = run_dir / "nightly-pipeline-manifest.json"
-    path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    path.write_text(json.dumps(sanitize_value(manifest, secrets), ensure_ascii=False, indent=2), encoding="utf-8")
     return path
 
 
@@ -357,6 +417,7 @@ def main() -> None:
                 str(args.detail_cap),
             ],
             env={**os.environ, "CWORK_APP_KEY": args.app_key},
+            secrets=(args.app_key,),
         )
         steps.append({"step": "collect_live", **result})
         require_ok("collect_live", result)
@@ -425,13 +486,13 @@ def main() -> None:
         )
         steps.append({"step": "incremental_link_preview", "returncode": 0, "stdout": "", "stderr": "", "skipped": True})
 
-    ai_manifest = (
-        run_ai_stages(args, run_dir, steps)
-        if args.ai_enabled
-        else {"enabled": False, "dry_run": False, "degraded": False, "models": {}, "stages": {}, "outputs": {}}
-    )
+    if args.ai_enabled:
+        with ai_runtime_guard():
+            ai_manifest = run_ai_stages(args, run_dir, steps)
+    else:
+        ai_manifest = {"enabled": False, "dry_run": False, "degraded": False, "models": {}, "stages": {}, "outputs": {}}
 
-    mirror_outputs = {} if args.no_publish_mirror else copy_to_mirror(run_dir, args.date)
+    mirror_outputs = {} if args.no_publish_mirror else copy_to_mirror(run_dir, args.date, (args.app_key,))
 
     sync_manifest = None
     if args.sync_docdb:
@@ -488,7 +549,7 @@ def main() -> None:
         "sync_manifest": str(sync_manifest.relative_to(PROJECT)) if sync_manifest else None,
         "steps": steps,
     }
-    manifest_path = write_manifest(run_dir, manifest)
+    manifest_path = write_manifest(run_dir, manifest, (args.app_key,))
     print(json.dumps({k: manifest[k] for k in ["run_name", "processed_count", "overall_pass", "mirror_outputs"]}, ensure_ascii=False, indent=2))
     print(manifest_path)
 

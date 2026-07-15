@@ -88,6 +88,7 @@ The runner creates temporary prompt files under the ignored `.cwk-ai-runtime/pro
 - Cron model rejected: use an allowlisted model such as `newapi-anthropic-vip/MiniMax-latest-cloud`.
 - AI stage missing model: set all three `CWK_AI_*_MODEL` values or use `CWK_AI_DRY_RUN=true` for orchestration tests.
 - AI output invalid JSON/evidence: inspect the stage error in the nightly manifest; keep the rules digest as the published baseline.
+- `skipped_sensitive_count > 0`: the source was withheld before model invocation. Rotate real credentials at the issuer and review existing raw replicas before deleting them.
 
 ## Safety Rules
 

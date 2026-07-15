@@ -1,0 +1,37 @@
+{
+  "schema_version": "cwk.relation_gold.v1",
+  "description": "Thirty title-level relation judgments for the 2026-07-15 pilot. Related means worthy of a suspected-relation review, not confirmed merge.",
+  "pairs": [
+    {"source_ids": ["2076859518398300162", "2076876147483987969"], "related": true, "reason": "same lease renewal, release and seal stages"},
+    {"source_ids": ["2076646836936179713", "2076669759247941633"], "related": true, "reason": "same OpenClaw usage stream"},
+    {"source_ids": ["2075549723808403458", "2075977768084291585"], "related": true, "reason": "consecutive Cloud Shrimp operations dailies"},
+    {"source_ids": ["2075977768084291585", "2076312820080717825"], "related": true, "reason": "same-day operations and error dailies"},
+    {"source_ids": ["2074859361640927234", "2076583579885780993"], "related": true, "reason": "consecutive Cloud Shrimp weekly task summaries"},
+    {"source_ids": ["2074869460631711746", "2076585306349641729"], "related": true, "reason": "consecutive BP weekly task summaries"},
+    {"source_ids": ["2062826550096850945", "2072956674993303554"], "related": true, "reason": "same Legal AI programme"},
+    {"source_ids": ["2072956674993303554", "2076923841896316929"], "related": true, "reason": "same Legal AI planning stream"},
+    {"source_ids": ["2075552935303299074", "2076584537671995394"], "related": true, "reason": "same SFE progress stream"},
+    {"source_ids": ["2076990226185953281", "2077270240810696705"], "related": true, "reason": "same Small Shrimp operating-data stream"},
+    {"source_ids": ["2075149073824079874", "2076584545846575105"], "related": true, "reason": "same AI cost and budget stream"},
+    {"source_ids": ["2075189325301309441", "2076667660086792194"], "related": true, "reason": "same Cloud Shrimp daily progress stream"},
+    {"source_ids": ["2072956674993303554", "2076627263230709762"], "related": true, "reason": "same Legal Contract AI planning stream"},
+    {"source_ids": ["2075133259226025985", "2076973678117011457"], "related": true, "reason": "same sensitive-word remediation meetings"},
+    {"source_ids": ["2075501911498412033", "2075556388108668930"], "related": true, "reason": "same content-compliance remediation stream"},
+
+    {"source_ids": ["2076859518398300162", "2076646836936179713"], "related": false, "reason": "lease renewal vs OpenClaw usage"},
+    {"source_ids": ["2075552935303299074", "2077230778516766721"], "related": false, "reason": "SFE testing vs confidentiality agreement"},
+    {"source_ids": ["2074802322671824897", "2076990226185953281"], "related": false, "reason": "government quarterly filing vs product analytics"},
+    {"source_ids": ["2075423449957912578", "2077303035004125186"], "related": false, "reason": "scientific database purchase vs meeting display purchase"},
+    {"source_ids": ["2075119714346102785", "2076876147483987969"], "related": false, "reason": "enterprise evaluation filing vs lease seal"},
+    {"source_ids": ["2074662576620326913", "2076578840297095170"], "related": false, "reason": "AI Q&A exchange vs treasury report"},
+    {"source_ids": ["2075064043005284353", "2076625278213308417"], "related": false, "reason": "API quality vs media-system meeting"},
+    {"source_ids": ["2075113936428208129", "2076669759247941633"], "related": false, "reason": "customer project meeting vs model-usage report"},
+    {"source_ids": ["2075508349277069314", "2074764352765841410"], "related": false, "reason": "document publishing automation vs sales assessment"},
+    {"source_ids": ["2076913427145883650", "2076859518398300162"], "related": false, "reason": "registration AI meeting vs lease renewal"},
+    {"source_ids": ["2077203107162554370", "2075549723808403458"], "related": false, "reason": "prescription diagnosis plan vs Cloud Shrimp daily"},
+    {"source_ids": ["2077330840777588738", "2075119714346102785"], "related": false, "reason": "TBS rank feature vs government filing"},
+    {"source_ids": ["2077345649921466369", "2076578840297095170"], "related": false, "reason": "Skill standards vs treasury report"},
+    {"source_ids": ["2075067066129477634", "2076585306349641729"], "related": false, "reason": "video infringement authorization vs BP weekly tasks"},
+    {"source_ids": ["2077303035004125186", "2076923841896316929"], "related": false, "reason": "display procurement vs Legal AI planning"}
+  ]
+}

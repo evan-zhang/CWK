@@ -15,12 +15,14 @@ from cwk_ai_common import (
     PROJECT,
     RECORD_SCHEMA,
     env_bool,
+    contains_sensitive_text,
     fallback_record,
     invoke_openclaw_json,
     load_json,
     normalize_record,
     parse_frontmatter,
     validate_record,
+    sanitize_record_evidence,
     write_json,
 )
 
@@ -71,6 +73,19 @@ Required JSON shape (all keys must be present):
 """
 
 
+def repair_prompt(raw_path: Path, extracted: dict[str, Any], errors: list[str]) -> str:
+    return prompt_for(raw_path, extracted) + f"""
+
+## Contract correction
+
+Your previous JSON failed validation: {json.dumps(errors, ensure_ascii=False)}
+Return the full JSON object again. Evidence values must be literal, contiguous
+substrings copied character-for-character from the Original report above. Do not
+paraphrase evidence, normalize punctuation, add ellipses, or use Markdown quotes.
+Omit an unsupported decision, action item, or risk instead of inventing evidence.
+"""
+
+
 def process_one(
     raw_path: Path,
     extracted: dict[str, Any],
@@ -83,10 +98,23 @@ def process_one(
     started = time.monotonic()
     fallback = fallback_record(raw_path, extracted, "dry_run" if dry_run else "failed")
     report_id = fallback["report_id"]
+    raw_text = raw_path.read_text(encoding="utf-8", errors="ignore")
+    if contains_sensitive_text(raw_text):
+        safe = {
+            **fallback,
+            "ai_status": "skipped_sensitive",
+            "summary": "Sensitive source withheld from AI processing.",
+            "background": "Sensitive source withheld from AI processing.",
+            "decisions": [],
+            "action_items": [],
+            "risks": [],
+            "evidence_refs": [],
+            "noise_flags": sorted(set(fallback.get("noise_flags", []) + ["sensitive_source_withheld"])),
+        }
+        return safe, None, time.monotonic() - started
     if dry_run:
         return fallback, None, time.monotonic() - started
     try:
-        raw_text = raw_path.read_text(encoding="utf-8", errors="ignore")
         payload = invoke_openclaw_json(
             prompt_for(raw_path, extracted),
             model=model,
@@ -95,8 +123,21 @@ def process_one(
             prompt_dir=prompt_dir,
         )
         payload = normalize_record(payload, fallback)
+        payload = sanitize_record_evidence(payload, fallback, raw_text)
         payload["ai_status"] = "completed"
         errors = validate_record(payload, report_id, raw_text)
+        if errors:
+            payload = invoke_openclaw_json(
+                repair_prompt(raw_path, extracted, errors),
+                model=model,
+                stage=f"record-{report_id}-repair",
+                timeout_seconds=timeout_seconds,
+                prompt_dir=prompt_dir,
+            )
+            payload = normalize_record(payload, fallback)
+            payload = sanitize_record_evidence(payload, fallback, raw_text)
+            payload["ai_status"] = "completed"
+            errors = validate_record(payload, report_id, raw_text)
         if errors:
             raise ValueError("; ".join(errors))
         return payload, None, time.monotonic() - started
@@ -151,20 +192,23 @@ def main() -> None:
             results.append({"report_id": payload["report_id"], "status": payload["ai_status"], "duration_seconds": round(duration, 3), "error": error})
 
     failures = sum(1 for item in results if item["status"] == "failed")
+    completed = sum(1 for item in results if item["status"] == "completed")
+    skipped_sensitive = sum(1 for item in results if item["status"] == "skipped_sensitive")
     summary = {
         "schema_version": "cwk.ai_record_summary.v1",
         "model": "dry-run" if args.dry_run else args.model,
         "dry_run": args.dry_run,
         "processed_count": len(results),
-        "completed_count": len(results) - failures,
+        "completed_count": completed,
         "failed_count": failures,
+        "skipped_sensitive_count": skipped_sensitive,
         "degraded": failures > 0,
         "records": sorted(results, key=lambda item: item["report_id"]),
     }
     write_json(run_dir / "ai-record-summary.json", summary)
     if prompt_dir.exists() and not any(prompt_dir.iterdir()):
         prompt_dir.rmdir()
-    print(json.dumps({key: summary[key] for key in ("processed_count", "completed_count", "failed_count", "degraded")}, ensure_ascii=False))
+    print(json.dumps({key: summary[key] for key in ("processed_count", "completed_count", "failed_count", "skipped_sensitive_count", "degraded")}, ensure_ascii=False))
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ mutating API.
 from __future__ import annotations
 
 import json
+import math
 import re
 import shutil
 import argparse
@@ -55,6 +56,24 @@ GENERIC_ENTITY_TERMS = {
     "集团",
     "玄关",
     "销售部",
+}
+
+INVALID_EVENT_ANCHORS = {
+    "及跟进",
+    "跟进",
+    "已更新",
+    "更新",
+    "例会",
+    "会议",
+    "双周会",
+    "周会",
+    "日报",
+    "周报",
+    "月报",
+}
+
+EVENT_ANCHOR_ALIASES = {
+    "SFE系统": "SFE",
 }
 
 KNOWN_SYSTEMS = [
@@ -195,8 +214,28 @@ def normalize_title(title: str) -> str:
     return re.sub(r"\s+", " ", title).strip()
 
 
-def title_anchor(title: str, entities: dict[str, list[str]]) -> str:
+def is_valid_event_anchor(value: str) -> bool:
+    value = (value or "").strip(" -—_：:、,，")
+    if not value or value in INVALID_EVENT_ANCHORS or value in STOPWORDS or value in GENERIC_ENTITY_TERMS:
+        return False
+    if re.fullmatch(r"(?:20\d{2}[-/.]?)?\d{1,2}[-/.]\d{1,2}|\d{3,8}", value):
+        return False
+    if re.fullmatch(r"(?:及|和|与)?(?:跟进|更新|汇报|纪要|报告)", value):
+        return False
+    if value.endswith(("和", "及", "与", "暨", "的")):
+        return False
+    return len(value) >= 2
+
+
+def _title_anchor(title: str, entities: dict[str, list[str]]) -> str:
     clean = normalize_title(title)
+    compact = re.sub(r"\s+", "", title)
+    if any(term in compact for term in ("敏感词", "敏感字")) or ("内容" in compact and "合规治理" in compact):
+        return "内容合规治理"
+    if any(term in compact for term in ("大模型使用预算", "大模型费用", "AI费用")):
+        return "AI费用"
+    if "法务部" in compact and ("合同AI" in compact or "法务部AI" in compact):
+        return "法务部AI"
     clinical_project = first_match(
         [
             r"(2026[^-—_：:、,，]{2,30}临床调研项目)",
@@ -240,6 +279,18 @@ def title_anchor(title: str, entities: dict[str, list[str]]) -> str:
     if candidates:
         return candidates[0]
     return chunks[0] if chunks else clean[:20] or "未命名事项"
+
+
+def title_anchor(title: str, entities: dict[str, list[str]]) -> str:
+    raw_anchor = _title_anchor(title, entities)
+    anchor = EVENT_ANCHOR_ALIASES.get(raw_anchor, raw_anchor)
+    if is_valid_event_anchor(anchor):
+        return anchor
+    for bucket in ("projects", "systems", "products", "customers", "contracts"):
+        for value in entities.get(bucket, []):
+            if is_valid_event_anchor(value):
+                return value
+    return "未命名事项"
 
 
 def extract_entities(text: str, title: str) -> dict[str, list[str]]:
@@ -304,9 +355,10 @@ def attention_type(lane: str, title: str) -> str:
 
 def event_family(title: str, nature: str) -> str:
     clean = normalize_title(title)
-    if any(word in clean for word in ["日例会", "例会"]):
+    probe = re.sub(r"\s+", "", title)
+    if any(word in probe for word in ["日例会", "例会"]):
         return "routine_meeting"
-    if any(word in clean for word in ["产品任务进度汇总", "周报", "月报", "季报", "运营报告", "半年报"]):
+    if any(word in probe for word in ["产品任务进度汇总", "周报", "周总结", "月报", "季报", "运营报告", "半年报", "日报", "用户数据分析报告"]):
         return "recurring_report"
     if any(word in clean for word in ["需求", "需求列表", "需求说明"]):
         return "requirements"
@@ -324,7 +376,7 @@ def event_family(title: str, nature: str) -> str:
         return "training_enablement"
     if any(word in clean for word in ["架构", "方案", "规划", "设计"]):
         return "planning_design"
-    if "会议纪要" in title:
+    if "会议纪要" in probe or probe.endswith("纪要"):
         return "meeting_minutes"
     return nature or "general"
 
@@ -361,7 +413,11 @@ def load_items(source_dirs: list[Path]) -> list[Item]:
             created_at = meta.get("create_time") or meta.get("createTime") or first_match([r"Create Time:\s*(.+)$", r"created:\s*(.+)$"], text)
             lane = meta.get("source_lane") or infer_lane(path, meta, title)
             collection_mode = meta.get("collection_mode") or "reference-sample"
-            items.append(Item(source_id, title, writer, created_at, lane, collection_mode, str(path.relative_to(PROJECT)), text))
+            try:
+                source_path = str(path.relative_to(PROJECT))
+            except ValueError:
+                source_path = str(Path("external-source") / path.parent.name / path.name)
+            items.append(Item(source_id, title, writer, created_at, lane, collection_mode, source_path, text))
     return items
 
 
@@ -428,10 +484,9 @@ def score_relation(a: dict, b: dict, entity_df: Counter, anchor_df: Counter, tot
     strong_signals = 0
     same_anchor = False
     cross_anchor_strong_signal = False
-    if (
-        a["event_anchor"]
-        and a["event_anchor"] == b["event_anchor"]
-        and is_specific_entity(a["event_anchor"], entity_df, total)
+    if a["event_anchor"] and a["event_anchor"] == b["event_anchor"] and (
+        is_specific_entity(a["event_anchor"], entity_df, total)
+        or a.get("event_family") == b.get("event_family")
     ):
         if anchor_df[a["event_anchor"]] > 3 and a.get("event_family") != b.get("event_family"):
             return 0.0, [], "same-program-only"
@@ -439,6 +494,7 @@ def score_relation(a: dict, b: dict, entity_df: Counter, anchor_df: Counter, tot
         if a.get("event_family") == b.get("event_family"):
             evidence.append(f"same event family: {a.get('event_family')}")
             score += 0.08
+            strong_signals += 1
         score += 0.30
         strong_signals += 1
         same_anchor = True
@@ -494,12 +550,10 @@ def build_relations(extractions: dict[str, dict]) -> dict[str, list[dict]]:
     anchor_df = relation_anchor_stats(extractions)
     family_df = relation_family_stats(extractions)
     total = len(extractions)
-    relations: dict[str, list[dict]] = {}
-    for sid in ids:
-        candidates: list[dict] = []
-        for other in ids:
-            if other == sid:
-                continue
+    relations: dict[str, list[dict]] = {sid: [] for sid in ids}
+    candidates: list[dict] = []
+    for index, sid in enumerate(ids):
+        for other in ids[index + 1 :]:
             confidence, evidence, relation_type = score_relation(extractions[sid], extractions[other], entity_df, anchor_df, total)
             if evidence and confidence >= 0.58:
                 if confidence >= 0.65:
@@ -517,17 +571,41 @@ def build_relations(extractions: dict[str, dict]) -> dict[str, list[dict]]:
                         "decision": decision,
                     }
                 )
-        candidates.sort(key=lambda x: (-x["confidence"], x["target_source_id"]))
-        source = extractions[sid]
+    candidates.sort(key=lambda x: (-x["confidence"], x["source_ids"]))
+    degree: Counter = Counter()
+
+    def candidate_cap(source_id: str) -> int:
+        source = extractions[source_id]
         candidate_cap = 3
         family_key = (source.get("event_anchor"), source.get("event_family"))
         if family_df[family_key] > 4 or (
             anchor_df[source.get("event_anchor")] > 3
             and source.get("event_family") in {"recurring_digest", "recurring_report", "budget_cost"}
         ):
-            candidate_cap = 1
-        relations[sid] = candidates[:candidate_cap]
+            candidate_cap = 2
+        return candidate_cap
+
+    for candidate in candidates:
+        sid, other = candidate["source_ids"]
+        if degree[sid] >= candidate_cap(sid) or degree[other] >= candidate_cap(other):
+            continue
+        relations[sid].append(candidate)
+        degree[sid] += 1
+        degree[other] += 1
     return relations
+
+
+def unique_relation_pairs(relations: dict[str, list[dict]]) -> list[dict]:
+    unique: dict[tuple[str, str], dict] = {}
+    for rels in relations.values():
+        for relation in rels:
+            pair = tuple(sorted(map(str, relation.get("source_ids", []))))
+            if len(pair) != 2:
+                continue
+            previous = unique.get(pair)
+            if previous is None or relation.get("confidence", 0) > previous.get("confidence", 0):
+                unique[pair] = relation
+    return list(unique.values())
 
 
 def slug(value: str) -> str:
@@ -683,11 +761,12 @@ def build_acceptance(run_dir: Path, items: list[Item], extractions: dict[str, di
     lane_counts = Counter(item.lane for item in items)
     action_node_count = lane_counts.get("todo_backed", 0) + lane_counts.get("reply_chain", 0)
     recurring_count = sum(1 for ext in extractions.values() if ext["item_nature"] == "recurring_digest")
-    relation_items = sum(1 for rels in relations.values() if rels)
-    two_signal = sum(1 for rels in relations.values() for rel in rels if len(rel["evidence"]) >= 2)
-    strong = sum(1 for rels in relations.values() for rel in rels if rel["decision"] == "auto_append")
-    suspected = sum(1 for rels in relations.values() for rel in rels if rel["decision"] == "mark_suspected")
-    all_relations = [rel for rels in relations.values() for rel in rels]
+    all_relations = unique_relation_pairs(relations)
+    relation_item_ids = {source_id for rel in all_relations for source_id in rel["source_ids"]}
+    relation_items = len(relation_item_ids)
+    two_signal = sum(1 for rel in all_relations if len(rel["evidence"]) >= 2)
+    strong = sum(1 for rel in all_relations if rel["decision"] == "auto_append")
+    suspected = sum(1 for rel in all_relations if rel["decision"] == "mark_suspected")
     same_anchor_family = 0
     cross_anchor = 0
     for rel in all_relations:
@@ -714,6 +793,7 @@ def build_acceptance(run_dir: Path, items: list[Item], extractions: dict[str, di
         "high_signal_count": len(high_signal),
         "anchored_high_signal_count": len(anchored),
         "relation_items": relation_items,
+        "unique_relation_pairs": len(all_relations),
         "two_signal_relations": two_signal,
         "strong_relations": strong,
         "suspected_relations": suspected,
@@ -737,12 +817,10 @@ def build_acceptance(run_dir: Path, items: list[Item], extractions: dict[str, di
     if is_backlog_calibration:
         input_coverage = len(items) >= 80 and raw_count >= int(len(items) * 0.95)
 
-    relation_quality = (
-        strong == 0
-        and suspected <= max(40, int(len(items) * 0.6))
-        and cross_anchor <= max(3, int(max(1, len(all_relations)) * 0.1))
-        and same_anchor_family >= int(max(1, len(all_relations)) * 0.7)
-    )
+    suspected_cap = max(40, int(len(items) * 0.6))
+    cross_anchor_cap = max(3, int(max(1, len(all_relations)) * 0.1))
+    same_anchor_family_min = math.ceil(max(1, len(all_relations)) * 0.7)
+    relation_quality = strong == 0 and suspected <= suspected_cap and cross_anchor <= cross_anchor_cap and same_anchor_family >= same_anchor_family_min
     checks = {
         "A1_input_coverage": input_coverage,
         "A2_raw_evidence": raw_count >= int(len(items) * 0.95),
@@ -758,7 +836,20 @@ def build_acceptance(run_dir: Path, items: list[Item], extractions: dict[str, di
     if not checks["A1_input_coverage"]:
         results["failures"].append("A1 has insufficient action-node, persistent-stream, awareness, reply-chain, or recurring coverage.")
     if not checks["A4_relationship_judgment"]:
-        results["failures"].append("A4 relation quality gate failed: too many candidates, too many cross-anchor links, or too few same-anchor-family links.")
+        if is_backlog_calibration:
+            if strong != 0:
+                results["failures"].append(f"A4 auto-append must remain disabled during calibration: actual={strong}, expected=0.")
+            if suspected > suspected_cap:
+                results["failures"].append(f"A4 suspected relation volume exceeds review cap: actual={suspected}, max={suspected_cap}.")
+            if cross_anchor > cross_anchor_cap:
+                results["failures"].append(f"A4 cross-anchor relation volume is too high: actual={cross_anchor}, max={cross_anchor_cap}.")
+            if same_anchor_family < same_anchor_family_min:
+                results["failures"].append(f"A4 same-anchor-family relation coverage is too low: actual={same_anchor_family}, min={same_anchor_family_min}, unique_pairs={len(all_relations)}.")
+        else:
+            if relation_items < 10:
+                results["failures"].append(f"A4 too few items have relation candidates: actual={relation_items}, min=10.")
+            if two_signal < 5:
+                results["failures"].append(f"A4 too few unique relation pairs have two evidence signals: actual={two_signal}, min=5.")
     return results
 
 
@@ -779,6 +870,7 @@ def render_acceptance(summary: dict) -> str:
         f"- Raw files: {summary['raw_count']}",
         f"- Valid extractions: {summary['valid_extractions']}",
         f"- Relation items: {summary['relation_items']}",
+        f"- Unique relation pairs: {summary.get('unique_relation_pairs', 0)}",
         f"- Two-signal relations: {summary['two_signal_relations']}",
         f"- Strong relations: {summary['strong_relations']}",
         f"- Suspected relations: {summary['suspected_relations']}",

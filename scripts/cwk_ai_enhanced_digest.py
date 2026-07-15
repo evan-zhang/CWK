@@ -18,12 +18,18 @@ def render(run_dir: Path) -> str:
     priorities_payload = load_json(run_dir / "ai-daily-priorities.json")
     event_by_id = {item["event_id"]: item for item in events_payload.get("events", [])}
     priorities = priorities_payload.get("priorities", [])
+    record_summary_path = run_dir / "ai-record-summary.json"
+    record_summary = load_json(record_summary_path) if record_summary_path.exists() else {}
+    source_count = record_summary.get("processed_count", 0)
+    completed_count = record_summary.get("completed_count", 0)
+    skipped_sensitive = record_summary.get("skipped_sensitive_count", 0)
+    evidence_ids = {str(report_id) for item in events_payload.get("events", []) for report_id in item.get("record_ids", [])}
     lines = [
         "# 工作协同每日简报（AI 增强版）",
         "",
         "## 管理结论",
         "",
-        f"本轮从 {sum(len(item.get('record_ids', [])) for item in events_payload.get('events', []))} 条证据中归并出 {len(events_payload.get('events', []))} 个事项，筛出 {len(priorities)} 个优先关注项。所有判断均保留原始 report_id，可回到规则版和 raw 证据核验。",
+        f"本轮共收到 {source_count or len(evidence_ids)} 条来源记录；其中 {completed_count or len(evidence_ids)} 条进入 AI 理解，{skipped_sensitive} 条因敏感信息在模型调用前安全隔离。基于 {len(evidence_ids)} 条可用证据归并出 {len(events_payload.get('events', []))} 个事项，筛出 {len(priorities)} 个优先关注项。所有判断均保留原始 report_id，可回到规则版和 raw 证据核验。",
         "",
         "## 今天优先看",
         "",
@@ -78,6 +84,7 @@ def render(run_dir: Path) -> str:
         "- 本版是 AI 增强阅读件，规则版仍是稳定 baseline。",
         "- AI 不操作 CWork；不标已读、不回复、不审批、不完成待办。",
         "- 任何无法由 report_id 或原文片段支持的结论都不应进入正式沉淀。",
+        f"- 敏感源安全隔离：{skipped_sensitive} 条；隔离记录不进入模型或 AI 聚类，仍保留在规则 baseline 中。",
         "",
         "## 证据入口",
         "",

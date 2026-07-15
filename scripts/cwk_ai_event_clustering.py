@@ -121,6 +121,9 @@ Rules:
 - Every event and priority must contain non-empty record_ids copied from input.
 - Never add a report_id that is not in input.
 - Preserve evidence-bearing decisions, action_items and risks from records.
+- For every decision, action_item and risk, copy its evidence value exactly from
+  one of the linked input records. Do not paraphrase evidence. Omit the item if
+  no exact evidence value supports it.
 - Mark repeated history as continuing and rank real changes above unchanged repetition.
 - Use P0, P1, P2, FYI. Return at most 10 priorities.
 - Do not invent facts. Return JSON only.
@@ -141,6 +144,18 @@ Current records:
 
 Optional history events:
 {json.dumps(history or {}, ensure_ascii=False)}
+"""
+
+
+def repair_prompt(records: list[dict[str, Any]], run_name: str, history: dict[str, Any] | None, errors: list[str]) -> str:
+    return prompt_for(records, run_name, history) + f"""
+
+## Contract correction
+
+Your previous JSON failed validation: {json.dumps(errors, ensure_ascii=False)}
+Return the complete clustering bundle again. Every decisions/action_items/risks
+evidence value must be copied character-for-character from a linked input
+record. Do not paraphrase or invent evidence. Omit unsupported items. JSON only.
 """
 
 
@@ -176,6 +191,9 @@ def normalize_bundle(bundle: dict[str, Any], run_name: str, records: list[dict[s
             priority = max_priority
         summary = item.get("merged_summary") or item.get("summary") or ""
         why = item.get("why_it_matters") or linked_priority.get("why_it_matters") or linked_priority.get("reason") or "需结合原文判断。"
+        history_match = item.get("history_match")
+        if not isinstance(history_match, dict):
+            history_match = {"matched": status == "continuing", "history_event": "", "confidence": 0.0, "reason": "not provided"}
         normalized_events.append(
             {
                 **item,
@@ -185,7 +203,7 @@ def normalize_bundle(bundle: dict[str, Any], run_name: str, records: list[dict[s
                 "status": status,
                 "priority": priority,
                 "record_ids": item.get("record_ids", []),
-                "history_match": item.get("history_match") or {"matched": status == "continuing", "history_event": "", "confidence": 0.0, "reason": "not provided"},
+                "history_match": history_match,
                 "merged_summary": summary,
                 "decisions": item.get("decisions", []),
                 "action_items": item.get("action_items", []),
@@ -245,17 +263,101 @@ def validate_cluster_evidence(events: dict[str, Any], records: list[dict[str, An
     return errors
 
 
+def validate_event_coverage(events: dict[str, Any], valid_ids: set[str], minimum: float = 0.95) -> list[str]:
+    if not valid_ids:
+        return ["no eligible records for clustering"]
+    event_list = events.get("events", [])
+    if not event_list:
+        return ["events must not be empty for a non-empty record set"]
+    covered = {str(report_id) for event in event_list for report_id in event.get("record_ids", [])}
+    ratio = len(covered & valid_ids) / len(valid_ids)
+    if ratio < minimum:
+        return [f"event record coverage too low: actual={ratio:.3f}, minimum={minimum:.3f}"]
+    return []
+
+
+def merge_event_batches(batch_events: list[dict[str, Any]], run_name: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for event in batch_events:
+        key = normalized_anchor({"report_id": event.get("event_id", "unknown"), "event_anchor": event.get("event_title", "")})
+        grouped[key].append(event)
+
+    priority_rank = {"P0": 0, "P1": 1, "P2": 2, "FYI": 3}
+    status_rank = {"blocked": 0, "updated": 1, "continuing": 2, "new": 3, "unknown": 4, "closed": 5}
+    merged = []
+    for anchor, members in grouped.items():
+        record_ids = sorted({str(report_id) for member in members for report_id in member.get("record_ids", [])})
+        priority = min((member.get("priority", "P2") for member in members), key=lambda value: priority_rank.get(value, 2))
+        status = min((member.get("status", "unknown") for member in members), key=lambda value: status_rank.get(value, 4))
+        if priority == "P0" and status != "blocked":
+            priority = "P1"
+        summaries = list(dict.fromkeys(member.get("merged_summary", "") for member in members if member.get("merged_summary")))
+        reasons = list(dict.fromkeys(member.get("why_it_matters", "") for member in members if member.get("why_it_matters")))
+        history_candidates = [member.get("history_match") for member in members if isinstance(member.get("history_match"), dict)]
+        matched_history = next((value for value in history_candidates if value.get("matched")), history_candidates[0] if history_candidates else {})
+        merged.append(
+            {
+                "event_id": stable_id(anchor),
+                "event_title": members[0].get("event_title") or anchor,
+                "event_type": members[0].get("event_type", "other"),
+                "status": status,
+                "priority": priority,
+                "record_ids": record_ids,
+                "history_match": matched_history,
+                "merged_summary": "；".join(summaries)[:800],
+                "decisions": dedupe_dicts([item for member in members for item in member.get("decisions", [])], "text")[:8],
+                "action_items": dedupe_dicts([item for member in members for item in member.get("action_items", [])], "task")[:10],
+                "risks": dedupe_dicts([item for member in members for item in member.get("risks", [])], "risk")[:8],
+                "why_it_matters": "；".join(reasons)[:500] or "需结合原文判断。",
+            }
+        )
+    merged.sort(key=lambda item: (priority_rank[item["priority"]], status_rank[item["status"]], item["event_title"]))
+    selected = []
+    topic_counts: dict[str, int] = defaultdict(int)
+    for event in merged:
+        title = event["event_title"]
+        topic = "云端虾" if "云端虾" in title or "云龙虾" in title else title
+        if topic_counts[topic] >= 2:
+            continue
+        topic_counts[topic] += 1
+        selected.append(event)
+        if len(selected) == 10:
+            break
+    priorities = [
+        {
+            "rank": index + 1,
+            "event_id": event["event_id"],
+            "title": event["event_title"],
+            "priority": event["priority"],
+            "status": event["status"],
+            "summary": event["merged_summary"],
+            "why_it_matters": event["why_it_matters"],
+            "record_ids": event["record_ids"],
+        }
+        for index, event in enumerate(selected)
+    ]
+    return (
+        {"schema_version": EVENTS_SCHEMA, "run_name": run_name, "events": merged},
+        {"schema_version": PRIORITIES_SCHEMA, "run_name": run_name, "priorities": priorities},
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Cluster CWK AI record-understanding artifacts.")
     parser.add_argument("--run-name", required=True)
     parser.add_argument("--history-run-name", default=os.environ.get("CWK_HISTORY_RUN_NAME", ""))
     parser.add_argument("--model", default=os.environ.get("CWK_AI_CLUSTER_MODEL", ""))
     parser.add_argument("--timeout-seconds", type=int, default=int(os.environ.get("CWK_AI_TIMEOUT_SECONDS", "120")))
+    parser.add_argument("--batch-size", type=int, default=int(os.environ.get("CWK_AI_CLUSTER_BATCH_SIZE", "10")))
     parser.add_argument("--dry-run", action="store_true", default=env_bool("CWK_AI_DRY_RUN"))
     args = parser.parse_args()
 
     run_dir = PROJECT / "runs" / args.run_name
-    records = [load_json(path) for path in sorted((run_dir / "ai-understanding").glob("*.json"))]
+    records = [
+        record
+        for path in sorted((run_dir / "ai-understanding").glob("*.json"))
+        if (record := load_json(path)).get("ai_status") != "skipped_sensitive"
+    ]
     if not records:
         raise SystemExit("no AI understanding records found")
     valid_ids = {str(item["report_id"]) for item in records}
@@ -272,20 +374,75 @@ def main() -> None:
         events, priorities = dry_run_cluster(records, args.run_name, history_titles)
         model_label = "dry-run"
     else:
-        bundle = invoke_openclaw_json(
-            prompt_for(records, args.run_name, history),
-            model=args.model,
-            stage="event-clustering",
-            timeout_seconds=args.timeout_seconds,
-            prompt_dir=run_dir / ".ai-prompts",
-        )
-        events, priorities = normalize_bundle(bundle, args.run_name, records)
+        batch_outputs = []
+        batch_size = max(1, args.batch_size)
+        checkpoint_dir = run_dir / "ai-clustering-batches"
+        checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        for start in range(0, len(records), batch_size):
+            batch = records[start : start + batch_size]
+            batch_number = start // batch_size + 1
+            batch_ids = {str(item["report_id"]) for item in batch}
+            checkpoint_path = checkpoint_dir / f"batch-{batch_number:03d}.json"
+            checkpoint = load_json(checkpoint_path) if checkpoint_path.exists() else {}
+            expected_ids = sorted(batch_ids)
+            if checkpoint.get("record_ids") == expected_ids and checkpoint.get("model") == args.model:
+                batch_events = checkpoint.get("events", {})
+                batch_priorities = checkpoint.get("priorities", {})
+            else:
+                bundle = invoke_openclaw_json(
+                    prompt_for(batch, args.run_name, history),
+                    model=args.model,
+                    stage=f"event-clustering-{batch_number}",
+                    timeout_seconds=args.timeout_seconds,
+                    prompt_dir=run_dir / ".ai-prompts",
+                )
+                batch_events, batch_priorities = normalize_bundle(bundle, args.run_name, batch)
+            batch_errors = (
+                validate_events(batch_events, batch_ids)
+                + validate_priorities(batch_priorities, batch_ids)
+                + validate_cluster_evidence(batch_events, batch)
+                + validate_event_coverage(batch_events, batch_ids, 1.0)
+            )
+            if batch_errors:
+                bundle = invoke_openclaw_json(
+                    repair_prompt(batch, args.run_name, history, batch_errors),
+                    model=args.model,
+                    stage=f"event-clustering-{batch_number}-repair",
+                    timeout_seconds=args.timeout_seconds,
+                    prompt_dir=run_dir / ".ai-prompts",
+                )
+                batch_events, batch_priorities = normalize_bundle(bundle, args.run_name, batch)
+                batch_errors = (
+                    validate_events(batch_events, batch_ids)
+                    + validate_priorities(batch_priorities, batch_ids)
+                    + validate_cluster_evidence(batch_events, batch)
+                    + validate_event_coverage(batch_events, batch_ids, 1.0)
+                )
+            if batch_errors:
+                raise SystemExit(f"invalid clustering batch {batch_number}: " + "; ".join(batch_errors))
+            write_json(
+                checkpoint_path,
+                {
+                    "schema_version": "cwk.ai_clustering_batch.v1",
+                    "model": args.model,
+                    "record_ids": expected_ids,
+                    "events": batch_events,
+                    "priorities": batch_priorities,
+                },
+            )
+            batch_outputs.extend(batch_events["events"])
+        events, priorities = merge_event_batches(batch_outputs, args.run_name)
         model_label = args.model
-    errors = validate_events(events, valid_ids) + validate_priorities(priorities, valid_ids) + validate_cluster_evidence(events, records)
-    event_ids = {item.get("event_id") for item in events.get("events", [])}
-    for index, item in enumerate(priorities.get("priorities", [])):
-        if item.get("event_id") not in event_ids:
-            errors.append(f"priority {index} references an unknown event_id")
+
+    def validation_errors() -> list[str]:
+        found = validate_events(events, valid_ids) + validate_priorities(priorities, valid_ids) + validate_cluster_evidence(events, records) + validate_event_coverage(events, valid_ids)
+        event_ids = {item.get("event_id") for item in events.get("events", [])}
+        for index, item in enumerate(priorities.get("priorities", [])):
+            if item.get("event_id") not in event_ids:
+                found.append(f"priority {index} references an unknown event_id")
+        return found
+
+    errors = validation_errors()
     if errors:
         raise SystemExit("invalid clustering output: " + "; ".join(errors))
     write_json(run_dir / "ai-events.json", events)

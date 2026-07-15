@@ -21,7 +21,7 @@ CWK real AI calls must target a dedicated OpenClaw Agent. The Agent policy must 
 }
 ```
 
-This exposes only local file `read`. A private `.cwk-ai-runtime` workspace containing only short-lived prompt files is mounted read-only inside an Agent-scoped sandbox. The runtime preflight requires the Agent workspace to match this fixed project-local directory; the path cannot be overridden by an environment variable, and neither it nor `prompts/` may be a symbolic link. The Agent cannot read CWK code, `.env`, run history, other projects, or host files. It does not expose runtime commands, filesystem mutation, CWork/DocDB plugins, messaging, cron, web, sessions, or Agent delegation.
+This exposes only local file `read`. A private `.cwk-ai-runtime` workspace containing only short-lived prompt files is mounted read-only at `/agent` inside an Agent-scoped sandbox. The runtime preflight requires the Agent workspace to match this fixed project-local directory; the path cannot be overridden by an environment variable, and neither it nor `prompts/` may be a symbolic link. The Agent cannot read CWK code, `.env`, run history, other projects, or host files. It does not expose runtime commands, filesystem mutation, CWork/DocDB plugins, messaging, cron, web, sessions, or Agent delegation.
 
 Do not point `CWK_AI_AGENT_ID` at `chat-main-agent`, an operations Agent, or any Agent with `coding`, `messaging`, or `full` tools.
 
@@ -50,3 +50,12 @@ CWK_AI_THINKING=high
 5. Compare `quality-review.json`, rules digest, AI digest, evidence coverage, priority inflation, missed actions, missed risks, and over-merge.
 
 Only after three reviewed pilots may an operator propose changing the scheduled job. That change is outside RT-001 implementation and requires explicit authorization.
+
+## Sensitive-source quarantine
+
+Before creating a prompt, the runner scans the complete source record for
+secret-shaped values. Matching records are marked `skipped_sensitive`, withheld
+from the model and AI clustering, and retained only in the deterministic rules
+path. A runtime lock prevents concurrent pilots and clears prompt remnants from
+an interrupted prior run. Any real credential found in a source must be rotated
+at its issuing system; local redaction does not revoke a credential.

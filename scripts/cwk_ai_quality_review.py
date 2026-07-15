@@ -56,16 +56,24 @@ def dry_run_review(rules: str, enhanced: str, events: dict[str, Any], valid_ids:
 def prompt_for(rules: str, enhanced: str, events: dict[str, Any], valid_ids: set[str]) -> str:
     return f"""# CWK AI quality review
 
-Compare the deterministic rules digest and the AI-enhanced digest. Return one JSON object with:
-- schema_version: `{QUALITY_SCHEMA}`
-- review_status: `completed`
-- quality_score and rules_score: integers 0-100
-- evidence_coverage: number 0-1
-- improvements: string list
-- regressions: string list
-- issues: list of objects with severity, issue, evidence_report_ids
-- recommendations: string list
-- release_recommendation: pilot|hold|reject
+Compare the deterministic rules digest and the AI-enhanced digest. Return exactly
+one JSON object using this complete shape and these exact English key names:
+
+{{
+  "schema_version": "{QUALITY_SCHEMA}",
+  "review_status": "completed",
+  "quality_score": 0,
+  "rules_score": 0,
+  "evidence_coverage": 0.0,
+  "improvements": [],
+  "regressions": [],
+  "issues": [{{"severity": "low|medium|high", "issue": "string", "evidence_report_ids": []}}],
+  "recommendations": [],
+  "release_recommendation": "pilot|hold|reject"
+}}
+
+Replace the example values with your assessment. Scores must be integers 0-100
+and evidence_coverage must be a number from 0 to 1.
 
 Judge duplicate reduction, readable summaries, event anchors, action clarity,
 hallucination risk, over-merge, missed evidence, time consistency, and machine noise.
@@ -80,6 +88,17 @@ The AI version remains a pilot even when it scores higher. Return JSON only.
 
 ## AI events
 {json.dumps(events, ensure_ascii=False)}
+"""
+
+
+def repair_prompt(rules: str, enhanced: str, events: dict[str, Any], valid_ids: set[str], errors: list[str]) -> str:
+    return prompt_for(rules, enhanced, events, valid_ids) + f"""
+
+## Contract correction
+
+Your previous JSON failed validation: {json.dumps(errors, ensure_ascii=False)}
+Return the complete JSON object again with the exact schema_version and exact
+English keys shown above. Return JSON only.
 """
 
 
@@ -158,6 +177,16 @@ def main() -> None:
         )
         payload["review_status"] = "completed"
     errors = validate_review(payload, valid_ids)
+    if errors and not args.dry_run:
+        payload = invoke_openclaw_json(
+            repair_prompt(rules, enhanced, events, valid_ids, errors),
+            model=args.model,
+            stage="quality-review-repair",
+            timeout_seconds=args.timeout_seconds,
+            prompt_dir=run_dir / ".ai-prompts",
+        )
+        payload["review_status"] = "completed"
+        errors = validate_review(payload, valid_ids)
     if errors:
         raise SystemExit("invalid quality review: " + "; ".join(errors))
     payload["model"] = "dry-run" if args.dry_run else args.model
