@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import tempfile
@@ -167,7 +168,7 @@ def write_markdown(out_dir: Path, rid: str, row: dict[str, Any], lane: str, full
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Collect live CWork records in read-only mode for CWK.")
-    parser.add_argument("--app-key", required=True)
+    parser.add_argument("--app-key", default=os.environ.get("CWORK_APP_KEY") or os.environ.get("XG_BIZ_API_KEY") or "")
     parser.add_argument("--run-name", default=datetime.now().strftime("live-read-%Y%m%d-%H%M%S"))
     parser.add_argument("--only-unread", action="store_true", help="Collect only unread report pages for backlog calibration.")
     parser.add_argument("--inbox-size", type=int, default=50)
@@ -178,6 +179,8 @@ def main() -> None:
     parser.add_argument("--todo-size", type=int, default=30)
     parser.add_argument("--detail-cap", type=int, default=40)
     args = parser.parse_args()
+    if not args.app_key:
+        raise SystemExit("CWORK_APP_KEY is required.")
 
     run_dir = PROJECT / "runs" / args.run_name
     raw_dir = run_dir / "collected-raw"

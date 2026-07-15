@@ -20,12 +20,29 @@ MIRROR = PROJECT / "knowledge" / "工作协同镜像"
 DEFAULT_HISTORY_RUN = os.environ.get("CWK_HISTORY_RUN_NAME", "")
 
 
-def run_cmd(args: list[str], dry_run: bool = False) -> dict:
+SECRET_FLAGS = {"--app-key", "--api-key", "--token"}
+
+
+def redact_cmd(args: list[str]) -> list[str]:
+    redacted: list[str] = []
+    skip_next = False
+    for item in args:
+        if skip_next:
+            redacted.append("<redacted>")
+            skip_next = False
+            continue
+        redacted.append(item)
+        if item in SECRET_FLAGS:
+            skip_next = True
+    return redacted
+
+
+def run_cmd(args: list[str], dry_run: bool = False, env: dict[str, str] | None = None) -> dict:
     if dry_run:
-        return {"cmd": args, "returncode": 0, "stdout": "", "stderr": "", "skipped": True}
-    proc = subprocess.run(args, cwd=str(PROJECT), text=True, capture_output=True)
+        return {"cmd": redact_cmd(args), "returncode": 0, "stdout": "", "stderr": "", "skipped": True}
+    proc = subprocess.run(args, cwd=str(PROJECT), env=env, text=True, capture_output=True)
     return {
-        "cmd": args,
+        "cmd": redact_cmd(args),
         "returncode": proc.returncode,
         "stdout": proc.stdout[-4000:],
         "stderr": proc.stderr[-4000:],
@@ -135,13 +152,12 @@ def main() -> None:
             [
                 sys.executable,
                 str(SCRIPTS / "cwk_collect_live.py"),
-                "--app-key",
-                args.app_key,
                 "--run-name",
                 collect_run,
                 "--detail-cap",
                 str(args.detail_cap),
-            ]
+            ],
+            env={**os.environ, "CWORK_APP_KEY": args.app_key},
         )
         steps.append({"step": "collect_live", **result})
         require_ok("collect_live", result)
