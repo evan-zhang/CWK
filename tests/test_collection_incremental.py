@@ -23,6 +23,7 @@ from cwk_collection_state import (  # noqa: E402
 import cwk_collect_live  # noqa: E402
 import cwk_materialize_safe  # noqa: E402
 import cwk_sync_mirror_to_docdb  # noqa: E402
+import cwk_sample_pilot  # noqa: E402
 
 
 class IncrementalCollectionTests(unittest.TestCase):
@@ -215,6 +216,33 @@ class IncrementalCollectionTests(unittest.TestCase):
                 events = cwk_sync_mirror_to_docdb.iter_items(None, "events/", str(manifest))
             self.assertEqual([item.rel.as_posix() for item in history], ["history/changed.md"])
             self.assertEqual([item.rel.as_posix() for item in events], ["events/changed.md"])
+
+    def test_incremental_a4_low_volume_is_warning_not_failure(self):
+        item = cwk_sample_pilot.Item("1", "事项", "甲", "2026-07-17", "reply_chain", "incremental", "updated", "inbox", "x.md", "正文")
+        extraction = {
+            "item_nature": "decision_or_action",
+            "attention_type": "requires_action",
+            "event_anchor": "事项",
+            "event_family": "事项",
+            "entities": [], "actions": [], "risks": [], "decision_points": [], "open_loops": [],
+            "reply_chain": [], "source_ids": ["1"],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            result = cwk_sample_pilot.build_acceptance(
+                Path(directory), [item], {"1": extraction}, {"1": []}, [], [], 1, "incremental"
+            )
+        self.assertTrue(result["checks"]["A4_relationship_judgment"])
+        self.assertEqual(result["A4_status"], "PASS_LOW_VOLUME")
+        self.assertTrue(result["warnings"])
+
+    def test_docdb_retry_queue_round_trip(self):
+        with tempfile.TemporaryDirectory() as directory:
+            queue = Path(directory) / "retry.json"
+            cwk_sync_mirror_to_docdb.write_retry_paths(queue, {"runs/a.md", "history/b.md"})
+            self.assertEqual(
+                cwk_sync_mirror_to_docdb.load_retry_paths(queue),
+                {"runs/a.md", "history/b.md"},
+            )
 
 
 if __name__ == "__main__":

@@ -37,6 +37,8 @@ DEFAULT_ROOT_FILE_ID = os.environ.get("CWK_DOCDB_ROOT_FILE_ID", "")
 DEFAULT_ROOT_NAME = "工作协同镜像"
 DEFAULT_SENDER_ID = os.environ.get("CWK_SENDER_ID", "")
 DEFAULT_ACCOUNT_ID = os.environ.get("CWK_ACCOUNT_ID", "default")
+DEFAULT_RETRY_QUEUE = PROJECT / "runs" / "docdb-sync-retry-queue.json"
+TRANSIENT_ERRORS = ("服务器繁忙", "文件信息查询失败", "timeout", "timed out", "temporarily unavailable", "connection reset")
 
 
 @dataclass
@@ -59,7 +61,7 @@ def run_json(cmd: list[str], env: dict[str, str], retries: int = 3) -> dict:
             else:
                 payload = json.loads(lines[-1])
                 msg = payload.get("resultMsg") or ""
-                if payload.get("resultCode") == 1 or "服务器繁忙" not in msg:
+                if payload.get("resultCode") == 1 or not any(token.lower() in msg.lower() for token in TRANSIENT_ERRORS):
                     return payload
                 last_error = msg
         else:
@@ -182,6 +184,50 @@ def iter_items(limit: int | None, only_prefix: str | None, paths_manifest: str |
             )
         )
     return items
+
+
+def load_retry_paths(path: Path) -> set[str]:
+    if not path.exists():
+        return set()
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return set()
+    return {str(value) for value in payload.get("failed_relative_paths", [])}
+
+
+def write_retry_paths(path: Path, paths: set[str]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "updated_at": datetime.now().isoformat(timespec="seconds"),
+        "failed_relative_paths": sorted(paths),
+    }
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def write_sync_manifest(output: Path, args: argparse.Namespace, results: list[dict]) -> dict:
+    counts = {
+        "total": len(results),
+        "create": sum(1 for r in results if r.get("action") == "create"),
+        "update_version": sum(1 for r in results if r.get("action") == "update_version"),
+        "physical_create": sum(1 for r in results if r.get("action") == "physical_create"),
+        "physical_update_version": sum(1 for r in results if r.get("action") == "physical_update_version"),
+        "skip_existing": sum(1 for r in results if r.get("action") == "skip_existing"),
+        "skip_too_large": sum(1 for r in results if r.get("action") == "skip_too_large"),
+        "failed": sum(1 for r in results if r.get("action") == "failed"),
+    }
+    manifest = {
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "dry_run": args.dry_run,
+        "project_id": args.project_id,
+        "root_file_id": args.root_file_id,
+        "mirror_root": str(MIRROR.relative_to(PROJECT)),
+        "counts": counts,
+        "results": results,
+    }
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    return manifest
 
 
 def find_existing(item: SyncItem, project_id: str, root_file_id: str, env: dict[str, str]) -> dict | None:
@@ -395,6 +441,7 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--create-missing-only", action="store_true")
     parser.add_argument("--manifest", default=None)
+    parser.add_argument("--retry-queue", default=str(DEFAULT_RETRY_QUEUE), help="Persistent queue for failed relative paths.")
     args = parser.parse_args()
 
     app_key = (
@@ -407,46 +454,44 @@ def main() -> None:
     env["XG_BIZ_API_KEY"] = app_key
     args.project_id, args.root_file_id = resolve_docdb_target(args.project_id, args.root_file_id, env, args.dry_run)
 
+    output = Path(args.manifest) if args.manifest else PROJECT / "runs" / "docdb-mirror-sync-manifest.json"
+    retry_queue = Path(args.retry_queue).expanduser().resolve()
+    retry_paths = load_retry_paths(retry_queue)
+    items = iter_items(args.limit, args.only_prefix, args.paths_manifest)
+    selected = {item.rel.as_posix(): item for item in items}
+    for item in iter_items(None, args.only_prefix, None):
+        if item.rel.as_posix() in retry_paths:
+            selected.setdefault(item.rel.as_posix(), item)
+
     results = []
-    for index, item in enumerate(iter_items(args.limit, args.only_prefix, args.paths_manifest), 1):
-        existing = find_existing(item, args.project_id, args.root_file_id, env)
-        results.append(
-            upload_or_update(
-                item,
-                existing,
-                args.project_id,
-                env,
-                args.dry_run,
-                args.create_missing_only,
-                args.physical_prefix,
-                args.max_bytes,
-            )
-        )
+    for index, item in enumerate(selected.values(), 1):
+        rel = item.rel.as_posix()
+        try:
+            existing = find_existing(item, args.project_id, args.root_file_id, env)
+            result = upload_or_update(
+                    item,
+                    existing,
+                    args.project_id,
+                    env,
+                    args.dry_run,
+                    args.create_missing_only,
+                    args.physical_prefix,
+                    args.max_bytes,
+                )
+            results.append(result)
+            retry_paths.discard(rel)
+        except Exception as exc:  # continue the batch and persist a compensating retry
+            results.append({"relative_path": rel, "action": "failed", "error": str(exc)[:1000]})
+            retry_paths.add(rel)
+        write_retry_paths(retry_queue, retry_paths)
+        write_sync_manifest(output, args, results)
         if index % 10 == 0:
             print(f"processed {index}", file=sys.stderr, flush=True)
-
-    manifest = {
-        "generated_at": datetime.now().isoformat(timespec="seconds"),
-        "dry_run": args.dry_run,
-        "project_id": args.project_id,
-        "root_file_id": args.root_file_id,
-        "mirror_root": str(MIRROR.relative_to(PROJECT)),
-        "counts": {
-            "total": len(results),
-            "create": sum(1 for r in results if r["action"] == "create"),
-            "update_version": sum(1 for r in results if r["action"] == "update_version"),
-            "physical_create": sum(1 for r in results if r["action"] == "physical_create"),
-            "physical_update_version": sum(1 for r in results if r["action"] == "physical_update_version"),
-            "skip_existing": sum(1 for r in results if r["action"] == "skip_existing"),
-            "skip_too_large": sum(1 for r in results if r["action"] == "skip_too_large"),
-        },
-        "results": results,
-    }
-    output = Path(args.manifest) if args.manifest else PROJECT / "runs" / "docdb-mirror-sync-manifest.json"
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    manifest = write_sync_manifest(output, args, results)
     print(json.dumps(manifest["counts"], ensure_ascii=False))
     print(output)
+    if manifest["counts"]["failed"]:
+        raise SystemExit(2)
 
 
 if __name__ == "__main__":

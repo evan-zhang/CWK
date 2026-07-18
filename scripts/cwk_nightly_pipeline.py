@@ -543,6 +543,7 @@ def main() -> None:
 
     sync_manifest = None
     structured_sync_manifests: list[str] = []
+    sync_failures: list[str] = []
     if args.sync_docdb:
         sync_manifest = RUNS / f"docdb-{args.run_name}-daily-runs-sync.json"
         sync_cmd = [
@@ -561,7 +562,8 @@ def main() -> None:
             sync_cmd.append("--dry-run")
         result = run_cmd(sync_cmd)
         steps.append({"step": "sync_daily_docdb", **result})
-        require_ok("sync_daily_docdb", result)
+        if result["returncode"] != 0:
+            sync_failures.append("sync_daily_docdb")
 
         sync_runs_manifest = RUNS / f"docdb-{args.run_name}-runs-sync.json"
         sync_runs_cmd = [
@@ -580,7 +582,8 @@ def main() -> None:
             sync_runs_cmd.append("--dry-run")
         result = run_cmd(sync_runs_cmd)
         steps.append({"step": "sync_runs_docdb", **result})
-        require_ok("sync_runs_docdb", result)
+        if result["returncode"] != 0:
+            sync_failures.append("sync_runs_docdb")
 
         for prefix in ("history/", "events/", "entities/", "_index/"):
             label = prefix.strip("/").replace("/", "-")
@@ -603,7 +606,8 @@ def main() -> None:
                 structured_cmd.append("--dry-run")
             result = run_cmd(structured_cmd)
             steps.append({"step": f"sync_{label}_docdb", **result})
-            require_ok(f"sync_{label}_docdb", result)
+            if result["returncode"] != 0:
+                sync_failures.append(f"sync_{label}_docdb")
             structured_sync_manifests.append(str(structured_manifest.relative_to(PROJECT)))
 
     summary = read_json(run_dir / "run.json")
@@ -627,7 +631,9 @@ def main() -> None:
             )
         } if collection_manifest else None,
         "safe_materialize": safe_materialize_manifest,
-        "overall_pass": summary.get("overall_pass"),
+        "overall_pass": bool(summary.get("overall_pass")) and not sync_failures,
+        "content_quality_pass": summary.get("overall_pass"),
+        "sync_failures": sync_failures,
         "degraded": bool(ai_manifest.get("degraded")),
         "ai": ai_manifest,
         "mirror_outputs": mirror_outputs,

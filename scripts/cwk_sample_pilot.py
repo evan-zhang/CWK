@@ -790,14 +790,20 @@ def build_acceptance(
     strong = sum(1 for rel in all_relations if rel["decision"] == "auto_append")
     suspected = sum(1 for rel in all_relations if rel["decision"] == "mark_suspected")
     same_anchor_family = 0
+    same_anchor = 0
     cross_anchor = 0
+    evaluable_relation_pairs = 0
     for rel in all_relations:
         src_id, target_id = rel["source_ids"]
         src = extractions.get(src_id, {})
         target = extractions.get(target_id, {})
-        if src.get("event_anchor") == target.get("event_anchor") and src.get("event_family") == target.get("event_family"):
-            same_anchor_family += 1
-        elif src.get("event_anchor") != target.get("event_anchor"):
+        if src and target:
+            evaluable_relation_pairs += 1
+        if src and target and src.get("event_anchor") == target.get("event_anchor"):
+            same_anchor += 1
+            if src.get("event_family") == target.get("event_family"):
+                same_anchor_family += 1
+        elif src and target and src.get("event_anchor") != target.get("event_anchor"):
             cross_anchor += 1
     high_signal = [e for e in extractions.values() if e["attention_type"] in {"requires_action", "awareness_only", "optional_review"}]
     anchored = [e for e in high_signal if e["event_anchor"] and e["event_anchor"] != "未命名事项"]
@@ -821,7 +827,9 @@ def build_acceptance(
         "strong_relations": strong,
         "suspected_relations": suspected,
         "same_anchor_family_relations": same_anchor_family,
+        "same_anchor_relations": same_anchor,
         "cross_anchor_relations": cross_anchor,
+        "evaluable_relation_pairs": evaluable_relation_pairs,
         "event_proposals": len(events),
         "entity_proposals": len(entities),
         "recurring_topic_proposals": sum(1 for e in events if any(extractions[sid]["item_nature"] == "recurring_digest" for sid in e["related_raw_ids"])),
@@ -842,8 +850,15 @@ def build_acceptance(
 
     suspected_cap = max(40, int(len(items) * 0.6))
     cross_anchor_cap = max(3, int(max(1, len(all_relations)) * 0.1))
-    same_anchor_family_min = math.ceil(max(1, len(all_relations)) * 0.7)
-    relation_quality = strong == 0 and suspected <= suspected_cap and cross_anchor <= cross_anchor_cap and same_anchor_family >= same_anchor_family_min
+    same_anchor_family_min = math.ceil(evaluable_relation_pairs * 0.7)
+    relation_quality = (
+        strong == 0
+        and suspected <= suspected_cap
+        and cross_anchor <= cross_anchor_cap
+        and same_anchor_family >= same_anchor_family_min
+    )
+    incremental_relation_quality = strong == 0 and suspected <= suspected_cap and cross_anchor <= cross_anchor_cap
+    incremental_low_volume = acceptance_profile == "incremental" and (relation_items < 10 or two_signal < 5)
     checks = {
         "A1_input_coverage": input_coverage,
         "A2_raw_evidence": raw_count >= int(len(items) * 0.95),
@@ -860,9 +875,25 @@ def build_acceptance(
                 "A1_input_coverage": raw_count == len(items),
                 "A2_raw_evidence": raw_count == len(items),
                 "A3_structured_extraction": valid_extractions == len(items) and (not high_signal or len(anchored) >= int(len(high_signal) * 0.8)),
-                "A4_relationship_judgment": not all_relations or relation_quality,
+                # Incremental runs legitimately connect different event families under the
+                # same anchor (for example, a plan followed by a requirements update).
+                # Keep those review-only and reject only auto-append/cross-anchor excess.
+                "A4_relationship_judgment": not all_relations or incremental_relation_quality,
                 "A5_event_entity_output": not items or (len(events) >= 1 and len(entities) >= 1),
             }
+        )
+    results["A4_status"] = (
+        "PASS_LOW_VOLUME"
+        if checks["A4_relationship_judgment"] and incremental_low_volume
+        else "PASS"
+        if checks["A4_relationship_judgment"]
+        else "FAIL"
+    )
+    results["warnings"] = []
+    if results["A4_status"] == "PASS_LOW_VOLUME":
+        results["warnings"].append(
+            f"A4 relation volume is low for an incremental run: relation_items={relation_items}, "
+            f"two_signal_pairs={two_signal}; quality gates passed."
         )
     results["checks"] = checks
     results["overall_pass"] = all(checks.values())
@@ -878,7 +909,7 @@ def build_acceptance(
                 results["failures"].append(f"A4 cross-anchor relation volume is too high: actual={cross_anchor}, max={cross_anchor_cap}.")
             if same_anchor_family < same_anchor_family_min:
                 results["failures"].append(f"A4 same-anchor-family relation coverage is too low: actual={same_anchor_family}, min={same_anchor_family_min}, unique_pairs={len(all_relations)}.")
-        else:
+        elif acceptance_profile != "incremental":
             if relation_items < 10:
                 results["failures"].append(f"A4 too few items have relation candidates: actual={relation_items}, min=10.")
             if two_signal < 5:
@@ -908,7 +939,10 @@ def render_acceptance(summary: dict) -> str:
         f"- Strong relations: {summary['strong_relations']}",
         f"- Suspected relations: {summary['suspected_relations']}",
         f"- Same-anchor-family relations: {summary.get('same_anchor_family_relations', 0)}",
+        f"- Same-anchor relations: {summary.get('same_anchor_relations', 0)}",
         f"- Cross-anchor relations: {summary.get('cross_anchor_relations', 0)}",
+        f"- Evaluable relation pairs: {summary.get('evaluable_relation_pairs', 0)}",
+        f"- A4 status: {summary.get('A4_status', 'PASS' if summary['checks'].get('A4_relationship_judgment') else 'FAIL')}",
         f"- Event proposals: {summary['event_proposals']}",
         f"- Entity proposals: {summary['entity_proposals']}",
         "",
@@ -920,6 +954,11 @@ def render_acceptance(summary: dict) -> str:
     lines += ["", "## Failures", ""]
     if summary["failures"]:
         lines.extend(f"- {f}" for f in summary["failures"])
+    else:
+        lines.append("- None")
+    lines += ["", "## Warnings", ""]
+    if summary.get("warnings"):
+        lines.extend(f"- {warning}" for warning in summary["warnings"])
     else:
         lines.append("- None")
     return "\n".join(lines) + "\n"
