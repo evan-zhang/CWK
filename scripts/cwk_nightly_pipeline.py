@@ -166,6 +166,8 @@ def copy_to_mirror(run_dir: Path, date: str, secrets: tuple[str, ...] = ()) -> d
         run_dir / "ACCEPTANCE-RESULT.md",
         run_dir / "incremental-link-preview-v1.md",
         run_dir / "quality-review.md",
+        run_dir / "action-center.md",
+        run_dir / "action-center.html",
     ]
     require_publish_safe(publishable, secrets)
 
@@ -184,6 +186,8 @@ def copy_to_mirror(run_dir: Path, date: str, secrets: tuple[str, ...] = ()) -> d
     for src_name, output_key, daily_name in [
         ("digest-ai-enhanced.md", "daily_ai_md", f"{date}-ai-enhanced.md"),
         ("digest-ai-enhanced.html", "daily_ai_html", f"{date}-ai-enhanced.html"),
+        ("action-center.md", "daily_action_center_md", f"{date}-action-center.md"),
+        ("action-center.html", "daily_action_center_html", f"{date}-action-center.html"),
     ]:
         src = run_dir / src_name
         if src.exists():
@@ -538,6 +542,19 @@ def main() -> None:
             ai_manifest = run_ai_stages(args, run_dir, steps)
     else:
         ai_manifest = {"enabled": False, "dry_run": False, "degraded": False, "models": {}, "stages": {}, "outputs": {}}
+
+    # RT-002 Phase 1 is deliberately Shadow Mode only.  It builds interactive
+    # previews from local run artifacts and has no CWork write adapter.
+    result = run_cmd(
+        [
+            sys.executable,
+            str(SCRIPTS / "cwk_action_center.py"),
+            "--run-name",
+            args.run_name,
+        ]
+    )
+    steps.append({"step": "action_center_shadow", **result})
+    require_ok("action_center_shadow", result)
 
     mirror_outputs = {} if args.no_publish_mirror else copy_to_mirror(run_dir, args.date, (args.app_key,))
 

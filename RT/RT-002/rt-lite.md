@@ -1,6 +1,6 @@
 # RT-Lite: RT-002 - 交互式工作协同办理中心
 
-> profile: Spec-Lite | status: intaking | branch: rt/RT-002-interactive-action-center
+> profile: Spec-Lite | status: in_progress | branch: rt/RT-002-interactive-action-center
 
 ## 1. 目标
 
@@ -23,12 +23,12 @@
 
 ## 4. 验收清单
 
-- [ ] 角色与主类型契约有 fixture 覆盖。
-- [ ] 同一工作协同跨入口只展示一次。
-- [ ] 决策待办与建议待办明确区分。
-- [ ] 普通收件和更新通知可选择不发表意见。
-- [ ] 用户可输入要求并重新生成草稿。
-- [ ] Shadow Mode 按钮只生成预览，mutating command 为 0。
+- [x] 角色与主类型契约有 fixture 覆盖。
+- [x] 同一工作协同跨入口只展示一次。
+- [x] 决策待办与建议待办明确区分。
+- [x] 普通收件和更新通知可选择不发表意见。
+- [x] 用户可输入要求并生成操作预览。
+- [x] Shadow Mode 按钮只生成预览，mutating command 为 0。
 - [ ] 所有真实写操作必须经过逐项最终确认。
 - [ ] 幂等、状态冲突和 read-back 验证测试通过。
 - [ ] 审计记录不包含密钥且能追溯业务目标和执行结果。

@@ -23,6 +23,9 @@ smoke:
 		--no-publish-mirror
 	test -f runs/$(SMOKE_RUN)/digest-human-v4.md
 	test -f runs/$(SMOKE_RUN)/digest-human-v4.html
+	test -f runs/$(SMOKE_RUN)/action-cards.json
+	test -f runs/$(SMOKE_RUN)/action-center.md
+	test -f runs/$(SMOKE_RUN)/action-center.html
 	test -f runs/$(SMOKE_RUN)/nightly-pipeline-manifest.json
 
 smoke-ai:
@@ -38,6 +41,7 @@ smoke-ai:
 	test -f runs/$(SMOKE_AI_RUN)/digest-ai-enhanced.html
 	test -f runs/$(SMOKE_AI_RUN)/quality-review.json
 	test -f runs/$(SMOKE_AI_RUN)/quality-review.md
+	test -f runs/$(SMOKE_AI_RUN)/action-center.html
 	grep -q '"degraded": false' runs/$(SMOKE_AI_RUN)/nightly-pipeline-manifest.json
 
 smoke-ai-degraded:
@@ -51,6 +55,7 @@ smoke-ai-degraded:
 		--source-dir tests/smoke/raw \
 		--no-publish-mirror
 	test -f runs/$(SMOKE_AI_DEGRADED_RUN)/digest-human-v4.md
+	test -f runs/$(SMOKE_AI_DEGRADED_RUN)/action-center.html
 	grep -q '"degraded": true' runs/$(SMOKE_AI_DEGRADED_RUN)/nightly-pipeline-manifest.json
 
 clean:
