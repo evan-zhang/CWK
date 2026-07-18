@@ -28,7 +28,7 @@ from cwk_ai_common import (  # noqa: E402
     validate_priorities,
     validate_record,
 )
-from cwk_ai_event_clustering import merge_event_batches, normalize_bundle, prompt_for as cluster_prompt_for, validate_cluster_evidence, validate_event_coverage  # noqa: E402
+from cwk_ai_event_clustering import merge_event_batches, normalize_bundle, prompt_for as cluster_prompt_for, recover_cluster_batch, validate_cluster_evidence, validate_event_coverage  # noqa: E402
 from cwk_nightly_pipeline import copy_to_mirror, redact_cmd, redact_text, require_publish_safe, write_manifest  # noqa: E402
 from cwk_ai_quality_review import prompt_for as quality_prompt_for  # noqa: E402
 from cwk_ai_record_understanding import process_one as process_ai_record  # noqa: E402
@@ -256,6 +256,26 @@ class AIContractTests(unittest.TestCase):
     def test_cluster_requires_nonempty_coverage(self):
         self.assertTrue(validate_event_coverage({"events": []}, {"1"}))
         self.assertEqual(validate_event_coverage({"events": [{"record_ids": ["1"]}]}, {"1"}), [])
+
+    def test_cluster_invalid_batch_has_traceable_deterministic_recovery(self):
+        record = {
+            "report_id": "1",
+            "title": "示例事项",
+            "event_anchor": "示例事项",
+            "document_type": "other",
+            "summary": "摘要",
+            "decisions": [],
+            "action_items": [],
+            "risks": [],
+            "priority_hint": "review",
+        }
+        events, priorities, recovery = recover_cluster_batch(
+            [record], "run", set(), ["events must not be empty"]
+        )
+        self.assertEqual(validate_event_coverage(events, {"1"}, 1.0), [])
+        self.assertEqual(priorities["priorities"][0]["record_ids"], ["1"])
+        self.assertEqual(recovery["mode"], "deterministic_evidence_fallback")
+        self.assertIn("events must not be empty", recovery["reason"])
 
     def test_cluster_batches_merge_same_event(self):
         base = {

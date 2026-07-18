@@ -1,6 +1,6 @@
 # RT-Lite: RT-001 - AI 增强理解与质量复核 Pipeline
 
-> profile: Spec-Lite | status: intaking | branch: main
+> profile: Spec-Lite | status: completed | branch: main
 
 ## 1. 目标
 
@@ -64,15 +64,15 @@ CWK_AI_THINKING=high
 
 ## 4. 验收标准
 
-- [ ] `CWK_AI_ENABLED=false make test` 通过。
-- [ ] `CWK_AI_ENABLED=true CWK_AI_DRY_RUN=true make test` 通过。
-- [ ] AI pilot run 生成 `digest-ai-enhanced.md/html`。
-- [ ] AI pilot run 生成 `quality-review.json/md`。
-- [ ] manifest 包含 AI stage 状态、模型名、耗时、输出路径。
-- [ ] manifest 不包含 appKey/token。
-- [ ] AI 增强版每条优先事项都能追溯 report_id。
-- [ ] 规则版 `digest-human-v4.md/html` 仍生成。
-- [ ] 生产 cron 未授权前仍默认运行规则版。
+- [x] `CWK_AI_ENABLED=false make test` 通过。
+- [x] `CWK_AI_ENABLED=true CWK_AI_DRY_RUN=true make test` 通过。
+- [x] AI pilot run 生成 `digest-ai-enhanced.md/html`。
+- [x] AI pilot run 生成 `quality-review.json/md`。
+- [x] manifest 包含 AI stage 状态、模型名、耗时、输出路径。
+- [x] manifest 不包含 appKey/token。
+- [x] AI 增强版每条优先事项都能追溯 report_id。
+- [x] 规则版 `digest-human-v4.md/html` 仍生成。
+- [x] 生产 cron 未授权前仍默认运行规则版。
 
 ## 5. 实施顺序
 

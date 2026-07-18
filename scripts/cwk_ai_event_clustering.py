@@ -342,6 +342,20 @@ def merge_event_batches(batch_events: list[dict[str, Any]], run_name: str) -> tu
     )
 
 
+def recover_cluster_batch(
+    records: list[dict[str, Any]],
+    run_name: str,
+    history_titles: set[str],
+    original_errors: list[str],
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, str]]:
+    """Recover one invalid model batch without degrading unrelated batches."""
+    events, priorities = dry_run_cluster(records, run_name, history_titles)
+    return events, priorities, {
+        "mode": "deterministic_evidence_fallback",
+        "reason": "; ".join(original_errors),
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Cluster CWK AI record-understanding artifacts.")
     parser.add_argument("--run-name", required=True)
@@ -385,9 +399,11 @@ def main() -> None:
             checkpoint_path = checkpoint_dir / f"batch-{batch_number:03d}.json"
             checkpoint = load_json(checkpoint_path) if checkpoint_path.exists() else {}
             expected_ids = sorted(batch_ids)
+            recovery = None
             if checkpoint.get("record_ids") == expected_ids and checkpoint.get("model") == args.model:
                 batch_events = checkpoint.get("events", {})
                 batch_priorities = checkpoint.get("priorities", {})
+                recovery = checkpoint.get("recovery")
             else:
                 bundle = invoke_openclaw_json(
                     prompt_for(batch, args.run_name, history),
@@ -397,6 +413,7 @@ def main() -> None:
                     prompt_dir=run_dir / ".ai-prompts",
                 )
                 batch_events, batch_priorities = normalize_bundle(bundle, args.run_name, batch)
+                recovery = None
             batch_errors = (
                 validate_events(batch_events, batch_ids)
                 + validate_priorities(batch_priorities, batch_ids)
@@ -419,7 +436,26 @@ def main() -> None:
                     + validate_event_coverage(batch_events, batch_ids, 1.0)
                 )
             if batch_errors:
-                raise SystemExit(f"invalid clustering batch {batch_number}: " + "; ".join(batch_errors))
+                # A model may occasionally return an empty/invalid batch even after the
+                # repair pass.  Do not discard the other valid batches or degrade the
+                # whole nightly run: recover this batch with the deterministic,
+                # evidence-preserving clusterer.  The checkpoint records the recovery
+                # so closeout/quality review can distinguish it from a pure AI result.
+                recovery_errors = list(batch_errors)
+                batch_events, batch_priorities, recovery = recover_cluster_batch(
+                    batch, args.run_name, history_titles, recovery_errors
+                )
+                batch_errors = (
+                    validate_events(batch_events, batch_ids)
+                    + validate_priorities(batch_priorities, batch_ids)
+                    + validate_cluster_evidence(batch_events, batch)
+                    + validate_event_coverage(batch_events, batch_ids, 1.0)
+                )
+                if batch_errors:
+                    raise SystemExit(
+                        f"invalid clustering batch {batch_number} after deterministic recovery: "
+                        + "; ".join(batch_errors)
+                    )
             write_json(
                 checkpoint_path,
                 {
@@ -428,6 +464,7 @@ def main() -> None:
                     "record_ids": expected_ids,
                     "events": batch_events,
                     "priorities": batch_priorities,
+                    "recovery": recovery,
                 },
             )
             batch_outputs.extend(batch_events["events"])
