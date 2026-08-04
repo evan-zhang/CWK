@@ -14,7 +14,15 @@ It turns work-collaboration messages, todos, handled items, and reply chains int
 
 ## Status
 
-Internal/private v0.1.0 stable baseline, with RT-001 AI pilot implementation in progress. This repository intentionally excludes real raw evidence, real run outputs, secrets, prompts, AI outputs, and personal knowledge-base data.
+Internal/private stable baseline. The read-only source mirror, business-date raw truth source, evidence-backed Wiki query, source/raw/summary completeness gate, bounded AI refinement, and DocDB version-sync paths are implemented. This repository intentionally excludes real raw evidence, real run outputs, secrets, prompts, AI outputs, and personal knowledge-base data.
+
+Primary documentation:
+
+- [Design specification](docs/DESIGN.md)
+- [User guide](docs/USER_GUIDE.md)
+- [Operations guide](docs/OPERATIONS.md)
+- [AI runtime policy](docs/AI-PILOT.md)
+- [Model role matrix](MODEL_ROLES.md)
 
 ## Quick Start
 
