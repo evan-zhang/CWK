@@ -4,7 +4,7 @@ CWK is a read-only CWork / 工作协同 knowledge mirror workflow.
 
 It turns work-collaboration messages, todos, handled items, and reply chains into:
 
-- raw local evidence files
+- Cloud-First raw evidence in the authorized user's private DocDB (local runtime cache during migration/build)
 - structured extraction JSON
 - event and entity candidates
 - daily Markdown digests
@@ -118,7 +118,9 @@ date, promote staged reports into the local `raw/YYYY-MM/YYYY-MM-DD/` truth
 source, compile missing Wiki summaries, and enforce
 `source IDs = raw IDs = summary IDs`.  The bounded inbox/todo collector remains
 responsible for the human digest; it is no longer treated as proof of complete
-source capture.  Raw evidence stays local and is never included in DocDB sync.
+source capture. Generic sync denies raw; approved Cloud-First runs persist raw
+as versioned physical files in the user's private DocDB and enforce SHA-256
+coverage before reporting success.
 
 ## AI Quality Pilot
 
@@ -188,7 +190,11 @@ CWK_WIKI_REFINE_FALLBACKS=true CWK_WIKI_LIMIT=5 CWK_WIKI_MAX_PARALLEL=4 \
 
 ## Trusted Wiki Query
 
-`scripts/cwk_wiki_query.py` is the read-only question retrieval entrypoint. It uses topics/entities as navigation, ranks source summaries, and then returns evidence verified against immutable `raw/` reports. It does not call a model, require Docker, or read credentials.
+`scripts/cwk_wiki_query.py` is the read-only question retrieval entrypoint. In
+production use `--mode cloud`: it loads the versioned compressed index, ranks
+summaries/topics/entities, downloads only Top-K raw objects, validates SHA-256,
+and returns evidence. `--mode local` is a migration/debug path and
+`--mode shadow` compares both rankings.
 
 ```bash
 python3 scripts/cwk_wiki_query.py \

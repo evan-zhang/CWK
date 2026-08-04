@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import atexit
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import hashlib
 import json
 import os
 import re
@@ -30,6 +31,7 @@ from pathlib import Path
 from typing import Any
 
 from cwk_ai_common import assert_cwk_model, contains_sensitive_text, invoke_openclaw_json, parse_frontmatter
+from cwk_wiki_manifest_reconcile import reconcile_manifest as reconcile_source_manifest
 
 
 PROJECT = Path(__file__).resolve().parents[1]
@@ -172,11 +174,21 @@ def normalize(payload: dict[str, Any], metadata: dict[str, str], body: str) -> d
     return result
 
 
-def render(metadata: dict[str, str], raw_rel: str, data: dict[str, Any]) -> str:
+def raw_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def render(metadata: dict[str, str], raw_rel: str, data: dict[str, Any], source_sha256: str = "") -> str:
     lines = [
         "---",
         f"type: SourceSummary",
         f"report_id: \"{metadata['report_id']}\"",
+        f"source_report_id: \"{metadata['report_id']}\"",
+        f"source_sha256: \"{source_sha256}\"",
         f"source: \"../../{raw_rel}\"",
         "---",
         "",
@@ -208,13 +220,15 @@ def render(metadata: dict[str, str], raw_rel: str, data: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def render_fallback(metadata: dict[str, str], raw_rel: str, reason: str) -> str:
+def render_fallback(metadata: dict[str, str], raw_rel: str, reason: str, source_sha256: str = "") -> str:
     """Create a navigable page without asserting unverified source facts."""
     return "\n".join(
         [
             "---",
             "type: SourceSummary",
             f'report_id: "{metadata["report_id"]}"',
+            f'source_report_id: "{metadata["report_id"]}"',
+            f'source_sha256: "{source_sha256}"',
             f'source: "../../{raw_rel}"',
             "---",
             "",
@@ -341,7 +355,8 @@ def reconcile_disk_to_manifest(wiki: Path, manifest: dict[str, Any]) -> dict[str
     before = set(manifest.get("compiled_report_ids", []))
     orphans = disk_ids - before
     stale = before - disk_ids
-    refined_ids = disk_ids - fallback_ids
+    withheld = set(manifest.get("withheld_report_ids", [])) & disk_ids
+    refined_ids = disk_ids - fallback_ids - withheld
     changed = (
         before != disk_ids
         or set(manifest.get("fallback_report_ids", [])) != fallback_ids
@@ -353,7 +368,6 @@ def reconcile_disk_to_manifest(wiki: Path, manifest: dict[str, Any]) -> dict[str
         manifest["ai_refined_report_ids"] = sorted(refined_ids)
         manifest["last_reconcile_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
         mark_dirty()
-    withheld = set(manifest.get("withheld_report_ids", [])) & fallback_ids
     if set(manifest.get("withheld_report_ids", [])) != withheld:
         manifest["withheld_report_ids"] = sorted(withheld)
         mark_dirty()
@@ -425,6 +439,12 @@ def main() -> None:
     # Wire globals for signal handlers
     _manifest_state = manifest
     _manifest_path = manifest_path
+
+    source_reconciled = reconcile_source_manifest(mirror, manifest)
+    if source_reconciled != manifest:
+        manifest.clear()
+        manifest.update(source_reconciled)
+        mark_dirty()
 
     # Install signal handlers
     signal.signal(signal.SIGTERM, _signal_flush)
@@ -553,6 +573,7 @@ def main() -> None:
                     meta,
                     raw.relative_to(mirror).as_posix(),
                     "原文含敏感内容，未发送模型" if sensitive else "等待有界 AI 精编",
+                    raw_sha256(raw),
                 ),
                 encoding="utf-8",
             )
@@ -580,7 +601,7 @@ def main() -> None:
                     data = result.pop("data")
                     out = wiki / "summaries" / f"{rid}.md"
                     out.parent.mkdir(parents=True, exist_ok=True)
-                    out.write_text(render(meta, raw.relative_to(mirror).as_posix(), data), encoding="utf-8")
+                    out.write_text(render(meta, raw.relative_to(mirror).as_posix(), data, raw_sha256(raw)), encoding="utf-8")
                     changed_paths.add(out.relative_to(mirror).as_posix())
 
                     # Manifest updates are intentionally serialized in the parent
@@ -601,7 +622,7 @@ def main() -> None:
                         meta, _ = raw_metadata(raw)
                         out.parent.mkdir(parents=True, exist_ok=True)
                         out.write_text(
-                            render_fallback(meta, raw.relative_to(mirror).as_posix(), "AI 编译失败"),
+                            render_fallback(meta, raw.relative_to(mirror).as_posix(), "AI 编译失败", raw_sha256(raw)),
                             encoding="utf-8",
                         )
                         update_manifest_fallback(rid, False, manifest)
@@ -615,7 +636,12 @@ def main() -> None:
                         meta, _ = raw_metadata(raw)
                         out.parent.mkdir(parents=True, exist_ok=True)
                         out.write_text(
-                            render_fallback(meta, raw.relative_to(mirror).as_posix(), "原文含敏感内容，未发送模型"),
+                            render_fallback(
+                                meta,
+                                raw.relative_to(mirror).as_posix(),
+                                "原文含敏感内容，未发送模型",
+                                raw_sha256(raw),
+                            ),
                             encoding="utf-8",
                         )
                         changed_paths.add(out.relative_to(mirror).as_posix())

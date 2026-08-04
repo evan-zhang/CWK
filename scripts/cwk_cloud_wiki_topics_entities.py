@@ -518,7 +518,7 @@ def rewrite_status(path: Path, manifest: dict[str, Any], topic_count: int, entit
     compiled = len(manifest.get("compiled_report_ids", []) or [])
     refined = len(manifest.get("ai_refined_report_ids", []) or [])
     fallback_ids = set(manifest.get("fallback_report_ids", []) or [])
-    withheld_ids = set(manifest.get("withheld_report_ids", []) or []) & fallback_ids
+    withheld_ids = set(manifest.get("withheld_report_ids", []) or [])
     terminal_ids = {
         str(item.get("report_id"))
         for item in manifest.get("failure_queue", []) or []

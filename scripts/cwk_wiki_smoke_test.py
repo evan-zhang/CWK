@@ -53,7 +53,7 @@ def main() -> int:
         checks.append(("manifest_quality_disjoint", not (set(refined) & set(fallback)), "refined/fallback sets are disjoint"))
         checks.append(("manifest_failures_preserve_fallback", failure_ids <= set(fallback), f"failures={len(failures)} all remain queryable fallback pages"))
         checks.append(("manifest_failure_attempts_bounded", all(1 <= int(item.get("attempts", 1)) <= 3 for item in failures), "failure attempts are bounded at 3"))
-        checks.append(("manifest_withheld_is_fallback", withheld <= set(fallback), f"withheld={len(withheld)}"))
+        checks.append(("manifest_withheld_is_compiled", withheld <= set(compiled), f"withheld={len(withheld)}"))
     else:
         checks.append(("manifest_exists", False, "missing wiki/_system/manifest.json"))
 

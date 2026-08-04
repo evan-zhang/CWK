@@ -10,6 +10,8 @@ network access, or credentials.
 from __future__ import annotations
 
 import argparse
+import hashlib
+import gzip
 import json
 import math
 import os
@@ -20,7 +22,7 @@ from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 from cwk_ai_common import parse_frontmatter
 
@@ -30,7 +32,7 @@ DEFAULT_MIRROR = PROJECT / "knowledge" / "工作协同镜像"
 SCHEMA = "cwk.wiki_query.v1"
 REPORT_ID_RE = re.compile(r"(?<!\d)(\d{15,20})(?!\d)")
 SUMMARY_LINK_RE = re.compile(r"\[`?(\d{15,20})`?\]\([^)]*summaries/\1\.md\)")
-EVIDENCE_RE = re.compile(r"证据：>\s*(.+?)\s*$")
+EVIDENCE_RE = re.compile(r"证据：>\s*(.+?)\s*$", flags=re.M)
 ASCII_RE = re.compile(r"[a-z0-9][a-z0-9._/+-]*", re.I)
 CJK_RE = re.compile(r"[\u3400-\u9fff]+")
 SECRET_PATTERNS = (
@@ -43,6 +45,7 @@ STOP_CJK = {
     "目前", "现在", "最近", "情况", "介绍", "分析", "帮我", "给我", "是否", "有没有",
     "中旬", "月底", "月初", "月中", "月末", "月", "到", "至", "底",
 }
+_INDEX_CACHE: dict[tuple[str, int, int, int, int], tuple[Any, ...]] = {}
 
 
 @dataclass
@@ -56,6 +59,7 @@ class SummaryDoc:
     raw_path: Path
     body: str
     evidence_quotes: list[str] = field(default_factory=list)
+    raw_sha256: str = ""
 
     @property
     def search_text(self) -> str:
@@ -139,6 +143,7 @@ def load_summaries(mirror: Path) -> list[SummaryDoc]:
                 raw_path=resolve_raw_path(path, source),
                 body=body,
                 evidence_quotes=[compact(m.group(1), 500) for m in EVIDENCE_RE.finditer(body)],
+                raw_sha256=str(meta.get("source_sha256") or ""),
             )
         )
     return summaries
@@ -188,14 +193,124 @@ def load_summary_quality(mirror: Path) -> tuple[dict[str, str], dict[str, int]]:
     quality = {report_id: "ai_refined" for report_id in refined}
     quality.update({report_id: "fallback_pending" for report_id in fallback})
     quality.update({report_id: "fallback_terminal_error" for report_id in fallback & terminal})
-    quality.update({report_id: "withheld_sensitive" for report_id in fallback & withheld})
+    quality.update({report_id: "withheld_sensitive" for report_id in withheld})
     return quality, {
         "ai_refined": len(refined),
         "fallback_pending": len(fallback - withheld - terminal),
-        "withheld_sensitive": len(fallback & withheld),
+        "withheld_sensitive": len(withheld),
         "fallback_terminal_error": len(fallback & terminal),
         "unknown": 0,
     }
+
+
+def load_precomputed_index(
+    mirror: Path,
+) -> tuple[list[SummaryDoc], list[NavDoc], "BM25", "BM25", dict[str, Any]] | None:
+    """Load the persistent index, rejecting stale or internally inconsistent data."""
+    compressed = mirror / "wiki" / "_system" / "search-index.json.gz"
+    path = compressed if compressed.exists() else mirror / "wiki" / "_system" / "search-index.json"
+    meta_path = mirror / "wiki" / "_system" / "index-meta.json"
+    try:
+        stat = path.stat()
+        meta_stat = meta_path.stat() if meta_path.is_file() else None
+        cache_key = (
+            str(mirror.resolve()), stat.st_mtime_ns, stat.st_size,
+            meta_stat.st_mtime_ns if meta_stat else 0,
+            meta_stat.st_size if meta_stat else 0,
+        )
+        cached = _INDEX_CACHE.get(cache_key)
+        if cached is not None:
+            return cached  # type: ignore[return-value]
+        if path.suffix == ".gz":
+            with gzip.open(path, "rt", encoding="utf-8") as handle:
+                payload = json.load(handle)
+        else:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        if payload.get("schema_version") != "cwk.search_index.v1":
+            return None
+        claimed_sha = str(payload.get("index_sha256") or "")
+        core = {
+            key: value for key, value in payload.items()
+            if key not in {"index_version", "index_sha256", "generated_at"}
+        }
+        actual_sha = hashlib.sha256(
+            json.dumps(core, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        if not claimed_sha or claimed_sha != actual_sha:
+            return None
+        if meta_path.is_file():
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            if str(meta.get("index_sha256") or "") != claimed_sha:
+                return None
+        summary_rows = payload["summary_docs"]
+        nav_rows = payload["navigation_docs"]
+        stats = payload["statistics"]
+    except (OSError, ValueError, TypeError, KeyError):
+        return None
+    summaries: list[SummaryDoc] = []
+    navigation: list[NavDoc] = []
+    for row in summary_rows:
+        summary_path = (mirror / str(row["summary_path"])).resolve()
+        raw_path = (mirror / str(row["raw_path"])).resolve()
+        summaries.append(
+            SummaryDoc(
+                report_id=str(row["report_id"]),
+                title=str(row.get("title") or row["report_id"]),
+                writer=str(row.get("writer") or ""),
+                date=str(row.get("date") or ""),
+                source_lane=str(row.get("source_lane") or ""),
+                summary_path=summary_path,
+                raw_path=raw_path,
+                body="",
+                evidence_quotes=[str(value) for value in row.get("evidence_quotes", [])],
+                raw_sha256=str(row.get("raw_sha256") or ""),
+            )
+        )
+    for row in nav_rows:
+        navigation.append(
+            NavDoc(
+                kind=str(row.get("kind") or ""),
+                title=str(row.get("title") or ""),
+                path=(mirror / str(row["path"])).resolve(),
+                body="",
+                report_ids=[str(value) for value in row.get("report_ids", [])],
+            )
+        )
+    if len(summaries) != len(summary_rows) or len(navigation) != len(nav_rows):
+        return None
+    summary_index = BM25.from_serialized(
+        [row.get("term_counts", {}) for row in summary_rows],
+        [int(row.get("length") or 0) for row in summary_rows],
+        stats.get("summary_document_frequency", {}),
+    )
+    nav_index = BM25.from_serialized(
+        [row.get("term_counts", {}) for row in nav_rows],
+        [int(row.get("length") or 0) for row in nav_rows],
+        stats.get("navigation_document_frequency", {}),
+    )
+    result = summaries, navigation, summary_index, nav_index, {
+        "provider": "persistent_index",
+        "index_version": payload.get("index_version"),
+        "index_sha256": payload.get("index_sha256"),
+        "summary_quality_map": {
+            str(row["report_id"]): str(row.get("summary_quality") or "unknown") for row in summary_rows
+        },
+        "summary_quality_counts": stats.get("summary_quality", {}),
+    }
+    # Retain only the current immutable generation for this mirror. The key
+    # includes nanosecond mtimes and sizes, so any rebuild invalidates it.
+    for key in [key for key in _INDEX_CACHE if key[0] == str(mirror.resolve()) and key != cache_key]:
+        _INDEX_CACHE.pop(key, None)
+    _INDEX_CACHE[cache_key] = result
+    return result
+
+
+def file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 class BM25:
@@ -215,6 +330,24 @@ class BM25:
             term: math.log(1 + (self.n - freq + 0.5) / (freq + 0.5))
             for term, freq in document_frequency.items()
         }
+
+    @classmethod
+    def from_serialized(
+        cls,
+        term_counts: list[dict[str, int]],
+        lengths: list[int],
+        document_frequency: dict[str, int],
+    ) -> "BM25":
+        instance = cls([])
+        instance.term_counts = [Counter({str(term): int(value) for term, value in row.items()}) for row in term_counts]
+        instance.lengths = [int(value) for value in lengths]
+        instance.n = len(instance.term_counts)
+        instance.avg_len = sum(instance.lengths) / max(1, instance.n)
+        instance.idf = {
+            str(term): math.log(1 + (instance.n - int(freq) + 0.5) / (int(freq) + 0.5))
+            for term, freq in document_frequency.items()
+        }
+        return instance
 
     def score(self, query_tokens: list[str], index: int, k1: float = 1.5, b: float = 0.75) -> float:
         counts = self.term_counts[index]
@@ -263,6 +396,16 @@ def raw_content(raw_text: str) -> str:
     return body.split("## List Row Metadata", 1)[0].strip()
 
 
+def raw_evidence_haystack(raw_text: str) -> str:
+    """Return the human-authored raw envelope used to verify citations.
+
+    Evidence may legitimately cite the report title, guidance, content,
+    opinion chain, or source metadata captured verbatim in raw.
+    """
+    _, body = parse_frontmatter(raw_text)
+    return body.strip()
+
+
 def excerpt_candidates(content: str) -> list[str]:
     parts = re.split(r"\n\s*\n|(?<=[。！？；])\s*", content)
     rows: list[str] = []
@@ -274,23 +417,39 @@ def excerpt_candidates(content: str) -> list[str]:
     return rows
 
 
-def evidence_for(doc: SummaryDoc, question: str, max_evidence: int) -> tuple[str, list[dict[str, str]]]:
-    if not doc.raw_path or not doc.raw_path.is_file():
-        return "missing", []
-    raw_text = doc.raw_path.read_text(encoding="utf-8", errors="replace")
+def evidence_for(
+    doc: SummaryDoc,
+    question: str,
+    max_evidence: int,
+    raw_loader: Callable[[SummaryDoc], tuple[str, str]] | None = None,
+) -> tuple[str, list[dict[str, str]], str]:
+    if raw_loader:
+        try:
+            raw_text, source_ref = raw_loader(doc)
+        except Exception as exc:
+            status = "hash_mismatch" if "hash mismatch" in str(exc).lower() else "missing"
+            return status, [], ""
+    else:
+        if not doc.raw_path or not doc.raw_path.is_file():
+            return "missing", [], ""
+        if doc.raw_sha256 and file_sha256(doc.raw_path) != doc.raw_sha256:
+            return "hash_mismatch", [], str(doc.raw_path)
+        raw_text = doc.raw_path.read_text(encoding="utf-8", errors="replace")
+        source_ref = str(doc.raw_path)
     content = raw_content(raw_text)
+    evidence_haystack = raw_evidence_haystack(raw_text)
     verified: list[dict[str, str]] = []
     for quote in doc.evidence_quotes:
-        if normalized_contains(quote, content):
+        if normalized_contains(quote, evidence_haystack):
             verified.append({"kind": "summary_quote", "quote": redact(quote)})
         if len(verified) >= max_evidence:
             break
     if verified:
-        return "verified", verified
+        return "verified", verified, source_ref
 
     candidates = excerpt_candidates(content)
     if not candidates:
-        return "missing", []
+        return "missing", [], source_ref
     index = BM25(candidates)
     query_tokens = tokenize(question)
     ranked = sorted(
@@ -303,8 +462,8 @@ def evidence_for(doc: SummaryDoc, question: str, max_evidence: int) -> tuple[str
         if score > 0
     ]
     if not excerpts:
-        excerpts = [{"kind": "raw_excerpt", "quote": redact(candidates[0])}]
-    return "verified", excerpts
+        return "unverified", [], source_ref
+    return "verified", excerpts, source_ref
 
 
 def date_ok(value: str, from_date: str, to_date: str) -> bool:
@@ -317,7 +476,7 @@ def confidence_for(top_score: float, top_coverage: float, evidence_status: str, 
     if result_count == 0 or top_score < 1.2 or top_coverage < 0.15:
         return "none"
     if evidence_status != "verified":
-        return "low"
+        return "none"
     if top_score >= 14 and top_coverage >= 0.45:
         return "high"
     if top_score >= 5 and top_coverage >= 0.20:
@@ -336,10 +495,21 @@ def query_mirror(
     writer: str = "",
     kind: str = "all",
     min_score: float = 0.1,
+    use_index: bool = True,
+    raw_loader: Callable[[SummaryDoc], tuple[str, str]] | None = None,
 ) -> dict[str, Any]:
-    summaries = load_summaries(mirror)
-    navigation = load_navigation(mirror)
-    summary_quality, quality_counts = load_summary_quality(mirror)
+    precomputed = load_precomputed_index(mirror) if use_index else None
+    if precomputed:
+        summaries, navigation, summary_index, nav_index, index_info = precomputed
+        summary_quality = index_info.pop("summary_quality_map", {})
+        quality_counts = index_info.pop("summary_quality_counts", {})
+    else:
+        summaries = load_summaries(mirror)
+        navigation = load_navigation(mirror)
+        summary_index = BM25(doc.search_text for doc in summaries)
+        nav_index = BM25(doc.search_text for doc in navigation)
+        index_info = {"provider": "live_scan", "index_version": None, "index_sha256": None}
+        summary_quality, quality_counts = load_summary_quality(mirror)
     quality_counts["unknown"] = sum(1 for doc in summaries if doc.report_id not in summary_quality)
     query_tokens = tokenize(question)
     if not query_tokens:
@@ -351,8 +521,6 @@ def query_mirror(
             "results": [],
         }
 
-    summary_index = BM25(doc.search_text for doc in summaries)
-    nav_index = BM25(doc.search_text for doc in navigation)
     nav_bonus: defaultdict[str, float] = defaultdict(float)
     nav_hits: defaultdict[str, list[dict[str, str]]] = defaultdict(list)
     if kind in {"all", "topic", "entity"}:
@@ -375,6 +543,10 @@ def query_mirror(
     requested_ids = set(REPORT_ID_RE.findall(question))
     ranked: list[tuple[float, float, SummaryDoc]] = []
     for i, doc in enumerate(summaries):
+        # Withheld sources must not be returned by either local or cloud
+        # retrieval. Their presence in the index is only for audit/counting.
+        if summary_quality.get(doc.report_id) == "withheld_sensitive":
+            continue
         if not date_ok(doc.date, from_date, to_date):
             continue
         if writer and normalize(writer) not in normalize(doc.writer):
@@ -395,7 +567,7 @@ def query_mirror(
 
     results: list[dict[str, Any]] = []
     for score, coverage, doc in ranked[:top_k]:
-        evidence_status, evidence = evidence_for(doc, question, max_evidence)
+        evidence_status, evidence, source_ref = evidence_for(doc, question, max_evidence, raw_loader)
         results.append(
             {
                 "report_id": doc.report_id,
@@ -407,7 +579,7 @@ def query_mirror(
                 "score": round(score, 4),
                 "query_coverage": round(coverage, 4),
                 "summary_path": str(doc.summary_path),
-                "raw_path": str(doc.raw_path),
+                "raw_path": source_ref or str(doc.raw_path),
                 "navigation_hits": nav_hits.get(doc.report_id, [])[:5],
                 "evidence_status": evidence_status,
                 "evidence": evidence,
@@ -434,6 +606,7 @@ def query_mirror(
             "summaries": len(summaries),
             "navigation_pages": len(navigation),
             "summary_quality": quality_counts,
+            **index_info,
         },
         "confidence": confidence,
         "answer_policy": (
@@ -445,6 +618,107 @@ def query_mirror(
     }
 
 
+def query_cloud(
+    question: str,
+    *,
+    top_k: int,
+    max_evidence: int,
+    from_date: str,
+    to_date: str,
+    writer: str,
+    kind: str,
+    min_score: float,
+    sender_id: str,
+    account_id: str,
+    project_id: str,
+    root_file_id: str,
+    cache_root: str,
+    min_index_version: int,
+) -> dict[str, Any]:
+    from cwk_docdb_cloud import DocDBCloudRepository
+    from cwk_sync_mirror_to_docdb import sanitize_error
+
+    repo = DocDBCloudRepository(
+        sender_id=sender_id,
+        account_id=account_id,
+        project_id=project_id,
+        root_file_id=root_file_id,
+        cache_root=Path(cache_root).expanduser().resolve() if cache_root else None,
+    )
+    cache_mirror, catalog = repo.bootstrap(min_index_version=min_index_version)
+    catalog_holder = [catalog]
+
+    def cloud_raw_loader(doc: SummaryDoc) -> tuple[str, str]:
+        raw_rel = doc.raw_path.relative_to(cache_mirror).as_posix()
+        for attempt in range(2):
+            active_catalog = catalog_holder[0]
+            row = (active_catalog.get("objects") or {}).get(raw_rel) or {}
+            catalog_sha = str(row.get("content_sha256") or "")
+            if doc.raw_sha256 and catalog_sha == doc.raw_sha256:
+                raw_text, file_id, _ = repo.raw_text(active_catalog, raw_rel)
+                return raw_text, f"docdb:{file_id}"
+            if attempt == 0:
+                _, refreshed = repo.bootstrap(min_index_version=min_index_version)
+                catalog_holder[0] = refreshed
+                continue
+            raise RuntimeError(f"raw hash mismatch for {doc.report_id}")
+
+    payload = query_mirror(
+        cache_mirror,
+        question,
+        top_k=top_k,
+        max_evidence=max_evidence,
+        from_date=from_date,
+        to_date=to_date,
+        writer=writer,
+        kind=kind,
+        min_score=min_score,
+        use_index=True,
+        raw_loader=cloud_raw_loader,
+    )
+    catalog = catalog_holder[0]
+    raw_objects = {
+        str(rel): row for rel, row in (catalog.get("objects") or {}).items()
+        if str(rel).startswith("raw/") and row.get("file_id")
+    }
+    preview_errors: list[dict[str, str]] = []
+    for result in payload.get("results", []):
+        raw_ref = str(result.get("raw_path") or "")
+        row = {}
+        if raw_ref.startswith("docdb:"):
+            file_id_from_evidence = raw_ref.split(":", 1)[1]
+            row = next((value for value in raw_objects.values() if str(value.get("file_id")) == file_id_from_evidence), {})
+        file_id = str(row.get("file_id") or "")
+        if file_id:
+            result["cloud_file_id"] = file_id
+            result["cloud_storage"] = str(row.get("storage") or "")
+            try:
+                if row.get("parts"):
+                    summary_row = (catalog.get("objects") or {}).get(
+                        f"wiki/summaries/{result.get('report_id')}.md"
+                    ) or {}
+                    summary_file_id = str(summary_row.get("file_id") or "")
+                    result["cloud_preview_url"] = repo.preview_url(summary_file_id) if summary_file_id else ""
+                    result["cloud_preview_kind"] = "summary"
+                    result["cloud_raw_part_count"] = len(row.get("parts") or [])
+                else:
+                    result["cloud_preview_url"] = repo.preview_url(file_id)
+                    result["cloud_preview_kind"] = "raw"
+            except Exception as exc:
+                result["cloud_preview_url"] = ""
+                result["cloud_preview_error"] = sanitize_error(exc)
+                preview_errors.append({"report_id": str(result.get("report_id") or ""), "error": sanitize_error(exc)})
+    payload["mode"] = "cloud"
+    payload["cloud"] = {
+        "project_id": repo.project_id,
+        "root_file_id": repo.root_file_id,
+        "index_version": catalog.get("index_version"),
+        "index_sha256": catalog.get("index_sha256"),
+        "preview_errors": preview_errors,
+    }
+    return payload
+
+
 def lint_mirror(mirror: Path) -> dict[str, Any]:
     summaries = load_summaries(mirror)
     known_ids = {doc.report_id for doc in summaries}
@@ -454,7 +728,7 @@ def lint_mirror(mirror: Path) -> dict[str, Any]:
     for doc in summaries:
         if not doc.raw_path.is_file() or not doc.evidence_quotes:
             continue
-        content = raw_content(doc.raw_path.read_text(encoding="utf-8", errors="replace"))
+        content = raw_evidence_haystack(doc.raw_path.read_text(encoding="utf-8", errors="replace"))
         for quote in doc.evidence_quotes:
             if not normalized_contains(quote, content):
                 invalid_quotes.append({"report_id": doc.report_id, "quote": compact(quote, 120)})
@@ -558,13 +832,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--format", choices=("markdown", "json"), default="markdown")
     parser.add_argument("--output", default="")
     parser.add_argument("--lint", action="store_true", help="Check summary/raw/navigation link integrity instead of querying.")
+    parser.add_argument("--no-index", action="store_true", help="Ignore the persistent index and scan Wiki files live.")
+    parser.add_argument("--mode", choices=("local", "cloud", "shadow"), default="local")
+    parser.add_argument("--sender-id", default=os.environ.get("CWK_SENDER_ID", ""))
+    parser.add_argument("--account-id", default=os.environ.get("CWK_ACCOUNT_ID", "default"))
+    parser.add_argument("--project-id", default=os.environ.get("CWK_DOCDB_PROJECT_ID", ""))
+    parser.add_argument("--root-file-id", default=os.environ.get("CWK_DOCDB_ROOT_FILE_ID", ""))
+    parser.add_argument("--cache-root", default=os.environ.get("CWK_CLOUD_CACHE_ROOT", ""))
+    parser.add_argument("--min-index-version", type=int, default=0)
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
     mirror = Path(args.mirror_root).expanduser().resolve()
-    if not (mirror / "wiki" / "summaries").is_dir() or not (mirror / "raw").is_dir():
+    if args.mode in {"local", "shadow"} and (not (mirror / "wiki" / "summaries").is_dir() or not (mirror / "raw").is_dir()):
         raise SystemExit(f"invalid CWK mirror root: {mirror}")
     if args.lint:
         payload = lint_mirror(mirror)
@@ -574,17 +856,37 @@ def main() -> int:
         raise SystemExit("query is required unless --lint is used")
     if args.top_k < 1 or args.max_evidence < 1:
         raise SystemExit("--top-k and --max-evidence must be positive")
-    payload = query_mirror(
-        mirror,
-        args.query,
-        top_k=args.top_k,
-        max_evidence=args.max_evidence,
-        from_date=args.from_date,
-        to_date=args.to_date,
-        writer=args.writer,
-        kind=args.kind,
-        min_score=args.min_score,
+    common = dict(
+        top_k=args.top_k, max_evidence=args.max_evidence,
+        from_date=args.from_date, to_date=args.to_date, writer=args.writer,
+        kind=args.kind, min_score=args.min_score,
     )
+    if args.mode == "cloud":
+        payload = query_cloud(
+            args.query, **common,
+            sender_id=args.sender_id, account_id=args.account_id,
+            project_id=args.project_id, root_file_id=args.root_file_id,
+            cache_root=args.cache_root, min_index_version=args.min_index_version,
+        )
+    else:
+        payload = query_mirror(mirror, args.query, **common, use_index=not args.no_index)
+        payload["mode"] = "local"
+        if args.mode == "shadow":
+            cloud_payload = query_cloud(
+                args.query, **common,
+                sender_id=args.sender_id, account_id=args.account_id,
+                project_id=args.project_id, root_file_id=args.root_file_id,
+                cache_root=args.cache_root, min_index_version=args.min_index_version,
+            )
+            local_ids = [row["report_id"] for row in payload.get("results", [])]
+            cloud_ids = [row["report_id"] for row in cloud_payload.get("results", [])]
+            payload["mode"] = "shadow"
+            payload["shadow"] = {
+                "cloud_confidence": cloud_payload.get("confidence"),
+                "local_report_ids": local_ids,
+                "cloud_report_ids": cloud_ids,
+                "same_ranking": local_ids == cloud_ids,
+            }
     emit(payload, args.format, args.output)
     return 0
 

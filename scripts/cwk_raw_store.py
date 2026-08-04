@@ -142,7 +142,7 @@ def atomic_write(path: Path, data: bytes) -> None:
     os.replace(temp_path, path)
 
 
-def rebuild_manifest(mirror_root: Path) -> Path:
+def rebuild_manifest(mirror_root: Path, *, cloud_first: bool = False) -> Path:
     raw_root = mirror_root / "raw"
     records = []
     for rid, path in sorted(raw_index(raw_root).items()):
@@ -157,7 +157,8 @@ def rebuild_manifest(mirror_root: Path) -> Path:
     payload = {
         "schema_version": "cwk.raw-truth-source.v2",
         "generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
-        "source_of_truth": "工作协同镜像/raw",
+        "source_of_truth": "personal_docdb/raw" if cloud_first else "工作协同镜像/raw",
+        "persistence_policy": "cloud_first_private_docdb" if cloud_first else "local_private",
         "record_count": len(records),
         "records": records,
     }
@@ -165,7 +166,7 @@ def rebuild_manifest(mirror_root: Path) -> Path:
     return output
 
 
-def promote(source_dirs: list[Path], mirror_root: Path) -> dict[str, Any]:
+def promote(source_dirs: list[Path], mirror_root: Path, *, cloud_first: bool = False) -> dict[str, Any]:
     mirror_root = mirror_root.expanduser().resolve()
     raw_root = mirror_root / "raw"
     existing = raw_index(raw_root)
@@ -200,7 +201,7 @@ def promote(source_dirs: list[Path], mirror_root: Path) -> dict[str, Any]:
         atomic_write(destination, data)
         changed.append(destination.relative_to(mirror_root).as_posix())
 
-    manifest_path = rebuild_manifest(mirror_root)
+    manifest_path = rebuild_manifest(mirror_root, cloud_first=cloud_first)
     return {
         "schema_version": "cwk.raw-promotion.v1",
         "generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
@@ -211,7 +212,7 @@ def promote(source_dirs: list[Path], mirror_root: Path) -> dict[str, Any]:
         "changed_relative_paths": changed,
         "raw_manifest": str(manifest_path),
         "raw_record_count": len(existing),
-        "raw_local_only": True,
+        "raw_local_only": not cloud_first,
     }
 
 
@@ -220,8 +221,9 @@ def main() -> None:
     parser.add_argument("--source-dir", action="append", required=True)
     parser.add_argument("--mirror-root", default=str(MIRROR))
     parser.add_argument("--manifest-out")
+    parser.add_argument("--cloud-first", action="store_true")
     args = parser.parse_args()
-    result = promote([Path(value) for value in args.source_dir], Path(args.mirror_root))
+    result = promote([Path(value) for value in args.source_dir], Path(args.mirror_root), cloud_first=args.cloud_first)
     if args.manifest_out:
         output = Path(args.manifest_out).expanduser().resolve()
         output.parent.mkdir(parents=True, exist_ok=True)

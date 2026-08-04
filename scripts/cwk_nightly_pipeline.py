@@ -423,6 +423,12 @@ def main() -> None:
     )
     parser.add_argument("--wiki-timeout-seconds", type=int, default=None)
     parser.add_argument("--wiki-best-effort", action=argparse.BooleanOptionalAction, default=None, help="Keep nightly green when wiki stages fail.")
+    parser.add_argument(
+        "--cloud-first",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Treat personal DocDB raw+Wiki as the authoritative persistent store and enforce cloud coverage gates.",
+    )
     parser.add_argument("--ai-enabled", action=argparse.BooleanOptionalAction, default=None)
     parser.add_argument("--ai-dry-run", action=argparse.BooleanOptionalAction, default=None)
     parser.add_argument("--ai-record-model", default=os.environ.get("CWK_AI_RECORD_MODEL"))
@@ -518,7 +524,14 @@ def main() -> None:
     )
     if args.wiki_best_effort is None:
         env_wiki_best_effort = env_bool("CWK_WIKI_BEST_EFFORT")
-        args.wiki_best_effort = env_wiki_best_effort if env_wiki_best_effort is not None else bool(config.get("wiki_best_effort", True))
+        args.wiki_best_effort = env_wiki_best_effort if env_wiki_best_effort is not None else bool(config.get("wiki_best_effort", False))
+    if args.cloud_first is None:
+        env_cloud_first = env_bool("CWK_CLOUD_FIRST")
+        args.cloud_first = env_cloud_first if env_cloud_first is not None else bool(config.get("cloud_first", False))
+    if args.cloud_first:
+        args.sync_docdb = True
+        args.wiki_sync = True
+        args.wiki_best_effort = False
 
     run_dir = RUNS / args.run_name
     mirror_root = Path(str(args.mirror_root)).expanduser().resolve()
@@ -575,6 +588,8 @@ def main() -> None:
         ]
         for source_dir in source_dirs:
             promote_cmd.extend(["--source-dir", str(source_dir)])
+        if args.cloud_first:
+            promote_cmd.append("--cloud-first")
         result = run_cmd(promote_cmd)
         steps.append({"step": "promote_local_raw", **result})
         if result["returncode"] != 0:
@@ -809,6 +824,9 @@ def main() -> None:
     wiki_mirror = Path(str(args.wiki_mirror_root)).expanduser().resolve()
     wiki_compile_manifest = RUNS / f"wiki-compile-{args.run_name}.json"
     te_manifest = RUNS / f"wiki-topics-entities-{args.run_name}.json"
+    refs_manifest = RUNS / f"wiki-source-refs-{args.run_name}.json"
+    index_manifest = RUNS / f"wiki-search-index-{args.run_name}.json"
+    raw_sync_manifest: Path | None = None
     if args.wiki_compile:
         wiki_compile_cmd = [
             sys.executable,
@@ -870,7 +888,72 @@ def main() -> None:
             if not args.wiki_best_effort:
                 sync_failures.append("wiki_topics_entities")
 
-    wiki_paths_manifest = merge_changed_paths_manifest(RUNS / f"wiki-changed-paths-{args.run_name}.json", wiki_compile_manifest, te_manifest)
+    # Cloud-First commits new raw objects before summaries receive their
+    # stable cloud file IDs. Only raw paths created/updated in this run are
+    # uploaded; raw remains denied in the generic sync command.
+    if args.cloud_first:
+        raw_changed: set[str] = set()
+        raw_changed.update(str(value) for value in (raw_promotion_manifest or {}).get("changed_relative_paths", []))
+        raw_changed.update(
+            str(value)
+            for value in ((source_backfill_manifest or {}).get("promotion") or {}).get("changed_relative_paths", [])
+        )
+        if raw_changed:
+            raw_changed.add("raw/_system/raw-manifest.json")
+        if raw_changed:
+            raw_paths_manifest = RUNS / f"raw-changed-paths-{args.run_name}.json"
+            raw_paths_manifest.write_text(
+                json.dumps({"changed_relative_paths": sorted(raw_changed)}, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            raw_sync_manifest = RUNS / f"docdb-{args.run_name}-raw-sync.json"
+            raw_sync_cmd = [
+                sys.executable, str(SCRIPTS / "cwk_sync_mirror_to_docdb.py"),
+                "--mirror-root", str(wiki_mirror), "--only-prefix", "raw/", "--allow-raw",
+                "--physical-prefix", "raw/", "--max-parallel", "4",
+                "--paths-manifest", str(raw_paths_manifest), "--manifest", str(raw_sync_manifest),
+                "--retry-queue", str(RUNS / "docdb-raw-sync-retry-queue.json"),
+            ]
+            if args.docdb_project_id:
+                raw_sync_cmd.extend(["--project-id", args.docdb_project_id])
+            if args.docdb_root_file_id:
+                raw_sync_cmd.extend(["--root-file-id", args.docdb_root_file_id])
+            if args.sync_dry_run:
+                raw_sync_cmd.append("--dry-run")
+            result = run_cmd(raw_sync_cmd)
+            steps.append({"step": "cloud_first_raw_sync", **result})
+            if result["returncode"] != 0:
+                sync_failures.append("cloud_first_raw_sync")
+            else:
+                result = run_cmd(
+                    [sys.executable, str(SCRIPTS / "cwk_cloud_objects.py"), str(raw_sync_manifest),
+                     "--mirror-root", str(wiki_mirror)]
+                )
+                steps.append({"step": "cloud_first_raw_catalog", **result})
+                if result["returncode"] != 0:
+                    sync_failures.append("cloud_first_raw_catalog")
+
+    # Stable source refs and the persistent search index are deterministic
+    # build artifacts and are always refreshed before a Wiki sync.
+    result = run_cmd(
+        [sys.executable, str(SCRIPTS / "cwk_summary_source_refs.py"),
+         "--mirror-root", str(wiki_mirror), "--output", str(refs_manifest)]
+    )
+    steps.append({"step": "wiki_source_refs", **result})
+    if result["returncode"] != 0:
+        sync_failures.append("wiki_source_refs")
+    result = run_cmd(
+        [sys.executable, str(SCRIPTS / "cwk_wiki_search_index.py"),
+         "--mirror-root", str(wiki_mirror), "--output", str(index_manifest)]
+    )
+    steps.append({"step": "wiki_search_index", **result})
+    if result["returncode"] != 0:
+        sync_failures.append("wiki_search_index")
+
+    wiki_paths_manifest = merge_changed_paths_manifest(
+        RUNS / f"wiki-changed-paths-{args.run_name}.json",
+        wiki_compile_manifest, te_manifest, refs_manifest, index_manifest,
+    )
     if wiki_paths_manifest:
         wiki_manifest["paths_manifest"] = display_path(wiki_paths_manifest)
 
@@ -887,6 +970,10 @@ def main() -> None:
             str(wiki_sync_manifest),
             "--retry-queue",
             str(RUNS / "docdb-sync-retry-queue.json"),
+            "--max-parallel",
+            "4",
+            "--physical-prefix",
+            "wiki/_system/search-index-",
         ]
         if wiki_paths_manifest:
             wiki_sync_cmd.extend(["--paths-manifest", str(wiki_paths_manifest)])
@@ -906,6 +993,101 @@ def main() -> None:
             wiki_manifest["failures"].append("wiki_sync_docdb")
             if not args.wiki_best_effort:
                 sync_failures.append("wiki_sync_docdb")
+        elif args.cloud_first:
+            merge_inputs = [str(wiki_sync_manifest)]
+            if raw_sync_manifest:
+                merge_inputs.append(str(raw_sync_manifest))
+            result = run_cmd(
+                [sys.executable, str(SCRIPTS / "cwk_cloud_objects.py"), *merge_inputs,
+                 "--mirror-root", str(wiki_mirror)]
+            )
+            steps.append({"step": "cloud_first_object_catalog", **result})
+            if result["returncode"] != 0:
+                sync_failures.append("cloud_first_object_catalog")
+            else:
+                # Verify the newly uploaded objects against the not-yet-
+                # published local catalog first.  The cloud commit pointer is
+                # updated only after this pre-commit gate passes, so a broken
+                # local mirror cannot overwrite the last known-good catalog.
+                audit_path = RUNS / f"cloud-coverage-{args.run_name}.json"
+                result = run_cmd(
+                    [sys.executable, str(SCRIPTS / "cwk_cloud_coverage_audit.py"),
+                     "--mirror-root", str(wiki_mirror), "--prefix", "wiki/", "--prefix", "raw/",
+                     "--live", "--live-workers", "4",
+                     "--retry-queue", str(RUNS / "docdb-sync-retry-queue.json"),
+                     "--output", str(audit_path)]
+                )
+                steps.append({"step": "cloud_first_precommit_coverage_gate", **result})
+                if result["returncode"] != 0:
+                    sync_failures.append("cloud_first_precommit_coverage_gate")
+                    result = None
+            if result is not None and result.get("returncode") == 0:
+                catalog_paths = RUNS / f"cloud-catalog-paths-{args.run_name}.json"
+                catalog_paths.write_text(
+                    json.dumps({"changed_relative_paths": ["wiki/_system/cloud-objects.json"]}, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+                catalog_sync = RUNS / f"docdb-{args.run_name}-catalog-sync.json"
+                catalog_cmd = [
+                    sys.executable, str(SCRIPTS / "cwk_sync_mirror_to_docdb.py"),
+                    "--mirror-root", str(wiki_mirror), "--only-prefix", "wiki/",
+                    "--paths-manifest", str(catalog_paths), "--physical-prefix", "wiki/_system/cloud-objects.json",
+                    "--manifest", str(catalog_sync), "--retry-queue", str(RUNS / "docdb-sync-retry-queue.json"),
+                ]
+                if args.docdb_project_id:
+                    catalog_cmd.extend(["--project-id", args.docdb_project_id])
+                if args.docdb_root_file_id:
+                    catalog_cmd.extend(["--root-file-id", args.docdb_root_file_id])
+                result = run_cmd(catalog_cmd)
+                steps.append({"step": "cloud_first_catalog_sync", **result})
+                if result["returncode"] != 0:
+                    sync_failures.append("cloud_first_catalog_sync")
+                else:
+                    try:
+                        committed_index_version = int(json.loads(index_manifest.read_text(encoding="utf-8")).get("index_version") or 0)
+                    except (OSError, ValueError, TypeError):
+                        committed_index_version = 0
+                    try:
+                        wiki_state = json.loads((wiki_mirror / "wiki" / "_system" / "manifest.json").read_text(encoding="utf-8"))
+                        read_after_write_query = str((wiki_state.get("compiled_report_ids") or [""])[0])
+                    except (OSError, ValueError, TypeError, IndexError):
+                        read_after_write_query = ""
+                    read_after_write = RUNS / f"cloud-read-after-write-{args.run_name}.json"
+                    query_cmd = [
+                        sys.executable, str(SCRIPTS / "cwk_wiki_query.py"), read_after_write_query,
+                        "--mode", "cloud", "--min-index-version", str(committed_index_version),
+                        "--top-k", "1", "--format", "json", "--output", str(read_after_write),
+                    ]
+                    if args.docdb_project_id:
+                        query_cmd.extend(["--project-id", args.docdb_project_id])
+                    if args.docdb_root_file_id:
+                        query_cmd.extend(["--root-file-id", args.docdb_root_file_id])
+                    result = run_cmd(query_cmd)
+                    steps.append({"step": "cloud_first_read_after_write", **result})
+                    if result["returncode"] != 0:
+                        sync_failures.append("cloud_first_read_after_write")
+                    else:
+                        try:
+                            read_back = json.loads(read_after_write.read_text(encoding="utf-8"))
+                            verified_rows = [
+                                row for row in (read_back.get("results") or [])
+                                if row.get("evidence_status") == "verified" and row.get("cloud_file_id")
+                            ]
+                            read_back_version = int(((read_back.get("cloud") or {}).get("index_version")) or 0)
+                            if (
+                                not read_after_write_query
+                                or read_back.get("confidence") == "none"
+                                or not verified_rows
+                                or read_back_version < committed_index_version
+                            ):
+                                raise RuntimeError("cloud read-after-write did not return committed verified evidence")
+                        except (OSError, ValueError, TypeError, RuntimeError) as exc:
+                            steps.append({
+                                "step": "cloud_first_read_after_write_assertion",
+                                "returncode": 1,
+                                "stderr": str(exc)[:500],
+                            })
+                            sync_failures.append("cloud_first_read_after_write_assertion")
 
     if args.source_completeness and not args.source_dir and not args.no_publish_mirror and args.wiki_compile:
         source_coverage_path = run_dir / "source-coverage-manifest.json"

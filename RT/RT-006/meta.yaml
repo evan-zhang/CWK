@@ -1,0 +1,9 @@
+rt_id: RT-006
+title: Cloud-First v2 P0/P1 可信迁移底座
+status: completed
+profile: Spec-Lite
+created: 2026-08-04
+assignee: Codex
+priority: critical
+depends_on: [RT-004, RT-005]
+labels: [cloud-first, manifest, search-index, docdb, recovery, reliability]

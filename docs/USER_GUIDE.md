@@ -24,7 +24,7 @@ CWK 默认不能修改工作协同内容，也不能代替审批、回复或标�
 
 ```bash
 cd /path/to/CWK
-python3 scripts/cwk_wiki_query.py "你的问题" --top-k 8
+python3 scripts/cwk_wiki_query.py "你的问题" --mode cloud --top-k 8
 ```
 
 例如：
@@ -35,7 +35,7 @@ python3 scripts/cwk_wiki_query.py \
   --top-k 6
 ```
 
-命令返回的是证据包。回答时只使用 `evidence_status=verified` 的结果，并引用 `report_id` 与 raw 路径。
+命令返回的是证据包。回答时只使用 `evidence_status=verified` 的结果，并引用 `report_id` 与 `docdb:file_id`。迁移期可用 `--mode shadow` 比较本地与云端排序；云端不可用时不得静默使用本地旧副本。
 
 ## 3. 安装与初始化
 
@@ -389,7 +389,7 @@ runs/{run-name}/nightly-pipeline-manifest.json
 - `mutating_cwork_commands_called` 为空；
 - DocDB retry queue 为空或有明确补偿计划。
 
-注意：Wiki 精编可按 `wiki_best_effort=true` 作为质量增强降级，但源端/raw/summary 完整性门禁不应 best-effort。
+注意：Cloud-First 下 `wiki_best_effort` 默认为 false。AI 精编失败可以保留 fallback，但源端/raw/summary、云端对象覆盖和索引提交任一门禁失败，nightly 必须报告失败。
 
 ## 12. 同步 DocDB
 
@@ -415,7 +415,57 @@ python3 scripts/cwk_sync_mirror_to_docdb.py \
 
 已存在页面使用新版本更新。失败路径会进入 `runs/docdb-sync-retry-queue.json`，下轮自动补偿。
 
-禁止用 `--only-prefix raw/` 进行常规共享同步。raw 原文默认只保留本地。
+禁止用 `--only-prefix raw/` 进行常规或共享同步。Cloud-First 初始化/增量链路必须同时满足：个人私有 DocDB、显式 `--allow-raw`、`--physical-prefix raw/`、`isSensitive=1`、同步回执与云端覆盖审计。同步器会拒绝把 raw 写入非个人项目；超过 2MB 的 raw 自动转成内容寻址 gzip 分片，目录提交后查询端再重组并核验逻辑原文 SHA。
+
+### 12.3 Cloud-First 查询与写后读
+
+```bash
+python3 scripts/cwk_wiki_query.py \
+  "Token 消耗异常" \
+  --mode cloud \
+  --min-index-version 9 \
+  --top-k 8
+```
+
+- 云端启动时下载 3 个约 1–1.5MB 的索引分片，逐片校验后重组压缩索引；Top-K raw 按需下载并按 SHA-256 校验。
+- 缓存只使用 `file_id + sha256` 命名，可随时删除并从云端恢复。
+- `--min-index-version` 用于读后即见；云端版本较旧时命令直接失败。
+- `--mode shadow` 返回本地/云端 report ID 排名差异，不改变答案证据边界。
+
+### 12.4 云端覆盖审计
+
+```bash
+python3 scripts/cwk_cloud_coverage_audit.py \
+  --mirror-root knowledge/工作协同镜像 \
+  --prefix raw/ --prefix wiki/ \
+  --live \
+  --retry-queue runs/docdb-sync-retry-queue.json \
+  --output runs/cloud-coverage.json
+```
+
+`--live` 是默认模式，审计会逐对象下载并核验字节哈希，同时断言目标是当前鉴权用户的个人私有项目，并要求 retry queue 为空。`--no-live` 只用于诊断，硬门禁结果始终为失败。只有 `overall_pass=true` 才允许提交 nightly 成功。
+
+### 12.5 空目录恢复
+
+```bash
+restore_dir=$(mktemp -d)
+python3 scripts/cwk_restore_from_docdb.py "$restore_dir" \
+  --prefix raw/ --prefix wiki/ \
+  --min-index-version 9 \
+  --max-parallel 8 \
+  --output runs/cloud-restore-drill.json
+```
+
+删除本地持久镜像前必须完成两次不同空目录的恢复演练，且所有文件哈希一致。
+
+此外必须验证本地 live scan 与持久索引在不少于 20 个固定问题上的 Top-8 聚合重合率：
+
+```bash
+python3 scripts/cwk_shadow_consistency.py \
+  --mirror-root knowledge/工作协同镜像 \
+  --top-k 8 --min-overlap 0.99 \
+  --output runs/shadow-consistency.json
+```
 
 ## 13. 测试与发布前检查
 
