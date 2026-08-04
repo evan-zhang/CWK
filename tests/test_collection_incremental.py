@@ -217,6 +217,18 @@ class IncrementalCollectionTests(unittest.TestCase):
             self.assertEqual([item.rel.as_posix() for item in history], ["history/changed.md"])
             self.assertEqual([item.rel.as_posix() for item in events], ["events/changed.md"])
 
+    def test_docdb_sync_uses_unique_cloud_name_for_wiki_manifest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            mirror = Path(directory) / "工作协同镜像"
+            target = mirror / "wiki" / "_system" / "manifest.json"
+            target.parent.mkdir(parents=True)
+            target.write_text("{}", encoding="utf-8")
+            with patch.object(cwk_sync_mirror_to_docdb, "MIRROR", mirror):
+                items = cwk_sync_mirror_to_docdb.iter_items(None, "wiki/", None)
+            self.assertEqual(len(items), 1)
+            self.assertEqual(items[0].rel.as_posix(), "wiki/_system/manifest.json")
+            self.assertEqual(items[0].file_name, "cwk-wiki-manifest.json")
+
     def test_incremental_a4_low_volume_is_warning_not_failure(self):
         item = cwk_sample_pilot.Item("1", "事项", "甲", "2026-07-17", "reply_chain", "incremental", "updated", "inbox", "x.md", "正文")
         extraction = {

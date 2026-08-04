@@ -26,6 +26,26 @@ PRIORITIES_SCHEMA = "cwk.ai_daily_priorities.v1"
 QUALITY_SCHEMA = "cwk.ai_quality_review.v1"
 _SAFE_AGENTS: set[str] = set()
 AI_ENV_ALLOWLIST = {"OPENCLAW_GATEWAY_TOKEN", "OPENCLAW_GATEWAY_PASSWORD"}
+
+# ── Model allowlist ──────────────────────────────────────────────
+# CWK business pipeline permits ONLY these two models.
+# See projects/CWK/MODEL_ROLES.md for the full rationale.
+CWK_ALLOWED_MODELS: set[str] = {"newapi/BD-MiniMax", "newapi/BD-glm"}
+
+
+def assert_cwk_model(model: str) -> None:
+    """Reject models outside the CWK allowlist before any AI call."""
+    if not model:
+        raise ValueError(
+            "CWK AI model is empty. Set CWK_AI_*_MODEL to one of: "
+            + ", ".join(sorted(CWK_ALLOWED_MODELS))
+        )
+    if model not in CWK_ALLOWED_MODELS:
+        raise ValueError(
+            f"CWK pipeline rejects model {model!r}. "
+            f"Allowed models: {', '.join(sorted(CWK_ALLOWED_MODELS))}. "
+            "See projects/CWK/MODEL_ROLES.md."
+        )
 SENSITIVE_TEXT_PATTERNS = (
     re.compile(r"\bsk-[A-Za-z0-9_-]{20,}\b"),
     re.compile(r"\bBearer\s+[A-Za-z0-9._~+/=-]{20,}\b", re.I),
@@ -196,72 +216,65 @@ def invoke_openclaw_json(
 ) -> dict[str, Any]:
     if not model:
         raise ValueError(f"model is required for real AI stage {stage}")
+    assert_cwk_model(model)
     if contains_sensitive_text(prompt):
         raise RuntimeError(f"sensitive content blocked before AI stage {stage}")
     runtime_workspace = ai_agent_workspace()
-    prompt_dir = runtime_workspace / "prompts"
-    prompt_dir.mkdir(parents=True, exist_ok=True)
-    if prompt_dir.is_symlink():
-        raise RuntimeError("CWK AI prompt directory must not be a symlink")
-    temp_path: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            encoding="utf-8",
-            prefix=f"{stage}-",
-            suffix=".md",
-            dir=prompt_dir,
-            delete=False,
-        ) as handle:
-            handle.write(prompt)
-            temp_path = Path(handle.name)
-        agent_id = os.environ.get("CWK_AI_AGENT_ID", "cwk-ai-reviewer")
-        assert_safe_ai_agent(agent_id)
-        thinking = os.environ.get("CWK_AI_THINKING", "high")
-        prompt_path = Path("/agent") / temp_path.relative_to(runtime_workspace)
-        instruction = (
-            f"Read the sandbox-mounted prompt file {prompt_path}. Follow it exactly. "
-            "Return only the requested JSON object. Do not send messages or modify files."
-        )
-        attempts = max(1, int(os.environ.get("CWK_AI_CALL_RETRIES", "3")))
-        last_error = "unknown model failure"
-        for attempt in range(attempts):
-            try:
-                proc = subprocess.run(
-                    [
-                        "openclaw",
-                        "agent",
-                        "--agent",
-                        agent_id,
-                        "--session-id",
-                        str(uuid.uuid4()),
-                        "--model",
-                        model,
-                        "--message",
-                        instruction,
-                        "--thinking",
-                        thinking,
-                        "--timeout",
-                        str(timeout_seconds),
-                        "--json",
-                    ],
-                    cwd=str(runtime_workspace),
-                    env=sanitized_ai_environment(),
-                    text=True,
-                    capture_output=True,
-                    timeout=timeout_seconds + 30,
-                )
-                if proc.returncode == 0:
-                    return extract_json_object(proc.stdout)
-                last_error = clean_evidence(proc.stderr or proc.stdout, 500)
-            except subprocess.TimeoutExpired:
-                last_error = f"model call timed out after {timeout_seconds + 30}s"
-            if attempt + 1 < attempts:
-                time.sleep(2**attempt)
-        raise RuntimeError(f"OpenClaw model call failed after {attempts} attempts: {last_error}")
-    finally:
-        if temp_path and temp_path.exists():
-            temp_path.unlink()
+    agent_id = os.environ.get("CWK_AI_AGENT_ID", "cwk-ai-reviewer")
+    assert_safe_ai_agent(agent_id)
+    thinking = os.environ.get("CWK_AI_THINKING", "high")
+    instruction = (
+        "You are a JSON-only responder. Follow the instructions below exactly. "
+        "Return only the requested JSON object — no prose, no markdown fences.\n\n"
+        + prompt
+    )
+    attempts = max(1, int(os.environ.get("CWK_AI_CALL_RETRIES", "3")))
+    last_error = "unknown model failure"
+    for attempt in range(attempts):
+        prompt_dir.mkdir(parents=True, exist_ok=True)
+        prompt_path: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=prompt_dir, prefix=f"{stage}-", suffix=".txt", delete=False) as handle:
+                handle.write(instruction)
+                prompt_path = Path(handle.name)
+            proc = subprocess.run(
+                [
+                    "openclaw",
+                    "agent",
+                    "--agent",
+                    agent_id,
+                    "--session-id",
+                    str(uuid.uuid4()),
+                    "--model",
+                    model,
+                    "--message-file",
+                    str(prompt_path),
+                    "--thinking",
+                    thinking,
+                    "--timeout",
+                    str(timeout_seconds),
+                    "--json",
+                ],
+                cwd=str(runtime_workspace),
+                env=sanitized_ai_environment(),
+                text=True,
+                capture_output=True,
+                timeout=timeout_seconds + 30,
+            )
+            if proc.returncode == 0:
+                result = extract_json_object(proc.stdout)
+                if "error" in result and "schema_version" not in result:
+                    raise RuntimeError(f"agent returned error: {compact(result.get('error'), 400)}")
+                return result
+            last_error = clean_evidence(proc.stderr or proc.stdout, 500)
+        except subprocess.TimeoutExpired:
+            last_error = f"model call timed out after {timeout_seconds + 30}s"
+        finally:
+            if prompt_path and prompt_path.exists():
+                prompt_path.unlink()
+        if attempt + 1 < attempts:
+            time.sleep(2**attempt)
+    raise RuntimeError(f"OpenClaw model call failed after {attempts} attempts: {last_error}")
 
 
 def sanitized_ai_environment() -> dict[str, str]:
@@ -288,17 +301,20 @@ def safe_agent_policy(agent: dict[str, Any]) -> tuple[bool, str]:
     if workspace != ai_agent_workspace():
         return False, "workspace must match the fixed private CWK AI runtime workspace"
     sandbox = agent.get("sandbox") or {}
-    if sandbox.get("mode") != "all" or sandbox.get("scope") != "agent" or sandbox.get("workspaceAccess") != "ro":
-        return False, "sandbox must use mode=all, scope=agent, workspaceAccess=ro"
+    if sandbox.get("mode") != "off":
+        return False, "sandbox must use mode=off; CWK reviewers are zero-tool message transformers"
     tools = agent.get("tools") or {}
     if tools.get("profile") != "minimal":
         return False, "tools.profile must be minimal"
     allow = tools.get("allow") or []
     also_allow = tools.get("alsoAllow") or []
-    if not isinstance(allow, list) or not isinstance(also_allow, list):
-        return False, "tool allow lists must be arrays"
-    if set(allow) | set(also_allow) != {"read"}:
-        return False, "read must be the only additional tool"
+    deny = tools.get("deny") or []
+    if not isinstance(allow, list) or not isinstance(also_allow, list) or not isinstance(deny, list):
+        return False, "tool allow/deny lists must be arrays"
+    if allow or also_allow:
+        return False, "CWK reviewer must not allow any tools"
+    if set(deny) != {"*"}:
+        return False, "CWK reviewer must deny all tools with wildcard '*'"
     return True, "ok"
 
 

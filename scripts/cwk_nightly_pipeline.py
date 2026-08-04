@@ -149,7 +149,28 @@ def config_value(args: argparse.Namespace, config: dict, name: str, default=None
     return config.get(name) if name in config else default
 
 
-def copy_to_mirror(run_dir: Path, date: str, secrets: tuple[str, ...] = ()) -> dict[str, str]:
+def display_path(path: Path) -> str:
+    try:
+        return str(path.relative_to(PROJECT))
+    except ValueError:
+        return str(path)
+
+
+def merge_changed_paths_manifest(output: Path, *inputs: Path) -> Path | None:
+    changed: set[str] = set()
+    for path in inputs:
+        if not path or not path.exists():
+            continue
+        payload = read_json(path)
+        changed.update(str(value) for value in (payload.get("changed_relative_paths") or []))
+    if not changed:
+        return None
+    output.write_text(json.dumps({"changed_relative_paths": sorted(changed)}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return output
+
+
+def copy_to_mirror(run_dir: Path, date: str, mirror_root: Path | None = None, secrets: tuple[str, ...] = ()) -> dict[str, str]:
+    mirror_root = (mirror_root or Path(os.environ.get("CWK_MIRROR_ROOT", str(MIRROR)))).expanduser().resolve()
     month = date[:7]
     daily_md = run_dir / "digest-human-v4.md"
     if not daily_md.exists():
@@ -172,16 +193,16 @@ def copy_to_mirror(run_dir: Path, date: str, secrets: tuple[str, ...] = ()) -> d
     require_publish_safe(publishable, secrets)
 
     outputs: dict[str, str] = {}
-    daily_dir = MIRROR / "daily" / month
+    daily_dir = mirror_root / "daily" / month
     daily_dir.mkdir(parents=True, exist_ok=True)
     if daily_md.exists():
         dst = daily_dir / f"{date}.md"
         shutil.copy2(daily_md, dst)
-        outputs["daily_md"] = str(dst.relative_to(PROJECT))
+        outputs["daily_md"] = display_path(dst)
     if daily_html.exists():
         dst = daily_dir / f"{date}.html"
         shutil.copy2(daily_html, dst)
-        outputs["daily_html"] = str(dst.relative_to(PROJECT))
+        outputs["daily_html"] = display_path(dst)
 
     for src_name, output_key, daily_name in [
         ("digest-ai-enhanced.md", "daily_ai_md", f"{date}-ai-enhanced.md"),
@@ -193,9 +214,9 @@ def copy_to_mirror(run_dir: Path, date: str, secrets: tuple[str, ...] = ()) -> d
         if src.exists():
             dst = daily_dir / daily_name
             shutil.copy2(src, dst)
-            outputs[output_key] = str(dst.relative_to(PROJECT))
+            outputs[output_key] = display_path(dst)
 
-    run_publish_dir = MIRROR / "runs"
+    run_publish_dir = mirror_root / "runs"
     run_publish_dir.mkdir(parents=True, exist_ok=True)
     for src_name, suffix in [
         ("ACCEPTANCE-RESULT.md", "acceptance"),
@@ -206,7 +227,7 @@ def copy_to_mirror(run_dir: Path, date: str, secrets: tuple[str, ...] = ()) -> d
         if src.exists():
             dst = run_publish_dir / f"{date}-{run_dir.name}-{suffix}.md"
             shutil.copy2(src, dst)
-            outputs[suffix] = str(dst.relative_to(PROJECT))
+            outputs[suffix] = display_path(dst)
     return outputs
 
 
@@ -215,7 +236,7 @@ def relative_outputs(run_dir: Path, names: list[str]) -> dict[str, str]:
     for name in names:
         path = run_dir / name
         if path.exists():
-            outputs[name] = str(path.relative_to(PROJECT))
+            outputs[name] = display_path(path)
     return outputs
 
 
@@ -370,13 +391,38 @@ def main() -> None:
     parser.add_argument("--backfill-cap", type=int, default=None)
     parser.add_argument("--backfill-page-size", type=int, default=None)
     parser.add_argument("--collection-state-file", default=None)
+    parser.add_argument(
+        "--source-completeness",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Fully page the current business date into local raw and enforce source/raw/Wiki equality.",
+    )
+    parser.add_argument("--source-backfill-max-parallel", type=int, default=None)
     parser.add_argument("--source-dir", action="append", default=[], help="Use existing raw source dir instead of collecting live CWork records.")
     parser.add_argument("--app-key", default=os.environ.get("CWORK_APP_KEY") or os.environ.get("XG_BIZ_API_KEY") or "")
     parser.add_argument("--no-publish-mirror", action="store_true", help="Run the pipeline without copying daily/run outputs into the mirror.")
+    parser.add_argument("--mirror-root", default=None, help="Mirror root for nightly publish/materialize/docdb sync.")
     parser.add_argument("--sync-docdb", action="store_true", help="Sync daily/ and runs/ mirror outputs to the personal knowledge base.")
+    parser.add_argument("--sync-wiki", action=argparse.BooleanOptionalAction, default=None, help="Enable the nightly wiki compile + rebuild + sync bundle.")
     parser.add_argument("--sync-dry-run", action="store_true", help="Dry-run docdb sync even when --sync-docdb is set.")
     parser.add_argument("--docdb-project-id", default=None)
     parser.add_argument("--docdb-root-file-id", default=None)
+    parser.add_argument("--wiki-compile", action=argparse.BooleanOptionalAction, default=None, help="Incrementally compile wiki/summaries from raw.")
+    parser.add_argument("--wiki-topics-entities", action=argparse.BooleanOptionalAction, default=None, help="Rebuild wiki topics/entities from summaries.")
+    parser.add_argument("--wiki-sync", action=argparse.BooleanOptionalAction, default=None, help="Sync wiki/ to DocDB after compile steps.")
+    parser.add_argument("--wiki-mirror-root", default=None, help="Mirror root for wiki compile/sync (defaults to project knowledge mirror).")
+    parser.add_argument("--wiki-model", default=None, help="Model for wiki summary compile.")
+    parser.add_argument("--wiki-repair-model", default=None, help="Model used only to repair invalid wiki compiler JSON.")
+    parser.add_argument("--wiki-limit", type=int, default=None, help="Max summaries to compile this run.")
+    parser.add_argument("--wiki-max-parallel", type=int, default=None, help="Concurrent wiki compiler model calls (1-8).")
+    parser.add_argument(
+        "--wiki-refine-fallbacks",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Use remaining wiki capacity to AI-refine historical fallback summaries.",
+    )
+    parser.add_argument("--wiki-timeout-seconds", type=int, default=None)
+    parser.add_argument("--wiki-best-effort", action=argparse.BooleanOptionalAction, default=None, help="Keep nightly green when wiki stages fail.")
     parser.add_argument("--ai-enabled", action=argparse.BooleanOptionalAction, default=None)
     parser.add_argument("--ai-dry-run", action=argparse.BooleanOptionalAction, default=None)
     parser.add_argument("--ai-record-model", default=os.environ.get("CWK_AI_RECORD_MODEL"))
@@ -395,9 +441,25 @@ def main() -> None:
     args.backfill_cap = int(config_value(args, config, "backfill_cap", os.environ.get("CWK_BACKFILL_CAP", 20)))
     args.backfill_page_size = int(config_value(args, config, "backfill_page_size", os.environ.get("CWK_BACKFILL_PAGE_SIZE", 20)))
     args.collection_state_file = config_value(args, config, "collection_state_file", os.environ.get("CWK_COLLECTION_STATE_FILE", str(PROJECT / "state" / "collection-state.json")))
+    if args.source_completeness is None:
+        env_source_completeness = env_bool("CWK_SOURCE_COMPLETENESS")
+        args.source_completeness = (
+            env_source_completeness
+            if env_source_completeness is not None
+            else bool(config.get("source_completeness", True))
+        )
+    args.source_backfill_max_parallel = int(
+        config_value(
+            args,
+            config,
+            "source_backfill_max_parallel",
+            os.environ.get("CWK_SOURCE_BACKFILL_MAX_PARALLEL", 6),
+        )
+    )
     args.app_key = config_value(args, config, "app_key", os.environ.get("CWORK_APP_KEY") or os.environ.get("XG_BIZ_API_KEY") or "")
     args.docdb_project_id = config_value(args, config, "docdb_project_id", os.environ.get("CWK_DOCDB_PROJECT_ID"))
     args.docdb_root_file_id = config_value(args, config, "docdb_root_file_id", os.environ.get("CWK_DOCDB_ROOT_FILE_ID"))
+    args.mirror_root = config_value(args, config, "mirror_root", os.environ.get("CWK_MIRROR_ROOT", str(MIRROR)))
     if not args.sync_docdb:
         args.sync_docdb = bool(config.get("sync_docdb", env_bool("CWK_SYNC_DOCDB") or False))
     if args.no_publish_mirror:
@@ -408,15 +470,64 @@ def main() -> None:
     if args.ai_dry_run is None:
         env_ai_dry_run = env_bool("CWK_AI_DRY_RUN")
         args.ai_dry_run = env_ai_dry_run if env_ai_dry_run is not None else bool(config.get("ai_dry_run", False))
-    args.ai_record_model = config_value(args, config, "ai_record_model", os.environ.get("CWK_AI_RECORD_MODEL", ""))
-    args.ai_cluster_model = config_value(args, config, "ai_cluster_model", os.environ.get("CWK_AI_CLUSTER_MODEL", ""))
-    args.ai_quality_model = config_value(args, config, "ai_quality_model", os.environ.get("CWK_AI_QUALITY_MODEL", ""))
+    args.ai_record_model = config_value(args, config, "ai_record_model", os.environ.get("CWK_AI_RECORD_MODEL", "newapi/BD-MiniMax"))
+    args.ai_cluster_model = config_value(args, config, "ai_cluster_model", os.environ.get("CWK_AI_CLUSTER_MODEL", "newapi/BD-glm"))
+    args.ai_quality_model = config_value(args, config, "ai_quality_model", os.environ.get("CWK_AI_QUALITY_MODEL", "newapi/BD-glm"))
     args.ai_max_parallel = int(config_value(args, config, "ai_max_parallel", os.environ.get("CWK_AI_MAX_PARALLEL", 4)))
     args.ai_timeout_seconds = int(config_value(args, config, "ai_timeout_seconds", os.environ.get("CWK_AI_TIMEOUT_SECONDS", 120)))
+    if args.sync_wiki is None:
+        env_sync_wiki = env_bool("CWK_SYNC_WIKI")
+        args.sync_wiki = env_sync_wiki if env_sync_wiki is not None else bool(config.get("sync_wiki", False))
+    if args.wiki_compile is None:
+        env_wiki_compile = env_bool("CWK_WIKI_COMPILE")
+        args.wiki_compile = env_wiki_compile if env_wiki_compile is not None else bool(config.get("wiki_compile", args.sync_wiki))
+    if args.wiki_topics_entities is None:
+        env_wiki_te = env_bool("CWK_WIKI_TOPICS_ENTITIES")
+        args.wiki_topics_entities = env_wiki_te if env_wiki_te is not None else bool(config.get("wiki_topics_entities", args.sync_wiki or args.wiki_compile))
+    if args.wiki_sync is None:
+        env_wiki_sync = env_bool("CWK_WIKI_SYNC")
+        # Default wiki sync on when either compile step is enabled and --sync-docdb is set.
+        default_wiki_sync = bool(args.sync_docdb and (args.wiki_compile or args.wiki_topics_entities))
+        args.wiki_sync = env_wiki_sync if env_wiki_sync is not None else bool(config.get("wiki_sync", default_wiki_sync))
+    args.wiki_mirror_root = config_value(
+        args,
+        config,
+        "wiki_mirror_root",
+        args.mirror_root,
+    )
+    args.wiki_model = config_value(args, config, "wiki_model", os.environ.get("CWK_CLOUD_WIKI_MODEL", "newapi/BD-MiniMax"))
+    args.wiki_repair_model = config_value(
+        args,
+        config,
+        "wiki_repair_model",
+        os.environ.get("CWK_CLOUD_WIKI_REPAIR_MODEL", "newapi/BD-glm"),
+    )
+    args.wiki_limit = int(config_value(args, config, "wiki_limit", os.environ.get("CWK_WIKI_LIMIT", 80)))
+    args.wiki_max_parallel = int(
+        config_value(args, config, "wiki_max_parallel", os.environ.get("CWK_WIKI_MAX_PARALLEL", 1))
+    )
+    if args.wiki_refine_fallbacks is None:
+        env_wiki_refine = env_bool("CWK_WIKI_REFINE_FALLBACKS")
+        args.wiki_refine_fallbacks = (
+            env_wiki_refine
+            if env_wiki_refine is not None
+            else bool(config.get("wiki_refine_fallbacks", False))
+        )
+    args.wiki_timeout_seconds = int(
+        config_value(args, config, "wiki_timeout_seconds", os.environ.get("CWK_WIKI_TIMEOUT_SECONDS", 180))
+    )
+    if args.wiki_best_effort is None:
+        env_wiki_best_effort = env_bool("CWK_WIKI_BEST_EFFORT")
+        args.wiki_best_effort = env_wiki_best_effort if env_wiki_best_effort is not None else bool(config.get("wiki_best_effort", True))
 
     run_dir = RUNS / args.run_name
+    mirror_root = Path(str(args.mirror_root)).expanduser().resolve()
     steps: list[dict] = []
     collection_manifest = None
+    raw_promotion_manifest = None
+    source_backfill_manifest = None
+    source_coverage_manifest = None
+    source_completeness_failures: list[str] = []
 
     if args.source_dir:
         source_dirs = [Path(p).expanduser().resolve() for p in args.source_dir]
@@ -451,6 +562,56 @@ def main() -> None:
         collection_manifest_path = RUNS / collect_run / "collect-manifest.json"
         if collection_manifest_path.exists():
             collection_manifest = read_json(collection_manifest_path)
+
+    if not args.no_publish_mirror:
+        raw_promotion_path = run_dir / "raw-promotion-manifest.json"
+        promote_cmd = [
+            sys.executable,
+            str(SCRIPTS / "cwk_raw_store.py"),
+            "--mirror-root",
+            str(mirror_root),
+            "--manifest-out",
+            str(raw_promotion_path),
+        ]
+        for source_dir in source_dirs:
+            promote_cmd.extend(["--source-dir", str(source_dir)])
+        result = run_cmd(promote_cmd)
+        steps.append({"step": "promote_local_raw", **result})
+        if result["returncode"] != 0:
+            source_completeness_failures.append("promote_local_raw")
+        elif raw_promotion_path.exists():
+            raw_promotion_manifest = read_json(raw_promotion_path)
+
+    # The normal collector optimizes for a bounded daily digest.  This second,
+    # read-only source pass has a different contract: page the entire business
+    # date and make local raw complete before Wiki compilation.
+    if args.source_completeness and not args.source_dir and not args.no_publish_mirror:
+        source_backfill_run = f"{args.run_name}-date-complete"
+        source_backfill_path = RUNS / source_backfill_run / "backfill-manifest.json"
+        result = run_cmd(
+            [
+                sys.executable,
+                str(SCRIPTS / "cwk_backfill_range.py"),
+                "--app-key",
+                args.app_key,
+                "--start-date",
+                args.date,
+                "--end-date",
+                args.date,
+                "--run-name",
+                source_backfill_run,
+                "--mirror-root",
+                str(mirror_root),
+                "--max-parallel",
+                str(args.source_backfill_max_parallel),
+            ],
+            secrets=(args.app_key,),
+        )
+        steps.append({"step": "complete_current_business_date", **result})
+        if result["returncode"] != 0:
+            source_completeness_failures.append("complete_current_business_date")
+        if source_backfill_path.exists():
+            source_backfill_manifest = read_json(source_backfill_path)
 
     sample_cmd = [
         sys.executable,
@@ -501,6 +662,8 @@ def main() -> None:
                 str(SCRIPTS / "cwk_materialize_safe.py"),
                 "--run-name",
                 args.run_name,
+                "--mirror-root",
+                str(mirror_root),
             ]
         )
         steps.append({"step": "safe_materialize_knowledge", **result})
@@ -556,7 +719,7 @@ def main() -> None:
     steps.append({"step": "action_center_shadow", **result})
     require_ok("action_center_shadow", result)
 
-    mirror_outputs = {} if args.no_publish_mirror else copy_to_mirror(run_dir, args.date, (args.app_key,))
+    mirror_outputs = {} if args.no_publish_mirror else copy_to_mirror(run_dir, args.date, mirror_root, (args.app_key,))
 
     sync_manifest = None
     structured_sync_manifests: list[str] = []
@@ -570,6 +733,8 @@ def main() -> None:
             "daily/",
             "--manifest",
             str(sync_manifest),
+            "--mirror-root",
+            str(mirror_root),
         ]
         if args.docdb_project_id:
             sync_cmd.extend(["--project-id", args.docdb_project_id])
@@ -590,6 +755,8 @@ def main() -> None:
             "runs/",
             "--manifest",
             str(sync_runs_manifest),
+            "--mirror-root",
+            str(mirror_root),
         ]
         if args.docdb_project_id:
             sync_runs_cmd.extend(["--project-id", args.docdb_project_id])
@@ -612,6 +779,8 @@ def main() -> None:
                 prefix,
                 "--manifest",
                 str(structured_manifest),
+                "--mirror-root",
+                str(mirror_root),
             ]
             if safe_materialize_manifest_path:
                 structured_cmd.extend(["--paths-manifest", str(safe_materialize_manifest_path)])
@@ -626,6 +795,143 @@ def main() -> None:
             if result["returncode"] != 0:
                 sync_failures.append(f"sync_{label}_docdb")
             structured_sync_manifests.append(str(structured_manifest.relative_to(PROJECT)))
+
+    wiki_manifest: dict = {
+        "enabled": bool(args.sync_wiki or args.wiki_compile or args.wiki_topics_entities or args.wiki_sync),
+        "mirror_root": str(args.wiki_mirror_root),
+        "best_effort": bool(args.wiki_best_effort),
+        "compile": None,
+        "topics_entities": None,
+        "sync": None,
+        "paths_manifest": None,
+        "failures": [],
+    }
+    wiki_mirror = Path(str(args.wiki_mirror_root)).expanduser().resolve()
+    wiki_compile_manifest = RUNS / f"wiki-compile-{args.run_name}.json"
+    te_manifest = RUNS / f"wiki-topics-entities-{args.run_name}.json"
+    if args.wiki_compile:
+        wiki_compile_cmd = [
+            sys.executable,
+            str(SCRIPTS / "cwk_cloud_wiki_compile.py"),
+            "--mirror-root",
+            str(wiki_mirror),
+            "--model",
+            str(args.wiki_model),
+            "--repair-model",
+            str(args.wiki_repair_model),
+            "--limit",
+            str(args.wiki_limit),
+            "--max-parallel",
+            str(args.wiki_max_parallel),
+            "--timeout-seconds",
+            str(args.wiki_timeout_seconds),
+            "--manifest-out",
+            str(wiki_compile_manifest),
+        ]
+        if args.wiki_refine_fallbacks:
+            wiki_compile_cmd.append("--refine-fallbacks")
+        result = run_cmd(wiki_compile_cmd)
+        steps.append({"step": "wiki_compile", **result})
+        wiki_manifest["compile"] = {
+            "returncode": result["returncode"],
+            "limit": args.wiki_limit,
+            "max_parallel": args.wiki_max_parallel,
+            "model": args.wiki_model,
+            "repair_model": args.wiki_repair_model,
+            "refine_fallbacks": bool(args.wiki_refine_fallbacks),
+            "manifest": display_path(wiki_compile_manifest),
+        }
+        if result["returncode"] != 0:
+            wiki_manifest["failures"].append("wiki_compile")
+            if not args.wiki_best_effort:
+                sync_failures.append("wiki_compile")
+
+    if args.wiki_topics_entities:
+        te_cmd = [
+            sys.executable,
+            str(SCRIPTS / "cwk_cloud_wiki_topics_entities.py"),
+            "--mirror-root",
+            str(wiki_mirror),
+            "--min-topic-reports",
+            "2",
+            "--min-entity-reports",
+            "2",
+            "--manifest-out",
+            str(te_manifest),
+        ]
+        result = run_cmd(te_cmd)
+        steps.append({"step": "wiki_topics_entities", **result})
+        wiki_manifest["topics_entities"] = {
+            "returncode": result["returncode"],
+            "manifest": str(te_manifest.relative_to(PROJECT)),
+        }
+        if result["returncode"] != 0:
+            wiki_manifest["failures"].append("wiki_topics_entities")
+            if not args.wiki_best_effort:
+                sync_failures.append("wiki_topics_entities")
+
+    wiki_paths_manifest = merge_changed_paths_manifest(RUNS / f"wiki-changed-paths-{args.run_name}.json", wiki_compile_manifest, te_manifest)
+    if wiki_paths_manifest:
+        wiki_manifest["paths_manifest"] = display_path(wiki_paths_manifest)
+
+    if args.wiki_sync:
+        wiki_sync_manifest = RUNS / f"docdb-{args.run_name}-wiki-sync.json"
+        wiki_sync_cmd = [
+            sys.executable,
+            str(SCRIPTS / "cwk_sync_mirror_to_docdb.py"),
+            "--mirror-root",
+            str(wiki_mirror),
+            "--only-prefix",
+            "wiki/",
+            "--manifest",
+            str(wiki_sync_manifest),
+            "--retry-queue",
+            str(RUNS / "docdb-sync-retry-queue.json"),
+        ]
+        if wiki_paths_manifest:
+            wiki_sync_cmd.extend(["--paths-manifest", str(wiki_paths_manifest)])
+        if args.docdb_project_id:
+            wiki_sync_cmd.extend(["--project-id", args.docdb_project_id])
+        if args.docdb_root_file_id:
+            wiki_sync_cmd.extend(["--root-file-id", args.docdb_root_file_id])
+        if args.sync_dry_run:
+            wiki_sync_cmd.append("--dry-run")
+        result = run_cmd(wiki_sync_cmd)
+        steps.append({"step": "wiki_sync_docdb", **result})
+        wiki_manifest["sync"] = {
+            "returncode": result["returncode"],
+            "manifest": str(wiki_sync_manifest.relative_to(PROJECT)),
+        }
+        if result["returncode"] != 0:
+            wiki_manifest["failures"].append("wiki_sync_docdb")
+            if not args.wiki_best_effort:
+                sync_failures.append("wiki_sync_docdb")
+
+    if args.source_completeness and not args.source_dir and not args.no_publish_mirror and args.wiki_compile:
+        source_coverage_path = run_dir / "source-coverage-manifest.json"
+        result = run_cmd(
+            [
+                sys.executable,
+                str(SCRIPTS / "cwk_source_coverage_audit.py"),
+                "--app-key",
+                args.app_key,
+                "--start-date",
+                args.date,
+                "--end-date",
+                args.date,
+                "--mirror-root",
+                str(mirror_root),
+                "--manifest-out",
+                str(source_coverage_path),
+                "--strict",
+            ],
+            secrets=(args.app_key,),
+        )
+        steps.append({"step": "source_raw_wiki_completeness_gate", **result})
+        if result["returncode"] != 0:
+            source_completeness_failures.append("source_raw_wiki_completeness_gate")
+        if source_coverage_path.exists():
+            source_coverage_manifest = read_json(source_coverage_path)
 
     summary = read_json(run_dir / "run.json")
     manifest = {
@@ -647,12 +953,17 @@ def main() -> None:
                 "backfill_run",
             )
         } if collection_manifest else None,
+        "raw_promotion": raw_promotion_manifest,
+        "source_backfill": source_backfill_manifest,
+        "source_coverage": source_coverage_manifest,
+        "source_completeness_failures": source_completeness_failures,
         "safe_materialize": safe_materialize_manifest,
-        "overall_pass": bool(summary.get("overall_pass")) and not sync_failures,
+        "overall_pass": bool(summary.get("overall_pass")) and not sync_failures and not source_completeness_failures,
         "content_quality_pass": summary.get("overall_pass"),
         "sync_failures": sync_failures,
         "degraded": bool(ai_manifest.get("degraded")),
         "ai": ai_manifest,
+        "wiki": wiki_manifest,
         "mirror_outputs": mirror_outputs,
         "sync_manifest": str(sync_manifest.relative_to(PROJECT)) if sync_manifest else None,
         "structured_sync_manifests": structured_sync_manifests,

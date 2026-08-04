@@ -29,7 +29,7 @@ from cwk_ai_common import (  # noqa: E402
     validate_record,
 )
 from cwk_ai_event_clustering import merge_event_batches, normalize_bundle, prompt_for as cluster_prompt_for, recover_cluster_batch, validate_cluster_evidence, validate_event_coverage  # noqa: E402
-from cwk_nightly_pipeline import copy_to_mirror, redact_cmd, redact_text, require_publish_safe, write_manifest  # noqa: E402
+from cwk_nightly_pipeline import copy_to_mirror, merge_changed_paths_manifest, redact_cmd, redact_text, require_publish_safe, write_manifest  # noqa: E402
 from cwk_ai_quality_review import prompt_for as quality_prompt_for  # noqa: E402
 from cwk_ai_record_understanding import process_one as process_ai_record  # noqa: E402
 from cwk_sample_pilot import build_relations, event_family, load_items, title_anchor, unique_relation_pairs  # noqa: E402
@@ -55,7 +55,7 @@ class AIContractTests(unittest.TestCase):
                 patch("cwk_ai_common.time.sleep"),
                 patch.dict("os.environ", {"CWK_AI_CALL_RETRIES": "2"}, clear=False),
             ):
-                result = invoke_openclaw_json("safe prompt", model="model", stage="test", timeout_seconds=1, prompt_dir=project)
+                result = invoke_openclaw_json("safe prompt", model="newapi/BD-MiniMax", stage="test", timeout_seconds=1, prompt_dir=project)
         self.assertEqual(result, payload)
         self.assertEqual(run.call_count, 2)
 
@@ -122,6 +122,35 @@ class AIContractTests(unittest.TestCase):
         self.assertEqual(sanitized["evidence_refs"], fallback["evidence_refs"])
         self.assertIn("untraceable_evidence_pruned", sanitized["normalization_flags"])
 
+
+    def test_copy_to_mirror_supports_external_root(self):
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory) / "project"
+            run = project / "runs" / "nightly-test"
+            external_mirror = Path(directory) / "external-mirror"
+            run.mkdir(parents=True)
+            (run / "digest-human-v4.md").write_text("# digest\n", encoding="utf-8")
+            (run / "digest-human-v4.html").write_text("<p>digest</p>\n", encoding="utf-8")
+            (run / "ACCEPTANCE-RESULT.md").write_text("ok\n", encoding="utf-8")
+            (run / "incremental-link-preview-v1.md").write_text("ok\n", encoding="utf-8")
+            with patch("cwk_nightly_pipeline.PROJECT", project):
+                outputs = copy_to_mirror(run, "2026-08-02", external_mirror)
+            self.assertTrue(outputs["daily_md"].startswith(str(external_mirror.resolve())))
+            self.assertTrue((external_mirror / "daily" / "2026-08" / "2026-08-02.md").exists())
+
+    def test_merge_changed_paths_manifest_combines_inputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            compile_manifest = root / "compile.json"
+            topics_manifest = root / "topics.json"
+            output = root / "merged.json"
+            compile_manifest.write_text(json.dumps({"changed_relative_paths": ["wiki/summaries/1.md", "wiki/_system/manifest.json"]}), encoding="utf-8")
+            topics_manifest.write_text(json.dumps({"changed_relative_paths": ["wiki/topics/a.md", "wiki/_system/manifest.json"]}), encoding="utf-8")
+            merged = merge_changed_paths_manifest(output, compile_manifest, topics_manifest)
+            self.assertEqual(merged, output)
+            payload = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(payload["changed_relative_paths"], ["wiki/_system/manifest.json", "wiki/summaries/1.md", "wiki/topics/a.md"])
+
     def test_sensitive_source_pattern_is_detected(self):
         self.assertTrue(contains_sensitive_text("credential sk-example_12345678901234567890"))
         self.assertFalse(contains_sensitive_text("ordinary work report"))
@@ -167,29 +196,40 @@ class AIContractTests(unittest.TestCase):
         self.assertEqual(events["events"][0]["priority"], "P2")
         self.assertEqual(priorities["priorities"][0]["priority"], "P2")
 
-    def test_ai_agent_policy_allows_read_only_minimal_agent(self):
+    def test_ai_agent_policy_allows_unsandboxed_zero_tool_agent(self):
         base = {
             "skills": [],
             "workspace": str(ai_agent_workspace()),
-            "sandbox": {"mode": "all", "scope": "agent", "workspaceAccess": "ro"},
+            "sandbox": {"mode": "off"},
         }
-        safe, _ = safe_agent_policy({**base, "tools": {"profile": "minimal", "alsoAllow": ["read"]}})
+        safe, _ = safe_agent_policy(
+            {**base, "tools": {"profile": "minimal", "allow": [], "alsoAllow": [], "deny": ["*"]}}
+        )
         self.assertTrue(safe)
         unsafe, _ = safe_agent_policy({**base, "tools": {"profile": "coding", "deny": ["message"]}})
         self.assertFalse(unsafe)
-        unsafe, _ = safe_agent_policy({**base, "tools": {"profile": "minimal", "alsoAllow": ["read", "exec"]}})
+        unsafe, _ = safe_agent_policy({**base, "tools": {"profile": "minimal", "alsoAllow": ["read"], "deny": ["*"]}})
         self.assertFalse(unsafe)
-        unsafe, _ = safe_agent_policy({**base, "tools": {"profile": "minimal", "alsoAllow": ["read", "session_status"]}})
+        unsafe, _ = safe_agent_policy({**base, "tools": {"profile": "minimal", "alsoAllow": [], "deny": ["exec"]}})
         self.assertFalse(unsafe)
-        unsafe, _ = safe_agent_policy({"tools": {"profile": "minimal", "alsoAllow": ["read"]}})
+        unsafe, _ = safe_agent_policy({"tools": {"profile": "minimal", "alsoAllow": [], "deny": ["*"]}})
         self.assertFalse(unsafe)
+
+        sandboxed, _ = safe_agent_policy(
+            {
+                **base,
+                "sandbox": {"mode": "all", "scope": "agent", "workspaceAccess": "ro"},
+                "tools": {"profile": "minimal", "allow": [], "alsoAllow": [], "deny": ["*"]},
+            }
+        )
+        self.assertFalse(sandboxed)
 
     def test_ai_agent_policy_rejects_workspace_outside_project(self):
         agent = {
             "skills": [],
             "workspace": "/tmp/cwk-untrusted-workspace",
-            "sandbox": {"mode": "all", "scope": "agent", "workspaceAccess": "ro"},
-            "tools": {"profile": "minimal", "alsoAllow": ["read"]},
+            "sandbox": {"mode": "off"},
+            "tools": {"profile": "minimal", "allow": [], "alsoAllow": [], "deny": ["*"]},
         }
         safe, reason = safe_agent_policy(agent)
         self.assertFalse(safe)
@@ -218,8 +258,8 @@ class AIContractTests(unittest.TestCase):
             agent = {
                 "skills": [],
                 "workspace": str(external_link),
-                "sandbox": {"mode": "all", "scope": "agent", "workspaceAccess": "ro"},
-                "tools": {"profile": "minimal", "alsoAllow": ["read"]},
+                "sandbox": {"mode": "off"},
+                "tools": {"profile": "minimal", "allow": [], "alsoAllow": [], "deny": ["*"]},
             }
             with patch("cwk_ai_common.PROJECT", project):
                 safe, reason = safe_agent_policy(agent)

@@ -1,4 +1,4 @@
-.PHONY: test smoke smoke-ai smoke-ai-degraded clean
+.PHONY: test smoke smoke-ai smoke-ai-degraded wiki-lint wiki-smoke clean
 
 PYTHON ?= python3
 SMOKE_RUN ?= ci-smoke
@@ -12,6 +12,12 @@ test:
 	$(MAKE) smoke
 	$(MAKE) smoke-ai
 	$(MAKE) smoke-ai-degraded
+
+wiki-lint:
+	$(PYTHON) scripts/cwk_wiki_query.py --lint
+
+wiki-smoke:
+	$(PYTHON) scripts/cwk_wiki_smoke_test.py
 
 smoke:
 	rm -rf runs/$(SMOKE_RUN)
@@ -47,6 +53,7 @@ smoke-ai:
 smoke-ai-degraded:
 	rm -rf runs/$(SMOKE_AI_DEGRADED_RUN)
 	CWK_AI_ENABLED=true CWK_AI_DRY_RUN=false \
+	CWK_AI_CALL_RETRIES=1 CWK_AI_TIMEOUT_SECONDS=1 \
 	CWK_AI_RECORD_MODEL= CWK_AI_CLUSTER_MODEL= CWK_AI_QUALITY_MODEL= \
 	$(PYTHON) scripts/cwk_nightly_pipeline.py \
 		--config skill/templates/CONFIG.example.json \

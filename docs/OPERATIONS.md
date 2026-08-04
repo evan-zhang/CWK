@@ -64,12 +64,34 @@ A healthy run has:
 - DocDB sync is allowlisted to `daily/`, `runs/`, `history/`, `events/`, `entities/`, and `_index/`; `raw/` remains excluded.
 - DocDB sync manifest with no failed command.
 - For an AI pilot, `ai.degraded=false`, all AI stages are completed, and quality evidence IDs resolve to raw reports.
+- `python3 scripts/cwk_wiki_query.py --lint` reports `overall=PASS`: every summary resolves to raw, evidence quotes validate, and topic/entity summary links are not dangling.
 
-## AI Pilot Run
+## Wiki Question Retrieval
 
-Keep the scheduled production job rules-only. Run AI pilots manually or from a separate isolated schedule:
+Use the local evidence retriever before answering questions from the mirror:
 
-Before the first real call, provision a dedicated `cwk-ai-reviewer` Agent according to `docs/AI-PILOT.md`. CWK rejects an Agent unless its tool profile is `minimal`, its only additional tool is `read`, its sandbox is `mode=all/scope=agent/workspaceAccess=ro`, and its workspace exactly matches the fixed project-local `.cwk-ai-runtime` directory.
+```bash
+python3 scripts/cwk_wiki_query.py "<question>" --top-k 8
+```
+
+The retriever is intentionally model-free. Topics and entities improve recall, summaries rank candidate reports, and raw files provide the final quotes. `confidence=none` means the Agent must refuse or broaden the query; navigation-only text is never final evidence.
+
+## AI Pilot and Bounded Wiki Refinement
+
+Keep record understanding and event-clustering pilots side-by-side. Wiki source refinement may run in the production nightly only with a bounded page budget, a zero-tool reviewer, and best-effort failure handling:
+
+```bash
+python3 scripts/cwk_nightly_pipeline.py ... \
+  --wiki-refine-fallbacks --wiki-limit 8 --wiki-max-parallel 4 \
+  --wiki-model newapi/BD-glm --wiki-repair-model newapi/BD-glm \
+  --wiki-timeout-seconds 30
+```
+
+Fallback pages remain queryable and their final evidence is always read from `raw/`. Sensitive pages are withheld from the model. Failed pages stop automatic retries after three attempts.
+
+For other AI pilots, run manually or from a separate isolated schedule:
+
+Before the first real call, provision a dedicated `cwk-ai-reviewer` Agent according to `docs/AI-PILOT.md`. CWK rejects an Agent unless its tool profile is `minimal`, all tool allow lists are empty, `deny=["*"]`, its sandbox is `mode=off`, and its workspace exactly matches the fixed project-local `.cwk-ai-runtime` directory. This removes Docker from the AI path without granting host tools.
 
 ```bash
 CWK_AI_ENABLED=true \
@@ -91,7 +113,7 @@ The runner creates temporary prompt files under the ignored `.cwk-ai-runtime/pro
 - Empty daily HTML: verify `digest-human-v4.md` exists.
 - Too many suspected links: review `incremental-link-preview-v1.md`, keep strong merge disabled.
 - DocDB server busy: rerun sync; raw evidence can use physical-file upload.
-- Cron model rejected: use an allowlisted model such as `newapi-anthropic-vip/MiniMax-latest-cloud`.
+- Cron model rejected: use the reviewed allowlist in `MODEL_ROLES.md` (`newapi/BD-MiniMax` or `newapi/BD-glm`).
 - AI stage missing model: set all three `CWK_AI_*_MODEL` values or use `CWK_AI_DRY_RUN=true` for orchestration tests.
 - AI output invalid JSON/evidence: inspect the stage error in the nightly manifest; keep the rules digest as the published baseline.
 - `skipped_sensitive_count > 0`: the source was withheld before model invocation. Rotate real credentials at the issuer and review existing raw replicas before deleting them.

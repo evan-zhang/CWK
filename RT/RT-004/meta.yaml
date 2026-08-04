@@ -1,0 +1,9 @@
+rt_id: RT-004
+title: 工作协同 Wiki 可信问答入口
+status: completed
+profile: Spec-Lite
+created: 2026-08-04
+assignee: Codex
+priority: high
+depends_on: [RT-003]
+labels: [wiki-qa, retrieval, evidence, read-only]

@@ -39,6 +39,12 @@ DEFAULT_SENDER_ID = os.environ.get("CWK_SENDER_ID", "")
 DEFAULT_ACCOUNT_ID = os.environ.get("CWK_ACCOUNT_ID", "default")
 DEFAULT_RETRY_QUEUE = PROJECT / "runs" / "docdb-sync-retry-queue.json"
 TRANSIENT_ERRORS = ("服务器繁忙", "文件信息查询失败", "timeout", "timed out", "temporarily unavailable", "connection reset")
+CLOUD_FILE_NAMES = {
+    # `manifest.json` is too generic for the DocDB search API and can produce
+    # a server-side file-info lookup failure. Keep the local canonical name
+    # while publishing a stable, unique cloud-side name.
+    "wiki/_system/manifest.json": "cwk-wiki-manifest.json",
+}
 
 
 @dataclass
@@ -159,7 +165,9 @@ def resolve_docdb_target(project_id: str, root_file_id: str, env: dict[str, str]
 
 
 def iter_items(limit: int | None, only_prefix: str | None, paths_manifest: str | None = None) -> list[SyncItem]:
-    files = sorted(path for path in MIRROR.rglob("*") if path.is_file() and path.suffix.lower() in {".md", ".html"})
+    # JSON manifests are part of the cloud-side truth/audit layer.  Keep them
+    # alongside Markdown/HTML rather than leaving state only on this machine.
+    files = sorted(path for path in MIRROR.rglob("*") if path.is_file() and path.suffix.lower() in {".md", ".html", ".json"})
     if paths_manifest:
         payload = json.loads(Path(paths_manifest).expanduser().resolve().read_text(encoding="utf-8"))
         allowed = {str(value) for value in (payload.get("changed_relative_paths") or [])}
@@ -179,7 +187,7 @@ def iter_items(limit: int | None, only_prefix: str | None, paths_manifest: str |
                 path=path,
                 rel=rel,
                 folder_name=folder_name,
-                file_name=path.name,
+                file_name=CLOUD_FILE_NAMES.get(rel.as_posix(), path.name),
                 expected_ancestor=expected_ancestor,
             )
         )
@@ -221,7 +229,7 @@ def write_sync_manifest(output: Path, args: argparse.Namespace, results: list[di
         "dry_run": args.dry_run,
         "project_id": args.project_id,
         "root_file_id": args.root_file_id,
-        "mirror_root": str(MIRROR.relative_to(PROJECT)),
+        "mirror_root": str(MIRROR.relative_to(PROJECT)) if MIRROR.is_relative_to(PROJECT) else str(MIRROR),
         "counts": counts,
         "results": results,
     }
@@ -428,6 +436,7 @@ def upload_or_update(
 
 
 def main() -> None:
+    global MIRROR
     parser = argparse.ArgumentParser(description="Sync local CWork mirror Markdown files to docdb.")
     parser.add_argument("--project-id", default=DEFAULT_PROJECT_ID)
     parser.add_argument("--root-file-id", default=DEFAULT_ROOT_FILE_ID)
@@ -440,9 +449,17 @@ def main() -> None:
     parser.add_argument("--max-bytes", type=int, default=None, help="Skip files larger than this many bytes.")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--create-missing-only", action="store_true")
+    parser.add_argument(
+        "--mirror-root",
+        default=os.environ.get("CWK_MIRROR_ROOT", str(MIRROR)),
+        help="Local cache of the cloud mirror to sync (defaults to this package's mirror).",
+    )
     parser.add_argument("--manifest", default=None)
     parser.add_argument("--retry-queue", default=str(DEFAULT_RETRY_QUEUE), help="Persistent queue for failed relative paths.")
     args = parser.parse_args()
+    MIRROR = Path(args.mirror_root).expanduser().resolve()
+    if not MIRROR.is_dir():
+        raise SystemExit(f"mirror root does not exist: {MIRROR}")
 
     app_key = (
         os.environ.get("XG_BIZ_API_KEY")

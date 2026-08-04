@@ -105,6 +105,13 @@ python3 scripts/cwk_nightly_pipeline.py \
 
 A production-ready live run should report `overall_pass=true` and generate both `digest-human-v4.md` and `digest-human-v4.html`.
 
+Live nightly runs also execute a complete `search-list` pass for that business
+date, promote staged reports into the local `raw/YYYY-MM/YYYY-MM-DD/` truth
+source, compile missing Wiki summaries, and enforce
+`source IDs = raw IDs = summary IDs`.  The bounded inbox/todo collector remains
+responsible for the human digest; it is no longer treated as proof of complete
+source capture.  Raw evidence stays local and is never included in DocDB sync.
+
 ## AI Quality Pilot
 
 The stable nightly remains rules-only by default. RT-001 adds a side-by-side AI pipeline without replacing the rules digest:
@@ -126,10 +133,12 @@ For a real local pilot, configure three models in the private `.env`:
 ```bash
 CWK_AI_ENABLED=true
 CWK_AI_DRY_RUN=false
-CWK_AI_RECORD_MODEL=provider/model
-CWK_AI_CLUSTER_MODEL=provider/model
-CWK_AI_QUALITY_MODEL=provider/model
+CWK_AI_RECORD_MODEL=newapi/BD-MiniMax
+CWK_AI_CLUSTER_MODEL=newapi/BD-glm
+CWK_AI_QUALITY_MODEL=newapi/BD-glm
 ```
+
+**Hard constraint**: the CWK pipeline only permits `newapi/BD-MiniMax` (MiniMax M3) and `newapi/BD-glm` (GLM 5.2). Any other model ID is rejected at startup. See `MODEL_ROLES.md` for the full role matrix.
 
 Then run a side-by-side read-only pass:
 
@@ -141,7 +150,63 @@ python3 scripts/cwk_nightly_pipeline.py \
   --sync-docdb
 ```
 
-Real AI calls use `openclaw agent --json` through a dedicated `CWK_AI_AGENT_ID` and do not use `--deliver`. The configured Agent must have `tools.profile=minimal`, only add `read`, and mount the private `.cwk-ai-runtime` prompt workspace read-only in an Agent-scoped sandbox; CWK refuses general-purpose or mutation-capable Agents. Temporary prompt files are deleted after each call. See `docs/AI-PILOT.md` for the runtime policy. Keep AI disabled in production cron until three pilot runs have been reviewed.
+Real AI calls use `openclaw agent --json` through a dedicated `CWK_AI_AGENT_ID` and do not use `--deliver`. The configured Agent is an unsandboxed **zero-tool** transformer: `tools.profile=minimal`, empty allow lists, `deny=["*"]`, `skills=[]`, and `sandbox.mode=off`. OpenClaw reads the temporary message file before the model turn, so the reviewer needs no filesystem tool and Docker is not a runtime dependency. CWK refuses any policy drift. Temporary prompt files are deleted after each call. See `docs/AI-PILOT.md` for the runtime policy.
+
+For cloud wiki source compilation, `scripts/cwk_cloud_wiki_compile.py` defaults to `newapi/BD-MiniMax`. Override with `--model` or `CWK_CLOUD_WIKI_MODEL` only when a cheaper or more reliable reviewed model is intentionally selected.
+If the primary response is not valid contract JSON, one bounded repair call uses
+`newapi/BD-glm` by default (`--repair-model` / `CWK_CLOUD_WIKI_REPAIR_MODEL`).
+
+Summary coverage and summary quality are separate manifest states. `compiled_report_ids` means a navigable summary exists; `ai_refined_report_ids` and `fallback_report_ids` report the quality split. Nightly compiles missing summaries but does not block on historical fallback refinement. Run the latter as a bounded quality job only:
+
+```bash
+REFINE_FALLBACKS=true LIMIT=5 MAX_PARALLEL=4 MAX_BATCHES=1 scripts/cwk_wiki_batch_driver.sh
+```
+
+The batch driver is local-only by default. Set `SYNC_WIKI=true` only when the
+reviewed pages should be version-synced to DocDB after each batch.
+
+Model failures keep the old fallback page and increment a bounded attempt
+counter. After three failed attempts the page becomes
+`fallback_terminal_error`; secret-shaped source text becomes
+`withheld_sensitive` and is never sent to the model. The trusted query output
+surfaces this quality state but still verifies every factual quote against raw.
+
+Nightly can also spend a bounded compile budget on historical quality debt:
+
+```bash
+CWK_WIKI_REFINE_FALLBACKS=true CWK_WIKI_LIMIT=5 CWK_WIKI_MAX_PARALLEL=4 \
+  python3 scripts/cwk_nightly_pipeline.py ...
+```
+
+## Trusted Wiki Query
+
+`scripts/cwk_wiki_query.py` is the read-only question retrieval entrypoint. It uses topics/entities as navigation, ranks source summaries, and then returns evidence verified against immutable `raw/` reports. It does not call a model, require Docker, or read credentials.
+
+```bash
+python3 scripts/cwk_wiki_query.py \
+  "7 月 10 日 OpenClaw Token 异常用户是谁" \
+  --top-k 6
+```
+
+For a bounded period or person:
+
+```bash
+python3 scripts/cwk_wiki_query.py \
+  "Token 消耗异常" \
+  --from-date 2026-07-15 --to-date 2026-07-31 \
+  --format json
+
+python3 scripts/cwk_wiki_query.py \
+  "最近参与了哪些事项" --writer 李文俏
+```
+
+Run the Wiki integrity gate before relying on it:
+
+```bash
+python3 scripts/cwk_wiki_query.py --lint
+```
+
+The command returns an evidence packet, not an unverified prose answer. The OpenClaw Agent must answer only from `evidence_status=verified` items, cite `report_id` and the raw path, surface conflicts, and abstain when `confidence=none`.
 
 ## Repository Layout
 

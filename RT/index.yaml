@@ -4,3 +4,6 @@
 |-------|-------|--------|---------|---------|
 | RT-001 | AI 增强理解与质量复核 Pipeline | completed | Spec-Lite | 2026-07-15 |
 | RT-002 | 交互式工作协同办理中心 | in_progress | Spec-Lite | 2026-07-18 |
+| RT-003 | 云端优先 LLM Wiki 知识层 | in_progress | Spec-Lite | 2026-07-23 |
+| RT-004 | 工作协同 Wiki 可信问答入口 | completed | Spec-Lite | 2026-08-04 |
+| RT-005 | 工作协同 Wiki 精编闭环与稳定运行 | completed | Spec-Lite | 2026-08-04 |
