@@ -43,10 +43,6 @@ DEFAULT_HISTORY_RUN = os.environ.get("CWK_HISTORY_RUN_NAME", "")
 
 
 SECRET_FLAGS = {"--app-key", "--api-key", "--token"}
-SECRET_PATTERNS = (
-    re.compile(r"\bsk-[A-Za-z0-9_-]{20,}\b"),
-    re.compile(r"\b(?:Bearer\s+)[A-Za-z0-9._~+/=-]{20,}\b", re.I),
-)
 
 
 def redact_cmd(args: list[str]) -> list[str]:
@@ -68,8 +64,6 @@ def redact_text(value: str, secrets: tuple[str, ...] = ()) -> str:
     for secret in secrets:
         if secret:
             redacted = redacted.replace(secret, "<redacted>")
-    for pattern in SECRET_PATTERNS:
-        redacted = pattern.sub("<redacted>", redacted)
     return redacted
 
 
@@ -81,23 +75,6 @@ def sanitize_value(value, secrets: tuple[str, ...] = ()):
     if isinstance(value, str):
         return redact_text(value, secrets)
     return value
-
-
-def find_publish_secrets(paths: list[Path], secrets: tuple[str, ...] = ()) -> list[str]:
-    findings: list[str] = []
-    for path in paths:
-        if not path.exists() or not path.is_file():
-            continue
-        text = path.read_text(encoding="utf-8", errors="replace")
-        if any(secret and secret in text for secret in secrets) or any(pattern.search(text) for pattern in SECRET_PATTERNS):
-            findings.append(path.name)
-    return findings
-
-
-def require_publish_safe(paths: list[Path], secrets: tuple[str, ...] = ()) -> None:
-    findings = find_publish_secrets(paths, secrets)
-    if findings:
-        raise RuntimeError("secret gate blocked publishable artifacts: " + ", ".join(findings))
 
 
 def run_cmd(
@@ -178,19 +155,6 @@ def copy_to_mirror(run_dir: Path, date: str, mirror_root: Path | None = None, se
     if not daily_md.exists():
         daily_md = run_dir / "digest.md"
     daily_html = run_dir / "digest-human-v4.html"
-
-    publishable = [
-        daily_md,
-        daily_html,
-        run_dir / "digest-ai-enhanced.md",
-        run_dir / "digest-ai-enhanced.html",
-        run_dir / "ACCEPTANCE-RESULT.md",
-        run_dir / "incremental-link-preview-v1.md",
-        run_dir / "quality-review.md",
-        run_dir / "action-center.md",
-        run_dir / "action-center.html",
-    ]
-    require_publish_safe(publishable, secrets)
 
     outputs: dict[str, str] = {}
     daily_dir = mirror_root / "daily" / month
@@ -292,7 +256,6 @@ def run_ai_stages(args: argparse.Namespace, run_dir: Path, steps: list[dict]) ->
             {
                 "processed_count": summary.get("processed_count"),
                 "failed_count": summary.get("failed_count"),
-                "skipped_sensitive_count": summary.get("skipped_sensitive_count", 0),
             }
         )
         ai["degraded"] = ai["degraded"] or bool(summary.get("degraded"))

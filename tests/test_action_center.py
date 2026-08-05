@@ -135,6 +135,23 @@ class ActionCenterTests(unittest.TestCase):
         self.assertNotIn("fetch(", page)
         self.assertNotIn("XMLHttpRequest", page)
 
+    def test_cwork_key_like_text_is_preserved_in_all_action_center_views(self):
+        source_value = "example-app-key-value"
+        self.add("10", scopes="inbox", lane="inbox_awareness")
+        (self.run / "ai-understanding" / "10.json").write_text(
+            json.dumps({"summary": f"工作协同原文中的 AppKey：{source_value}"}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        payload = cwk_action_center.build_cards(self.run)
+        outputs = [
+            json.dumps(payload, ensure_ascii=False),
+            cwk_action_center.render_markdown(payload),
+            cwk_action_center.render_html(payload),
+        ]
+        for output in outputs:
+            self.assertIn(source_value, output)
+            self.assertNotIn("<redacted>", output)
+
 
 if __name__ == "__main__":
     unittest.main()

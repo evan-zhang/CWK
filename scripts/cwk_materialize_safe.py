@@ -11,15 +11,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-
 PROJECT = Path(__file__).resolve().parents[1]
 MIRROR = PROJECT / "knowledge" / "工作协同镜像"
-SECRET_PATTERNS = (
-    re.compile(r"\bsk-[A-Za-z0-9_-]{12,}\b"),
-    re.compile(r"\bBearer\s+[A-Za-z0-9._~+/=-]{16,}\b", re.I),
-)
-
-
 def load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -31,8 +24,6 @@ def slug(value: str) -> str:
 
 def safe_text(value: Any, limit: int = 300) -> str:
     text = re.sub(r"<[^>]+>", " ", str(value or ""))
-    for pattern in SECRET_PATTERNS:
-        text = pattern.sub("<redacted>", text)
     text = re.sub(r"\s+", " ", text).strip(" -*#|:：")
     return text[:limit]
 
@@ -150,16 +141,6 @@ def rebuild_index(root: Path, output: Path, title: str) -> bool:
     return True
 
 
-def assert_secret_safe(paths: list[Path]) -> None:
-    unsafe = []
-    for path in paths:
-        text = path.read_text(encoding="utf-8", errors="ignore")
-        if any(pattern.search(text) for pattern in SECRET_PATTERNS):
-            unsafe.append(path.name)
-    if unsafe:
-        raise RuntimeError("secret gate blocked structured knowledge pages: " + ", ".join(unsafe))
-
-
 def display_path(path: Path) -> str:
     try:
         return str(path.relative_to(PROJECT))
@@ -221,8 +202,6 @@ def materialize(run_dir: Path, mirror_root: Path | None = None) -> dict[str, Any
         changed.append(entity_index)
     if rebuild_index(mirror_root / "history", history_index, "工作协同历史记录索引"):
         changed.append(history_index)
-    assert_secret_safe(changed)
-
     manifest = {
         "schema_version": "cwk.safe_materialize.v1",
         "generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),

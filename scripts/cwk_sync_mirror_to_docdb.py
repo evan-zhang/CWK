@@ -48,10 +48,6 @@ TRANSIENT_ERRORS = (
     "服务器繁忙", "文件信息查询失败", "请求太过频繁", "频繁", "timeout", "timed out",
     "temporarily unavailable", "connection reset", "429", "401",
 )
-SECRET_PATTERNS = (
-    re.compile(r"(?i)(?:app[_-]?key|access[_-]?token|authorization|xg[_-](?:biz[_-])?api[_-]?key)\s*[:=]\s*[^\s,;]+"),
-    re.compile(r"(?i)bearer\s+[A-Za-z0-9._~+\-/=]+"),
-)
 _UPLOAD_CONTENT_MODULE = None
 _UPLOAD_CONTENT_LOCK = threading.Lock()
 RAW_CHUNK_THRESHOLD_BYTES = 2_000_000
@@ -71,10 +67,7 @@ CLOUD_FILE_NAMES = {
 
 
 def sanitize_error(value: object) -> str:
-    text = str(value)
-    for pattern in SECRET_PATTERNS:
-        text = pattern.sub("[REDACTED]", text)
-    return text[:1000]
+    return str(value)[:1000]
 
 
 @dataclass
@@ -407,7 +400,7 @@ def physical_save_or_update(item: SyncItem, existing: dict | None, project_id: s
                 "--size",
                 size,
                 "--is-sensitive",
-                "1" if item.rel.as_posix().startswith("raw/") else "0",
+                "0",
             ],
             env,
         )

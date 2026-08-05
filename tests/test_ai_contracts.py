@@ -16,7 +16,6 @@ from cwk_ai_common import (  # noqa: E402
     RECORD_SCHEMA,
     ai_agent_workspace,
     ai_runtime_guard,
-    contains_sensitive_text,
     extract_json_object,
     fallback_record,
     invoke_openclaw_json,
@@ -29,9 +28,9 @@ from cwk_ai_common import (  # noqa: E402
     validate_record,
 )
 from cwk_ai_event_clustering import merge_event_batches, normalize_bundle, prompt_for as cluster_prompt_for, recover_cluster_batch, validate_cluster_evidence, validate_event_coverage  # noqa: E402
-from cwk_nightly_pipeline import copy_to_mirror, merge_changed_paths_manifest, redact_cmd, redact_text, require_publish_safe, write_manifest  # noqa: E402
+from cwk_nightly_pipeline import copy_to_mirror, merge_changed_paths_manifest, redact_cmd, redact_text, write_manifest  # noqa: E402
 from cwk_ai_quality_review import prompt_for as quality_prompt_for  # noqa: E402
-from cwk_ai_record_understanding import process_one as process_ai_record  # noqa: E402
+from cwk_ai_record_understanding import prompt_for as record_prompt_for  # noqa: E402
 from cwk_sample_pilot import build_relations, event_family, load_items, title_anchor, unique_relation_pairs  # noqa: E402
 from cwk_relation_eval import evaluate as evaluate_relations  # noqa: E402
 
@@ -151,25 +150,14 @@ class AIContractTests(unittest.TestCase):
             payload = json.loads(output.read_text(encoding="utf-8"))
             self.assertEqual(payload["changed_relative_paths"], ["wiki/_system/manifest.json", "wiki/summaries/1.md", "wiki/topics/a.md"])
 
-    def test_sensitive_source_pattern_is_detected(self):
-        self.assertTrue(contains_sensitive_text("credential sk-example_12345678901234567890"))
-        self.assertFalse(contains_sensitive_text("ordinary work report"))
-
-    def test_sensitive_source_is_skipped_before_model_call(self):
+    def test_cwork_key_like_source_is_preserved_in_model_prompt(self):
         with tempfile.TemporaryDirectory() as directory:
-            raw = Path(directory) / "1-sensitive.md"
-            raw.write_text('---\nreport_id: "1"\ntitle: "敏感材料"\n---\n\ncredential sk-example_12345678901234567890', encoding="utf-8")
-            payload, error, _ = process_ai_record(
-                raw,
-                {"source_ids": ["1"], "title": "敏感材料", "event_anchor": "敏感材料"},
-                dry_run=False,
-                model="unused",
-                timeout_seconds=1,
-                prompt_dir=Path(directory),
-            )
-            self.assertEqual(payload["ai_status"], "skipped_sensitive")
-            self.assertIsNone(error)
-            self.assertEqual(payload["evidence_refs"], [])
+            raw = Path(directory) / "1-source.md"
+            source_value = "sk-example_12345678901234567890"
+            raw.write_text(f'---\nreport_id: "1"\ntitle: "技术材料"\n---\n\ncredential {source_value}', encoding="utf-8")
+            prompt = record_prompt_for(raw, {"source_ids": ["1"], "title": "技术材料", "event_anchor": "技术材料"})
+            self.assertIn(source_value, prompt)
+            self.assertNotIn("Sensitive source withheld", prompt)
 
     def test_cluster_priority_cannot_exceed_deterministic_hint(self):
         bundle = {
@@ -379,12 +367,19 @@ class AIContractTests(unittest.TestCase):
             path = write_manifest(run_dir, {"stdout": "secret-value"}, ("secret-value",))
             self.assertNotIn("secret-value", path.read_text(encoding="utf-8"))
 
-    def test_publish_gate_rejects_secret_shaped_content(self):
+    def test_publish_preserves_cwork_key_like_content(self):
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "digest.md"
-            path.write_text("credential sk-example_12345678901234567890", encoding="utf-8")
-            with self.assertRaisesRegex(RuntimeError, "secret gate blocked"):
-                require_publish_safe([path])
+            project = Path(directory) / "project"
+            run = project / "runs" / "nightly-test"
+            mirror = Path(directory) / "mirror"
+            run.mkdir(parents=True)
+            source_value = "sk-example_12345678901234567890"
+            (run / "digest-human-v4.md").write_text(f"credential {source_value}", encoding="utf-8")
+            with patch("cwk_nightly_pipeline.PROJECT", project):
+                copy_to_mirror(run, "2026-08-05", mirror)
+            published = (mirror / "daily" / "2026-08" / "2026-08-05.md").read_text(encoding="utf-8")
+            self.assertIn(source_value, published)
+            self.assertNotIn("<redacted>", published)
 
     def test_rule_anchor_rejects_dates_and_connectors(self):
         empty = {key: [] for key in ("projects", "systems", "products", "customers", "contracts")}

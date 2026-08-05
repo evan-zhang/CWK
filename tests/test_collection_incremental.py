@@ -166,7 +166,7 @@ class IncrementalCollectionTests(unittest.TestCase):
             self.assertEqual(second["selected_change_counts"], {})
             self.assertEqual(second["written_count"], 0)
 
-    def test_safe_materializer_builds_history_without_raw_or_secrets(self):
+    def test_safe_materializer_builds_history_and_preserves_cwork_content(self):
         with tempfile.TemporaryDirectory() as directory:
             project = Path(directory)
             run = project / "runs" / "test-run"
@@ -188,7 +188,15 @@ class IncrementalCollectionTests(unittest.TestCase):
             (run / "events" / "e.json").write_text(json.dumps({"event": "历史项目", "related_raw_ids": ["1"], "current_state": "已归档", "open_loops": [], "decisions_and_opinions": []}, ensure_ascii=False), encoding="utf-8")
             (run / "entities" / "e.json").write_text(json.dumps({"entity_name": "历史系统", "entity_type": "systems", "recent_activity": [{"source_id": "1", "title": "历史汇报"}]}, ensure_ascii=False), encoding="utf-8")
             mirror = project / "knowledge" / "工作协同镜像"
-            with patch.object(cwk_materialize_safe, "PROJECT", project), patch.object(cwk_materialize_safe, "MIRROR", mirror):
+            runtime_key = "runtime-app-key-value"
+            with (
+                patch.object(cwk_materialize_safe, "PROJECT", project),
+                patch.object(cwk_materialize_safe, "MIRROR", mirror),
+                patch.dict("os.environ", {"CWORK_APP_KEY": runtime_key}, clear=False),
+            ):
+                extracted = json.loads((run / "extracted" / "1.json").read_text(encoding="utf-8"))
+                extracted["actions"].append(f"核对 {runtime_key}")
+                (run / "extracted" / "1.json").write_text(json.dumps(extracted, ensure_ascii=False), encoding="utf-8")
                 first = cwk_materialize_safe.materialize(run)
                 second = cwk_materialize_safe.materialize(run)
 
@@ -196,8 +204,10 @@ class IncrementalCollectionTests(unittest.TestCase):
             self.assertEqual(first["counts"]["history_pages"], 1)
             self.assertEqual(second["counts"]["history_pages"], 0)
             self.assertEqual(len(history_files), 1)
-            self.assertIn("<redacted>", history_files[0].read_text())
-            self.assertNotIn("sk-example", history_files[0].read_text())
+            history_text = history_files[0].read_text()
+            self.assertNotIn("<redacted>", history_text)
+            self.assertIn("sk-example_12345678901234567890", history_text)
+            self.assertIn(runtime_key, history_text)
             self.assertFalse((mirror / "raw").exists())
 
     def test_docdb_sync_filters_to_materializer_changed_paths(self):

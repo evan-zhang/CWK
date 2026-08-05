@@ -142,8 +142,19 @@ def audit(
             expected, objects, repo=repo, workers=live_workers,
         )
         live_verified = len(verified)
-        remote_rows = repo.list_tree(prefixes=tuple(prefix.rstrip("/") for prefix in prefixes), max_workers=live_workers)
-        remote_paths = [row["relative_path"] for row in remote_rows]
+        # DocDB can browse only from a top-level root (``raw`` / ``wiki``),
+        # while this audit also accepts nested scopes such as
+        # ``wiki/sources/``. Browse the required roots, then filter the
+        # returned tree to the requested prefixes locally.
+        normalized_prefixes = tuple(prefix.rstrip("/") for prefix in prefixes)
+        browse_roots = tuple(sorted({prefix.split("/", 1)[0] for prefix in normalized_prefixes if prefix}))
+        remote_rows = repo.list_tree(prefixes=browse_roots, max_workers=live_workers)
+        all_remote_paths = [row["relative_path"] for row in remote_rows]
+        remote_paths = [
+            row["relative_path"]
+            for row in remote_rows
+            if any(row["relative_path"].startswith(prefix) for prefix in normalized_prefixes)
+        ]
         counts: dict[str, int] = {}
         for rel in remote_paths:
             counts[rel] = counts.get(rel, 0) + 1
@@ -162,6 +173,10 @@ def audit(
         # excluded from its own object map.
         if any(prefix.startswith("wiki/") for prefix in prefixes):
             expected_remote.add("wiki/_system/cwk-cloud-objects.json")
+            # The catalog is the commit pointer for every wiki sub-scope,
+            # including a nested audit such as ``wiki/sources/``.
+            if "wiki/_system/cwk-cloud-objects.json" in all_remote_paths:
+                remote_paths.append("wiki/_system/cwk-cloud-objects.json")
         actual_remote = set(remote_paths)
         remote_missing = sorted(expected_remote - actual_remote)
         raw_extra = sorted(actual_remote - expected_remote)

@@ -164,7 +164,7 @@ class CloudFirstManifestTests(unittest.TestCase):
             self.assertEqual([item.rel.as_posix() for item in default_items], ["wiki/b.md"])
             self.assertEqual([item.rel.as_posix() for item in allowed_items], ["raw/a.md"])
 
-    def test_withheld_quality_survives_non_fallback_reconcile(self):
+    def test_legacy_withheld_state_is_removed_by_reconcile(self):
         with tempfile.TemporaryDirectory() as tmp:
             mirror = Path(tmp)
             raw = mirror / "raw" / "2026-08" / "2026-08-04"
@@ -172,10 +172,10 @@ class CloudFirstManifestTests(unittest.TestCase):
             raw.mkdir(parents=True)
             summaries.mkdir(parents=True)
             rid = "123456789012345"
-            raw.joinpath(f"{rid}-敏感.md").write_text(
-                f'---\nreport_id: "{rid}"\n---\n敏感正文\n', encoding="utf-8"
+            raw.joinpath(f"{rid}-技术.md").write_text(
+                f'---\nreport_id: "{rid}"\n---\n技术正文\n', encoding="utf-8"
             )
-            summaries.joinpath(f"{rid}.md").write_text("# 已生成但必须 withheld\n", encoding="utf-8")
+            summaries.joinpath(f"{rid}.md").write_text("# 已生成\n", encoding="utf-8")
             after = reconcile_manifest(
                 mirror,
                 {
@@ -185,10 +185,10 @@ class CloudFirstManifestTests(unittest.TestCase):
                     "withheld_report_ids": [rid],
                 },
             )
-            self.assertEqual(after["withheld_report_ids"], [rid])
-            self.assertEqual(after["ai_refined_report_ids"], [])
+            self.assertNotIn("withheld_report_ids", after)
+            self.assertEqual(after["ai_refined_report_ids"], [rid])
 
-    def test_raw_physical_create_is_marked_sensitive(self):
+    def test_raw_physical_create_is_not_marked_sensitive(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             path = root / "raw" / "x.md"
@@ -204,7 +204,7 @@ class CloudFirstManifestTests(unittest.TestCase):
             self.assertEqual(result["action"], "physical_create")
             self.assertIn("--is-sensitive", run.call_args.args[0])
             marker = run.call_args.args[0].index("--is-sensitive")
-            self.assertEqual(run.call_args.args[0][marker + 1], "1")
+            self.assertEqual(run.call_args.args[0][marker + 1], "0")
 
 
 if __name__ == "__main__":

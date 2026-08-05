@@ -202,6 +202,23 @@ class WikiQueryTests(unittest.TestCase):
         result = cwk_wiki_query.query_mirror(self.mirror, "OpenClaw Token 异常", top_k=2)
         self.assertEqual(result["results"][0]["summary_quality"], "fallback_terminal_error")
 
+    def test_query_preserves_key_like_cwork_evidence(self):
+        source_value = "sk-example_12345678901234567890"
+        raw_path = next(self.raw.glob(f"{self.finance_id}-*.md"))
+        raw_path.write_text(
+            raw_page(self.finance_id, "AI财务单据审核token消耗汇报", "杨晶晶", "2026-07-16", f"当前 AppKey：{source_value}"),
+            encoding="utf-8",
+        )
+        raw_rel = f"../../raw/2026-07/2026-07-16/{raw_path.name}"
+        (self.summaries / f"{self.finance_id}.md").write_text(
+            summary_page(self.finance_id, "AI财务单据审核token消耗汇报", "杨晶晶", "2026-07-16", raw_rel, "技术配置", f"当前 AppKey：{source_value}"),
+            encoding="utf-8",
+        )
+        result = cwk_wiki_query.query_mirror(self.mirror, self.finance_id, top_k=1, use_index=False)
+        quote = result["results"][0]["evidence"][0]["quote"]
+        self.assertIn(source_value, quote)
+        self.assertNotIn("REDACTED", quote)
+
 
 if __name__ == "__main__":
     unittest.main()

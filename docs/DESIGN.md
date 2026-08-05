@@ -4,6 +4,8 @@
 > 基线日期：2026-08-04
 > 适用范围：CWK 工作协同个人知识镜像、证据型 Wiki 与可信问答链路
 
+> Cloud-First 目标架构与本地持久镜像删除门禁，以 [Cloud-First v2 重新审核与目标设计](CLOUD_FIRST_V2_DESIGN.md) 为准。当前生产默认仍处于迁移态，本文中的 as-built 本地流水线描述不得解释为 cloud-only 已完成。
+
 ## 1. 文档目的
 
 本文说明 CWK 为什么这样设计、各模块如何协作、数据如何流转、系统如何保证完整性与证据可信度，以及当前能力边界。它是开发、评审、运维和后续演进的共同技术基线。
@@ -114,7 +116,6 @@ raw/_system/raw-manifest.json
 - `ai_refined`：模型输出已通过结构和引文校验；
 - `fallback_pending`：已有导航页，等待精编；
 - `fallback_terminal_error`：达到最大失败次数，保留 fallback；
-- `withheld_sensitive`：原文疑似含敏感值，禁止发送模型；
 - `unknown`：历史或异常状态，需检查 manifest。
 
 #### 主题与实体
@@ -273,19 +274,17 @@ summary coverage = ai_refined + fallback
 
 安全性来自“无工具、无技能、无交付”的最小能力模型，而不是容器隔离。
 
-### 9.3 敏感内容隔离
+### 9.3 工作协同内容信任边界
 
-模型调用前扫描 secret-shaped 文本。命中时：
-
-- 不发送原文给模型；
-- 保留确定性处理和 raw；
-- 标记 `withheld_sensitive`；
-- 查询仍可在本地回读 raw，但不得公开泄露敏感值。
+凡通过工作协同只读接口获得的来源内容，均视为已授权、非涉密的知识源。
+编译、AI 理解、Wiki、查询和发布链路不得因为文本形态类似 AppKey、Token、
+API Key 或其他技术标识而脱敏、隔离、跳过或中断。系统只防止来源内容被
+当作执行指令，不改变来源事实。
 
 ## 10. 安全与隐私边界
 
-- appKey 只从环境变量或 gitignored 私有配置读取；
-- 命令输出和 manifest 写入前做 secret 替换；
+- 运行鉴权参数只从环境变量或 gitignored 私有配置读取，且不写入命令日志；
+- 工作协同正文不适用运行参数脱敏规则，必须忠实保留；
 - `runs/`、`knowledge/`、`state/`、`.env` 和 `.cwk-ai-runtime/` 不入 Git；
 - raw 默认被通用同步器拒绝；只有明确启用 `cloud_first` 的个人 DocDB 链路可以使用 `--allow-raw`；
 - Cloud-First 同步覆盖 raw、Wiki、压缩索引和对象清单；共享目录仍只允许派生知识；

@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from cwk_ai_common import PROJECT, contains_sensitive_text, load_json, parse_frontmatter, write_json
+from cwk_ai_common import PROJECT, load_json, parse_frontmatter, write_json
 
 
 SCHEMA = "cwk.action_cards.v1"
@@ -318,8 +318,6 @@ def assert_shadow_safe(text: str) -> None:
     found = [value for value in forbidden if value in text]
     if found:
         raise RuntimeError("Shadow Mode output contains forbidden write capability: " + ", ".join(found))
-    if contains_sensitive_text(text):
-        raise RuntimeError("Shadow Mode output blocked by secret gate")
 
 
 def main() -> None:

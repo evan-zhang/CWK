@@ -47,13 +47,11 @@ def main() -> int:
         fallback = manifest.get("fallback_report_ids") or []
         failures = manifest.get("failure_queue") or []
         failure_ids = {str(item.get("report_id")) for item in failures if item.get("report_id")}
-        withheld = set(manifest.get("withheld_report_ids") or [])
         checks.append(("manifest_compiled", len(compiled) >= args.min_summaries, f"{len(compiled)} compiled"))
         checks.append(("manifest_quality_partition", len(set(refined) | set(fallback)) == len(set(compiled)), f"refined={len(refined)} fallback={len(fallback)} compiled={len(compiled)}"))
         checks.append(("manifest_quality_disjoint", not (set(refined) & set(fallback)), "refined/fallback sets are disjoint"))
         checks.append(("manifest_failures_preserve_fallback", failure_ids <= set(fallback), f"failures={len(failures)} all remain queryable fallback pages"))
         checks.append(("manifest_failure_attempts_bounded", all(1 <= int(item.get("attempts", 1)) <= 3 for item in failures), "failure attempts are bounded at 3"))
-        checks.append(("manifest_withheld_is_compiled", withheld <= set(compiled), f"withheld={len(withheld)}"))
     else:
         checks.append(("manifest_exists", False, "missing wiki/_system/manifest.json"))
 
@@ -69,9 +67,7 @@ def main() -> int:
             continue
         text = sample.read_text(encoding="utf-8", errors="replace")
         has_id = bool(re.search(r"\d{15,}", text))
-        has_sk = bool(re.search(r"sk-[A-Za-z0-9_-]{8,}", text))
         checks.append((f"sample:{sample.name}:report_id", has_id, "has report_id refs" if has_id else "no report_id"))
-        checks.append((f"sample:{sample.name}:no_secret", not has_sk, "clean" if not has_sk else "secret-like token found"))
 
     # One summary frontmatter check.
     summary_files = sorted((wiki / "summaries").glob("*.md"))

@@ -37,6 +37,7 @@ QUOTE_LIMIT = 180
 LIST_LIMIT = 12
 EVIDENCE_LIMIT = 16
 REPORT_LIMIT = 30
+SOURCE_CATALOG_SHARD_SIZE = 100
 QUERY_CONTRACT = """# CWK Trusted Query Contract
 
 本 Wiki 是导航层，`../raw/` 是最终事实层。
@@ -479,7 +480,78 @@ def render_dir_index(title: str, root_rel: str, entries: list[AggregateEntry]) -
     return "\n".join(lines) + "\n"
 
 
-def rewrite_main_index(index_path: Path, topic_count: int, entity_count: int) -> bool:
+def render_source_catalog(rows: list[SummaryDoc], shard_number: int) -> str:
+    lines = [
+        f"# 原文目录 {shard_number:03d}",
+        "",
+        "每项链接到工作协同原文；本目录用于定位，不替代原文证据。",
+        "",
+    ]
+    for row in rows:
+        raw_link = f"../../{row.raw_rel.lstrip('../')}" if row.raw_rel else ""
+        title = row.title or row.report_id
+        if raw_link:
+            title = f"[{title}]({raw_link})"
+        lines.append(
+            f"- `{row.report_id}` · {title} · {row.writer or '未知'} · "
+            f"{row.created_at or '未知时间'} · `{row.source_lane or 'unknown'}`"
+        )
+    return "\n".join(lines) + "\n"
+
+
+def rebuild_sources_index(wiki: Path, summaries: list[SummaryDoc]) -> tuple[list[str], int]:
+    """Build the raw-source navigation layer from the current summary corpus.
+
+    Source catalogs are generated here rather than by the old one-off bootstrap,
+    so they stay aligned with incrementally added raw/summary pairs.
+    """
+    source_dir = wiki / "sources"
+    ensure_dir(source_dir)
+    changed: list[str] = []
+    rows = sorted(summaries, key=lambda item: (item.created_at or "9999", item.report_id))
+    expected_names: set[str] = set()
+    for start in range(0, len(rows), SOURCE_CATALOG_SHARD_SIZE):
+        shard_number = start // SOURCE_CATALOG_SHARD_SIZE + 1
+        name = f"catalog-{shard_number:03d}.md"
+        expected_names.add(name)
+        path = source_dir / name
+        if atomic_write(path, render_source_catalog(rows[start : start + SOURCE_CATALOG_SHARD_SIZE], shard_number)):
+            changed.append(path.relative_to(wiki.parent).as_posix())
+    for old_path in source_dir.glob("catalog-*.md"):
+        if old_path.name not in expected_names:
+            old_path.unlink()
+            changed.append(old_path.relative_to(wiki.parent).as_posix())
+
+    months = Counter(item.created_at[:7] for item in rows if re.match(r"^\d{4}-\d{2}", item.created_at or ""))
+    lanes = Counter(item.source_lane or "unknown" for item in rows)
+    dated_rows = [item.created_at for item in rows if re.match(r"^\d{4}-\d{2}-\d{2}", item.created_at or "")]
+    catalog_count = (len(rows) + SOURCE_CATALOG_SHARD_SIZE - 1) // SOURCE_CATALOG_SHARD_SIZE
+    lines = [
+        "# 工作协同原文索引",
+        "",
+        "本页由当前 raw/summary 对自动生成，按汇报业务日期排序。原文是最终事实依据。",
+        "",
+        "## 覆盖范围",
+        "",
+        f"- 原文记录：**{len(rows)}**",
+        f"- 日期范围：{min(dated_rows)[:10] if dated_rows else '未知'} 至 {max(dated_rows)[:10] if dated_rows else '未知'}",
+        f"- 原文目录分片：**{catalog_count}**（每页最多 {SOURCE_CATALOG_SHARD_SIZE} 篇）",
+        "",
+        "## 按业务月份",
+        "",
+    ]
+    lines.extend(f"- {month}：{count} 篇" for month, count in sorted(months.items()))
+    lines.extend(["", "## 按来源通道", ""])
+    lines.extend(f"- `{lane}`：{count} 篇" for lane, count in sorted(lanes.items()))
+    lines.extend(["", "## 原文目录", ""])
+    lines.extend(f"- [原文目录 {number:03d}](catalog-{number:03d}.md)" for number in range(1, catalog_count + 1))
+    index_path = source_dir / "index.md"
+    if atomic_write(index_path, "\n".join(lines) + "\n"):
+        changed.append(index_path.relative_to(wiki.parent).as_posix())
+    return changed, catalog_count
+
+
+def rewrite_main_index(index_path: Path, topic_count: int, entity_count: int, source_count: int, source_catalog_count: int) -> bool:
     content = "\n".join(
         [
             "# 工作协同 LLM Wiki",
@@ -488,12 +560,7 @@ def rewrite_main_index(index_path: Path, topic_count: int, entity_count: int) ->
             "",
             "## Sources",
             "",
-            "- [原文目录 001](sources/catalog-001.md)",
-            "- [原文目录 002](sources/catalog-002.md)",
-            "- [原文目录 003](sources/catalog-003.md)",
-            "- [原文目录 004](sources/catalog-004.md)",
-            "- [原文目录 005](sources/catalog-005.md)",
-            "- [原文目录 006](sources/catalog-006.md)",
+            f"- [sources/index.md](sources/index.md) · {source_count} raw records · {source_catalog_count} catalogs",
             "",
             "## Topics",
             "",
@@ -514,17 +581,16 @@ def rewrite_main_index(index_path: Path, topic_count: int, entity_count: int) ->
     return atomic_write(index_path, content)
 
 
-def rewrite_status(path: Path, manifest: dict[str, Any], topic_count: int, entity_count: int) -> bool:
+def rewrite_status(path: Path, manifest: dict[str, Any], topic_count: int, entity_count: int, rebuild: dict[str, Any]) -> bool:
     compiled = len(manifest.get("compiled_report_ids", []) or [])
     refined = len(manifest.get("ai_refined_report_ids", []) or [])
     fallback_ids = set(manifest.get("fallback_report_ids", []) or [])
-    withheld_ids = set(manifest.get("withheld_report_ids", []) or [])
     terminal_ids = {
         str(item.get("report_id"))
         for item in manifest.get("failure_queue", []) or []
         if item.get("report_id") and int(item.get("attempts", 1)) >= 3
     } & fallback_ids
-    pending = len(fallback_ids - withheld_ids - terminal_ids)
+    pending = len(fallback_ids - terminal_ids)
     mode = "query_ready" if (path.parent / "query-contract.md").exists() else ("topics_entities_ready" if topic_count or entity_count else "foundation_ready")
     content = "\n".join(
         [
@@ -535,10 +601,13 @@ def rewrite_status(path: Path, manifest: dict[str, Any], topic_count: int, entit
             f"- Navigable source summaries: **{compiled}**",
             f"- AI-refined summaries: **{refined}**",
             f"- Fallback summaries pending refinement: **{pending}**",
-            f"- Fallback summaries withheld as sensitive: **{len(withheld_ids)}**",
             f"- Fallback summaries stopped after bounded failures: **{len(terminal_ids)}**",
             f"- Topic pages: **{topic_count}**",
             f"- Entity pages: **{entity_count}**",
+            f"- Last aggregate rebuild attempted: `{rebuild['attempted_at']}`",
+            f"- Last aggregate rebuild content changes: **{rebuild['content_change_count']}** pages"
+            + (" (no aggregate content changed)" if not rebuild["content_change_count"] else ""),
+            f"- Last aggregate rebuild summary: topics {rebuild['topic_page_changes']} · entities {rebuild['entity_page_changes']} · sources {rebuild['source_page_changes']} · indexes {rebuild['index_page_changes']}",
             f"- Mode: `{mode}`",
             "- Persistence: all generated files must be synchronised to the personal DocDB mirror.",
             "",
@@ -608,6 +677,9 @@ def main() -> None:
         if atomic_write(output, render_aggregate(entry)):
             changed.append(output.relative_to(mirror).as_posix())
 
+    source_changed, source_catalog_count = rebuild_sources_index(wiki, summaries)
+    changed.extend(source_changed)
+
     topic_index = wiki / "topics" / "index.md"
     if atomic_write(topic_index, render_dir_index("工作协同主题索引", "topics", topic_entries)):
         changed.append(topic_index.relative_to(mirror).as_posix())
@@ -620,7 +692,7 @@ def main() -> None:
     actual_topic_count = sum(1 for path in (wiki / "topics").glob("*.md") if path.name != "index.md")
     actual_entity_count = sum(1 for path in (wiki / "entities").rglob("*.md") if path.name != "index.md")
 
-    if rewrite_main_index(main_index, actual_topic_count, actual_entity_count):
+    if rewrite_main_index(main_index, actual_topic_count, actual_entity_count, len(summaries), source_catalog_count):
         changed.append(main_index.relative_to(mirror).as_posix())
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -642,8 +714,22 @@ def main() -> None:
         "entity_pages": [entry.page_rel for entry in entity_entries],
         "changed_relative_paths": sorted(set(changed)),
     }
+    aggregate_content_changes = [
+        path for path in summary["changed_relative_paths"]
+        if path.startswith(("wiki/topics/", "wiki/entities/", "wiki/sources/", "wiki/index.md"))
+    ]
+    rebuild = {
+        "attempted_at": generated_at,
+        "content_change_count": len(aggregate_content_changes),
+        "topic_page_changes": sum(path.startswith("wiki/topics/") for path in aggregate_content_changes),
+        "entity_page_changes": sum(path.startswith("wiki/entities/") for path in aggregate_content_changes),
+        "source_page_changes": sum(path.startswith("wiki/sources/") for path in aggregate_content_changes),
+        "index_page_changes": sum(path == "wiki/index.md" for path in aggregate_content_changes),
+    }
+    summary["rebuild"] = rebuild
     manifest["last_topic_entity_compile_at"] = generated_at
     manifest["topic_entity_compile"] = summary
+    manifest["last_aggregate_rebuild"] = rebuild
     manifest["topic_page_count"] = actual_topic_count
     manifest["entity_page_count"] = actual_entity_count
     manifest["changed_relative_paths"] = summary["changed_relative_paths"]
@@ -654,7 +740,7 @@ def main() -> None:
         atomic_write_json(manifest_path, manifest)
 
     status_path = wiki / "_system" / "status.md"
-    if rewrite_status(status_path, manifest, actual_topic_count, actual_entity_count):
+    if rewrite_status(status_path, manifest, actual_topic_count, actual_entity_count, rebuild):
         changed.append(status_path.relative_to(mirror).as_posix())
 
     log_path = wiki / "log.md"

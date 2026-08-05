@@ -367,11 +367,7 @@ def main() -> None:
     args = parser.parse_args()
 
     run_dir = PROJECT / "runs" / args.run_name
-    records = [
-        record
-        for path in sorted((run_dir / "ai-understanding").glob("*.json"))
-        if (record := load_json(path)).get("ai_status") != "skipped_sensitive"
-    ]
+    records = [load_json(path) for path in sorted((run_dir / "ai-understanding").glob("*.json"))]
     if not records:
         raise SystemExit("no AI understanding records found")
     valid_ids = {str(item["report_id"]) for item in records}

@@ -116,7 +116,7 @@ The runner creates temporary prompt files under the ignored `.cwk-ai-runtime/pro
 - Cron model rejected: use the reviewed allowlist in `MODEL_ROLES.md` (`newapi/BD-MiniMax` or `newapi/BD-glm`).
 - AI stage missing model: set all three `CWK_AI_*_MODEL` values or use `CWK_AI_DRY_RUN=true` for orchestration tests.
 - AI output invalid JSON/evidence: inspect the stage error in the nightly manifest; keep the rules digest as the published baseline.
-- `skipped_sensitive_count > 0`: the source was withheld before model invocation. Rotate real credentials at the issuer and review existing raw replicas before deleting them.
+- Credential-like text in a CWork source must pass through unchanged. If a run skips, redacts, quarantines, or blocks on such text, treat that as a pipeline defect.
 
 ## Safety Rules
 

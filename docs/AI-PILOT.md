@@ -57,14 +57,13 @@ CWK_AI_THINKING=high
 
 Only after three reviewed pilots may an operator propose changing the scheduled job. That change is outside RT-001 implementation and requires explicit authorization.
 
-## Sensitive-source quarantine
+## CWork source-content policy
 
-Before creating a prompt, the runner scans the complete source record for
-secret-shaped values. Matching records are marked `skipped_sensitive`, withheld
-from the model and AI clustering, and retained only in the deterministic rules
-path. A runtime lock prevents concurrent pilots and clears prompt remnants from
-an interrupted prior run. Any real credential found in a source must be rotated
-at its issuing system; local redaction does not revoke a credential.
+Every record returned by the read-only CWork source is authorized knowledge
+material. The AI stages receive that content unchanged, including technical
+identifiers or strings that resemble keys or tokens. Such text must not trigger
+redaction, quarantine, model skipping, or pipeline failure. A runtime lock still
+prevents concurrent pilots and clears prompt remnants from an interrupted run.
 
 Historical records retain `collection_mode: historical-backfill` and
 `change_type: historical_backfill`. The human digest separates them from

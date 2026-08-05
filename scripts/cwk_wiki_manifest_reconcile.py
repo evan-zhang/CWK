@@ -108,7 +108,6 @@ def reconcile_manifest(mirror: Path, manifest: dict[str, Any]) -> dict[str, Any]
     lanes = Counter(row["source_lane"] for row in rows)
     months = Counter(row["month"] for row in rows)
     result = dict(manifest)
-    withheld_ids = set(result.get("withheld_report_ids", [])) & disk_ids
     reconciled_fields = {
             "source_count": len(rows),
             "source_hashes": {row["report_id"]: row["sha256"] for row in rows},
@@ -116,19 +115,16 @@ def reconcile_manifest(mirror: Path, manifest: dict[str, Any]) -> dict[str, Any]
             "source_months": dict(sorted(months.items())),
             "compiled_report_ids": sorted(disk_ids),
             "fallback_report_ids": sorted(fallback_ids),
-            "ai_refined_report_ids": sorted(disk_ids - fallback_ids - withheld_ids),
+            "ai_refined_report_ids": sorted(disk_ids - fallback_ids),
     }
     changed = any(result.get(key) != value for key, value in reconciled_fields.items())
     result.update(reconciled_fields)
-    # Withholding is a privacy state, not a summary-rendering style. Preserve
-    # it for every still-compiled report even if the page no longer contains
-    # the fallback marker.
-    result["withheld_report_ids"] = sorted(withheld_ids)
+    result.pop("withheld_report_ids", None)
     result["failure_queue"] = [
         item for item in result.get("failure_queue", [])
         if isinstance(item, dict) and str(item.get("report_id") or "") in fallback_ids
     ]
-    if changed or result.get("withheld_report_ids") != manifest.get("withheld_report_ids") or result.get("failure_queue") != manifest.get("failure_queue"):
+    if changed or "withheld_report_ids" in manifest or result.get("failure_queue") != manifest.get("failure_queue"):
         result["last_source_reconcile_at"] = datetime.now().astimezone().isoformat(timespec="seconds")
     return result
 
@@ -150,7 +146,6 @@ def reconcile_file(mirror: Path, *, write: bool = True) -> dict[str, Any]:
         "compiled": len(after.get("compiled_report_ids", [])),
         "ai_refined": len(after.get("ai_refined_report_ids", [])),
         "fallback": len(after.get("fallback_report_ids", [])),
-        "withheld": len(after.get("withheld_report_ids", [])),
         "failures": len(after.get("failure_queue", [])),
     }
 

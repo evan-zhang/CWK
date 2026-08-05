@@ -35,10 +35,6 @@ SUMMARY_LINK_RE = re.compile(r"\[`?(\d{15,20})`?\]\([^)]*summaries/\1\.md\)")
 EVIDENCE_RE = re.compile(r"证据：>\s*(.+?)\s*$", flags=re.M)
 ASCII_RE = re.compile(r"[a-z0-9][a-z0-9._/+-]*", re.I)
 CJK_RE = re.compile(r"[\u3400-\u9fff]+")
-SECRET_PATTERNS = (
-    re.compile(r"sk-[A-Za-z0-9_-]{8,}"),
-    re.compile(r"(?i)(?:api[_-]?key|token|appkey)\s*[:=]\s*[^\s,;]{8,}"),
-)
 STOP_ASCII = {"the", "a", "an", "of", "to", "is", "are", "and", "or", "in", "on", "for"}
 STOP_CJK = {
     "什么", "哪些", "怎么", "怎样", "如何", "一下", "这个", "那个", "我们", "关于",
@@ -181,10 +177,9 @@ def load_summary_quality(mirror: Path) -> tuple[dict[str, str], dict[str, int]]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError, TypeError):
-        return {}, {"ai_refined": 0, "fallback_pending": 0, "withheld_sensitive": 0, "fallback_terminal_error": 0, "unknown": 0}
+        return {}, {"ai_refined": 0, "fallback_pending": 0, "fallback_terminal_error": 0, "unknown": 0}
     refined = {str(value) for value in payload.get("ai_refined_report_ids", [])}
     fallback = {str(value) for value in payload.get("fallback_report_ids", [])}
-    withheld = {str(value) for value in payload.get("withheld_report_ids", [])}
     terminal = {
         str(item.get("report_id"))
         for item in payload.get("failure_queue", [])
@@ -193,11 +188,9 @@ def load_summary_quality(mirror: Path) -> tuple[dict[str, str], dict[str, int]]:
     quality = {report_id: "ai_refined" for report_id in refined}
     quality.update({report_id: "fallback_pending" for report_id in fallback})
     quality.update({report_id: "fallback_terminal_error" for report_id in fallback & terminal})
-    quality.update({report_id: "withheld_sensitive" for report_id in withheld})
     return quality, {
         "ai_refined": len(refined),
-        "fallback_pending": len(fallback - withheld - terminal),
-        "withheld_sensitive": len(withheld),
+        "fallback_pending": len(fallback - terminal),
         "fallback_terminal_error": len(fallback & terminal),
         "unknown": 0,
     }
@@ -376,12 +369,6 @@ class BM25:
         return matched / total if total else 0.0
 
 
-def redact(value: str) -> str:
-    for pattern in SECRET_PATTERNS:
-        value = pattern.sub("[REDACTED]", value)
-    return value
-
-
 def normalized_contains(needle: str, haystack: str) -> bool:
     left = re.sub(r"\s+", "", needle or "")
     right = re.sub(r"\s+", "", haystack or "")
@@ -441,7 +428,7 @@ def evidence_for(
     verified: list[dict[str, str]] = []
     for quote in doc.evidence_quotes:
         if normalized_contains(quote, evidence_haystack):
-            verified.append({"kind": "summary_quote", "quote": redact(quote)})
+            verified.append({"kind": "summary_quote", "quote": quote})
         if len(verified) >= max_evidence:
             break
     if verified:
@@ -457,7 +444,7 @@ def evidence_for(
         key=lambda item: (-item[0], len(item[1])),
     )
     excerpts = [
-        {"kind": "raw_excerpt", "quote": redact(value)}
+        {"kind": "raw_excerpt", "quote": value}
         for score, value in ranked[:max_evidence]
         if score > 0
     ]
@@ -543,10 +530,6 @@ def query_mirror(
     requested_ids = set(REPORT_ID_RE.findall(question))
     ranked: list[tuple[float, float, SummaryDoc]] = []
     for i, doc in enumerate(summaries):
-        # Withheld sources must not be returned by either local or cloud
-        # retrieval. Their presence in the index is only for audit/counting.
-        if summary_quality.get(doc.report_id) == "withheld_sensitive":
-            continue
         if not date_ok(doc.date, from_date, to_date):
             continue
         if writer and normalize(writer) not in normalize(doc.writer):

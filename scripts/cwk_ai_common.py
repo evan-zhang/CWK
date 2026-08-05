@@ -46,12 +46,6 @@ def assert_cwk_model(model: str) -> None:
             f"Allowed models: {', '.join(sorted(CWK_ALLOWED_MODELS))}. "
             "See projects/CWK/MODEL_ROLES.md."
         )
-SENSITIVE_TEXT_PATTERNS = (
-    re.compile(r"\bsk-[A-Za-z0-9_-]{20,}\b"),
-    re.compile(r"\bBearer\s+[A-Za-z0-9._~+/=-]{20,}\b", re.I),
-)
-
-
 def ai_agent_workspace() -> Path:
     workspace = PROJECT.resolve() / ".cwk-ai-runtime"
     if workspace.is_symlink():
@@ -86,10 +80,6 @@ def env_bool(name: str, default: bool = False) -> bool:
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "y", "on"}
-
-
-def contains_sensitive_text(value: str) -> bool:
-    return any(pattern.search(value or "") for pattern in SENSITIVE_TEXT_PATTERNS)
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -217,8 +207,6 @@ def invoke_openclaw_json(
     if not model:
         raise ValueError(f"model is required for real AI stage {stage}")
     assert_cwk_model(model)
-    if contains_sensitive_text(prompt):
-        raise RuntimeError(f"sensitive content blocked before AI stage {stage}")
     runtime_workspace = ai_agent_workspace()
     agent_id = os.environ.get("CWK_AI_AGENT_ID", "cwk-ai-reviewer")
     assert_safe_ai_agent(agent_id)

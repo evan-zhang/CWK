@@ -29,15 +29,13 @@ compiled=len(m.get("compiled_report_ids",[]) or [])
 src=int(m.get("source_count") or 530)
 fq=m.get("failure_queue") or []
 fallback=set(m.get("fallback_report_ids",[]) or [])
-withheld=set(m.get("withheld_report_ids",[]) or [])
 terminal={str(x.get("report_id")) for x in fq if x.get("report_id") and int(x.get("attempts",1)) >= 3}
 outs=m.get("last_compile_outcomes") or []
 print(f"compiled={compiled}")
 print(f"source={src}")
 print(f"remaining={max(src-compiled,0)}")
 print(f"fallback={len(m.get('fallback_report_ids',[]) or [])}")
-print(f"fallback_pending={len(fallback-withheld-terminal)}")
-print(f"withheld={len(withheld)}")
+print(f"fallback_pending={len(fallback-terminal)}")
 print(f"terminal_failures={len(terminal)}")
 print(f"failures={len(fq)}")
 print(f"outcomes={dict(Counter(o.get('status') for o in outs))}")

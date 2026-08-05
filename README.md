@@ -19,6 +19,7 @@ Internal/private stable baseline. The read-only source mirror, business-date raw
 Primary documentation:
 
 - [Design specification](docs/DESIGN.md)
+- [Cloud-First v2 target design and re-audit](docs/CLOUD_FIRST_V2_DESIGN.md)
 - [User guide](docs/USER_GUIDE.md)
 - [Operations guide](docs/OPERATIONS.md)
 - [AI runtime policy](docs/AI-PILOT.md)
@@ -177,9 +178,9 @@ reviewed pages should be version-synced to DocDB after each batch.
 
 Model failures keep the old fallback page and increment a bounded attempt
 counter. After three failed attempts the page becomes
-`fallback_terminal_error`; secret-shaped source text becomes
-`withheld_sensitive` and is never sent to the model. The trusted query output
-surfaces this quality state but still verifies every factual quote against raw.
+`fallback_terminal_error`. Content readable from CWork is treated as authorized
+knowledge-source material: credential-like strings are neither withheld nor
+rewritten. The trusted query output still verifies every factual quote against raw.
 
 Nightly can also spend a bounded compile budget on historical quality debt:
 

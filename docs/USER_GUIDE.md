@@ -415,7 +415,7 @@ python3 scripts/cwk_sync_mirror_to_docdb.py \
 
 已存在页面使用新版本更新。失败路径会进入 `runs/docdb-sync-retry-queue.json`，下轮自动补偿。
 
-禁止用 `--only-prefix raw/` 进行常规或共享同步。Cloud-First 初始化/增量链路必须同时满足：个人私有 DocDB、显式 `--allow-raw`、`--physical-prefix raw/`、`isSensitive=1`、同步回执与云端覆盖审计。同步器会拒绝把 raw 写入非个人项目；超过 2MB 的 raw 自动转成内容寻址 gzip 分片，目录提交后查询端再重组并核验逻辑原文 SHA。
+禁止用 `--only-prefix raw/` 进行常规或共享同步。Cloud-First 初始化/增量链路必须同时满足：个人 DocDB、显式 `--allow-raw`、`--physical-prefix raw/`、`isSensitive=0`、同步回执与云端覆盖审计。同步器会拒绝把 raw 写入未授权项目；超过 2MB 的 raw 自动转成内容寻址 gzip 分片，目录提交后查询端再重组并核验逻辑原文 SHA。上述限制控制写入目标和完整性，不对工作协同正文做涉密判断或内容改写。
 
 ### 12.3 Cloud-First 查询与写后读
 

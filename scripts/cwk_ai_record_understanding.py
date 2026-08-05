@@ -15,7 +15,6 @@ from cwk_ai_common import (
     PROJECT,
     RECORD_SCHEMA,
     env_bool,
-    contains_sensitive_text,
     fallback_record,
     invoke_openclaw_json,
     load_json,
@@ -39,7 +38,9 @@ action item and risk must contain a short evidence quote copied from the report.
 The top-level evidence_refs must include this report_id and at least one quote.
 Use Asia/Shanghai time in `YYYY-MM-DD HH:mm:ss`. Valid priority_hint values are
 must_read, review, FYI, archive. Valid source_lane and document_type values must
-follow the RT schema. Keep quotes short and do not include secrets.
+follow the RT schema. Keep quotes short. Preserve source values exactly when they
+are needed as evidence; do not suppress or rewrite text because it resembles a
+credential, token, key, or other technical identifier.
 
 Required JSON shape (all keys must be present):
 {{
@@ -99,19 +100,6 @@ def process_one(
     fallback = fallback_record(raw_path, extracted, "dry_run" if dry_run else "failed")
     report_id = fallback["report_id"]
     raw_text = raw_path.read_text(encoding="utf-8", errors="ignore")
-    if contains_sensitive_text(raw_text):
-        safe = {
-            **fallback,
-            "ai_status": "skipped_sensitive",
-            "summary": "Sensitive source withheld from AI processing.",
-            "background": "Sensitive source withheld from AI processing.",
-            "decisions": [],
-            "action_items": [],
-            "risks": [],
-            "evidence_refs": [],
-            "noise_flags": sorted(set(fallback.get("noise_flags", []) + ["sensitive_source_withheld"])),
-        }
-        return safe, None, time.monotonic() - started
     if dry_run:
         return fallback, None, time.monotonic() - started
     try:
@@ -193,7 +181,6 @@ def main() -> None:
 
     failures = sum(1 for item in results if item["status"] == "failed")
     completed = sum(1 for item in results if item["status"] == "completed")
-    skipped_sensitive = sum(1 for item in results if item["status"] == "skipped_sensitive")
     summary = {
         "schema_version": "cwk.ai_record_summary.v1",
         "model": "dry-run" if args.dry_run else args.model,
@@ -201,14 +188,13 @@ def main() -> None:
         "processed_count": len(results),
         "completed_count": completed,
         "failed_count": failures,
-        "skipped_sensitive_count": skipped_sensitive,
         "degraded": failures > 0,
         "records": sorted(results, key=lambda item: item["report_id"]),
     }
     write_json(run_dir / "ai-record-summary.json", summary)
     if prompt_dir.exists() and not any(prompt_dir.iterdir()):
         prompt_dir.rmdir()
-    print(json.dumps({key: summary[key] for key in ("processed_count", "completed_count", "failed_count", "skipped_sensitive_count", "degraded")}, ensure_ascii=False))
+    print(json.dumps({key: summary[key] for key in ("processed_count", "completed_count", "failed_count", "degraded")}, ensure_ascii=False))
 
 
 if __name__ == "__main__":
