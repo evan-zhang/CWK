@@ -34,18 +34,28 @@ git clone https://github.com/evan-zhang/CWK.git
 cd CWK
 ```
 
-2. Run install check:
+2. Run the portable install check (Python 3.10+; Python 3.11 recommended):
 
 ```bash
-./install.sh
+PYTHON=python3.11 ./install.sh
 ```
 
 This creates `cwk-mirror.local.json` if missing, compiles scripts, and runs the sanitized smoke test.
 
-3. Check local requirements for live operation:
+3. For an internal OpenClaw installation, use the explicit Skill-link option:
 
 ```bash
-python3 --version
+PYTHON=python3.11 ./install.sh --install-skill
+```
+
+This does not collect business data, write DocDB, create cron jobs, or modify
+an Agent. See [internal distribution](docs/INTERNAL_DISTRIBUTION.md) for the
+per-user authorization and trial procedure.
+
+4. Check local requirements for live operation:
+
+```bash
+python3.11 --version
 gh auth status
 ```
 

@@ -2,7 +2,9 @@
 # Drive CWK wiki summary compile batches until remaining is 0 (or max batches).
 set -euo pipefail
 cd "$(dirname "$0")/.."
-MIRROR="${MIRROR:-../CWK-20260708-001/knowledge/工作协同镜像}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+MIRROR="${MIRROR:-$PROJECT_DIR/knowledge/工作协同镜像}"
 MODEL="${MODEL:-newapi/BD-MiniMax}"
 REPAIR_MODEL="${REPAIR_MODEL:-newapi/BD-glm}"
 LIMIT="${LIMIT:-50}"

@@ -2,17 +2,24 @@
 
 ## Smoke Commands
 
+Set `CWK_HOME` to this clone and leave `CWK_MIRROR_ROOT` empty for the default
+relative mirror location:
+
+```bash
+export CWK_HOME="$(pwd)"
+export CWK_MIRROR_ROOT="${CWK_MIRROR_ROOT:-$CWK_HOME/knowledge/工作协同镜像}"
+```
+
 1. 本地计数与样例页检查
 ```bash
-python3 scripts/cwk_wiki_smoke_test.py   --mirror-root /Users/evan/.openclaw/gateways/life/state/workspace-life/projects/CWK-20260708-001/knowledge/工作协同镜像   --min-summaries 530   --min-topics 80   --min-entities 150
+python3.11 scripts/cwk_wiki_smoke_test.py --mirror-root "$CWK_MIRROR_ROOT" --min-summaries 1 --min-topics 1 --min-entities 1
 ```
-预期：`summaries=530`、`topics=87`、`entities=388`，`overall=PASS`。
+预期：当前镜像的实际计数满足设置的门槛，且 `overall=PASS`。
 
 2. 直接查看样例页面
 ```bash
-sed -n '1,80p' /Users/evan/.openclaw/gateways/life/state/workspace-life/projects/CWK-20260708-001/knowledge/工作协同镜像/wiki/topics/云端虾申请.md
-sed -n '1,80p' /Users/evan/.openclaw/gateways/life/state/workspace-life/projects/CWK-20260708-001/knowledge/工作协同镜像/wiki/entities/products/云端虾.md
-sed -n '1,80p' /Users/evan/.openclaw/gateways/life/state/workspace-life/projects/CWK-20260708-001/knowledge/工作协同镜像/wiki/entities/people/李文俏.md
+find "$CWK_MIRROR_ROOT/wiki/topics" -name '*.md' ! -name index.md | head -1 | xargs -I{} sed -n '1,80p' '{}'
+find "$CWK_MIRROR_ROOT/wiki/entities" -name '*.md' ! -name index.md | head -1 | xargs -I{} sed -n '1,80p' '{}'
 ```
 预期：页面正文包含 `report_id` 链接或反引号 ID，且有“证据：”或“来源：”字样。
 
@@ -21,7 +28,7 @@ sed -n '1,80p' /Users/evan/.openclaw/gateways/life/state/workspace-life/projects
 python3 - <<'PY2'
 from pathlib import Path
 import json
-p = Path('/Users/evan/.openclaw/gateways/life/state/workspace-life/projects/CWK-20260708-001/knowledge/工作协同镜像/wiki/_system/manifest.json')
+p = Path(__import__('os').environ['CWK_MIRROR_ROOT']) / 'wiki' / '_system' / 'manifest.json'
 m = json.loads(p.read_text())
 print('source_count=', m.get('source_count'))
 print('compiled_count=', len(m.get('compiled_report_ids', [])))
@@ -30,7 +37,7 @@ print('entity_page_count=', m.get('entity_page_count'))
 print('failure_queue=', len(m.get('failure_queue', [])))
 PY2
 ```
-预期：`source_count=530`、`compiled_count=530`、`failure_queue=0`。
+预期：`source_count` 与 `compiled_count` 一致，且 `failure_queue` 为 0。
 
 4. 如需验证 DocDB 搜索路径（本机已具备 `cms-docdb` 与 `XG_BIZ_API_KEY` 时）
 ```bash

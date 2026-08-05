@@ -12,6 +12,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -33,7 +34,9 @@ from cwk_collection_state import (
 
 
 PROJECT = Path(__file__).resolve().parents[1]
-CWORK = Path.home() / ".openclaw" / "skills" / "cms-cwork-workflow" / "scripts"
+CWORK = Path(
+    os.environ.get("CMS_CWORK_WORKFLOW_DIR", str(Path.home() / ".openclaw" / "skills" / "cms-cwork-workflow"))
+).expanduser() / "scripts"
 QUERY = CWORK / "cwork-query-report.py"
 TODO = CWORK / "cwork-todo.py"
 
@@ -42,7 +45,7 @@ def run_tool(script: Path, args: list[str], app_key: str) -> dict[str, Any]:
     with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".json", delete=True) as f:
         json.dump({"app_key": app_key}, f, ensure_ascii=False)
         f.flush()
-        cmd = ["python3", str(script), "--params-file", f.name, *args]
+        cmd = [sys.executable, str(script), "--params-file", f.name, *args]
         proc = subprocess.run(cmd, text=True, capture_output=True, check=False)
     if proc.returncode != 0:
         return {"success": False, "error": proc.stderr.strip() or proc.stdout.strip(), "cmd": [str(script.name), *args]}

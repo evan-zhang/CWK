@@ -19,7 +19,7 @@
   "ai_max_parallel": 4,
   "ai_timeout_seconds": 120,
   "app_key": "",
-  "mirror_root": "projects/CWK-20260708-001/knowledge/工作协同镜像",
+  "mirror_root": "knowledge/工作协同镜像",
   "sync_wiki": false,
   "wiki_compile": false,
   "wiki_topics_entities": false,

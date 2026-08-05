@@ -1,7 +1,7 @@
 # CWK Cloud Wiki — 可立即试用测试用例
 
 > 更新：2026-08-04
-> 当前阶段：summaries 698/698，topics 87，entities 388
+> 当前阶段：以运行时 manifest 为准；本文件不绑定任何个人镜像规模。
 > 可用性结论：**可以用自然语言检索并生成 raw 已验证证据包；最终答案仍由 OpenClaw 基于证据生成。**
 
 ## 现在能测什么
@@ -23,17 +23,15 @@
 ## 本地根目录
 
 ```bash
-WIKI=~/.openclaw/gateways/life/state/workspace-life/projects/CWK/knowledge/工作协同镜像/wiki
-# 等价真实路径：
-# ~/.openclaw/gateways/life/state/workspace-life/projects/CWK-20260708-001/knowledge/工作协同镜像/wiki
+CWK_HOME="$(pwd)"
+WIKI="${CWK_MIRROR_ROOT:-$CWK_HOME/knowledge/工作协同镜像}/wiki"
 ```
 
 ## 0. 一键冒烟
 
 ```bash
-cd ~/.openclaw/gateways/life/state/workspace-life/projects/CWK
-python3 scripts/cwk_wiki_smoke_test.py
-python3 scripts/cwk_wiki_query.py --lint
+python3.11 scripts/cwk_wiki_smoke_test.py --mirror-root "${WIKI%/wiki}"
+python3.11 scripts/cwk_wiki_query.py --lint
 ```
 
 预期：两项均 `PASS`
@@ -44,9 +42,9 @@ python3 scripts/cwk_wiki_query.py --lint
 
 ### TC-01 规模门禁（P0）
 ```bash
-ls "$WIKI/summaries"/*.md | wc -l   # 期望 698
-ls "$WIKI/topics"/*.md | wc -l      # 期望 >= 80（含 index）
-find "$WIKI/entities" -name '*.md' | wc -l  # 期望 >= 380
+ls "$WIKI/summaries"/*.md | wc -l
+ls "$WIKI/topics"/*.md | wc -l
+find "$WIKI/entities" -name '*.md' | wc -l
 ```
 通过标准：数量达标。
 
@@ -101,11 +99,11 @@ rg -n "张三丰张三丰" "$WIKI" || true
 ```
 通过标准：无命中。系统不应“脑补”。
 
-### TC-09 敏感内容不泄漏（P0）
+### TC-09 原文证据保持（P0）
 ```bash
-rg -n "sk-[A-Za-z0-9]" "$WIKI/summaries" "$WIKI/topics" "$WIKI/entities" || true
+python3.11 scripts/cwk_wiki_query.py "任一已知汇报标题" --top-k 1 --format json
 ```
-通过标准：wiki 编译层不应出现 API key。
+通过标准：返回 `evidence_status=verified`，并能回链到工作协同原文；工作协同可读取内容按原文保留。
 
 ### TC-10 云端可浏览（P1）
 在个人知识库打开：
@@ -163,9 +161,8 @@ python3 scripts/cwk_wiki_query.py "霜蓝鲸鱼量子披萨项目进展" --forma
 
 本地手动等价：
 ```bash
-cd ~/.openclaw/gateways/life/state/workspace-life/projects/CWK
-python3 scripts/cwk_wiki_smoke_test.py
-python3 scripts/cwk_cloud_wiki_compile.py --limit 20
-python3 scripts/cwk_cloud_wiki_topics_entities.py --min-topic-reports 2 --min-entity-reports 2
-python3 scripts/cwk_sync_mirror_to_docdb.py --only-prefix wiki/
+python3.11 scripts/cwk_wiki_smoke_test.py --mirror-root "${WIKI%/wiki}"
+python3.11 scripts/cwk_cloud_wiki_compile.py --limit 20
+python3.11 scripts/cwk_cloud_wiki_topics_entities.py --min-topic-reports 2 --min-entity-reports 2
+python3.11 scripts/cwk_sync_mirror_to_docdb.py --only-prefix wiki/
 ```

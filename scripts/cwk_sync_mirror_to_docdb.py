@@ -32,10 +32,11 @@ from pathlib import Path
 PROJECT = Path(__file__).resolve().parents[1]
 MIRROR = PROJECT / "knowledge" / "工作协同镜像"
 DOCDB = Path(os.environ.get("CMS_DOCDB_SKILL_DIR", str(Path.home() / ".agents" / "skills" / "cms-docdb")))
+AUTH_SKILL = Path(os.environ.get("CMS_AUTH_SKILL_DIR", str(Path.home() / ".agents" / "skills" / "cms-auth-skills")))
 AUTH = Path(
     os.environ.get(
         "CMS_AUTH_LOGIN",
-        str(Path.home() / ".agents" / "skills" / "cms-auth-skills" / "scripts" / "auth" / "login.py"),
+        str(AUTH_SKILL / "scripts" / "auth" / "login.py"),
     )
 )
 DEFAULT_PROJECT_ID = os.environ.get("CWK_DOCDB_PROJECT_ID", "")

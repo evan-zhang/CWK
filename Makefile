@@ -1,4 +1,4 @@
-.PHONY: test smoke smoke-ai smoke-ai-degraded wiki-lint wiki-smoke clean
+.PHONY: doctor test smoke smoke-ai smoke-ai-degraded wiki-lint wiki-smoke clean
 
 PYTHON ?= python3
 SMOKE_RUN ?= ci-smoke
@@ -6,7 +6,11 @@ SMOKE_DATE ?= 2026-01-01
 SMOKE_AI_RUN ?= ci-smoke-ai
 SMOKE_AI_DEGRADED_RUN ?= ci-smoke-ai-degraded
 
+doctor:
+	$(PYTHON) scripts/cwk_doctor.py --check-only --config skill/templates/CONFIG.example.json
+
 test:
+	$(MAKE) doctor
 	$(PYTHON) -m py_compile scripts/*.py
 	$(PYTHON) -m unittest discover -s tests -p 'test_*.py'
 	$(MAKE) smoke
