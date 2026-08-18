@@ -337,6 +337,15 @@ class ApprovedSurface:
     origin: str  # declared | parenthetical_acronym | controlled_generic_suffix
                  # | compound_alias | approved_family_registry
     provenance: list[dict[str, str]] = field(default_factory=list)
+    # ``scope_role`` distinguishes surfaces that may authorise scope
+    # expansion (``hard``) from surfaces that are only kept for operator
+    # visibility (``generic_candidate``).  Parenthetical-derived bare
+    # generic aliases – e.g. ``训战系统`` extracted from
+    # ``训战系统（TBS）`` – must never hard-scope the acronym family
+    # unless a registry entry explicitly promotes them; otherwise a
+    # report that mentions only ``训战系统`` (no TBS) would silently
+    # leak into TBS scope.  See RT-010 follow-up blocker F.
+    scope_role: str = "hard"
 
 
 @dataclass
@@ -608,7 +617,7 @@ def _apply_parenthetical_acronym(
     lookup: dict[tuple[str, str], str],
     declarations_by_key: dict[str, list[SurfaceDeclaration]],
 ) -> None:
-    pending: list[tuple[str, str, str, dict[str, str]]] = []
+    pending: list[tuple[str, str, str, str, bool, dict[str, str]]] = []
     for key, decls in list(declarations_by_key.items()):
         entity_type, normalized = key.split("\x00", 1)
         for decl in decls:
@@ -624,21 +633,29 @@ def _apply_parenthetical_acronym(
             full_norm = normalize_surface(full)
             if not acr_norm or not full_norm or acr_norm == full_norm:
                 continue
-            for alias_display, alias_norm in ((acr, acr_norm), (full, full_norm)):
+            # ``is_acronym_side`` distinguishes the specific acronym
+            # alias (safe to hard-scope) from the generic full
+            # parenthetical (must NOT hard-scope a distinct family).
+            for alias_display, alias_norm, is_acronym_side in (
+                (acr, acr_norm, True),
+                (full, full_norm, False),
+            ):
                 pending.append(
                     (
                         entity_type,
                         normalized,
                         alias_norm,
                         alias_display,
+                        is_acronym_side,
                         {
                             "rule": "parenthetical_acronym",
                             "source_report_id": decl.report_id,
                             "source_surface": decl.display,
+                            "alias_side": "acronym" if is_acronym_side else "full",
                         },
                     )
                 )
-    for entity_type, seed_norm, alias_norm, alias_display, provenance in pending:
+    for entity_type, seed_norm, alias_norm, alias_display, is_acronym_side, provenance in pending:
         # Re-resolve the seed's family after every prior merge so we do
         # not carry a stale ``fid`` from before an intermediate link
         # operation.  The seed family may itself have been merged into
@@ -646,20 +663,66 @@ def _apply_parenthetical_acronym(
         seed_fid = lookup.get((entity_type, seed_norm))
         if seed_fid is None or seed_fid not in families:
             continue
-        _link_family(entity_type, seed_fid, alias_norm, families, lookup)
-        fid = lookup.get((entity_type, alias_norm))
-        if fid is None or fid not in families:
-            continue
-        family = families[fid]
-        surface = family.surfaces.setdefault(
+        existing_fid = lookup.get((entity_type, alias_norm))
+        # RT-010 follow-up (independent audit blocker F): only the
+        # acronym alias may absorb an independently-declared same-type
+        # family.  The FULL parenthetical alias is generic prose; if a
+        # separate family already owns that surface we leave it alone
+        # and instead record a soft ``generic_candidate`` surface on
+        # the seed family so operators can still see the parenthetical
+        # relation.  This prevents ``训战系统``-only reports leaking
+        # into the TBS scope.
+        if is_acronym_side:
+            _link_family(entity_type, seed_fid, alias_norm, families, lookup)
+        else:
+            if existing_fid is None:
+                # Fresh alias — safe to attach to the seed family.
+                lookup[(entity_type, alias_norm)] = seed_fid
+            elif existing_fid == seed_fid:
+                # Same family already — nothing to reroute.
+                pass
+            else:
+                # An independent family already owns this generic
+                # surface.  Do NOT merge, do NOT reroute lookup; the
+                # seed family will still list the surface below but
+                # tagged ``generic_candidate`` so scope resolution and
+                # posting extension skip it.
+                pass
+        # Only add the surface to the seed family when this iteration
+        # is authorised to do so (i.e. the surface lookup either now
+        # points at the seed family or the alias is a generic-only
+        # visibility add — never overwrite the surface of a different
+        # existing family).
+        target_family = families[seed_fid]
+        # Decide scope_role for the newly-added surface.
+        scope_role = "hard"
+        if not is_acronym_side and existing_fid not in (None, seed_fid):
+            scope_role = "generic_candidate"
+        if not is_acronym_side and acr_norm and acr_norm not in alias_norm and existing_fid is None:
+            # Fresh generic alias that is not acronym-bearing – it is
+            # still added as hard for backward compat (no independent
+            # family owns it) but tagged with provenance so downstream
+            # can inspect the rule that produced it.  Scope role stays
+            # ``hard`` here because there is no colliding family to
+            # protect.
+            scope_role = "hard"
+        surface = target_family.surfaces.setdefault(
             alias_norm,
             ApprovedSurface(
                 display=alias_display,
                 normalized=alias_norm,
                 entity_type=entity_type,
                 origin="parenthetical_acronym",
+                scope_role=scope_role,
             ),
         )
+        # Never upgrade an existing declared/hard surface to generic.
+        # But do allow demotion when the surface only exists as a
+        # parenthetical alias and a competing independent family owns
+        # the same norm (guarding against later runs re-adding it as
+        # hard).
+        if surface.origin == "parenthetical_acronym" and scope_role == "generic_candidate":
+            surface.scope_role = "generic_candidate"
         surface.provenance.append(provenance)
 
 
@@ -806,12 +869,29 @@ class RegistryValidationError(ValueError):
     """Raised when the registry contains structurally invalid entries."""
 
 
+def _registry_approver(entry: dict[str, Any]) -> str:
+    """Return the truthful approver string.  We accept the modern
+    ``decided_by`` field and fall back to the legacy ``approved_by``
+    for fixtures that still use it; call sites treat either as the
+    canonical audit label.
+    """
+    value = str(entry.get("decided_by") or entry.get("approved_by") or "").strip()
+    return value
+
+
+def _registry_approved_at(entry: dict[str, Any]) -> str:
+    return str(entry.get("decided_at") or entry.get("approved_at") or "").strip()
+
+
 def _validate_registry_entry(entry: dict[str, Any], index: int) -> None:
     """Strictly validate one registry entry before we act on it.
 
     We refuse to merge families based on malformed audit data: missing
-    members, missing evidence, missing approver, and missing approval
-    timestamp are all hard errors.
+    ``entry_id``, missing members, missing evidence, missing approver,
+    and missing approval timestamp are all hard errors.  Both the
+    modern (``decided_by`` / ``decided_at``) and the legacy
+    (``approved_by`` / ``approved_at``) audit field pairs are accepted;
+    at least one pair must be present with non-empty values.
     """
     if not isinstance(entry, dict):
         raise RegistryValidationError(f"registry[{index}] is not an object")
@@ -848,16 +928,26 @@ def _validate_registry_entry(entry: dict[str, Any], index: int) -> None:
             raise RegistryValidationError(
                 f"registry[{index}].evidence[{j}].quote must be non-empty"
             )
-    if not str(entry.get("approved_by") or "").strip():
-        raise RegistryValidationError(f"registry[{index}].approved_by is required")
-    if not str(entry.get("approved_at") or "").strip():
-        raise RegistryValidationError(f"registry[{index}].approved_at is required")
+    if not str(entry.get("entry_id") or "").strip():
+        raise RegistryValidationError(
+            f"registry[{index}].entry_id is required (stable audit id)"
+        )
+    if not _registry_approver(entry):
+        raise RegistryValidationError(
+            f"registry[{index}].decided_by (or legacy approved_by) is required"
+        )
+    if not _registry_approved_at(entry):
+        raise RegistryValidationError(
+            f"registry[{index}].decided_at (or legacy approved_at) is required"
+        )
 
 
 def _apply_registry(
     families: dict[str, Family],
     lookup: dict[tuple[str, str], str],
     registry: dict[str, Any],
+    *,
+    raw_index: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     """Apply the cross-type approved-family registry.
 
@@ -867,10 +957,22 @@ def _apply_registry(
     :class:`RegistryValidationError`; requested members that are not
     present in the currently-declared corpus are recorded but do not
     silently succeed.  Merges are deterministic and provenance-tracked.
+
+    RT-010 follow-up (independent audit blocker F): when a ``raw_index``
+    keyed by ``report_id → raw_text`` is provided, every registry
+    evidence quote must appear verbatim in the referenced raw report;
+    any mismatch fails the whole build closed via
+    :class:`RegistryValidationError`.  The check is skipped when the
+    caller intentionally passes ``raw_index=None`` (e.g. a fixture that
+    does not need to gate on raw availability), so old test paths keep
+    working.
     """
     applied: list[dict[str, Any]] = []
     for index, entry in enumerate(registry.get("entries", []) or []):
         _validate_registry_entry(entry, index)
+        entry_id = str(entry.get("entry_id") or "").strip()
+        decided_by = _registry_approver(entry)
+        decided_at = _registry_approved_at(entry)
         members = entry.get("members") or []
         seed_fids: list[str] = []
         member_snapshot: list[dict[str, str]] = []
@@ -891,6 +993,18 @@ def _apply_registry(
             seed_fids.append(fid)
             member_snapshot.append({"entity_type": entity_type, "normalized": normalized})
         deduped = list(dict.fromkeys(seed_fids))
+        # RT-010 follow-up (blocker F): only verify registry evidence
+        # against raw when the entry is about to actually merge families
+        # (i.e. at least two members are present).  Fixtures that
+        # inherit the repo registry but don't ship the TBS raws
+        # therefore land as ``no_effect_members_missing`` rather than
+        # a hard registry error – the entry has no effect on their
+        # catalog anyway.  When the entry DOES apply, we still require
+        # every listed evidence quote to appear in the referenced raw.
+        if raw_index is not None and len(deduped) >= 2:
+            _verify_registry_evidence(
+                entry, index=index, entry_id=entry_id, raw_index=raw_index,
+            )
         if len(deduped) < 2:
             applied.append(
                 {
@@ -934,25 +1048,75 @@ def _apply_registry(
                     {
                         "rule": "approved_family_registry",
                         "registry_version": str(registry.get("version") or ""),
-                        "approved_by": str(entry.get("approved_by") or ""),
-                        "approved_at": str(entry.get("approved_at") or ""),
+                        "entry_id": entry_id,
+                        "decided_by": decided_by,
+                        "decided_at": decided_at,
                     }
                 )
             families.pop(other_fid, None)
+        # Every member listed in a registry entry is explicitly hard-
+        # scoped: the registry is the authorised promotion path from
+        # ``generic_candidate`` back to ``hard``.  This applies to the
+        # exact normalised member surfaces named in the entry, not to
+        # aliases produced by other rules.
+        for member in member_snapshot:
+            member_norm = str(member.get("normalized") or "")
+            member_surface = target.surfaces.get(member_norm)
+            if member_surface is not None:
+                member_surface.scope_role = "hard"
         applied.append(
             {
+                "entry_id": entry_id,
                 "canonical_display": canonical_display,
                 "family_id": target.family_id,
                 "members": member_snapshot,
                 "missing_members": missing_members,
                 "evidence": evidence_payload,
                 "registry_version": str(registry.get("version") or ""),
-                "approved_by": str(entry.get("approved_by") or ""),
-                "approved_at": str(entry.get("approved_at") or ""),
+                "decided_by": decided_by,
+                "decided_at": decided_at,
                 "status": "applied",
             }
         )
     return applied
+
+
+def _verify_registry_evidence(
+    entry: dict[str, Any],
+    *,
+    index: int,
+    entry_id: str,
+    raw_index: dict[str, str],
+) -> None:
+    """Verify every registry ``evidence.quote`` against the referenced
+    ``report_id``'s raw text.  Raises :class:`RegistryValidationError`
+    on the first mismatch.  The quote must appear verbatim (after
+    whitespace collapse) in the raw envelope; otherwise the registry
+    entry cannot be trusted to authorise a cross-type merge.
+    """
+    for j, ev in enumerate(entry.get("evidence") or []):
+        report_id = str(ev.get("report_id") or "").strip()
+        quote = str(ev.get("quote") or "").strip()
+        if not report_id or not quote:
+            raise RegistryValidationError(
+                f"registry[{index}]({entry_id}).evidence[{j}]"
+                " must carry report_id + quote"
+            )
+        raw_text = raw_index.get(report_id) or ""
+        if not raw_text:
+            raise RegistryValidationError(
+                f"registry[{index}]({entry_id}).evidence[{j}] references"
+                f" report_id={report_id} but raw is not present in mirror"
+            )
+        needle = re.sub(r"\s+", "", quote)
+        haystack = re.sub(r"\s+", "", raw_text)
+        if needle not in haystack:
+            raise RegistryValidationError(
+                f"registry[{index}]({entry_id}).evidence[{j}] quote does"
+                f" not appear verbatim in raw {report_id}: registry"
+                " cannot authorise a cross-type merge without genuine"
+                " raw evidence"
+            )
 
 
 def _seed_postings(
@@ -965,6 +1129,16 @@ def _seed_postings(
         if fid is None:
             continue
         family = families[fid]
+        # RT-010 follow-up (blocker F): a declaration matching a
+        # ``generic_candidate`` surface must NOT be admitted as a
+        # posting for that family.  Otherwise a bare ``训战系统``
+        # declaration in an unrelated report would silently join the
+        # TBS acronym family's scope.  The declaration still exists
+        # on its own family via the seed pass; the merged/parenthetical
+        # family only shows the surface for visibility.
+        target_surface = family.surfaces.get(decl.normalized)
+        if target_surface is not None and getattr(target_surface, "scope_role", "hard") != "hard":
+            continue
         family.add_posting(
             decl.report_id,
             {
@@ -984,8 +1158,22 @@ def _seed_postings(
 def _pick_canonical_from_family(family: Family, declaration_counts: Counter[str]) -> None:
     if not family.surfaces:
         return
-    def sort_key(norm: str) -> tuple[int, int, str]:
-        return (-declaration_counts.get(norm, 0), len(norm), norm)
+    # RT-010 follow-up (blocker F): generic_candidate surfaces must
+    # never win canonical.  Otherwise the parenthetical family for
+    # ``ALPHA（示例平台）`` would elect the shorter generic ``示例平台``
+    # as its canonical, collide family_ids with an independent
+    # ``system:示例平台`` family, and one would overwrite the other in
+    # the reindex pass.  Sort hard surfaces first, then apply the
+    # historical ``(-declaration_count, length, norm)`` tie-break.
+    def sort_key(norm: str) -> tuple[int, int, int, str]:
+        role = getattr(family.surfaces[norm], "scope_role", "hard")
+        role_rank = 0 if role == "hard" else 1
+        return (
+            role_rank,
+            -declaration_counts.get(norm, 0),
+            len(norm),
+            norm,
+        )
     best = sorted(family.surfaces.keys(), key=sort_key)[0]
     # Only override auto-picked canonical when no registry-supplied name exists.
     if not family.approved_family_evidence or not family.canonical_display:
@@ -1001,6 +1189,58 @@ def _reindex_after_canonical(families: dict[str, Family]) -> dict[str, Family]:
         family.family_id = _family_id(family.canonical_entity_type, family.canonical_normalized)
         fresh[family.family_id] = family
     return fresh
+
+
+def _rebuild_lookup(
+    families: dict[str, Family],
+    registry_applications: list[dict[str, Any]] | None = None,
+) -> dict[tuple[str, str], str]:
+    """Rebuild the ``(entity_type, normalized) → family_id`` lookup.
+
+    RT-010 follow-up (blocker F): after ``_apply_registry`` merges a
+    project family into a system family the merged family owns the
+    surface with the SYSTEM entity_type (``_merge_family`` only
+    extends provenance on collisions, it does not clone the surface
+    per entity_type).  Rebuilding lookup from ``surface.entity_type``
+    alone therefore loses the ``(project, norm)`` route and later
+    declarations would form a phantom sibling family.
+
+    We fix this by broadcasting each applied registry member's
+    ``(entity_type, normalized) → family_id`` pair into lookup, in
+    addition to the ordinary surface-derived entries.  Only members
+    that actually resolved to an existing family are broadcast.
+    """
+    lookup: dict[tuple[str, str], str] = {}
+    for family in families.values():
+        for norm in family.surfaces:
+            lookup[(family.surfaces[norm].entity_type, norm)] = family.family_id
+    if not registry_applications:
+        return lookup
+    # Map declared members back to the current family_id.  The
+    # ``family_id`` recorded in the applied entry may have changed via
+    # a subsequent reindex, so we route through any surviving member
+    # lookup entry to identify the current family.
+    for entry in registry_applications:
+        members = entry.get("members") or []
+        family_id = ""
+        for member in members:
+            entity_type = str(member.get("entity_type") or "").strip().lower()
+            normalized = str(member.get("normalized") or "")
+            if not entity_type or not normalized:
+                continue
+            fid = lookup.get((entity_type, normalized))
+            if fid and fid in families:
+                family_id = fid
+                break
+        if not family_id:
+            continue
+        for member in members:
+            entity_type = str(member.get("entity_type") or "").strip().lower()
+            normalized = str(member.get("normalized") or "")
+            if not entity_type or not normalized:
+                continue
+            lookup[(entity_type, normalized)] = family_id
+    return lookup
 
 
 # ---------------------------------------------------------------------------
@@ -1085,6 +1325,13 @@ def _extend_with_raw_anchors(
         for surface in family.surfaces.values():
             display = surface.display or surface.normalized
             if len(display) < 2:
+                continue
+            # RT-010 follow-up (blocker F): only ``hard`` surfaces
+            # authorise raw-anchor scope extension.  Generic candidate
+            # surfaces (bare parenthetical full forms like ``训战系统``)
+            # remain visible in the catalog but must not pull raw
+            # reports into the acronym family's postings.
+            if getattr(surface, "scope_role", "hard") != "hard":
                 continue
             # Precompute the surface kind so the raw-scan hot loop
             # skips the boundary regex for CJK surfaces entirely.
@@ -1240,6 +1487,13 @@ def _serialise_family(family: Family) -> dict[str, Any]:
                 "normalized": surface.normalized,
                 "entity_type": surface.entity_type,
                 "origin": surface.origin,
+                # ``scope_role`` = ``hard`` (default) means the surface
+                # participates in scope resolution / raw-anchor
+                # extension / strong H1 linkage.  ``generic_candidate``
+                # keeps the surface visible for operators but excludes
+                # it from those scope-widening paths (see RT-010
+                # follow-up blocker F).
+                "scope_role": getattr(surface, "scope_role", "hard"),
                 "provenance": surface.provenance,
             }
         )
@@ -1347,15 +1601,29 @@ def build_catalog(
             lookup[(family.surfaces[norm].entity_type, norm)] = family.family_id
 
     registry, registry_source = load_registry(mirror, override_paths=registry_paths)
-    registry_applications = _apply_registry(families, lookup, registry)
+    # Build a report_id → raw_text index for registry evidence
+    # verification.  Missing raws are allowed at index build time
+    # (they will simply cause the referenced registry entry to fail
+    # closed), but the pass itself is deterministic.
+    raw_index_for_registry: dict[str, str] = {}
+    for record in summaries:
+        raw_path = record.raw_path
+        if not raw_path or not raw_path.is_file():
+            continue
+        try:
+            raw_index_for_registry[record.report_id] = raw_path.read_text(
+                encoding="utf-8", errors="replace"
+            )
+        except OSError:
+            continue
+    registry_applications = _apply_registry(
+        families, lookup, registry, raw_index=raw_index_for_registry,
+    )
     # Registry merges may have changed canonicals; re-elect.
     for family in families.values():
         _pick_canonical_from_family(family, declaration_counts)
     families = _reindex_after_canonical(families)
-    lookup = {}
-    for family in families.values():
-        for norm in family.surfaces:
-            lookup[(family.surfaces[norm].entity_type, norm)] = family.family_id
+    lookup = _rebuild_lookup(families, registry_applications)
 
     # Second compound_alias pass so cross-type registry bridges (e.g.
     # ``TBS`` becoming system+project+product) can now absorb sibling
@@ -1375,10 +1643,7 @@ def build_catalog(
     for family in families.values():
         _pick_canonical_from_family(family, declaration_counts)
     families = _reindex_after_canonical(families)
-    lookup = {}
-    for family in families.values():
-        for norm in family.surfaces:
-            lookup[(family.surfaces[norm].entity_type, norm)] = family.family_id
+    lookup = _rebuild_lookup(families, registry_applications)
 
     _seed_postings(families, lookup, declarations)
 

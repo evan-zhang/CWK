@@ -236,14 +236,20 @@ def build_index(mirror: Path, *, force: bool = False) -> dict[str, Any]:
         meta["index_files"] = index_files
         meta["index_artifact_sha256"] = sha256_file(compressed_path)
         meta["compressed_size_bytes"] = compressed_path.stat().st_size
+        # RT-010 follow-up (independent audit blocker E): the entity
+        # catalog and its anchor cache are LOCAL-ONLY derived artifacts.
+        # The manifest / index already carry ``entity_catalog_sha256``,
+        # ``entity_catalog_schema`` and ``entity_catalog_registry_
+        # version`` so the cloud side can detect drift, but the payload
+        # files themselves must never enter the DocDB sync surface — a
+        # gz binary going through the UTF-8 sync path corrupts and the
+        # anchor cache leaks per-machine build state.  Callers that
+        # need the local artifact rebuild it deterministically from the
+        # sync'd summaries + registry via ``cwk_entity_catalog``.
         meta["changed_relative_paths"] = [
             *(f"wiki/_system/{name}" for name in index_files),
             "wiki/_system/index-meta.json",
             "wiki/_system/manifest.json",
-            "wiki/_system/entity-catalog.json",
-            "wiki/_system/entity-catalog.json.gz",
-            "wiki/_system/entity-catalog-meta.json",
-            "wiki/_system/entity-anchors-cache.json",
         ]
         atomic_json(meta_path, meta)
     else:

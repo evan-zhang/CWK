@@ -1,9 +1,10 @@
 {
   "schema_version": "cwk.entity_family_registry.v1",
   "version": "2026-08-18",
-  "notes": "Version-controlled approved cross-type family registry. Consumed by scripts/cwk_entity_catalog.py during catalog build. Adding, removing, or modifying an entry deterministically changes catalog_sha256 and invalidates the persistent search index. Provenance quotes must be verbatim from raw reports; the register is data, not code or ranking heuristics.",
+  "notes": "Version-controlled approved cross-type family registry. Consumed by scripts/cwk_entity_catalog.py during catalog build. Every entry carries a stable `entry_id` and a truthful decision record (`decided_by`, `decided_at`, optional `decision_ref`); catalog build verifies every listed evidence quote against the referenced raw report and fails closed on any mismatch. Provenance quotes must be verbatim from raw reports; the register is data, not code or ranking heuristics.",
   "entries": [
     {
+      "entry_id": "tbs-system-project-product-2026-08-18",
       "canonical_display": "TBS",
       "members": [
         {"entity_type": "system", "normalized": "tbs"},
@@ -24,9 +25,10 @@
           "quote": "TBS（代表能力培训系统）"
         }
       ],
-      "approved_by": "cwk-rt-010",
-      "approved_at": "2026-08-18",
-      "notes": "TBS names the same conceptual referent across the system, project and product axes. Merging is limited to the exact acronym surface `tbs`; every family member still lists its individual entity_type in `entity_types` and every posting keeps its own edge provenance."
+      "decided_by": "project_owner",
+      "decided_at": "2026-08-18",
+      "decision_ref": "RT/RT-010/specs/需求契约.md#approved-family-registry",
+      "notes": "TBS names the same conceptual referent across the system, project and product axes. Merging is limited to the exact acronym surface `tbs`; every family member still lists its individual entity_type in `entity_types` and every posting keeps its own edge provenance. Parenthetical-derived bare generic aliases (e.g. 训战系统, AI训战系统) are catalog candidates only — they do NOT hard-scope as TBS unless explicitly listed here."
     }
   ]
 }

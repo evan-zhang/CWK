@@ -212,11 +212,22 @@ def iter_items(
     files = sorted(path for path in MIRROR.rglob("*") if path.is_file() and path.suffix.lower() in {".md", ".html", ".json", ".gz", ".bin"})
     # The compressed index is the cloud canonical artifact. The uncompressed
     # JSON copy is a local build aid and would add ~20 MB to every sync.
+    # RT-010 follow-up (independent audit blocker E): the entity catalog
+    # (json, gz, meta) and anchor cache are also LOCAL-ONLY derived
+    # artifacts.  They are rebuilt deterministically from summaries plus
+    # the version-controlled registry, and the .gz variant is a binary
+    # blob that would corrupt through a UTF-8 sync pipe.  Exclude them
+    # here as belt-and-suspenders on top of removing them from the
+    # search-index changed_relative_paths.
     files = [
         path for path in files
         if path.relative_to(MIRROR).as_posix() not in {
             "wiki/_system/search-index.json",
             "wiki/_system/search-index.json.gz",
+            "wiki/_system/entity-catalog.json",
+            "wiki/_system/entity-catalog.json.gz",
+            "wiki/_system/entity-catalog-meta.json",
+            "wiki/_system/entity-anchors-cache.json",
         }
     ]
     if not allow_raw:
