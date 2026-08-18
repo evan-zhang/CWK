@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterable
 
 from cwk_ai_common import parse_frontmatter
+import cwk_entity_catalog as entity_catalog
 
 
 PROJECT = Path(__file__).resolve().parents[1]
@@ -42,6 +43,25 @@ STOP_CJK = {
     "中旬", "月底", "月初", "月中", "月末", "月", "到", "至", "底",
 }
 _INDEX_CACHE: dict[tuple[str, int, int, int, int], tuple[Any, ...]] = {}
+
+# ---------------------------------------------------------------------------
+# Entity intent detection.  Rules are general and documented in
+# RT/RT-010/specs/需求契约.md; do not add per-entity keywords here.
+# ---------------------------------------------------------------------------
+INTENT_PATTERNS: dict[str, re.Pattern[str]] = {
+    "progress": re.compile(r"(进展|进度|status|progress)", re.I),
+    "plan": re.compile(r"(规划|计划|next\s*plan|next\s*step|下一步|路线图|后续)", re.I),
+    "risk": re.compile(r"(风险|风控|risk|blocker|阻塞|事故|异常)", re.I),
+    "owner": re.compile(r"(负责人|owner|负责|归属|承接人|谁负责)", re.I),
+}
+MANAGEMENT_INTENT_KEYS = tuple(INTENT_PATTERNS.keys())
+
+
+def _date_sort_key(value: str) -> int:
+    """Return a monotonically-comparable int for a ``YYYY-MM-DD`` string."""
+    value = (value or "")[:10]
+    digits = re.sub(r"\D", "", value)
+    return int(digits) if digits else 0
 
 
 @dataclass
@@ -285,6 +305,9 @@ def load_precomputed_index(
         "provider": "persistent_index",
         "index_version": payload.get("index_version"),
         "index_sha256": payload.get("index_sha256"),
+        "entity_catalog_sha256": payload.get("entity_catalog_sha256"),
+        "entity_catalog_schema": payload.get("entity_catalog_schema"),
+        "entity_catalog_registry_version": payload.get("entity_catalog_registry_version"),
         "summary_quality_map": {
             str(row["report_id"]): str(row.get("summary_quality") or "unknown") for row in summary_rows
         },
@@ -409,17 +432,32 @@ def evidence_for(
     question: str,
     max_evidence: int,
     raw_loader: Callable[[SummaryDoc], tuple[str, str]] | None = None,
-) -> tuple[str, list[dict[str, str]], str]:
+    *,
+    return_raw: bool = False,
+):
+    """Return ``(evidence_status, evidence, source_ref)``.
+
+    When ``return_raw=True`` the return tuple is extended with the
+    raw text and content-substring so callers (the structured entity-
+    intent linkage helper) can reason about block-level position
+    without re-reading the file.
+    """
     if raw_loader:
         try:
             raw_text, source_ref = raw_loader(doc)
         except Exception as exc:
             status = "hash_mismatch" if "hash mismatch" in str(exc).lower() else "missing"
+            if return_raw:
+                return status, [], "", "", ""
             return status, [], ""
     else:
         if not doc.raw_path or not doc.raw_path.is_file():
+            if return_raw:
+                return "missing", [], "", "", ""
             return "missing", [], ""
         if doc.raw_sha256 and file_sha256(doc.raw_path) != doc.raw_sha256:
+            if return_raw:
+                return "hash_mismatch", [], str(doc.raw_path), "", ""
             return "hash_mismatch", [], str(doc.raw_path)
         raw_text = doc.raw_path.read_text(encoding="utf-8", errors="replace")
         source_ref = str(doc.raw_path)
@@ -432,10 +470,14 @@ def evidence_for(
         if len(verified) >= max_evidence:
             break
     if verified:
+        if return_raw:
+            return "verified", verified, source_ref, raw_text, content
         return "verified", verified, source_ref
 
     candidates = excerpt_candidates(content)
     if not candidates:
+        if return_raw:
+            return "missing", [], source_ref, raw_text, content
         return "missing", [], source_ref
     index = BM25(candidates)
     query_tokens = tokenize(question)
@@ -449,7 +491,11 @@ def evidence_for(
         if score > 0
     ]
     if not excerpts:
+        if return_raw:
+            return "unverified", [], source_ref, raw_text, content
         return "unverified", [], source_ref
+    if return_raw:
+        return "verified", excerpts, source_ref, raw_text, content
     return "verified", excerpts, source_ref
 
 
@@ -471,6 +517,866 @@ def confidence_for(top_score: float, top_coverage: float, evidence_status: str, 
     return "low"
 
 
+# ---------------------------------------------------------------------------
+# Entity resolution + scope enforcement.  Uses the deterministic catalog
+# built by ``cwk_entity_catalog.build_catalog``; see RT-010 specs.
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class EntityResolution:
+    status: str  # unscoped | resolved | ambiguous | unknown | resolved_empty
+    family_id: str = ""
+    family_name: str = ""
+    entity_types: list[str] = field(default_factory=list)
+    matched_surfaces: list[dict[str, str]] = field(default_factory=list)
+    candidate_family_ids: list[str] = field(default_factory=list)
+    resolution_kind: str = ""  # exact | approved_alias | none
+    reason: str = ""
+
+
+def detect_intents(question: str) -> list[str]:
+    """Return requested management intents in a stable order."""
+    hits: list[str] = []
+    for key in MANAGEMENT_INTENT_KEYS:
+        if INTENT_PATTERNS[key].search(question or ""):
+            hits.append(key)
+    return hits
+
+
+def _normalize_query_with_offset_map(question: str) -> tuple[str, list[int]]:
+    """Return NFKC/case-folded text plus an offset map.
+
+    ``offset_map[i]`` gives the start index in the original ``question``
+    for the ``i``-th character of the normalised string; a trailing
+    sentinel ``len(question)`` lets callers translate exclusive end
+    offsets too.  Whitespace is **preserved** (as a single ASCII space)
+    so that ``ALPHA risk`` normalises to ``alpha risk`` rather than
+    ``alpharisk`` – otherwise the ASCII boundary check would treat the
+    following ``r`` as a glued word char and reject the match.  Spaced
+    acronyms like ``T B S`` are handled by a separate spaced-acronym
+    pattern registered by :func:`_find_entity_matches`.
+    """
+    import unicodedata as _ud
+    out_chars: list[str] = []
+    offset_map: list[int] = []
+    prev_was_space = True  # treat leading whitespace as already collapsed
+    for i, ch in enumerate(question or ""):
+        nfkc = _ud.normalize("NFKC", ch)
+        for out_ch in nfkc.casefold():
+            if out_ch.isspace():
+                if prev_was_space:
+                    continue
+                out_chars.append(" ")
+                offset_map.append(i)
+                prev_was_space = True
+            else:
+                out_chars.append(out_ch)
+                offset_map.append(i)
+                prev_was_space = False
+    offset_map.append(len(question or ""))
+    return "".join(out_chars), offset_map
+
+
+def _find_entity_matches(
+    question: str, catalog: dict[str, Any]
+) -> list[tuple[int, int, str, str, dict[str, Any]]]:
+    """Scan the question for the longest catalog surface matches.
+
+    Returns ``[(start, end, family_id, surface_display, family_payload)]``
+    where ``(start, end)`` are offsets into the ORIGINAL question string.
+    Matching is performed on the NFKC-normalised, case-folded,
+    whitespace-collapsed representation of the question so that
+    ``TBS``, ``ｔｂｓ``, and ``T B S`` all resolve to the same family.
+    An offset map converts normalised match spans back to original
+    spans for provenance / token removal.
+    """
+    families_by_id = {family["family_id"]: family for family in catalog.get("families", [])}
+    surface_index = catalog.get("surface_index", {}) or {}
+    ac = entity_catalog.AhoCorasick()
+    ascii_acronym_re = re.compile(r"^[a-z0-9._-]{2,8}$")
+    for norm, family_ids in surface_index.items():
+        if not norm or len(norm) < 2:
+            continue
+        for family_id in family_ids:
+            family = families_by_id.get(family_id)
+            if family is None:
+                continue
+            surface = next(
+                (s for s in family.get("surfaces", []) if s.get("normalized") == norm), None
+            )
+            display = surface.get("display") if surface else norm
+            ac.add(norm, (family_id, norm, display or norm))
+            # For short ASCII acronyms, also register a spaced variant
+            # (``t b s``) so users typing the acronym with spaces still
+            # hit the family.  The variant maps back to the same family
+            # payload; overlap suppression keeps the longer match if
+            # both fire.
+            if ascii_acronym_re.match(norm) and len(norm) >= 2:
+                spaced = " ".join(norm)
+                if spaced != norm:
+                    ac.add(spaced, (family_id, norm, display or norm))
+    ac.finalize()
+    normalised_question, offset_map = _normalize_query_with_offset_map(question)
+    raw_hits: list[tuple[int, int, tuple[str, str, str]]] = []
+    for n_start, n_end, payload in ac.find_all(normalised_question):
+        surface_norm = payload[1]
+        # Boundary is applied on the normalised string (both sides in
+        # the same space).  The surface kind is derived from the
+        # normalised form for consistency.
+        kind = entity_catalog._surface_kind(surface_norm)
+        if not entity_catalog._boundary_ok(normalised_question, n_start, n_end, kind):
+            continue
+        raw_hits.append((n_start, n_end, payload))
+    kept = entity_catalog.suppress_shorter_overlaps(raw_hits)
+    results: list[tuple[int, int, str, str, dict[str, Any]]] = []
+    seen: set[tuple[int, int, str]] = set()
+    for n_start, n_end, payload in kept:
+        family_id, surface_norm, display = payload
+        o_start = offset_map[n_start] if n_start < len(offset_map) else len(question)
+        o_end = offset_map[n_end] if n_end < len(offset_map) else len(question)
+        key = (o_start, o_end, family_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        family = families_by_id.get(family_id)
+        if family is None:
+            continue
+        results.append((o_start, o_end, family_id, display, family))
+    return results
+
+
+_GENERIC_RESIDUAL_RE = re.compile(
+    r"(项目|系统|平台|体系|方案|情况|状态|进度|进展|规划|计划|风险|风控|阻塞|事故"
+    r"|负责人|负责|owner|下一步|next\s*plan|next\s*step|路线图|后续|哪些|如何|怎么|谁"
+    r"|本周|本月|本季度|今天|昨天|最近|现在|目前|团队|大家|各位|同事"
+    r"|有|是|吗|呢|了|的|地|得|要|已|将|需|请"
+    r"|status|progress|blocker|risk|plan|owner|team|update|report|summary)",
+    re.I,
+)
+_QUOTED_NAME_RE = re.compile(r"[「『\"“《][^」』\"”》]{2,}[」』\"”》]")
+
+
+def _query_looks_entity_shaped(question: str) -> bool:
+    """Return True only when the query names a specific proper noun.
+
+    Detection strategy after stripping intent verbs and the closed
+    generic-scaffolding vocabulary:
+
+    - ASCII acronym (``[A-Z][A-Z0-9._-]+``) survives → entity-shaped;
+    - Bracket-quoted proper name anywhere in the original query → true;
+    - A CJK residual chunk of ``>=4`` characters after all scaffolding
+      is stripped → true (long CJK sequences that survive the closed
+      scaffolding list are almost always proper nouns).
+
+    Ordinary management prose such as ``本周项目进展如何`` collapses to
+    an empty residual and correctly stays ``False``.
+    """
+    if not question:
+        return False
+    residual = question
+    for pattern in INTENT_PATTERNS.values():
+        residual = pattern.sub(" ", residual)
+    residual = _GENERIC_RESIDUAL_RE.sub(" ", residual)
+    tokens = [tok for tok in re.split(r"[\s，,。.:：；;!！?？]+", residual) if tok]
+    tokens = [tok for tok in tokens if tok.lower() not in STOP_ASCII]
+    residual = " ".join(tokens).strip()
+    if not residual:
+        return False
+    if re.search(r"[A-Z][A-Z0-9._-]{1,}", residual):
+        return True
+    if _QUOTED_NAME_RE.search(question):
+        return True
+    # Long CJK residual after scaffolding removal is almost certainly a
+    # proper noun (e.g. ``霜蓝鲸鱼量子披萨-进展``).  The threshold of 4
+    # keeps normal Chinese management prose out — that path already
+    # collapses to an empty residual above.
+    if re.search(r"[一-鿿]{4,}", residual):
+        return True
+    return False
+
+
+def resolve_entity(question: str, catalog: dict[str, Any] | None) -> EntityResolution:
+    """Resolve the query to a family (or explain the failure).
+
+    The five states are documented in RT/RT-010/specs/需求契约.md.
+    ``resolved_empty`` and ``ambiguous`` and ``unknown`` all return
+    empty result sets with ``global_fallback_used=false``.
+    """
+    if catalog is None:
+        # No catalog means we cannot enforce scope; treat as unscoped so
+        # ordinary fact queries stay compatible with pre-RT-010 CLI use.
+        return EntityResolution(status="unscoped", reason="catalog_unavailable")
+    matches = _find_entity_matches(question, catalog)
+    if not matches:
+        # Fail-closed ONLY for entity-shaped **management-intent**
+        # queries (e.g. ``霜蓝鲸鱼量子披萨-进展``, ``TBS 风险``).  A
+        # bare factual query like ``API 接口测试`` names an acronym but
+        # has no management intent, so it must stay unscoped and use
+        # ordinary BM25 recall (RT-010 contract line 10).
+        if bool(detect_intents(question)) and _query_looks_entity_shaped(question):
+            return EntityResolution(status="unknown", reason="no_family_matched_query")
+        return EntityResolution(status="unscoped", reason="no_entity_shape_in_query")
+    # Group hits by family_id preserving order of first appearance.
+    per_family: dict[str, list[tuple[int, int, str]]] = {}
+    for start, end, family_id, display, _payload in matches:
+        per_family.setdefault(family_id, []).append((start, end, display))
+    family_ids = list(per_family.keys())
+    if len(family_ids) > 1:
+        # Distinguish two failure modes so downstream tools can react
+        # correctly:
+        #   * ``ambiguous`` – the SAME span matches multiple families
+        #     (typical for same-name cross-type nodes without a registry
+        #     entry).
+        #   * ``unsupported_multi_entity`` – DIFFERENT spans match
+        #     different families in one query.  RT-010 does not compute
+        #     multi-entity intersections; we return this reason instead
+        #     of silently conflating it with same-span ambiguity.
+        spans_per_family = {
+            fid: {(s, e) for s, e, _ in per_family[fid]}
+            for fid in family_ids
+        }
+        shared_spans = set.intersection(*spans_per_family.values()) if spans_per_family else set()
+        candidate_families = []
+        for family_id in family_ids:
+            fam = next(f for f in catalog["families"] if f["family_id"] == family_id)
+            candidate_families.append(fam)
+        status = "ambiguous" if shared_spans else "unsupported_multi_entity"
+        reason = (
+            "multiple_families_match_same_span"
+            if shared_spans
+            else "multiple_families_match_different_spans"
+        )
+        return EntityResolution(
+            status=status,
+            candidate_family_ids=family_ids,
+            matched_surfaces=[
+                {"family_id": fam["family_id"], "name": fam.get("canonical_surface", ""),
+                 "entity_types": ",".join(fam.get("entity_types", []))}
+                for fam in candidate_families
+            ],
+            reason=reason,
+        )
+    family_id = family_ids[0]
+    family = next(f for f in catalog["families"] if f["family_id"] == family_id)
+    matched_surfaces = [
+        {"start": str(start), "end": str(end), "display": display}
+        for start, end, display in per_family[family_id]
+    ]
+    surface_norms = {
+        entity_catalog.normalize_surface(display) for _s, _e, display in per_family[family_id]
+    }
+    exact = any(
+        s.get("normalized") in surface_norms and s.get("origin") == "declared"
+        for s in family.get("surfaces", [])
+    )
+    if int(family.get("posting_count", 0)) == 0:
+        return EntityResolution(
+            status="resolved_empty",
+            family_id=family_id,
+            family_name=family.get("canonical_surface", ""),
+            entity_types=list(family.get("entity_types", [])),
+            matched_surfaces=matched_surfaces,
+            resolution_kind="exact" if exact else "approved_alias",
+            reason="no_indexed_reports",
+        )
+    return EntityResolution(
+        status="resolved",
+        family_id=family_id,
+        family_name=family.get("canonical_surface", ""),
+        entity_types=list(family.get("entity_types", [])),
+        matched_surfaces=matched_surfaces,
+        resolution_kind="exact" if exact else "approved_alias",
+        reason="ok",
+    )
+
+
+def _remove_entity_tokens(question: str, resolution: EntityResolution) -> str:
+    """Strip the resolved surfaces from the question by original span.
+
+    Because ``_find_entity_matches`` returns spans keyed to the ORIGINAL
+    question characters (post NFKC/casefold mapping), we can splice them
+    out directly instead of running a regex that would miss full/half
+    width or spaced variants.
+    """
+    spans: list[tuple[int, int]] = []
+    for item in resolution.matched_surfaces:
+        try:
+            start = int(item.get("start") or 0)
+            end = int(item.get("end") or 0)
+        except (TypeError, ValueError):
+            continue
+        if end > start:
+            spans.append((start, end))
+    if not spans:
+        return question
+    spans.sort()
+    merged: list[list[int]] = []
+    for s, e in spans:
+        if merged and s <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], e)
+        else:
+            merged.append([s, e])
+    pieces: list[str] = []
+    cursor = 0
+    for s, e in merged:
+        pieces.append(question[cursor:s])
+        pieces.append(" ")
+        cursor = e
+    pieces.append(question[cursor:])
+    return "".join(pieces)
+
+
+def _scope_support_for(doc: "SummaryDoc", family: dict[str, Any]) -> dict[str, Any]:
+    entries = family.get("posting_provenance", {}).get(doc.report_id, [])
+    surfaces: list[str] = []
+    rules: list[str] = []
+    origins: set[str] = set()
+    for entry in entries:
+        origin = str(entry.get("origin") or "")
+        origins.add(origin)
+        # v2 compact provenance carries ``surfaces: [...]`` per origin;
+        # older single-surface rows carry ``surface: "..."`` — accept
+        # both shapes so a stale on-disk catalog does not break query.
+        entry_surfaces = entry.get("surfaces") or []
+        if not entry_surfaces and entry.get("surface"):
+            entry_surfaces = [entry.get("surface")]
+        for display in entry_surfaces:
+            display = str(display or "")
+            if display and display not in surfaces:
+                surfaces.append(display)
+        rule = str(entry.get("rule") or "")
+        if rule and rule not in rules:
+            rules.append(rule)
+    if not rules and "summary_candidate" in origins:
+        rules.append("summary_candidate")
+    if "raw_anchor" in origins and "raw_anchor" not in rules:
+        rules.append("raw_anchor")
+    evidence_source = ""
+    if "summary_candidate" in origins and "raw_anchor" in origins:
+        evidence_source = "summary_candidate+raw_anchor"
+    elif "summary_candidate" in origins:
+        evidence_source = "summary_candidate"
+    elif "raw_anchor" in origins:
+        evidence_source = "raw_anchor"
+    # Registry provenance surfaces per-family (authorised bridge) plus
+    # any alias-generation rule that promoted the surface (parenthetical
+    # acronym, controlled generic suffix, compound alias).
+    surface_provenance: list[dict[str, str]] = []
+    matched_norms = {
+        entity_catalog.normalize_surface(s) for s in surfaces
+    }
+    for surface_row in family.get("surfaces", []) or []:
+        if surface_row.get("normalized") not in matched_norms:
+            continue
+        for prov in surface_row.get("provenance", []) or []:
+            surface_provenance.append(dict(prov))
+    registry_provenance = [
+        dict(row)
+        for row in family.get("approved_family_evidence", []) or []
+    ]
+    return {
+        "family_id": family.get("family_id", ""),
+        "surfaces": surfaces,
+        "rules": rules,
+        "evidence_source": evidence_source,
+        "in_scope": bool(surfaces),
+        "surface_provenance": surface_provenance,
+        "registry_evidence": registry_provenance,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Block parsing + structured entity-intent linkage
+# ---------------------------------------------------------------------------
+
+# Bounded auditable window for entity/intent co-occurrence when no
+# structural block relation applies.  Keep this small; larger windows
+# stop being locally verifiable.
+_INTENT_LINK_WINDOW = 256
+
+_HEADING_LINE_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
+_BULLET_LINE_RE = re.compile(r"^\s*(?:[-*+·]|\d+[.．、)]|[（(]\d+[)）])\s+(.+)$")
+_TABLE_ROW_RE = re.compile(r"^\s*\|.*\|\s*$")
+_BLOCKQUOTE_RE = re.compile(r"^\s*>+\s*(.*)$")
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[。！？!?；;])\s*|\n{2,}")
+
+
+def parse_raw_blocks(content: str) -> list[dict[str, Any]]:
+    """Segment a raw ``<content>`` string into auditable blocks.
+
+    Each block carries a ``kind`` (``heading | paragraph | list_item |
+    table_row | blockquote``), the running heading path ancestors
+    (``heading_path``), the block text, and start/end character
+    offsets inside ``content``.  The parser is deliberately forgiving:
+
+    - Standard Markdown headings ``#…######``.
+    - Flattened Markdown fallbacks where a heading marker collapsed to
+      just a hash-less line: any line that ends with ``：`` / ``:``
+      and is followed by an indented / bulleted line is treated as a
+      soft heading at the current depth + 1 so we still keep local
+      linkage windows.
+    - Blank line separates paragraphs.
+    - List items and table rows each become their own block so a
+      section-local intent hit does not accidentally leak into a
+      neighbouring item.
+    - Fenced code blocks are treated as opaque paragraphs.
+    """
+    blocks: list[dict[str, Any]] = []
+    heading_stack: list[tuple[int, str]] = []  # (level, title)
+    lines = content.splitlines(keepends=True)
+    offset = 0
+    paragraph_lines: list[str] = []
+    paragraph_start = 0
+
+    def flush_paragraph(end_offset: int) -> None:
+        nonlocal paragraph_lines, paragraph_start
+        if not paragraph_lines:
+            return
+        text = "".join(paragraph_lines).strip()
+        if text:
+            blocks.append(
+                {
+                    "kind": "paragraph",
+                    "heading_path": [title for _, title in heading_stack],
+                    "text": text,
+                    "start": paragraph_start,
+                    "end": end_offset,
+                }
+            )
+        paragraph_lines = []
+
+    in_code = False
+    for line in lines:
+        line_len = len(line)
+        raw = line.rstrip("\n")
+        stripped = raw.strip()
+        # Fenced code block.
+        if stripped.startswith("```"):
+            if in_code:
+                paragraph_lines.append(line)
+                flush_paragraph(offset + line_len)
+                in_code = False
+            else:
+                flush_paragraph(offset)
+                in_code = True
+                paragraph_lines = [line]
+                paragraph_start = offset
+            offset += line_len
+            continue
+        if in_code:
+            paragraph_lines.append(line)
+            offset += line_len
+            continue
+        # Blank line ⇒ paragraph boundary.
+        if not stripped:
+            flush_paragraph(offset)
+            offset += line_len
+            continue
+        m_head = _HEADING_LINE_RE.match(raw)
+        if m_head:
+            flush_paragraph(offset)
+            level = len(m_head.group(1))
+            title = m_head.group(2).strip()
+            while heading_stack and heading_stack[-1][0] >= level:
+                heading_stack.pop()
+            heading_stack.append((level, title))
+            blocks.append(
+                {
+                    "kind": "heading",
+                    "heading_path": [t for _, t in heading_stack],
+                    "text": title,
+                    "start": offset,
+                    "end": offset + line_len,
+                }
+            )
+            offset += line_len
+            continue
+        if _TABLE_ROW_RE.match(raw):
+            flush_paragraph(offset)
+            blocks.append(
+                {
+                    "kind": "table_row",
+                    "heading_path": [t for _, t in heading_stack],
+                    "text": stripped,
+                    "start": offset,
+                    "end": offset + line_len,
+                }
+            )
+            offset += line_len
+            continue
+        m_bullet = _BULLET_LINE_RE.match(raw)
+        if m_bullet:
+            flush_paragraph(offset)
+            blocks.append(
+                {
+                    "kind": "list_item",
+                    "heading_path": [t for _, t in heading_stack],
+                    "text": m_bullet.group(1).strip(),
+                    "start": offset,
+                    "end": offset + line_len,
+                }
+            )
+            offset += line_len
+            continue
+        m_quote = _BLOCKQUOTE_RE.match(raw)
+        if m_quote:
+            flush_paragraph(offset)
+            blocks.append(
+                {
+                    "kind": "blockquote",
+                    "heading_path": [t for _, t in heading_stack],
+                    "text": m_quote.group(1).strip(),
+                    "start": offset,
+                    "end": offset + line_len,
+                }
+            )
+            offset += line_len
+            continue
+        # Flattened heading fallback: a text line ending in ``：`` /
+        # ``:`` becomes a soft heading at current depth+1.  We only
+        # treat it as a heading when the next non-blank line looks
+        # like structured content (bullet / heading / table).  Since
+        # we scan forward line-by-line, keep it simple: if the line
+        # is short (<= 32 chars) and ends with a colon, treat as soft
+        # heading.
+        if len(stripped) <= 32 and stripped.endswith(("：", ":")):
+            flush_paragraph(offset)
+            level = heading_stack[-1][0] + 1 if heading_stack else 2
+            title = stripped.rstrip("：:").strip()
+            while heading_stack and heading_stack[-1][0] >= level:
+                heading_stack.pop()
+            heading_stack.append((level, title))
+            blocks.append(
+                {
+                    "kind": "heading",
+                    "heading_path": [t for _, t in heading_stack],
+                    "text": title,
+                    "start": offset,
+                    "end": offset + line_len,
+                }
+            )
+            offset += line_len
+            continue
+        # Ordinary paragraph accumulation.
+        if not paragraph_lines:
+            paragraph_start = offset
+        paragraph_lines.append(line)
+        offset += line_len
+    flush_paragraph(offset)
+    return blocks
+
+
+def _find_surface_hits(
+    content: str,
+    surface_displays: list[str],
+) -> list[tuple[int, int, str]]:
+    """Return every ``(start, end, surface_display)`` for approved
+    family surfaces inside ``content``, using the catalog's normalised-
+    boundary rules and the standard longest-match suppression."""
+    if not content or not surface_displays:
+        return []
+    hits: list[tuple[int, int, tuple[str]]] = []
+    for display in surface_displays:
+        if not display or len(display) < 2:
+            continue
+        for offset in entity_catalog.find_exact_anchors(content, display):
+            hits.append((offset, offset + len(display), (display,)))
+    kept = entity_catalog.suppress_shorter_overlaps(hits)
+    return [(s, e, payload[0]) for s, e, payload in kept]
+
+
+def _locate_block(
+    blocks: list[dict[str, Any]], offset: int
+) -> dict[str, Any] | None:
+    for block in blocks:
+        if block["start"] <= offset < block["end"]:
+            return block
+    return None
+
+
+def _blocks_share_heading(a: dict[str, Any], b: dict[str, Any]) -> bool:
+    pa = a.get("heading_path") or []
+    pb = b.get("heading_path") or []
+    if not pa or not pb:
+        return False
+    depth = min(len(pa), len(pb))
+    return pa[:depth] == pb[:depth]
+
+
+def _same_sentence(text: str, a_off: int, b_off: int) -> bool:
+    lo, hi = min(a_off, b_off), max(a_off, b_off)
+    fragment = text[lo:hi]
+    return not _SENTENCE_SPLIT_RE.search(fragment)
+
+
+def compute_entity_intent_links(
+    question: str,
+    doc: "SummaryDoc",
+    scope_family: dict[str, Any] | None,
+    raw_text: str,
+    raw_sha: str,
+) -> tuple[dict[str, bool], dict[str, dict[str, Any]], bool]:
+    """Return ``(intent_support, intent_links, has_raw_surface)``.
+
+    - ``intent_support[intent]`` = ``True`` iff the intent keyword can
+      be linked to an approved family surface anchor by the strict
+      RT-010 rules:
+        * same block, or
+        * same heading subtree, or
+        * same sentence, or
+        * within ``_INTENT_LINK_WINDOW`` (256) chars with no structural
+          boundary crossed.
+    - ``intent_links[intent]`` = single provenance record documenting
+      the closest link ({anchor_kind, surface, anchor_block, intent,
+      intent_block, relation, distance, raw_sha256}).
+    - ``has_raw_surface`` = whether any approved family surface anchor
+      was found in raw content at all (used by callers to decide if a
+      row has an auditable anchor beyond the summary catalog).
+    """
+    intents = detect_intents(question)
+    if not intents:
+        return {}, {}, False
+    surfaces: list[str] = []
+    if scope_family:
+        for surface_row in scope_family.get("surfaces", []) or []:
+            display = str(surface_row.get("display") or "")
+            if display and len(display) >= 2:
+                surfaces.append(display)
+    content = raw_content(raw_text)
+    blocks = parse_raw_blocks(content)
+    surface_hits = _find_surface_hits(content, surfaces)
+    intent_hits_map: dict[str, list[tuple[int, int]]] = {}
+    for intent in intents:
+        pattern = INTENT_PATTERNS[intent]
+        matches = [(m.start(), m.end()) for m in pattern.finditer(content)]
+        intent_hits_map[intent] = matches
+    support: dict[str, bool] = {intent: False for intent in intents}
+    links: dict[str, dict[str, Any]] = {}
+    for intent in intents:
+        best: tuple[str, int, dict[str, Any] | None, dict[str, Any] | None, tuple[int, int], tuple[int, int, str]] | None = None
+        for intent_start, intent_end in intent_hits_map[intent]:
+            intent_block = _locate_block(blocks, intent_start)
+            for anchor_start, anchor_end, surface_display in surface_hits:
+                anchor_block = _locate_block(blocks, anchor_start)
+                relation = None
+                distance = abs(intent_start - anchor_start)
+                if intent_block is not None and anchor_block is not None:
+                    if intent_block is anchor_block:
+                        relation = "same_block"
+                    elif _same_sentence(content, intent_start, anchor_start):
+                        relation = "same_sentence"
+                    elif _blocks_share_heading(intent_block, anchor_block):
+                        # Bounded to at most ``_INTENT_LINK_WINDOW`` chars
+                        # so a long heading subtree does not silently
+                        # link every intent to every anchor.
+                        if distance <= _INTENT_LINK_WINDOW:
+                            relation = "same_heading_subtree"
+                if relation is None and distance <= _INTENT_LINK_WINDOW:
+                    relation = "bounded_window"
+                if relation is None:
+                    continue
+                # Prefer the tightest relation: same_block > same_sentence
+                # > same_heading_subtree > bounded_window; break ties by
+                # smaller distance.
+                relation_rank = {
+                    "same_block": 0, "same_sentence": 1,
+                    "same_heading_subtree": 2, "bounded_window": 3,
+                }
+                candidate_key = (relation_rank[relation], distance)
+                if best is None or candidate_key < best[0:2]:
+                    best = (
+                        relation_rank[relation],
+                        distance,
+                        anchor_block,
+                        intent_block,
+                        (anchor_start, anchor_end),
+                        (intent_start, intent_end),
+                        relation,
+                        surface_display,
+                    )
+        if best is not None:
+            relation = best[6]
+            anchor_block = best[2]
+            intent_block = best[3]
+            a_start, a_end = best[4]
+            i_start, i_end = best[5]
+            support[intent] = True
+            links[intent] = {
+                "anchor_kind": "raw",
+                "surface": best[7],
+                "anchor_block": (anchor_block or {"kind": "unknown", "heading_path": [], "text": ""}).get("kind"),
+                "anchor_heading_path": (anchor_block or {}).get("heading_path"),
+                "intent": intent,
+                "intent_block": (intent_block or {"kind": "unknown", "heading_path": []}).get("kind"),
+                "intent_heading_path": (intent_block or {}).get("heading_path"),
+                "relation": relation,
+                "distance": best[1],
+                "raw_sha256": raw_sha,
+            }
+    return support, links, bool(surface_hits)
+
+
+def _title_contains_family_surface(
+    doc: "SummaryDoc", scope_family: dict[str, Any] | None
+) -> bool:
+    """Return True iff the report's title / H1 contains an approved
+    family surface.  This is the RT-010 "report-level strong linkage"
+    signal — the canonical layer places the entity in the report
+    title, so verified intent evidence anywhere in the report may
+    legitimately support the entity query.
+
+    ``summary_candidate`` alone is intentionally NOT strong: it only
+    proves the summary mentions the entity, not that arbitrary
+    intent evidence elsewhere in the report is about that entity.
+    """
+    if not scope_family:
+        return False
+    title_cf = (getattr(doc, "title", "") or "").casefold()
+    for surface_row in scope_family.get("surfaces", []) or []:
+        display = str(surface_row.get("display") or "")
+        if display and display.casefold() in title_cf:
+            return True
+    return False
+
+
+def _row_has_strong_entity_linkage(
+    doc: "SummaryDoc", scope_support: dict[str, Any], scope_family: dict[str, Any] | None
+) -> bool:
+    """Report-level strong linkage: title / H1 contains an approved
+    family surface.  All other rows are ``weak`` and must carry a
+    structured local entity-intent link (see
+    :func:`compute_entity_intent_links`)."""
+    return _title_contains_family_surface(doc, scope_family)
+
+
+def _row_intent_support(
+    question: str,
+    evidence: list[dict[str, Any]],
+    scope_family: dict[str, Any] | None,
+    strong_linkage: bool,
+) -> dict[str, bool]:
+    """Return ``{intent: verified}`` for the requested management intents.
+
+    Strong-linked rows (see :func:`_row_has_strong_entity_linkage`)
+    may claim intent support from any verified evidence quote in the
+    report.  Weak-linked rows — the entity is only known via a raw
+    substring anchor — must co-occur the intent keyword with an
+    approved family surface **in the same evidence quote**, which
+    approximates the bounded paragraph / section window that
+    ``excerpt_candidates`` already carves the raw layer into.
+    """
+    intents = detect_intents(question)
+    result: dict[str, bool] = {}
+    if not intents:
+        return result
+    surface_cf: list[str] = []
+    if scope_family:
+        for surface_row in scope_family.get("surfaces", []) or []:
+            display = str(surface_row.get("display") or "")
+            if display and len(display) >= 2:
+                surface_cf.append(display.casefold())
+    verified_quotes = [
+        str(ev.get("quote") or "")
+        for ev in (evidence or [])
+        if isinstance(ev, dict) and ev.get("quote")
+    ]
+    for intent in intents:
+        pattern = INTENT_PATTERNS[intent]
+        hit = False
+        for quote in verified_quotes:
+            if not pattern.search(quote):
+                continue
+            if strong_linkage:
+                hit = True
+                break
+            quote_cf = quote.casefold()
+            if any(surf in quote_cf for surf in surface_cf):
+                hit = True
+                break
+        result[intent] = hit
+    return result
+
+
+def _intent_verified_for(
+    question: str, verified_evidence_quotes: list[str]
+) -> dict[str, bool]:
+    """Check whether each requested intent has a structured evidence hit.
+
+    Only quotes that already passed raw verification (either an exact
+    summary quote confirmed against raw, or a BM25-selected raw excerpt
+    returned in ``evidence``) count.  We deliberately never scan the
+    full raw file here – that would let a single generic keyword make
+    every result look ``high``.
+
+    Retained for backwards-compatible callers; new scoped-management
+    code should use :func:`_row_intent_support`, which additionally
+    enforces entity-surface co-occurrence for weak raw-only anchors.
+    """
+    requested = detect_intents(question)
+    verified: dict[str, bool] = {}
+    for intent in requested:
+        pattern = INTENT_PATTERNS[intent]
+        verified[intent] = any(
+            pattern.search(quote or "") for quote in verified_evidence_quotes
+        )
+    return verified
+
+
+def _safe_empty_payload(
+    question: str,
+    resolution: EntityResolution,
+    *,
+    filters_removed_all: bool = False,
+    mirror: Path | None = None,
+    catalog_bound: bool = True,
+    reason_override: str = "",
+) -> dict[str, Any]:
+    reason = reason_override or resolution.reason or resolution.status
+    if filters_removed_all:
+        reason = "filters_removed_all"
+    return {
+        "schema_version": SCHEMA,
+        "generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "mirror_root": str(mirror) if mirror else "",
+        "query": question,
+        "confidence": "none",
+        "entity_resolution": {
+            "status": resolution.status,
+            "family_id": resolution.family_id,
+            "family_name": resolution.family_name,
+            "entity_types": resolution.entity_types,
+            "matched_surfaces": resolution.matched_surfaces,
+            "candidate_family_ids": resolution.candidate_family_ids,
+            "resolution_kind": resolution.resolution_kind,
+            "reason": reason,
+        },
+        "scope": {
+            "applied": bool(resolution.family_id),
+            "postings_size": 0,
+            "filtered_out": 0,
+            "scope_hash": "",
+            "filter_reasons": [reason],
+        },
+        "intents": {
+            "requested": detect_intents(question),
+            "verified": [],
+            "missing": detect_intents(question),
+        },
+        "support": {
+            "source_integrity": "unassessed",
+            "scope_integrity": "verified" if resolution.status == "resolved_empty" else "unassessed",
+            "query_support": "insufficient",
+        },
+        "answer_policy": "Entity recognised but no matching reports; abstain."
+        if resolution.status == "resolved_empty"
+        else "No entity scope could be established; abstain or clarify.",
+        "global_fallback_used": False,
+        "catalog_bound": catalog_bound,
+        "results": [],
+    }
+
+
 def query_mirror(
     mirror: Path,
     question: str,
@@ -484,6 +1390,7 @@ def query_mirror(
     min_score: float = 0.1,
     use_index: bool = True,
     raw_loader: Callable[[SummaryDoc], tuple[str, str]] | None = None,
+    require_catalog: bool = False,
 ) -> dict[str, Any]:
     precomputed = load_precomputed_index(mirror) if use_index else None
     if precomputed:
@@ -498,6 +1405,65 @@ def query_mirror(
         index_info = {"provider": "live_scan", "index_version": None, "index_sha256": None}
         summary_quality, quality_counts = load_summary_quality(mirror)
     quality_counts["unknown"] = sum(1 for doc in summaries if doc.report_id not in summary_quality)
+
+    catalog = entity_catalog.load_catalog(mirror)
+    expected_sha = str(index_info.get("entity_catalog_sha256") or "")
+    actual_sha = str((catalog or {}).get("catalog_sha256") or "")
+    catalog_bound = False
+    catalog_mismatch = False
+    persistent_index = index_info.get("provider") == "persistent_index"
+    if catalog is not None:
+        if expected_sha:
+            catalog_bound = expected_sha == actual_sha
+            catalog_mismatch = not catalog_bound
+        else:
+            # Live-scan callers cannot carry a bound sha; treat the
+            # loaded catalog as usable but note that binding is
+            # implicit.  A persistent index without a bound sha is
+            # from a pre-RT-010 build and is treated as a mismatch so
+            # entity-management queries fail closed rather than
+            # silently trusting an unbound catalog.
+            if persistent_index:
+                catalog_mismatch = True
+            else:
+                catalog_bound = index_info.get("provider") == "live_scan"
+    else:
+        # Persistent index declared a catalog hash but no catalog is
+        # available on disk – this is a mismatch, not a soft-miss.
+        # Or the persistent index has no sha at all (old build): still
+        # a mismatch for entity-management purposes.
+        catalog_mismatch = bool(expected_sha) or persistent_index
+    entity_management_query = bool(detect_intents(question)) and _query_looks_entity_shaped(question)
+    if catalog_mismatch and (require_catalog or entity_management_query):
+        resolution = EntityResolution(
+            status="unknown", reason="catalog_index_hash_mismatch_or_missing"
+        )
+        return _safe_empty_payload(
+            question, resolution, mirror=mirror, catalog_bound=False,
+            reason_override="catalog_index_hash_mismatch_or_missing",
+        )
+    if require_catalog and not catalog_bound:
+        resolution = EntityResolution(
+            status="unknown", reason="catalog_unavailable_but_required"
+        )
+        return _safe_empty_payload(
+            question, resolution, mirror=mirror, catalog_bound=False,
+            reason_override="catalog_unavailable_but_required",
+        )
+    resolution = resolve_entity(question, catalog if catalog_bound else None)
+
+    if resolution.status in {"ambiguous", "unknown", "resolved_empty", "unsupported_multi_entity"}:
+        payload = _safe_empty_payload(
+            question, resolution, mirror=mirror, catalog_bound=catalog_bound
+        )
+        payload["indexed"] = {
+            "summaries": len(summaries),
+            "navigation_pages": len(navigation),
+            "summary_quality": quality_counts,
+            **index_info,
+        }
+        return payload
+
     query_tokens = tokenize(question)
     if not query_tokens:
         return {
@@ -505,12 +1471,46 @@ def query_mirror(
             "query": question,
             "confidence": "none",
             "reason": "query_has_no_searchable_tokens",
+            "entity_resolution": {
+                "status": resolution.status,
+                "family_id": resolution.family_id,
+                "family_name": resolution.family_name,
+                "entity_types": resolution.entity_types,
+                "resolution_kind": resolution.resolution_kind,
+                "reason": resolution.reason,
+            },
+            "global_fallback_used": False,
             "results": [],
         }
 
+    scope_active = resolution.status == "resolved"
+    scope_family: dict[str, Any] | None = None
+    scope_postings: set[str] = set()
+    scope_hash = ""
+    residual_query_empty = False
+    if scope_active:
+        scope_family = next(
+            (f for f in catalog["families"] if f["family_id"] == resolution.family_id), None
+        )
+        if scope_family is None:
+            resolution = EntityResolution(status="unknown", reason="family_missing_from_catalog")
+            return _safe_empty_payload(
+                question, resolution, mirror=mirror, catalog_bound=catalog_bound
+            )
+        scope_postings = {str(rid) for rid in scope_family.get("postings", [])}
+        scope_hash = str(scope_family.get("scope_hash") or "")
+        # Drop the entity tokens so nav/BM25 don't double-count them.
+        residual_query = _remove_entity_tokens(question, resolution)
+        scoped_tokens = tokenize(residual_query)
+        # If the residual is empty (query was entity-only, e.g. ``TBS``)
+        # do NOT fall back to entity tokens.  We already know which
+        # scope to serve; ranking will fall back to date/quality below.
+        residual_query_empty = not scoped_tokens
+        query_tokens = scoped_tokens
+
     nav_bonus: defaultdict[str, float] = defaultdict(float)
     nav_hits: defaultdict[str, list[dict[str, str]]] = defaultdict(list)
-    if kind in {"all", "topic", "entity"}:
+    if not scope_active and kind in {"all", "topic", "entity"}:
         ranked_nav = sorted(
             ((nav_index.score(query_tokens, i), i) for i in range(len(navigation))),
             reverse=True,
@@ -529,10 +1529,25 @@ def query_mirror(
     normalized_question = normalize(question)
     requested_ids = set(REPORT_ID_RE.findall(question))
     ranked: list[tuple[float, float, SummaryDoc]] = []
+    total_scanned = 0
+    scope_filtered_out = 0
+    date_or_writer_filtered = 0
     for i, doc in enumerate(summaries):
+        if scope_active and doc.report_id not in scope_postings:
+            scope_filtered_out += 1
+            continue
         if not date_ok(doc.date, from_date, to_date):
+            date_or_writer_filtered += 1
             continue
         if writer and normalize(writer) not in normalize(doc.writer):
+            date_or_writer_filtered += 1
+            continue
+        total_scanned += 1
+        if scope_active and residual_query_empty:
+            # Entity-only query with nothing left to rank on; keep the
+            # doc but score it neutrally so we can deterministically
+            # order by date/quality below.
+            ranked.append((0.0, 0.0, doc))
             continue
         score = summary_index.score(query_tokens, i)
         title_norm = normalize(doc.title)
@@ -542,39 +1557,433 @@ def query_mirror(
             score += 12.0
         if requested_ids and doc.report_id in requested_ids:
             score += 50.0
-        score += nav_bonus.get(doc.report_id, 0.0)
+        if not scope_active:
+            score += nav_bonus.get(doc.report_id, 0.0)
         coverage = summary_index.coverage(query_tokens, i)
         if score >= min_score:
             ranked.append((score, coverage, doc))
-    ranked.sort(key=lambda item: (-item[0], -item[1], item[2].date or "9999-99-99", item[2].report_id))
+
+    if scope_active and residual_query_empty:
+        # Sort deterministically: newest first, then AI-refined before
+        # fallback, then report_id ascending.
+        quality_rank = {"ai_refined": 0, "fallback_pending": 1,
+                        "fallback_terminal_error": 2, "unknown": 3}
+        def entity_only_key(item: tuple[float, float, SummaryDoc]) -> tuple[str, int, str]:
+            doc = item[2]
+            return (
+                doc.date or "0000-00-00",
+                quality_rank.get(summary_quality.get(doc.report_id, "unknown"), 9),
+                doc.report_id,
+            )
+        ranked.sort(key=lambda item: (
+            entity_only_key(item)[0],
+            entity_only_key(item)[1],
+            entity_only_key(item)[2],
+        ), reverse=False)
+        # Reverse date to newest-first while keeping quality asc and
+        # report_id asc as tie-breakers.
+        ranked = sorted(
+            ranked,
+            key=lambda item: (
+                -_date_sort_key(item[2].date),
+                quality_rank.get(summary_quality.get(item[2].report_id, "unknown"), 9),
+                item[2].report_id,
+            ),
+        )
+    else:
+        ranked.sort(key=lambda item: (-item[0], -item[1], item[2].date or "9999-99-99", item[2].report_id))
+
+    if scope_active and not ranked:
+        empty_reason = (
+            "filters_removed_all" if date_or_writer_filtered else "no_query_evidence_in_scope"
+        )
+        # Promote the resolver to ``resolved_empty`` so consumers can
+        # distinguish an entity that was recognised but has no matching
+        # reports (either because filters ate the scope or because no
+        # returned doc satisfied the residual query) from a genuinely
+        # unknown entity.  The `reason` field carries the more specific
+        # sub-code.
+        resolution.status = "resolved_empty"
+        resolution.reason = empty_reason
+        payload = _safe_empty_payload(
+            question,
+            resolution,
+            mirror=mirror,
+            catalog_bound=catalog_bound,
+            filters_removed_all=empty_reason == "filters_removed_all",
+            reason_override=empty_reason,
+        )
+        payload["indexed"] = {
+            "summaries": len(summaries),
+            "navigation_pages": len(navigation),
+            "summary_quality": quality_counts,
+            **index_info,
+        }
+        payload["scope"] = {
+            "applied": True,
+            "postings_size": len(scope_postings),
+            "filtered_out": scope_filtered_out,
+            "scope_hash": scope_hash,
+            "filter_reasons": [empty_reason],
+        }
+        return payload
+
+    intents_requested = detect_intents(question)
+
+    # ----- Iterative bounded evaluation -----
+    # A scoped management query with many high-BM25 unverified (or
+    # verified-but-no-intent) rows could hide a raw-verified intent-
+    # supporting row past any single fixed bounded pool.  Evaluate in
+    # deterministic batches of ``max(top_k * 4, 32)`` inside the scoped
+    # candidate list until we either have enough verified rows to fill
+    # ``top_k`` AND at least one intent-supporting row, or the scoped
+    # candidate list is fully exhausted.  For plain / unscoped queries
+    # we keep the historical ``ranked[:top_k]`` cheap path so latency
+    # does not regress.
+    is_scoped_mgmt = (
+        scope_active and resolution.status == "resolved" and bool(intents_requested)
+    )
+    batch_size = max(top_k * 4, 32) if is_scoped_mgmt else min(len(ranked), top_k)
+
+    def _evaluate_row(score: float, coverage: float, doc: SummaryDoc) -> dict[str, Any]:
+        # Load raw text once so we can share it between evidence and
+        # linkage helpers.  Falls back to the legacy 3-tuple when the
+        # extended return is not available (e.g. under a mocked
+        # ``evidence_for``).
+        extended = evidence_for(
+            doc, question, max_evidence, raw_loader, return_raw=True
+        )
+        if len(extended) == 5:
+            evidence_status, evidence, source_ref, raw_text, raw_content_str = extended
+        else:
+            evidence_status, evidence, source_ref = extended
+            raw_text = raw_content_str = ""
+        scope_support = (
+            _scope_support_for(doc, scope_family) if scope_active and scope_family else {}
+        )
+        title_strong = _title_contains_family_surface(doc, scope_family)
+        intent_hits: dict[str, bool] = {}
+        intent_links: dict[str, dict[str, Any]] = {}
+        raw_has_anchor = False
+        if intents_requested and evidence_status == "verified" and raw_text:
+            support, links, raw_has_anchor = compute_entity_intent_links(
+                question, doc, scope_family, raw_text, doc.raw_sha256 or "",
+            )
+            if title_strong:
+                # Report-level strong linkage: any verified evidence
+                # quote may support the intent.  Structured link
+                # provenance still records the closest raw anchor
+                # so operators can audit the local mapping too.
+                verified_quotes = [
+                    str(ev.get("quote") or "")
+                    for ev in (evidence or [])
+                    if isinstance(ev, dict) and ev.get("quote")
+                ]
+                fallback_support = _intent_verified_for(question, verified_quotes)
+                for intent, verified in fallback_support.items():
+                    if verified and not support.get(intent):
+                        support[intent] = True
+                        links.setdefault(
+                            intent,
+                            {
+                                "anchor_kind": "title",
+                                "surface": doc.title,
+                                "anchor_block": "heading",
+                                "anchor_heading_path": [doc.title],
+                                "intent": intent,
+                                "intent_block": "evidence_quote",
+                                "intent_heading_path": [],
+                                "relation": "title_report_level",
+                                "distance": 0,
+                                "raw_sha256": doc.raw_sha256 or "",
+                            },
+                        )
+            intent_hits = support
+            intent_links = links
+        # Compute the row's final linkage tier for confidence gating:
+        #   ``strong`` = title/H1 contains an approved family surface.
+        #   ``local``  = weak linkage but the row has at least one
+        #                intent locally linked to a raw anchor.
+        #   ``weak``   = neither (intent verification not authorised).
+        if title_strong:
+            linkage_tier = "strong"
+        elif intent_links:
+            linkage_tier = "local"
+        else:
+            linkage_tier = "weak"
+        return {
+            "report_id": doc.report_id,
+            "title": doc.title,
+            "writer": doc.writer,
+            "date": doc.date,
+            "source_lane": doc.source_lane,
+            "summary_quality": summary_quality.get(doc.report_id, "unknown"),
+            "score": round(score, 4),
+            "query_coverage": round(coverage, 4),
+            "summary_path": str(doc.summary_path),
+            "raw_path": source_ref or str(doc.raw_path),
+            "navigation_hits": nav_hits.get(doc.report_id, [])[:5],
+            "evidence_status": evidence_status,
+            "evidence": evidence,
+            "scope_support": scope_support,
+            "intent_support": intent_hits,
+            "intent_links": intent_links,
+            "entity_linkage": linkage_tier,
+            "raw_has_family_surface": raw_has_anchor,
+        }
 
     results: list[dict[str, Any]] = []
-    for score, coverage, doc in ranked[:top_k]:
-        evidence_status, evidence, source_ref = evidence_for(doc, question, max_evidence, raw_loader)
-        results.append(
-            {
-                "report_id": doc.report_id,
-                "title": doc.title,
-                "writer": doc.writer,
-                "date": doc.date,
-                "source_lane": doc.source_lane,
-                "summary_quality": summary_quality.get(doc.report_id, "unknown"),
-                "score": round(score, 4),
-                "query_coverage": round(coverage, 4),
-                "summary_path": str(doc.summary_path),
-                "raw_path": source_ref or str(doc.raw_path),
-                "navigation_hits": nav_hits.get(doc.report_id, [])[:5],
-                "evidence_status": evidence_status,
-                "evidence": evidence,
-            }
+    cursor = 0
+    total_ranked = len(ranked)
+    while cursor < total_ranked:
+        # In the scoped-management path, keep pulling batches until
+        # either scope is exhausted or we have enough evidence to
+        # answer at ``top_k`` (>=1 intent-supporting row PLUS enough
+        # verified rows to fill top_k).  Non-management paths always
+        # consume exactly one batch (the historical cheap path).
+        if is_scoped_mgmt and results:
+            verified_now = [r for r in results if r["evidence_status"] == "verified"]
+            intent_supp = [
+                r for r in verified_now
+                if any(bool(v) for v in (r.get("intent_support") or {}).values())
+            ]
+            if len(verified_now) >= top_k and intent_supp:
+                break
+        batch = ranked[cursor : cursor + batch_size]
+        if not batch:
+            break
+        cursor += len(batch)
+        for score, coverage, doc in batch:
+            results.append(_evaluate_row(score, coverage, doc))
+        if not is_scoped_mgmt:
+            break
+    evaluated_pool_size = len(results)
+
+    # For scoped resolved queries, RT-010 requires a three-bucket sort
+    # so that raw-verified intent-supporting evidence surfaces above
+    # verified-but-intent-quiet rows, above unverified rows.  Preserve
+    # BM25 order inside each bucket to keep ranking deterministic and
+    # free of per-entity heuristics.  We only apply this reordering
+    # when at least one management intent was actually requested;
+    # otherwise the plain BM25 order (already verified-first) stands.
+    # Within bucket_1 and bucket_2, ``strong`` entity linkage rows
+    # (summary_candidate or title match) rank ahead of ``weak`` (raw-
+    # anchor-only) rows so incidental raw mentions never outrank a
+    # canonical entity-report even when they briefly co-occur with an
+    # intent keyword.
+    intent_supporting_top = None
+    dropped_unverified_count = 0
+    if scope_active and resolution.status == "resolved" and results:
+        def _supports_any_intent(row: dict[str, Any]) -> bool:
+            support = row.get("intent_support") or {}
+            return any(bool(v) for v in support.values())
+
+        def _linkage_key(row: dict[str, Any]) -> int:
+            tier = row.get("entity_linkage")
+            if tier == "strong":
+                return 0
+            if tier == "local":
+                return 1
+            return 2
+
+        bucket_1: list[dict[str, Any]] = []
+        bucket_2: list[dict[str, Any]] = []
+        bucket_3: list[dict[str, Any]] = []
+        for row in results:
+            verified = row.get("evidence_status") == "verified"
+            if verified and (not intents_requested or _supports_any_intent(row)):
+                bucket_1.append(row)
+            elif verified:
+                bucket_2.append(row)
+            else:
+                bucket_3.append(row)
+        bucket_1.sort(key=_linkage_key)
+        bucket_2.sort(key=_linkage_key)
+        dropped_unverified_count = len(bucket_3)
+        # Drop bucket_3 from citeable results so the answer layer cannot
+        # quote an unverified tail row underneath verified in-scope
+        # evidence.  The dropped count is exposed via ``scope`` so
+        # operators can still audit that unverified rows were removed.
+        # Then trim citeable rows back to ``top_k`` so we do not leak
+        # the wider bounded evaluation pool into the answer surface.
+        results = (bucket_1 + bucket_2)[:top_k]
+        if bucket_1:
+            intent_supporting_top = bucket_1[0]
+
+    # Confidence anchor: for scoped-resolved queries, anchor on the
+    # first raw-verified row that also supports at least one requested
+    # intent (if any intent was requested).  If no such row exists, we
+    # will convert to safe-empty below (management intent path only) or
+    # fall back to standard BM25 confidence for plain scope queries.
+    anchor_row = None
+    if scope_active and resolution.status == "resolved" and results:
+        anchor_row = intent_supporting_top
+        if anchor_row is None and not intents_requested:
+            # Plain scoped query with no management intent — the top
+            # verified row (bucket 2) is a valid anchor; only when no
+            # verified rows exist at all do we drop to the top row.
+            anchor_row = next(
+                (row for row in results if row.get("evidence_status") == "verified"),
+                results[0],
+            )
+    if anchor_row is not None:
+        top_score = anchor_row["score"]
+        top_coverage = anchor_row["query_coverage"]
+        top_status = anchor_row["evidence_status"]
+    else:
+        top_score = results[0]["score"] if results else 0.0
+        top_coverage = results[0]["query_coverage"] if results else 0.0
+        top_status = results[0]["evidence_status"] if results else "missing"
+    base_confidence = confidence_for(top_score, top_coverage, top_status, len(results))
+
+    # Entity-only scoped queries rank by date/quality; scores are zero
+    # by construction so ``confidence_for`` would clear the result set.
+    # A ``medium`` floor keeps the scoped postings visible while making
+    # it clear that we have no query-side verification signal.
+    if scope_active and residual_query_empty and results:
+        base_confidence = "medium"
+
+    scope_precision = 1.0
+    if scope_active and results:
+        in_scope_count = sum(1 for r in results if (r.get("scope_support") or {}).get("in_scope"))
+        scope_precision = in_scope_count / len(results)
+
+    # Recompute intent verification strictly from the CITEABLE result
+    # set (post-bucket sort + drop_unverified + top_k trim).  An intent
+    # supported only by a row we ultimately dropped or truncated away
+    # must not leak into ``query_support`` — the answer layer would
+    # then quote no rows for that intent while ``verified`` says
+    # otherwise.  This is the exact regression the independent audit
+    # asked for.
+    verified_intents_union: set[str] = set()
+    for row in results:
+        for intent, verified in (row.get("intent_support") or {}).items():
+            if verified:
+                verified_intents_union.add(intent)
+    intents_verified = sorted(verified_intents_union)
+    intents_missing = [intent for intent in intents_requested if intent not in verified_intents_union]
+
+    # ``source_integrity=verified`` requires EVERY returned row to have
+    # its evidence confirmed against raw (RT-010: no single-row cherry
+    # picking).  A partial verification downgrades the compound
+    # confidence gate below.
+    if not results:
+        source_integrity = "unassessed"
+    elif all(r["evidence_status"] == "verified" for r in results):
+        source_integrity = "verified"
+    else:
+        source_integrity = "partial"
+    if scope_active:
+        scope_integrity = "verified" if scope_precision >= 1.0 and results else "insufficient"
+    else:
+        scope_integrity = "unassessed"
+    if intents_requested:
+        query_support = "verified" if not intents_missing else ("partial" if intents_verified else "insufficient")
+    else:
+        query_support = "unassessed"
+
+    confidence = base_confidence
+    # The entity/scope high-confidence gate only applies when we are
+    # actually operating in scoped mode or when the query is entity-
+    # shaped AND carries a management intent (i.e. progress/plan/risk/
+    # owner).  A bare factual query like ``财务审核两周 Token 10.91 亿``
+    # names an acronym but has no management intent, so it must retain
+    # the pre-RT-010 high semantics and not regress general recall.
+    entity_management_query = _query_looks_entity_shaped(question) and bool(intents_requested)
+    if base_confidence == "high" and (scope_active or entity_management_query):
+        if (
+            resolution.status != "resolved"
+            or resolution.resolution_kind not in {"exact", "approved_alias"}
+            or source_integrity != "verified"
+            or scope_integrity != "verified"
+        ):
+            confidence = "medium"
+        elif intents_requested and query_support != "verified":
+            confidence = "medium"
+    # RT-010 extra gate for scoped management queries:
+    # * ``high`` requires every requested intent to be verified AND
+    #   linked (each verified intent already has a link record because
+    #   the evaluation loop only sets ``intent_support=True`` when a
+    #   structured link exists), AND at least one returned row must
+    #   have report-level strong linkage (title/H1).  Raw-only local
+    #   linkage caps confidence at ``medium``.
+    if (
+        scope_active
+        and resolution.status == "resolved"
+        and intents_requested
+        and confidence == "high"
+    ):
+        all_intents_linked = intents_requested and not intents_missing
+        any_strong = any(r.get("entity_linkage") == "strong" for r in results)
+        if not (all_intents_linked and any_strong):
+            confidence = "medium"
+    # ----- Scoped-resolved floor -----
+    # Once the scope hard-filter has selected candidates that are
+    # provably in-scope and carry raw-verified evidence, the scoped
+    # BM25 residual is only a re-ranking signal — it must not silently
+    # discard the entire result set just because the residual query
+    # (e.g. ``项目进展、下一步计划、风险``) is dominated by generic
+    # management scaffolding.  RT-010's user decision says only genuine
+    # zero/effective-empty scope becomes ``resolved_empty``; a scoped
+    # query with verified in-scope evidence must remain visible at
+    # ``medium`` when compound-intent support is incomplete, or ``low``
+    # when evidence verification is partial.  The floor never rises to
+    # ``high`` on its own — that still requires the full three-support
+    # gate above.
+    if scope_active and resolution.status == "resolved" and results:
+        # Fail-closed conditions:
+        # * Management-intent scoped query with NO row that both raw-
+        #   verifies AND carries a valid ``entity_intent_link``
+        #   provenance → resolved_empty (the scope is real but the
+        #   query has no locally-linked auditable answer).  This is
+        #   stricter than "any intent hit anywhere": intent_support
+        #   only flips True when the linkage helper builds a link
+        #   record, so ``intent_supporting_top is None`` is a
+        #   sufficient signal.
+        # * Plain scoped query (no intent) with NO raw-verified row at
+        #   all → resolved_empty on the same grounds.
+        management_query = bool(intents_requested)
+        anchor_missing = (
+            (management_query and intent_supporting_top is None)
+            or (not management_query
+                and not any(row.get("evidence_status") == "verified" for row in results))
         )
-    top_score = results[0]["score"] if results else 0.0
-    top_coverage = results[0]["query_coverage"] if results else 0.0
-    top_status = results[0]["evidence_status"] if results else "missing"
-    confidence = confidence_for(top_score, top_coverage, top_status, len(results))
+        if anchor_missing:
+            resolution.status = "resolved_empty"
+            resolution.reason = "no_query_evidence_in_scope"
+            empty_payload = _safe_empty_payload(
+                question,
+                resolution,
+                mirror=mirror,
+                catalog_bound=catalog_bound,
+                reason_override="no_query_evidence_in_scope",
+            )
+            empty_payload["indexed"] = {
+                "summaries": len(summaries),
+                "navigation_pages": len(navigation),
+                "summary_quality": quality_counts,
+                **index_info,
+            }
+            empty_payload["scope"] = {
+                "applied": True,
+                "postings_size": len(scope_postings),
+                "filtered_out": scope_filtered_out,
+                "scope_hash": scope_hash,
+                "filter_reasons": ["no_query_evidence_in_scope"],
+            }
+            return empty_payload
+        floor = "low"
+        if source_integrity == "verified" and (
+            not intents_requested or intents_verified
+        ):
+            floor = "medium"
+        order = {"none": 0, "low": 1, "medium": 2, "high": 3}
+        if order.get(confidence, 0) < order[floor]:
+            confidence = floor
     if confidence == "none":
         results = []
-    return {
+
+    payload = {
         "schema_version": SCHEMA,
         "generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
         "mirror_root": str(mirror),
@@ -591,7 +2000,38 @@ def query_mirror(
             "summary_quality": quality_counts,
             **index_info,
         },
+        "entity_resolution": {
+            "status": resolution.status,
+            "family_id": resolution.family_id,
+            "family_name": resolution.family_name,
+            "entity_types": resolution.entity_types,
+            "matched_surfaces": resolution.matched_surfaces,
+            "resolution_kind": resolution.resolution_kind,
+            "reason": resolution.reason,
+        },
+        "scope": {
+            "applied": scope_active,
+            "postings_size": len(scope_postings),
+            "filtered_out": scope_filtered_out,
+            "scope_hash": scope_hash,
+            "scope_precision": round(scope_precision, 4) if scope_active else None,
+            "filter_reasons": [],
+            "dropped_unverified_rows": dropped_unverified_count,
+            "evaluated_pool_size": evaluated_pool_size,
+        },
+        "intents": {
+            "requested": intents_requested,
+            "verified": intents_verified,
+            "missing": intents_missing,
+        },
+        "support": {
+            "source_integrity": source_integrity,
+            "scope_integrity": scope_integrity,
+            "query_support": query_support,
+        },
         "confidence": confidence,
+        "global_fallback_used": False,
+        "catalog_bound": catalog_bound,
         "answer_policy": (
             "Answer only from verified evidence and cite report_id/raw_path."
             if confidence != "none"
@@ -599,6 +2039,7 @@ def query_mirror(
         ),
         "results": results,
     }
+    return payload
 
 
 def query_cloud(
@@ -816,6 +2257,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", default="")
     parser.add_argument("--lint", action="store_true", help="Check summary/raw/navigation link integrity instead of querying.")
     parser.add_argument("--no-index", action="store_true", help="Ignore the persistent index and scan Wiki files live.")
+    parser.add_argument(
+        "--require-catalog",
+        action="store_true",
+        help="Fail closed if the entity catalog is missing or hash-mismatched against the index.",
+    )
     parser.add_argument("--mode", choices=("local", "cloud", "shadow"), default="local")
     parser.add_argument(
         "--experimental-cloud",
@@ -862,7 +2308,11 @@ def main() -> int:
             cache_root=args.cache_root, min_index_version=args.min_index_version,
         )
     else:
-        payload = query_mirror(mirror, args.query, **common, use_index=not args.no_index)
+        payload = query_mirror(
+            mirror, args.query, **common,
+            use_index=not args.no_index,
+            require_catalog=args.require_catalog,
+        )
         payload["mode"] = "local"
         if args.mode == "shadow":
             cloud_payload = query_cloud(

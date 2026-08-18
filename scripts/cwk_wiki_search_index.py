@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from cwk_wiki_query import DEFAULT_MIRROR, load_navigation, load_summaries, load_summary_quality, tokenize
+import cwk_entity_catalog as entity_catalog
 
 
 SCHEMA = "cwk.search_index.v1"
@@ -178,7 +179,18 @@ def build_index(mirror: Path, *, force: bool = False) -> dict[str, Any]:
     compressed_path = system / "search-index.json.gz"
     meta_path = system / "index-meta.json"
     manifest_path = system / "manifest.json"
+    # Build the entity catalog first and bind its hash into the index
+    # payload so cwk_wiki_query can reject any (index, catalog) pair that
+    # was not produced in the same build.  Scanning raw here reuses the
+    # anchor cache for warm-path speed.
+    catalog_payload, anchor_cache, registry_source = entity_catalog.build_catalog(
+        mirror, scan_raw=True, use_cache=True
+    )
+    entity_catalog.write_catalog(mirror, catalog_payload, anchor_cache)
     core = build_core(mirror)
+    core["entity_catalog_sha256"] = catalog_payload["catalog_sha256"]
+    core["entity_catalog_schema"] = catalog_payload["schema_version"]
+    core["entity_catalog_registry_version"] = catalog_payload["registry"]["version"]
     index_sha256 = canonical_hash(core)
     old_meta: dict[str, Any] = {}
     try:
@@ -208,6 +220,11 @@ def build_index(mirror: Path, *, force: bool = False) -> dict[str, Any]:
         "index_sha256": index_sha256,
         "summary_count": len(core["summary_docs"]),
         "navigation_count": len(core["navigation_docs"]),
+        "entity_catalog_sha256": catalog_payload["catalog_sha256"],
+        "entity_catalog_schema": catalog_payload["schema_version"],
+        "entity_catalog_registry_version": catalog_payload["registry"]["version"],
+        "entity_catalog_registry_source": str(registry_source),
+        "entity_catalog_families_total": catalog_payload["statistics"]["families_total"],
         "changed": changed,
         "changed_relative_paths": [],
     }
@@ -223,6 +240,10 @@ def build_index(mirror: Path, *, force: bool = False) -> dict[str, Any]:
             *(f"wiki/_system/{name}" for name in index_files),
             "wiki/_system/index-meta.json",
             "wiki/_system/manifest.json",
+            "wiki/_system/entity-catalog.json",
+            "wiki/_system/entity-catalog.json.gz",
+            "wiki/_system/entity-catalog-meta.json",
+            "wiki/_system/entity-anchors-cache.json",
         ]
         atomic_json(meta_path, meta)
     else:
@@ -247,6 +268,10 @@ def build_index(mirror: Path, *, force: bool = False) -> dict[str, Any]:
             "search_index_artifact_sha256": meta.get("index_artifact_sha256") or "",
             "search_index_summary_count": len(core["summary_docs"]),
             "search_index_navigation_count": len(core["navigation_docs"]),
+            "entity_catalog_schema": catalog_payload["schema_version"],
+            "entity_catalog_sha256": catalog_payload["catalog_sha256"],
+            "entity_catalog_registry_version": catalog_payload["registry"]["version"],
+            "entity_catalog_families_total": catalog_payload["statistics"]["families_total"],
         }
     )
     atomic_json(manifest_path, manifest)

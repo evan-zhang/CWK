@@ -1,0 +1,32 @@
+{
+  "schema_version": "cwk.entity_family_registry.v1",
+  "version": "2026-08-18",
+  "notes": "Version-controlled approved cross-type family registry. Consumed by scripts/cwk_entity_catalog.py during catalog build. Adding, removing, or modifying an entry deterministically changes catalog_sha256 and invalidates the persistent search index. Provenance quotes must be verbatim from raw reports; the register is data, not code or ranking heuristics.",
+  "entries": [
+    {
+      "canonical_display": "TBS",
+      "members": [
+        {"entity_type": "system", "normalized": "tbs"},
+        {"entity_type": "project", "normalized": "tbs"},
+        {"entity_type": "product", "normalized": "tbs"}
+      ],
+      "evidence": [
+        {
+          "report_id": "2073654866571624450",
+          "quote": "AI训战系统（TBS）项目进展与规划汇报 — 会议纪要0630"
+        },
+        {
+          "report_id": "2039551079754358785",
+          "quote": "TBS（训战系统；面向医药代表的拜访模拟训练与评估能力平台）"
+        },
+        {
+          "report_id": "2019368689589047297",
+          "quote": "TBS（代表能力培训系统）"
+        }
+      ],
+      "approved_by": "cwk-rt-010",
+      "approved_at": "2026-08-18",
+      "notes": "TBS names the same conceptual referent across the system, project and product axes. Merging is limited to the exact acronym surface `tbs`; every family member still lists its individual entity_type in `entity_types` and every posting keeps its own edge provenance."
+    }
+  ]
+}
