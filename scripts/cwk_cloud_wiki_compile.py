@@ -142,14 +142,22 @@ in Markdown, prose, or an outer object.
 
 
 def normalize(payload: dict[str, Any], metadata: dict[str, str], body: str) -> dict[str, Any]:
-    if payload.get("schema_version") != SCHEMA or str(payload.get("report_id")) != metadata["report_id"]:
+    # schema_version/report_id are deterministic pipeline metadata.  Models
+    # occasionally omit them while returning an otherwise valid semantic
+    # payload.  Fill missing values locally, but never accept conflicting ones.
+    schema_version = compact(payload.get("schema_version"), 80)
+    report_id = compact(payload.get("report_id"), 80)
+    if (schema_version and schema_version != SCHEMA) or (
+        report_id and report_id != metadata["report_id"]
+    ):
         raise ValueError(
             "invalid model schema or report_id "
-            f"(schema={compact(payload.get('schema_version'), 80)!r}, report_id={compact(payload.get('report_id'), 80)!r})"
+            f"(schema={schema_version!r}, report_id={report_id!r})"
         )
     result: dict[str, Any] = {"summary": compact(payload.get("summary"), 220)}
     if not result["summary"]:
-        raise ValueError("missing summary")
+        payload_keys = ",".join(sorted(str(key) for key in payload)[:20]) or "<empty>"
+        raise ValueError(f"missing summary (payload_keys={payload_keys})")
     for key, allowed in (("key_facts", None), ("decisions", None), ("action_items", None), ("risks", {"low", "medium", "high", "unknown"}), ("topics", None), ("entities", {"person", "organization", "project", "system", "product", "other"})):
         kept = []
         for item in payload.get(key, []) if isinstance(payload.get(key), list) else []:
@@ -182,6 +190,18 @@ def raw_sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def outcome_counts(outcomes: list[dict[str, Any]]) -> tuple[int, int, int]:
+    """Return terminal outcome counts without leaking optional values into sum()."""
+    compiled = sum(1 for item in outcomes if item.get("status") == "compiled")
+    fallback_created = sum(
+        1
+        for item in outcomes
+        if item.get("status") == "fallback_created" or bool(item.get("fallback_created"))
+    )
+    failed = sum(1 for item in outcomes if item.get("status") == "failed")
+    return compiled, fallback_created, failed
 
 
 def render(metadata: dict[str, str], raw_rel: str, data: dict[str, Any], source_sha256: str = "") -> str:
@@ -385,6 +405,25 @@ def append_log(wiki: Path, message: str) -> None:
         handle.write(f"\n## [{ts}] {message}\n\n")
 
 
+def select_compile_candidates(
+    missing: list[Path],
+    fresh_fallback: list[Path],
+    retry_fallback: list[Path],
+    *,
+    limit: int,
+    fallback_only: bool,
+) -> list[Path]:
+    """Select work without allowing the AI batch cap to break coverage.
+
+    ``--limit`` bounds model calls.  Creating deterministic fallback pages is
+    cheap and is the coverage contract, so fallback-only mode must materialize
+    every missing summary in the same run.
+    """
+    if fallback_only:
+        return list(missing)
+    return (missing + fresh_fallback + retry_fallback)[:limit]
+
+
 # ── Signal handlers ──────────────────────────────────────────────
 
 def _signal_flush(signum: int, frame: Any) -> None:
@@ -514,7 +553,13 @@ def main() -> None:
             if meta["report_id"] in fallback_ids
             and meta["report_id"] in retryable_failed_ids
         ] if args.refine_fallbacks else []
-        selected = (missing + fresh_fallback + retry_fallback)[: args.limit]
+        selected = select_compile_candidates(
+            missing,
+            fresh_fallback,
+            retry_fallback,
+            limit=args.limit,
+            fallback_only=args.fallback_only,
+        )
     if requested_ids and len(selected) != len(requested_ids):
         found_ids = {raw_metadata(path)[0]["report_id"] for path in selected}
         missing = sorted(requested_ids - found_ids)
@@ -629,9 +674,7 @@ def main() -> None:
     flush_manifest_if_dirty()
 
     # ── Log ──
-    compiled_count = sum(x["status"] == "compiled" for x in outcomes)
-    fallback_created_count = sum(x["status"] == "fallback_created" or x.get("fallback_created") for x in outcomes)
-    failed_count = sum(x["status"] == "failed" for x in outcomes)
+    compiled_count, fallback_created_count, failed_count = outcome_counts(outcomes)
     append_log(wiki, "compile | source summaries")
     with (wiki / "log.md").open("a", encoding="utf-8") as handle:
         handle.write(
@@ -644,6 +687,21 @@ def main() -> None:
         for item in manifest.get("failure_queue", [])
         if item.get("report_id") and int(item.get("attempts", 1)) >= MAX_FAILURE_ATTEMPTS
     }
+    failed_ids = {
+        str(item.get("report_id"))
+        for item in outcomes
+        if item.get("status") == "failed" and item.get("report_id")
+    }
+    uncovered_failed_ids = {
+        rid for rid in failed_ids if not (wiki / "summaries" / f"{rid}.md").exists()
+    }
+    retryable_ids = {
+        str(item.get("report_id"))
+        for item in manifest.get("failure_queue", [])
+        if item.get("report_id")
+        and int(item.get("attempts", 1)) < MAX_FAILURE_ATTEMPTS
+        and str(item.get("report_id")) in fallback_ids
+    }
     summary = {
         "action": "compile",
         "mirror_root": str(mirror),
@@ -651,6 +709,14 @@ def main() -> None:
         "compiled": compiled_count,
         "fallback_created": fallback_created_count,
         "failed": failed_count,
+        "ai_refinement_failed": failed_count,
+        "quality_degraded": bool(failed_count),
+        "coverage_preserved": not uncovered_failed_ids,
+        "hard_failure_count": len(uncovered_failed_ids),
+        "hard_failure_report_ids": sorted(uncovered_failed_ids),
+        "active_refinement_retry_count": len(retryable_ids),
+        "unresolved_refinement_count": len(manifest.get("failure_queue", [])),
+        "failure_history_count": len(manifest.get("failure_queue", [])),
         "total_compiled": len(manifest.get("compiled_report_ids", [])),
         "ai_refined": len(manifest.get("ai_refined_report_ids", [])),
         "fallback_remaining": len(manifest.get("fallback_report_ids", [])),

@@ -24,7 +24,7 @@ CWK 默认不能修改工作协同内容，也不能代替审批、回复或标�
 
 ```bash
 cd /path/to/CWK
-python3 scripts/cwk_wiki_query.py "你的问题" --mode cloud --top-k 8
+python3 scripts/cwk_wiki_query.py "你的问题" --mode local --top-k 8
 ```
 
 例如：
@@ -35,7 +35,7 @@ python3 scripts/cwk_wiki_query.py \
   --top-k 6
 ```
 
-命令返回的是证据包。回答时只使用 `evidence_status=verified` 的结果，并引用 `report_id` 与 `docdb:file_id`。迁移期可用 `--mode shadow` 比较本地与云端排序；云端不可用时不得静默使用本地旧副本。
+命令返回的是证据包。回答时只使用 `evidence_status=verified` 的结果，并引用 `report_id` 与本地 raw 路径。当前 Cloud-First 和 cloud/shadow 查询已暂停；生产查询不得调用云端模式。保留的实验代码只有在明确重启评审后才能通过额外实验开关使用。
 
 ## 3. 安装与初始化
 
@@ -415,14 +415,17 @@ python3 scripts/cwk_sync_mirror_to_docdb.py \
 
 已存在页面使用新版本更新。失败路径会进入 `runs/docdb-sync-retry-queue.json`，下轮自动补偿。
 
-禁止用 `--only-prefix raw/` 进行常规或共享同步。Cloud-First 初始化/增量链路必须同时满足：个人 DocDB、显式 `--allow-raw`、`--physical-prefix raw/`、`isSensitive=0`、同步回执与云端覆盖审计。同步器会拒绝把 raw 写入未授权项目；超过 2MB 的 raw 自动转成内容寻址 gzip 分片，目录提交后查询端再重组并核验逻辑原文 SHA。上述限制控制写入目标和完整性，不对工作协同正文做涉密判断或内容改写。
+禁止用 `--only-prefix raw/` 进行生产或共享同步。Cloud-First 已暂停；受控实验必须同时满足：Evan 明确授权、个人 DocDB、显式 `--allow-raw --experimental-cloud-raw`、`--physical-prefix raw/`、`isSensitive=0`、同步回执与云端覆盖审计。同步器会拒绝把 raw 写入未授权项目；超过 2MB 的 raw 自动转成内容寻址 gzip 分片，目录提交后查询端再重组并核验逻辑原文 SHA。上述限制控制写入目标和完整性，不对工作协同正文做涉密判断或内容改写。
 
-### 12.3 Cloud-First 查询与写后读
+### 12.3 Cloud-First 查询与写后读（已暂停，仅保留实验说明）
+
+下列命令不属于生产运维。只有 Evan 明确重启 Cloud-First 评审后，才允许在隔离实验中使用第二道解锁参数：
 
 ```bash
 python3 scripts/cwk_wiki_query.py \
   "Token 消耗异常" \
   --mode cloud \
+  --experimental-cloud \
   --min-index-version 9 \
   --top-k 8
 ```
@@ -430,7 +433,8 @@ python3 scripts/cwk_wiki_query.py \
 - 云端启动时下载 3 个约 1–1.5MB 的索引分片，逐片校验后重组压缩索引；Top-K raw 按需下载并按 SHA-256 校验。
 - 缓存只使用 `file_id + sha256` 命名，可随时删除并从云端恢复。
 - `--min-index-version` 用于读后即见；云端版本较旧时命令直接失败。
-- `--mode shadow` 返回本地/云端 report ID 排名差异，不改变答案证据边界。
+- `--mode shadow --experimental-cloud` 返回本地/云端 report ID 排名差异，不改变答案证据边界。
+- 若实验需要由 nightly 发布云端查询对象目录，必须同时使用 `--publish-cloud-query-catalog --experimental-cloud-query-catalog`；单独设置配置项或环境变量会被拒绝。
 
 ### 12.4 云端覆盖审计
 

@@ -31,6 +31,8 @@ PYTHON=python3.11 ./install.sh --install-skill --skills-dir /path/to/openclaw/sk
 
 ```bash
 CWORK_APP_KEY=安装者自己的工作协同授权
+CWK_OWNER_EMP_ID=安装者自己的工作协同员工ID
+CWK_OWNER_NAME=安装者自己的工作协同姓名
 # 留空时使用安装者个人 DocDB；仅团队镜像才显式填写：
 CWK_DOCDB_PROJECT_ID=
 CWK_DOCDB_ROOT_FILE_ID=

@@ -1,10 +1,12 @@
 import json
+import signal
+import subprocess
 import sys
 import tempfile
 import unittest
 from types import SimpleNamespace
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 
 PROJECT = Path(__file__).resolve().parents[1]
@@ -15,6 +17,7 @@ from cwk_ai_common import (  # noqa: E402
     PRIORITIES_SCHEMA,
     RECORD_SCHEMA,
     ai_agent_workspace,
+    assert_cwk_model,
     ai_runtime_guard,
     extract_json_object,
     fallback_record,
@@ -28,7 +31,7 @@ from cwk_ai_common import (  # noqa: E402
     validate_record,
 )
 from cwk_ai_event_clustering import merge_event_batches, normalize_bundle, prompt_for as cluster_prompt_for, recover_cluster_batch, validate_cluster_evidence, validate_event_coverage  # noqa: E402
-from cwk_nightly_pipeline import copy_to_mirror, merge_changed_paths_manifest, redact_cmd, redact_text, write_manifest  # noqa: E402
+from cwk_nightly_pipeline import copy_to_mirror, merge_changed_paths_manifest, redact_cmd, redact_text, run_docdb_sync_with_retry, write_manifest  # noqa: E402
 from cwk_ai_quality_review import prompt_for as quality_prompt_for  # noqa: E402
 from cwk_ai_record_understanding import prompt_for as record_prompt_for  # noqa: E402
 from cwk_sample_pilot import build_relations, event_family, load_items, title_anchor, unique_relation_pairs  # noqa: E402
@@ -36,27 +39,69 @@ from cwk_relation_eval import evaluate as evaluate_relations  # noqa: E402
 
 
 class AIContractTests(unittest.TestCase):
+    def test_gpt56_requires_explicit_temporary_batch_switch(self):
+        with patch.dict("os.environ", {"CWK_TEMP_GPT56_BATCH": ""}, clear=False):
+            with self.assertRaises(ValueError):
+                assert_cwk_model("openai/gpt-5.6-terra")
+        with patch.dict("os.environ", {"CWK_TEMP_GPT56_BATCH": "1"}, clear=False):
+            assert_cwk_model("openai/gpt-5.6-terra")
+            assert_cwk_model("openai/gpt-5.6-sol")
+
     def test_extracts_schema_payload_from_openclaw_envelope(self):
         payload = {"schema_version": RECORD_SCHEMA, "report_id": "1"}
         envelope = {"result": {"payloads": [{"text": json.dumps(payload)}]}}
         self.assertEqual(extract_json_object(json.dumps(envelope)), payload)
 
+    def test_extracts_summary_payload_missing_deterministic_identity(self):
+        payload = {"summary": "有效摘要", "key_facts": []}
+        envelope = {"result": {"payloads": [{"text": json.dumps(payload, ensure_ascii=False)}]}}
+        self.assertEqual(extract_json_object(json.dumps(envelope, ensure_ascii=False)), payload)
+
     def test_model_call_retries_transient_failure(self):
         payload = {"schema_version": RECORD_SCHEMA, "report_id": "1"}
-        fail = SimpleNamespace(returncode=1, stdout="", stderr="temporary unavailable")
-        success = SimpleNamespace(returncode=0, stdout=json.dumps(payload), stderr="")
+        fail = SimpleNamespace(returncode=1, communicate=lambda timeout: ("", "temporary unavailable"))
+        success = SimpleNamespace(returncode=0, communicate=lambda timeout: (json.dumps(payload), ""))
         with tempfile.TemporaryDirectory() as directory:
             project = Path(directory)
             with (
                 patch("cwk_ai_common.PROJECT", project),
                 patch("cwk_ai_common.assert_safe_ai_agent"),
-                patch("cwk_ai_common.subprocess.run", side_effect=[fail, success]) as run,
+                patch("cwk_ai_common.subprocess.Popen", side_effect=[fail, success]) as popen,
+                patch("cwk_ai_common.subprocess.run") as cleanup,
                 patch("cwk_ai_common.time.sleep"),
                 patch.dict("os.environ", {"CWK_AI_CALL_RETRIES": "2"}, clear=False),
             ):
                 result = invoke_openclaw_json("safe prompt", model="newapi/BD-MiniMax", stage="test", timeout_seconds=1, prompt_dir=project)
         self.assertEqual(result, payload)
-        self.assertEqual(run.call_count, 2)
+        self.assertEqual(popen.call_count, 2)
+        self.assertTrue(popen.call_args.kwargs["start_new_session"])
+        self.assertEqual(popen.call_args.kwargs["stdout"], subprocess.PIPE)
+        self.assertEqual(popen.call_args.kwargs["stderr"], subprocess.PIPE)
+        self.assertEqual(cleanup.call_count, 2)
+        for call in cleanup.call_args_list:
+            self.assertIn("agent:cwk-ai-reviewer:explicit:", call.args[0][-1])
+            self.assertIn('"deleteTranscript": true', call.args[0][-1])
+
+    def test_model_timeout_terminates_the_entire_process_group(self):
+        proc = Mock(pid=12345)
+        proc.communicate.side_effect = [
+            subprocess.TimeoutExpired(cmd="openclaw", timeout=31),
+            ("", ""),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory)
+            with (
+                patch("cwk_ai_common.PROJECT", project),
+                patch("cwk_ai_common.assert_safe_ai_agent"),
+                patch("cwk_ai_common.subprocess.Popen", return_value=proc),
+                patch("cwk_ai_common.subprocess.run") as cleanup,
+                patch("cwk_ai_common.os.killpg") as killpg,
+                patch.dict("os.environ", {"CWK_AI_CALL_RETRIES": "1"}, clear=False),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "timed out"):
+                    invoke_openclaw_json("safe prompt", model="newapi/BD-MiniMax", stage="test", timeout_seconds=1, prompt_dir=project)
+        killpg.assert_called_once_with(12345, signal.SIGTERM)
+        cleanup.assert_called_once()
 
     def test_fallback_record_has_traceable_evidence(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -149,6 +194,26 @@ class AIContractTests(unittest.TestCase):
             self.assertEqual(merged, output)
             payload = json.loads(output.read_text(encoding="utf-8"))
             self.assertEqual(payload["changed_relative_paths"], ["wiki/_system/manifest.json", "wiki/summaries/1.md", "wiki/topics/a.md"])
+
+    def test_docdb_sync_retry_uses_final_attempt_for_status(self):
+        first = {"returncode": 2, "stdout": "failed", "stderr": ""}
+        second = {"returncode": 0, "stdout": "ok", "stderr": ""}
+        steps = []
+        with tempfile.TemporaryDirectory() as directory:
+            manifest = Path(directory) / "sync.json"
+            with patch("cwk_nightly_pipeline.run_cmd", side_effect=[first, second]) as runner:
+                result, retry_manifest = run_docdb_sync_with_retry(
+                    "wiki_sync_docdb",
+                    ["python3", "sync.py", "--manifest", str(manifest)],
+                    manifest,
+                    steps,
+                )
+        self.assertEqual(result["returncode"], 0)
+        self.assertEqual(retry_manifest.name, "sync-retry.json")
+        self.assertEqual([step["step"] for step in steps], ["wiki_sync_docdb", "wiki_sync_docdb_retry"])
+        self.assertIn("--retry-only", runner.call_args_list[1].args[0])
+        retry_cmd = runner.call_args_list[1].args[0]
+        self.assertEqual(retry_cmd[retry_cmd.index("--manifest") + 1], str(retry_manifest))
 
     def test_cwork_key_like_source_is_preserved_in_model_prompt(self):
         with tempfile.TemporaryDirectory() as directory:

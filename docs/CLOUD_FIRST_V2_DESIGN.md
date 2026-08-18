@@ -1,8 +1,10 @@
-# CWK Cloud-First v2 重新审核与目标设计
+# CWK Cloud-First v2 重新审核与目标设计（已暂停）
 
-> 文档状态：Target Design（目标架构，不等同于当前生产默认）
+> 文档状态：Paused Target Design（2026-08-18 暂停，不属于当前生产路线）
 > 复审日期：2026-08-04
 > 适用范围：工作协同原文证据、Wiki、检索索引、nightly、云端恢复与可信问答
+
+> 当前决定：生产固定使用完整本地镜像；Cloud-First 持久化、cloud/shadow 查询和云端查询对象目录发布均暂停。保留 DocDB 派生 Wiki 备份及日报/HTML 发布，不同步 raw。重新启动本设计必须由 Evan 明确授权，并重新完成本文件中的双轨、恢复和完整性门禁。
 
 ## 1. 结论
 

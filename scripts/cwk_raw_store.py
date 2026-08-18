@@ -17,6 +17,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable
 
+from cwk_thread_timeline import capture as capture_thread_timeline
+
 
 PROJECT = Path(__file__).resolve().parents[1]
 MIRROR = PROJECT / "knowledge" / "工作协同镜像"
@@ -173,6 +175,7 @@ def promote(source_dirs: list[Path], mirror_root: Path, *, cloud_first: bool = F
     counts = {"created": 0, "updated": 0, "unchanged": 0, "invalid": 0}
     changed: list[str] = []
     date_sources: dict[str, int] = {}
+    timeline = {"snapshots_created": 0, "events_created": 0, "threads_touched": 0}
 
     source_paths: list[Path] = []
     for directory in source_dirs:
@@ -191,7 +194,21 @@ def promote(source_dirs: list[Path], mirror_root: Path, *, cloud_first: bool = F
             destination = existing[rid]
             if sha256_bytes(destination.read_bytes()) == sha256_bytes(data):
                 counts["unchanged"] += 1
+                # Legacy reports may predate RT-007. Capture the current
+                # version once without rewriting the canonical raw file.
+                result = capture_thread_timeline(mirror_root, str(rid), data)
+                timeline["snapshots_created"] += int(result["snapshot_created"])
+                timeline["events_created"] += int(result["events_created"])
+                timeline["threads_touched"] += 1
+                changed.extend(result["changed_relative_paths"])
                 continue
+            # Archive the prior truth-source byte sequence before its latest
+            # snapshot is replaced. This preserves the decision trail.
+            prior = capture_thread_timeline(mirror_root, str(rid), destination.read_bytes())
+            timeline["snapshots_created"] += int(prior["snapshot_created"])
+            timeline["events_created"] += int(prior["events_created"])
+            timeline["threads_touched"] += 1
+            changed.extend(prior["changed_relative_paths"])
             counts["updated"] += 1
         else:
             parent = raw_root / "unknown" if date == "unknown" else raw_root / date[:7] / date
@@ -200,6 +217,11 @@ def promote(source_dirs: list[Path], mirror_root: Path, *, cloud_first: bool = F
             existing[rid] = destination
         atomic_write(destination, data)
         changed.append(destination.relative_to(mirror_root).as_posix())
+        result = capture_thread_timeline(mirror_root, str(rid), data)
+        timeline["snapshots_created"] += int(result["snapshot_created"])
+        timeline["events_created"] += int(result["events_created"])
+        timeline["threads_touched"] += 1
+        changed.extend(result["changed_relative_paths"])
 
     manifest_path = rebuild_manifest(mirror_root, cloud_first=cloud_first)
     return {
@@ -209,7 +231,8 @@ def promote(source_dirs: list[Path], mirror_root: Path, *, cloud_first: bool = F
         "mirror_root": str(mirror_root),
         "counts": counts,
         "date_sources": date_sources,
-        "changed_relative_paths": changed,
+        "changed_relative_paths": sorted(set(changed)),
+        "thread_timeline": timeline,
         "raw_manifest": str(manifest_path),
         "raw_record_count": len(existing),
         "raw_local_only": not cloud_first,

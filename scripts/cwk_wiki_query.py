@@ -817,6 +817,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--lint", action="store_true", help="Check summary/raw/navigation link integrity instead of querying.")
     parser.add_argument("--no-index", action="store_true", help="Ignore the persistent index and scan Wiki files live.")
     parser.add_argument("--mode", choices=("local", "cloud", "shadow"), default="local")
+    parser.add_argument(
+        "--experimental-cloud",
+        action="store_true",
+        help="Explicitly unlock paused cloud/shadow query modes for a controlled experiment.",
+    )
     parser.add_argument("--sender-id", default=os.environ.get("CWK_SENDER_ID", ""))
     parser.add_argument("--account-id", default=os.environ.get("CWK_ACCOUNT_ID", "default"))
     parser.add_argument("--project-id", default=os.environ.get("CWK_DOCDB_PROJECT_ID", ""))
@@ -828,6 +833,11 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    if args.mode in {"cloud", "shadow"} and not args.experimental_cloud:
+        raise SystemExit(
+            "CWK cloud/shadow query is paused; production queries must use --mode local. "
+            "For a controlled experiment, also pass --experimental-cloud."
+        )
     mirror = Path(args.mirror_root).expanduser().resolve()
     if args.mode in {"local", "shadow"} and (not (mirror / "wiki" / "summaries").is_dir() or not (mirror / "raw").is_dir()):
         raise SystemExit(f"invalid CWK mirror root: {mirror}")

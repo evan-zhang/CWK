@@ -4,7 +4,7 @@ CWK is a read-only CWork / 工作协同 knowledge mirror workflow.
 
 It turns work-collaboration messages, todos, handled items, and reply chains into:
 
-- Cloud-First raw evidence in the authorized user's private DocDB (local runtime cache during migration/build)
+- a local authoritative raw-evidence mirror
 - structured extraction JSON
 - event and entity candidates
 - daily Markdown digests
@@ -15,6 +15,12 @@ It turns work-collaboration messages, todos, handled items, and reply chains int
 ## Status
 
 Internal/private stable baseline. The read-only source mirror, business-date raw truth source, evidence-backed Wiki query, source/raw/summary completeness gate, bounded AI refinement, and DocDB version-sync paths are implemented. This repository intentionally excludes real raw evidence, real run outputs, secrets, prompts, AI outputs, and personal knowledge-base data.
+
+**Production profile (2026-08-18): Local-First.** Cloud-First persistence and
+`cloud`/`shadow` query modes are paused. The complete local mirror is the
+authoritative store and production queries use `--mode local`. DocDB remains
+enabled only for derived Wiki/index/run-receipt backup plus daily Markdown/HTML
+publishing; raw evidence is not published. See [runtime status](docs/RUNTIME_STATUS.md).
 
 Primary documentation:
 
@@ -70,6 +76,7 @@ In the default personal-mirror deployment, one 工作协同 appKey is enough for
 - DocDB root folder/file ID: `CWK_DOCDB_ROOT_FILE_ID`, or `docdb_root_file_id` in local config. Optional. Leave empty to find or create the default `工作协同镜像` folder.
 - Local Agent capabilities: the Agent/machine must have `cms-cwork-workflow`, `cms-docdb`, and auth helper access. These are runtime tools, not config IDs.
 - Optional account routing: `CWK_SENDER_ID` and `CWK_ACCOUNT_ID` are only needed when resolving auth through `cms-auth-skills` instead of providing `CWORK_APP_KEY`.
+- CWork relationship API: `CWK_RELATION_API_PATH` (plus optional base URL and timeout). The Work Report backend must resolve the current user from AppKey and return authoritative report relationships in batches. Until that endpoint is deployed, daily views show `关系待确认`; CWK deliberately does not infer `与我无关` from local people lists.
 
 `K` numbers are not setup credentials. They are archive/report identifiers produced by other knowledge workflows, and CWK users do not need to provide a `K` number to install or run this project.
 
@@ -79,7 +86,7 @@ In the default personal-mirror deployment, one 工作协同 appKey is enough for
 cp .env.example .env
 ```
 
-Then fill `CWORK_APP_KEY`. Keep `CWK_DOCDB_PROJECT_ID` and `CWK_DOCDB_ROOT_FILE_ID` empty unless you are intentionally writing to a specific shared knowledge-base folder.
+Then fill `CWORK_APP_KEY` plus the matching `CWK_OWNER_EMP_ID` / `CWK_OWNER_NAME`. Keep `CWK_DOCDB_PROJECT_ID` and `CWK_DOCDB_ROOT_FILE_ID` empty unless you are intentionally writing to a specific shared knowledge-base folder.
 
 `cwk_nightly_pipeline.py` automatically loads the gitignored project `.env` and never overrides variables already exported by the parent process.
 
@@ -129,9 +136,9 @@ date, promote staged reports into the local `raw/YYYY-MM/YYYY-MM-DD/` truth
 source, compile missing Wiki summaries, and enforce
 `source IDs = raw IDs = summary IDs`.  The bounded inbox/todo collector remains
 responsible for the human digest; it is no longer treated as proof of complete
-source capture. Generic sync denies raw; approved Cloud-First runs persist raw
-as versioned physical files in the user's private DocDB and enforce SHA-256
-coverage before reporting success.
+source capture. Generic sync denies raw. The paused Cloud-First implementation
+is retained only as experimental migration code and requires an additional
+explicit unlock; it is not part of the production runtime profile.
 
 ## AI Quality Pilot
 
@@ -202,10 +209,10 @@ CWK_WIKI_REFINE_FALLBACKS=true CWK_WIKI_LIMIT=5 CWK_WIKI_MAX_PARALLEL=4 \
 ## Trusted Wiki Query
 
 `scripts/cwk_wiki_query.py` is the read-only question retrieval entrypoint. In
-production use `--mode cloud`: it loads the versioned compressed index, ranks
-summaries/topics/entities, downloads only Top-K raw objects, validates SHA-256,
-and returns evidence. `--mode local` is a migration/debug path and
-`--mode shadow` compares both rankings.
+production use `--mode local`: it ranks summaries/topics/entities against the
+complete local mirror, then validates every returned quote against local raw.
+The retained `cloud` and `shadow` providers are paused experimental paths and
+require a second explicit unlock.
 
 ```bash
 python3 scripts/cwk_wiki_query.py \

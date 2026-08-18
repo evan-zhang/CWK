@@ -236,7 +236,22 @@ def choose_incremental(
         if change_type != "unchanged":
             classified.append(pending_entry(rid, row, scopes.get(rid, set()), change_type, "daily", fingerprint))
 
-    fresh = [entry for entry in classified if entry["change_type"] in {"new", "updated"}]
+    # A new reply or workflow update can reverse the meaning of an otherwise
+    # old report.  Put those threads ahead of ordinary new notices; overflow
+    # is still persisted below, so priority never discards evidence.
+    def fresh_key(entry: dict[str, Any]) -> tuple[int, int, str]:
+        row = entry.get("row") or {}
+        reply_or_workflow_change = bool(row.get("hasNewReply")) or int(row.get("replyCount") or 0) > 0
+        return (
+            0 if reply_or_workflow_change else 1,
+            0 if entry.get("change_type") == "updated" else 1,
+            str(entry.get("report_id") or ""),
+        )
+
+    fresh = sorted(
+        (entry for entry in classified if entry["change_type"] in {"new", "updated"}),
+        key=fresh_key,
+    )
 
     def continuation_key(entry: dict[str, Any]) -> tuple[int, float, str]:
         previous = (state.get("records") or {}).get(entry["report_id"])

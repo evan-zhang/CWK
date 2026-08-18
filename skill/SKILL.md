@@ -12,7 +12,7 @@ Use this skill to create or operate a portable `工作协同镜像` for a person
 Allowed:
 - Read CWork records in read-only modes.
 - Write local run artifacts and knowledge mirror files.
-- Sync mirror files into the configured knowledge-base folder.
+- Optionally publish derived Wiki and daily Markdown/HTML files into the configured knowledge-base folder.
 - Schedule cron after a live read-only run succeeds.
 
 Forbidden unless the user explicitly asks for that separate action:
@@ -26,7 +26,7 @@ Forbidden unless the user explicitly asks for that separate action:
 Before running live collection, identify:
 - target user/team and whether this is a personal mirror or team mirror
 - CWork auth source: `CWORK_APP_KEY` preferred
-- knowledge-base target: default personal knowledge base, unless a team/shared `docdb_project_id` and `docdb_root_file_id` is explicitly required
+- optional derived-page publishing target: default personal knowledge base, unless a team/shared `docdb_project_id` and `docdb_root_file_id` is explicitly required
 - local script package path
 
 For migration, read `references/migration.md`. For operation and failures, read `references/operations.md`.
@@ -36,7 +36,7 @@ For migration, read `references/migration.md`. For operation and failures, read 
 1. Locate the script package and inspect the local config.
 2. Create a private config from `templates/CONFIG.example.json`.
 3. Run a no-publish smoke test.
-4. Run one live read-only pass with `--sync-docdb`.
+4. Run one live read-only Local-First pass; add `--sync-docdb` only when derived Wiki/HTML publishing is desired.
 5. Inspect `run.json`, `ACCEPTANCE-RESULT.md`, and `incremental-link-preview-v1.md`.
 6. Enable or update cron only after the live pass succeeds.
 7. Report concise results: run name, processed count, pass/fail, MD/HTML paths, link statistics, and sync status.
@@ -61,8 +61,12 @@ python3 scripts/cwk_nightly_pipeline.py \
   --config cwk-mirror.local.json \
   --run-name nightly-$(date +%Y%m%d-%H%M) \
   --date $(date +%F) \
-  --sync-docdb
+  --no-cloud-first \
+  --no-publish-cloud-query-catalog
 ```
+
+To publish only derived Wiki/HTML copies, add `--sync-docdb --sync-wiki`. Raw
+evidence remains local and authoritative.
 
 ## Quality Review
 

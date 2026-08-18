@@ -95,7 +95,7 @@ def fetch_one(row: dict[str, Any], app_key: str, raw_dir: Path) -> dict[str, Any
 
 def run_backfill(
     *, app_key: str, start_date: str, end_date: str, run_name: str,
-    mirror_root: Path, max_parallel: int, page_size: int,
+    mirror_root: Path, max_parallel: int, page_size: int, cloud_first: bool = False,
 ) -> dict[str, Any]:
     run_dir = PROJECT / "runs" / run_name
     staging = run_dir / "collected-raw"
@@ -115,7 +115,7 @@ def run_backfill(
             except Exception as exc:  # noqa: BLE001 - record and resume safely
                 results.append({"report_id": rid, "status": "failed", "error": str(exc)[:1000]})
 
-    promotion = promote([staging], mirror_root)
+    promotion = promote([staging], mirror_root, cloud_first=cloud_first)
     final_raw = raw_index(mirror_root / "raw")
     remaining = sorted(set(source_by_id) - set(final_raw))
     manifest = {
@@ -148,13 +148,14 @@ def main() -> None:
     parser.add_argument("--mirror-root", default=str(MIRROR))
     parser.add_argument("--max-parallel", type=int, default=6)
     parser.add_argument("--page-size", type=int, default=100)
+    parser.add_argument("--cloud-first", action="store_true", help="Preserve experimental Cloud-First raw manifest semantics.")
     args = parser.parse_args()
     if not args.app_key:
         raise SystemExit("CWORK_APP_KEY is required")
     result = run_backfill(
         app_key=args.app_key, start_date=args.start_date, end_date=args.end_date,
         run_name=args.run_name, mirror_root=Path(args.mirror_root).expanduser().resolve(),
-        max_parallel=args.max_parallel, page_size=args.page_size,
+        max_parallel=args.max_parallel, page_size=args.page_size, cloud_first=args.cloud_first,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
     raise SystemExit(0 if not result["remaining_missing"] else 2)

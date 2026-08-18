@@ -92,10 +92,66 @@ def title_from_markdown(markdown: str) -> str:
     return match.group(1).strip() if match else "工作协同每日简报"
 
 
+def daily_view_sections(markdown: str) -> dict[str, str] | None:
+    lines = markdown.splitlines()
+    positions: dict[str, int] = {}
+    headings: list[tuple[int, str]] = []
+    for index, line in enumerate(lines):
+        match = re.match(r"^##\s+(.+?)\s*$", line)
+        if match:
+            headings.append((index, match.group(1)))
+            if match.group(1) in {"今日处理", "近期变更", "持续未闭环"}:
+                positions[match.group(1)] = index
+    if not all(name in positions for name in ("今日处理", "近期变更", "持续未闭环")):
+        return None
+
+    def section(name: str) -> str:
+        start = positions[name] + 1
+        end = next((index for index, _ in headings if index >= start), len(lines))
+        return "\n".join(lines[start:end]).strip()
+
+    first = min(positions.values())
+    ongoing_end = next((index for index, _ in headings if index > positions["持续未闭环"]), len(lines))
+    return {
+        "intro": "\n".join(lines[:first]).strip(),
+        "today": section("今日处理"),
+        "recent_changes": section("近期变更"),
+        "ongoing": section("持续未闭环"),
+        "rest": "\n".join(lines[ongoing_end:]).strip(),
+    }
+
+
 def render_html(markdown: str, source_name: str = "") -> str:
     title = title_from_markdown(markdown)
     generated = datetime.now().strftime("%Y-%m-%d %H:%M")
-    body = render_blocks(markdown)
+    sections = daily_view_sections(markdown)
+    if sections:
+        def declared_count(label: str, content: str) -> int:
+            match = re.search(rf"{re.escape(label)}\s+(\d+)\s+条", sections["intro"])
+            return int(match.group(1)) if match else len(re.findall(r"^-\s+", content, re.M))
+
+        today_count = declared_count("今日处理", sections["today"])
+        changed_count = declared_count("近期变更", sections["recent_changes"])
+        ongoing_count = declared_count("持续未闭环", sections["ongoing"])
+        body = f'''
+        {render_blocks(sections["intro"])}
+        <nav class="daily-tabs" aria-label="日报视图">
+          <button class="active" data-daily-tab="today">今日处理 {today_count}</button>
+          <button data-daily-tab="recent_changes">近期变更 {changed_count}</button>
+        </nav>
+        <section class="daily-panel" data-daily-panel="today">
+          <h2>今日处理</h2>
+          {render_blocks(sections["today"])}
+          <details><summary>持续未闭环 {ongoing_count}</summary>{render_blocks(sections["ongoing"])}</details>
+        </section>
+        <section class="daily-panel" data-daily-panel="recent_changes" hidden>
+          <h2>近期变更</h2>
+          {render_blocks(sections["recent_changes"])}
+        </section>
+        {render_blocks(sections["rest"])}
+        '''
+    else:
+        body = render_blocks(markdown)
     css = """
     :root {
       --ink: #25313d;
@@ -152,6 +208,32 @@ def render_html(markdown: str, source_name: str = "") -> str:
       padding: 20px 24px 24px;
     }
     article > h1:first-child { display: none; }
+    .daily-tabs {
+      display: flex;
+      gap: 8px;
+      margin: 20px 0 14px;
+      overflow-x: auto;
+    }
+    .daily-tabs button {
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: #fff;
+      color: var(--ink);
+      padding: 9px 14px;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .daily-tabs button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .daily-panel[hidden] { display: none; }
+    details {
+      margin-top: 18px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: var(--accent-soft);
+    }
+    details > summary { cursor: pointer; font-weight: 700; }
     h2 {
       margin: 24px 0 10px;
       padding-top: 18px;
@@ -256,6 +338,15 @@ def render_html(markdown: str, source_name: str = "") -> str:
     </article>
     <footer>Markdown 是长期知识源；HTML 是阅读发布件。两者内容同源生成。</footer>
   </main>
+  <script>
+    document.querySelectorAll('[data-daily-tab]').forEach(button => button.addEventListener('click', () => {{
+      document.querySelectorAll('[data-daily-tab]').forEach(item => item.classList.remove('active'));
+      button.classList.add('active');
+      document.querySelectorAll('[data-daily-panel]').forEach(panel => {{
+        panel.hidden = panel.dataset.dailyPanel !== button.dataset.dailyTab;
+      }});
+    }}));
+  </script>
 </body>
 </html>
 """

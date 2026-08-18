@@ -1,15 +1,17 @@
 import sys
+import io
 import tempfile
 import unittest
 import json
+from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "scripts"))
 
 import cwk_wiki_query  # noqa: E402
-import cwk_cloud_wiki_compile  # noqa: E402
 import cwk_cloud_wiki_compile  # noqa: E402
 
 
@@ -56,6 +58,48 @@ source: "{raw_rel}"
 
 
 class WikiQueryTests(unittest.TestCase):
+    def test_cloud_cli_is_paused_without_experimental_unlock(self):
+        with patch.object(sys, "argv", ["cwk_wiki_query.py", "测试", "--mode", "cloud"]):
+            with self.assertRaisesRegex(SystemExit, "cloud/shadow query is paused"):
+                cwk_wiki_query.main()
+
+    def test_experimental_cloud_cli_requires_explicit_double_opt_in(self):
+        payload = {"schema_version": "cwk.wiki_query.v1", "confidence": "none", "results": []}
+        argv = ["cwk_wiki_query.py", "测试", "--mode", "cloud", "--experimental-cloud", "--format", "json"]
+        with patch.object(sys, "argv", argv), patch.object(cwk_wiki_query, "query_cloud", return_value=payload):
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(cwk_wiki_query.main(), 0)
+
+    def test_fallback_only_materializes_all_missing_despite_model_limit(self):
+        missing = [Path("1.md"), Path("2.md"), Path("3.md")]
+        selected = cwk_cloud_wiki_compile.select_compile_candidates(
+            missing,
+            [Path("old-fallback.md")],
+            [],
+            limit=1,
+            fallback_only=True,
+        )
+        self.assertEqual(selected, missing)
+
+    def test_ai_selection_remains_bounded(self):
+        selected = cwk_cloud_wiki_compile.select_compile_candidates(
+            [Path("new-1.md"), Path("new-2.md")],
+            [Path("old-fallback.md")],
+            [],
+            limit=2,
+            fallback_only=False,
+        )
+        self.assertEqual(selected, [Path("new-1.md"), Path("new-2.md")])
+
+    def test_compile_outcome_counts_tolerate_absent_optional_flag(self):
+        outcomes = [
+            {"report_id": "1", "status": "compiled"},
+            {"report_id": "2", "status": "failed"},
+            {"report_id": "3", "status": "failed", "fallback_created": True},
+            {"report_id": "4", "status": "fallback_created"},
+        ]
+        self.assertEqual(cwk_cloud_wiki_compile.outcome_counts(outcomes), (1, 2, 2))
+
     def test_fallback_summary_is_navigable_without_claiming_source_facts(self):
         metadata = {
             "report_id": "1", "title": "测试汇报", "writer": "甲",
@@ -185,6 +229,38 @@ class WikiQueryTests(unittest.TestCase):
         self.assertIn("valid JSON", value)
         self.assertIn("Never place an unescaped ASCII double quote", value)
         self.assertIn("choose a shorter exact contiguous source span", value)
+
+    def test_compile_normalize_fills_missing_deterministic_identity(self):
+        metadata = {
+            "report_id": "42",
+            "title": "示例",
+            "writer": "同事",
+            "created_at": "2026-08-11 10:00:00",
+            "source_lane": "inbox_awareness",
+        }
+        payload = {
+            "summary": "已确认测试通过。",
+            "key_facts": [{"text": "测试通过", "quote": "测试通过"}],
+        }
+        result = cwk_cloud_wiki_compile.normalize(payload, metadata, "测试通过")
+        self.assertEqual(result["summary"], "已确认测试通过。")
+        self.assertEqual(result["key_facts"][0]["text"], "测试通过")
+
+    def test_compile_normalize_rejects_conflicting_identity(self):
+        metadata = {
+            "report_id": "42",
+            "title": "示例",
+            "writer": "同事",
+            "created_at": "2026-08-11 10:00:00",
+            "source_lane": "inbox_awareness",
+        }
+        payload = {
+            "schema_version": cwk_cloud_wiki_compile.SCHEMA,
+            "report_id": "99",
+            "summary": "错误对象",
+        }
+        with self.assertRaisesRegex(ValueError, "invalid model schema"):
+            cwk_cloud_wiki_compile.normalize(payload, metadata, "错误对象")
 
     def test_compile_failure_queue_counts_attempts(self):
         manifest = {"failure_queue": []}

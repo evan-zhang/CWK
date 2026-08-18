@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import signal
 import subprocess
 import tempfile
 import time
@@ -31,19 +32,37 @@ AI_ENV_ALLOWLIST = {"OPENCLAW_GATEWAY_TOKEN", "OPENCLAW_GATEWAY_PASSWORD"}
 # CWK business pipeline permits ONLY these two models.
 # See projects/CWK/MODEL_ROLES.md for the full rationale.
 CWK_ALLOWED_MODELS: set[str] = {"newapi/BD-MiniMax", "newapi/BD-glm"}
+TEMPORARY_GPT56_BATCH_MODELS = {
+    "openai/gpt-5.6-sol",
+    "openai/gpt-5.6-terra",
+}
+
+
+def allowed_cwk_models() -> set[str]:
+    """Return the normal allowlist plus an explicit, time-boxed batch override.
+
+    GPT-5.6 is intentionally unavailable to ordinary CWK runs.  A human must
+    set ``CWK_TEMP_GPT56_BATCH=1`` for a one-off refinement sprint; this keeps
+    the historical MiniMax/GLM production contract intact by default.
+    """
+    models = set(CWK_ALLOWED_MODELS)
+    if os.environ.get("CWK_TEMP_GPT56_BATCH") == "1":
+        models.update(TEMPORARY_GPT56_BATCH_MODELS)
+    return models
 
 
 def assert_cwk_model(model: str) -> None:
     """Reject models outside the CWK allowlist before any AI call."""
+    allowed_models = allowed_cwk_models()
     if not model:
         raise ValueError(
             "CWK AI model is empty. Set CWK_AI_*_MODEL to one of: "
-            + ", ".join(sorted(CWK_ALLOWED_MODELS))
+            + ", ".join(sorted(allowed_models))
         )
-    if model not in CWK_ALLOWED_MODELS:
+    if model not in allowed_models:
         raise ValueError(
             f"CWK pipeline rejects model {model!r}. "
-            f"Allowed models: {', '.join(sorted(CWK_ALLOWED_MODELS))}. "
+            f"Allowed models: {', '.join(sorted(allowed_models))}. "
             "See projects/CWK/MODEL_ROLES.md."
         )
 def ai_agent_workspace() -> Path:
@@ -172,7 +191,7 @@ def extract_json_object(text: str) -> dict[str, Any]:
 
 def _find_nested_json(value: Any) -> dict[str, Any] | None:
     if isinstance(value, dict):
-        if "schema_version" in value:
+        if "schema_version" in value or _looks_like_summary_payload(value):
             return value
         preferred_keys = ("text", "content", "message", "output", "response", "reply")
         for key in preferred_keys:
@@ -182,7 +201,7 @@ def _find_nested_json(value: Any) -> dict[str, Any] | None:
                     parsed = extract_json_object(child)
                 except ValueError:
                     continue
-                if "schema_version" in parsed:
+                if "schema_version" in parsed or _looks_like_summary_payload(parsed):
                     return parsed
         for child in value.values():
             found = _find_nested_json(child)
@@ -194,6 +213,29 @@ def _find_nested_json(value: Any) -> dict[str, Any] | None:
             if found:
                 return found
     return None
+
+
+def _looks_like_summary_payload(value: dict[str, Any]) -> bool:
+    """Recognize a model payload even when it omitted deterministic identity keys.
+
+    Some otherwise valid MiniMax/GLM responses omit ``schema_version`` and
+    ``report_id``.  The caller already owns those deterministic values, so the
+    JSON extractor should still unwrap the semantic payload instead of
+    returning the outer OpenClaw envelope.  Validation remains responsible for
+    rejecting a conflicting identity.
+    """
+    if not isinstance(value.get("summary"), str) or not value.get("summary", "").strip():
+        return False
+    structural_keys = {
+        "key_facts",
+        "decisions",
+        "action_items",
+        "risks",
+        "topics",
+        "entities",
+        "evidence_refs",
+    }
+    return bool(structural_keys.intersection(value))
 
 
 def invoke_openclaw_json(
@@ -221,18 +263,23 @@ def invoke_openclaw_json(
     for attempt in range(attempts):
         prompt_dir.mkdir(parents=True, exist_ok=True)
         prompt_path: Path | None = None
+        session_id = str(uuid.uuid4())
         try:
             with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=prompt_dir, prefix=f"{stage}-", suffix=".txt", delete=False) as handle:
                 handle.write(instruction)
                 prompt_path = Path(handle.name)
-            proc = subprocess.run(
+            # Start a new process group.  The OpenClaw CLI can leave its
+            # gateway child alive after its own timeout; killing only the CLI
+            # then leaves this caller blocked in ``communicate`` forever.
+            proc = subprocess.Popen(
                 [
                     "openclaw",
                     "agent",
+                    "--local",
                     "--agent",
                     agent_id,
                     "--session-id",
-                    str(uuid.uuid4()),
+                    session_id,
                     "--model",
                     model,
                     "--message-file",
@@ -246,20 +293,65 @@ def invoke_openclaw_json(
                 cwd=str(runtime_workspace),
                 env=sanitized_ai_environment(),
                 text=True,
-                capture_output=True,
-                timeout=timeout_seconds + 30,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                start_new_session=True,
             )
+            try:
+                stdout, stderr = proc.communicate(timeout=timeout_seconds + 30)
+            except subprocess.TimeoutExpired:
+                try:
+                    os.killpg(proc.pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+                try:
+                    proc.communicate(timeout=5)
+                except subprocess.TimeoutExpired:
+                    try:
+                        os.killpg(proc.pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                    proc.communicate()
+                raise
             if proc.returncode == 0:
-                result = extract_json_object(proc.stdout)
+                result = extract_json_object(stdout)
                 if "error" in result and "schema_version" not in result:
                     raise RuntimeError(f"agent returned error: {compact(result.get('error'), 400)}")
                 return result
-            last_error = clean_evidence(proc.stderr or proc.stdout, 500)
+            last_error = clean_evidence(stderr or stdout, 500)
         except subprocess.TimeoutExpired:
             last_error = f"model call timed out after {timeout_seconds + 30}s"
         finally:
             if prompt_path and prompt_path.exists():
                 prompt_path.unlink()
+            # Reviewer calls are one-shot transforms. Keeping their transcripts
+            # indefinitely bloats the gateway session index and delays user turns.
+            try:
+                subprocess.run(
+                    [
+                        "openclaw",
+                        "gateway",
+                        "call",
+                        "sessions.delete",
+                        "--params",
+                        json.dumps(
+                            {
+                                "key": f"agent:{agent_id}:explicit:{session_id}",
+                                "agentId": agent_id,
+                                "deleteTranscript": True,
+                            }
+                        ),
+                    ],
+                    cwd=str(runtime_workspace),
+                    env=sanitized_ai_environment(),
+                    text=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=15,
+                    check=False,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                pass
         if attempt + 1 < attempts:
             time.sleep(2**attempt)
     raise RuntimeError(f"OpenClaw model call failed after {attempts} attempts: {last_error}")

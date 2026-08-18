@@ -9,15 +9,41 @@ import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
+from cwk_person_relation import classify_person_relation, load_relationship_manifest
+
 
 PROJECT = Path(__file__).resolve().parents[1]
+
+
+def date_part(value: str) -> str:
+    match = re.search(r"(20\d{2})[-/.年](\d{1,2})[-/.月](\d{1,2})", value or "")
+    if not match:
+        return ""
+    return f"{int(match.group(1)):04d}-{int(match.group(2)):02d}-{int(match.group(3)):02d}"
 
 
 def load_json(path: Path):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def load_raw_metadata(run_dir: Path) -> dict[str, dict]:
+def embedded_json(text: str, heading: str) -> dict:
+    pattern = rf"## {re.escape(heading)}\s+```json\s*(\{{.*?\}})\s*```"
+    match = re.search(pattern, text, re.S)
+    if not match:
+        return {}
+    try:
+        value = json.loads(match.group(1))
+    except json.JSONDecodeError:
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def load_raw_metadata(
+    run_dir: Path,
+    owner_emp_id: str = "",
+    owner_name: str = "",
+    relation_by_id: dict[str, dict] | None = None,
+) -> dict[str, dict]:
     metadata = {}
     for path in sorted((run_dir / "raw").glob("*.md")):
         text = path.read_text(encoding="utf-8", errors="ignore")
@@ -41,12 +67,18 @@ def load_raw_metadata(run_dir: Path) -> dict[str, dict]:
             meta_time = re.search(r"\*\*时间\*\*:\s*([^\n]+)", text)
             create_time = meta_time.group(1).strip() if meta_time else ""
         sid = fields.get("report_id") or path.name.split("-", 1)[0]
+        scopes = {value for value in fields.get("source_scopes", "").split(",") if value}
+        relationship = classify_person_relation(
+            backend_relation=(relation_by_id or {}).get(sid),
+        )
         metadata[sid] = {
             "writer": writer or "未知",
             "create_time": create_time or "未知时间",
             "title": fields.get("title", ""),
             "change_type": fields.get("change_type", "unknown"),
             "collection_mode": fields.get("collection_mode", "reference-sample"),
+            "business_date": date_part(create_time),
+            **relationship,
         }
     return metadata
 
@@ -188,8 +220,9 @@ def group_items(items: list[dict]) -> list[dict]:
     return sorted(groups.values(), key=group_sort_key)
 
 
-def group_sort_key(group: dict) -> tuple[int, int, str]:
+def group_sort_key(group: dict) -> tuple[int, int, int, str]:
     sample = group["sample"]
+    attention_priority = {"requires_action": 0, "optional_review": 1, "awareness_only": 2}.get(sample.get("attention_type"), 3)
     family = sample.get("event_family") or sample.get("item_nature") or ""
     title = sample.get("title", "")
     signal = 1 if group["signals"] else 0
@@ -206,7 +239,7 @@ def group_sort_key(group: dict) -> tuple[int, int, str]:
         priority += 30
     if any(token in title for token in ["方案", "会议纪要", "架构", "风险", "问题", "需求", "优化", "评估"]):
         priority -= 10
-    return priority, -signal, sample.get("title", "")
+    return attention_priority, priority, -signal, sample.get("title", "")
 
 
 def sort_key(ext: dict) -> tuple[int, str]:
@@ -277,9 +310,23 @@ def render_group_block(group: dict, metadata: dict[str, dict]) -> list[str]:
     writer = meta.get("writer", "未知")
     create_time = meta.get("create_time", "未知时间")
     signals = item_signals(sample, limit=3)
+    source_ids = {
+        sid
+        for item in group["items"]
+        for sid in (item.get("source_ids") or [])
+    }
+    visible_only_count = sum(
+        1 for sid in source_ids if metadata.get(sid, {}).get("visible_only")
+    )
+    visibility_badge = " 【仅权限可见 · 与我无关】" if source_ids and visible_only_count == len(source_ids) else ""
+    visibility_note = f" · 其中 {visible_only_count} 条仅权限可见" if 0 < visible_only_count < len(source_ids) else ""
+    unknown_count = sum(
+        1 for sid in source_ids if metadata.get(sid, {}).get("relationship_status") == "unknown"
+    )
+    relationship_note = f" · 其中 {unknown_count} 条关系待确认" if unknown_count else ""
     lines = [
-        f"- {title}",
-        f"  发送：{writer} · {create_time} · {count_text} · 归到 {anchors}",
+        f"- {title}{visibility_badge}",
+        f"  发送：{writer} · {create_time} · {count_text} · 归到 {anchors}{visibility_note}{relationship_note}",
     ]
     signals = [signal.strip("；; ") for signal in signals if signal.strip("；; ")]
     if signals:
@@ -289,31 +336,58 @@ def render_group_block(group: dict, metadata: dict[str, dict]) -> list[str]:
     return lines
 
 
-def render(run_dir: Path) -> str:
+def render(
+    run_dir: Path,
+    report_date: str = "",
+    owner_emp_id: str = "",
+    owner_name: str = "",
+    relationship_manifest: str | Path | None = None,
+) -> str:
     extracted = [load_json(path) for path in sorted((run_dir / "extracted").glob("*.json"))]
     extracted_by_id = build_extracted_index(extracted)
-    metadata = load_raw_metadata(run_dir)
+    relation_by_id, relation_meta = load_relationship_manifest(relationship_manifest)
+    metadata = load_raw_metadata(run_dir, owner_emp_id, owner_name, relation_by_id)
     events = [load_json(path) for path in sorted((run_dir / "events").glob("*.json"))]
     summary = load_run_summary(run_dir)
 
-    historical = [ext for ext in extracted if ext.get("change_type") == "historical_backfill" or ext.get("collection_mode") == "historical-backfill"]
-    daily = [ext for ext in extracted if ext not in historical]
-    by_attention = defaultdict(list)
-    for ext in daily:
-        by_attention[ext.get("attention_type", "unknown")].append(ext)
-    for values in by_attention.values():
-        values.sort(key=sort_key)
+    def effective_change(ext: dict) -> str:
+        meta = metadata.get(primary_source_id(ext), {})
+        current_backfill = bool(
+            report_date
+            and meta.get("business_date") == report_date
+            and (ext.get("change_type") == "historical_backfill" or ext.get("collection_mode") == "historical-backfill")
+        )
+        return "new" if current_backfill else str(ext.get("change_type") or "unknown")
 
-    action_items = by_attention.get("requires_action", []) + by_attention.get("optional_review", [])
-    required_count = len(by_attention.get("requires_action", []))
-    review_count = len(by_attention.get("optional_review", []))
-    awareness = by_attention.get("awareness_only", [])
+    old_historical = [
+        ext for ext in extracted
+        if (ext.get("change_type") == "historical_backfill" or ext.get("collection_mode") == "historical-backfill")
+        and effective_change(ext) != "new"
+    ]
+    visible = [ext for ext in extracted if ext not in old_historical]
+    today = [ext for ext in visible if ext.get("attention_type") == "requires_action" or effective_change(ext) == "new"]
+    recent_changes = [ext for ext in visible if effective_change(ext) == "updated"]
+    ongoing = [ext for ext in visible if effective_change(ext) == "continuation" and ext.get("attention_type") != "requires_action"]
 
-    action_groups = group_items(action_items)
-    awareness_groups = group_items(awareness)
-    daily_ids = {sid for ext in daily for sid in ext.get("source_ids", [])}
+    today.sort(key=sort_key)
+    recent_changes.sort(key=sort_key)
+    ongoing.sort(key=sort_key)
+    required_count = sum(1 for ext in today if ext.get("attention_type") == "requires_action")
+    visible_source_ids = {
+        sid for ext in visible for sid in (ext.get("source_ids") or [])
+    }
+    visible_only_count = sum(
+        1 for sid in visible_source_ids if metadata.get(sid, {}).get("visible_only")
+    )
+    relationship_unknown_count = sum(
+        1 for sid in visible_source_ids if metadata.get(sid, {}).get("relationship_status") == "unknown"
+    )
+    today_groups = group_items(today)
+    recent_groups = group_items(recent_changes)
+    ongoing_groups = group_items(ongoing)
+    visible_ids = {sid for ext in visible for sid in ext.get("source_ids", [])}
     event_rank = sorted(
-        [event for event in events if not is_generic_anchor(event.get("event", "")) and daily_ids.intersection(event.get("related_raw_ids", []))],
+        [event for event in events if not is_generic_anchor(event.get("event", "")) and visible_ids.intersection(event.get("related_raw_ids", []))],
         key=lambda e: (-event_score(e, extracted_by_id)[0], -event_score(e, extracted_by_id)[1], -event_score(e, extracted_by_id)[2], e.get("event", "")),
     )
 
@@ -323,53 +397,37 @@ def render(run_dir: Path) -> str:
         "",
         "## 一句话结论",
         "",
-        f"这轮只读处理 {summary.get('processed_count', len(extracted))} 条工作协同：新增 {change_counts.get('new', 0)}、更新 {change_counts.get('updated', 0)}、延续 {change_counts.get('continuation', 0)}、历史回填 {len(historical)}。没有执行任何变更操作。机器层识别出 {required_count} 条明确待处理、{review_count} 条建议复核；人读层已按同类事项收束成 {len(action_groups)} 组。",
+        f"这轮只读处理 {summary.get('processed_count', len(extracted))} 条工作协同。按日报日期 `{report_date or '未指定'}` 重新分流后：今日处理 {len(today)} 条（其中明确待处理 {required_count} 条）、近期变更 {len(recent_changes)} 条、持续未闭环 {len(ongoing)} 条、仅权限可见 {visible_only_count} 条、关系待确认 {relationship_unknown_count} 条、普通历史补齐 {len(old_historical)} 条。没有执行任何变更操作。",
         "",
-        "## 今天优先看",
+        "## 今日处理",
         "",
     ]
 
-    for group in action_groups[:8]:
+    for group in today_groups:
         lines.extend(render_group_block(group, metadata))
-    if len(action_groups) > 8:
-        hidden = sum(group["count"] for group in action_groups[8:])
-        lines.append(f"- 另有 {hidden} 条复核项被收进 {len(action_groups) - 8} 个低优先级组，保留在结构化结果里。")
+    if not today_groups:
+        lines.append("- 今天没有新增汇报或需要你处理的待办。")
 
-    lines += ["", "## 只需知道", ""]
-    for group in awareness_groups[:7]:
+    lines += ["", "## 近期变更", ""]
+    for group in recent_groups:
         lines.extend(render_group_block(group, metadata))
-    if len(awareness_groups) > 7:
-        hidden = sum(group["count"] for group in awareness_groups[7:])
-        lines.append(f"- 另有 {hidden} 条应知项被收进 {len(awareness_groups) - 7} 个组，本版不展开。")
+    if not recent_groups:
+        lines.append("- 本轮没有检测到历史汇报的真实变化。")
 
-    lines += ["", "## 持续事项变化", ""]
-    for event in event_rank[:8]:
-        name = event.get("event", "未命名事项")
-        count = len(event.get("related_raw_ids", []))
-        families = event_family_counts(event, extracted_by_id)
-        family_text = "、".join(f"{k} {v}" for k, v in families.most_common(3))
-        signal = event_signal(event)
-        suffix = f"；待跟进：{signal}" if signal else "；暂无明确待跟进项"
-        lines.append(f"- {name}：{count} 条证据，类型分布 {family_text}{suffix}")
-
-    lines += ["", "## 知识库历史补齐", ""]
-    if historical:
-        for ext in historical[:10]:
-            sid = primary_source_id(ext)
-            meta = metadata.get(sid, {})
-            lines.append(f"- `{sid}` {short_title(ext.get('title', ''))}（{meta.get('create_time', '未知时间')}，{meta.get('writer', '未知')}）")
-        if len(historical) > 10:
-            lines.append(f"- 另有 {len(historical) - 10} 条历史记录已进入结构化结果，本版不展开。")
-    else:
-        lines.append("- 本轮没有新增历史回填记录。")
+    lines += ["", "## 持续未闭环", ""]
+    for group in ongoing_groups:
+        lines.extend(render_group_block(group, metadata))
+    if not ongoing_groups:
+        lines.append("- 当前没有持续未闭环事项。")
 
     lines += [
         "",
         "## 本版质量边界",
         "",
-        f"- 关系层仍只输出疑似关系：强合并 {summary.get('strong_relations', 0)}，跨锚点关系 {summary.get('cross_anchor_relations', 0)}。它是审阅线索，不是事实结论。",
+        f"- 人与汇报的业务关系只接受工作协同后台权威接口；当前接口状态 `{relation_meta.get('provider_status', 'unavailable')}`，未解析条目统一标为关系待确认。",
         "- 事件页会过滤明显泛化锚点，正式沉淀前只保留可审页面；低质量锚点仍留在 run 目录供追溯。",
         "- 采集表、权限申请、日报周报这类高重复内容已按组展示，避免挤占管理注意力。",
+        f"- 另有 {len(old_historical)} 条普通历史补齐仅进入知识库，不进入今日处理或近期变更页签。",
         "",
         "## 证据入口",
         "",
@@ -383,11 +441,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Render a human-first CWK digest.")
     parser.add_argument("--run-name", required=True)
     parser.add_argument("--output", default=None)
+    parser.add_argument("--report-date", default="", help="Business date represented by this digest (YYYY-MM-DD).")
+    parser.add_argument("--owner-emp-id", default="", help="Current CWork employee ID used for relationship classification.")
+    parser.add_argument("--owner-name", default="", help="Current CWork employee name; fallback only when a candidate has no employee ID.")
+    parser.add_argument("--relationship-manifest", default=None, help="Backend-owned relationship manifest for this run.")
     args = parser.parse_args()
 
     run_dir = PROJECT / "runs" / args.run_name
     output = Path(args.output) if args.output else run_dir / "digest-human.md"
-    output.write_text(render(run_dir), encoding="utf-8")
+    output.write_text(render(run_dir, args.report_date, args.owner_emp_id, args.owner_name, args.relationship_manifest), encoding="utf-8")
     print(output)
 
 

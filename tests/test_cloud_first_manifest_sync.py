@@ -16,6 +16,17 @@ from cwk_wiki_manifest_reconcile import reconcile_manifest
 
 
 class CloudFirstManifestTests(unittest.TestCase):
+    def test_raw_cloud_publish_requires_second_explicit_opt_in(self):
+        with self.assertRaisesRegex(SystemExit, "raw cloud publishing is paused"):
+            cwk_sync_mirror_to_docdb.enforce_raw_cloud_pause(
+                allow_raw=True,
+                experimental_cloud_raw=False,
+            )
+        cwk_sync_mirror_to_docdb.enforce_raw_cloud_pause(
+            allow_raw=True,
+            experimental_cloud_raw=True,
+        )
+
     def test_catalog_merge_rejects_empty_local_mirror_prune(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

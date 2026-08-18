@@ -11,7 +11,7 @@ import shutil
 import subprocess
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from cwk_ai_common import ai_runtime_guard
@@ -67,6 +67,60 @@ def redact_text(value: str, secrets: tuple[str, ...] = ()) -> str:
     return redacted
 
 
+def source_completeness_start_date(end_date: str, lookback_days: int) -> str:
+    """Return the inclusive audit start date for late-arriving reports."""
+    if lookback_days < 0:
+        raise ValueError("source completeness lookback must not be negative")
+    parsed = datetime.strptime(end_date, "%Y-%m-%d").date()
+    return (parsed - timedelta(days=lookback_days)).isoformat()
+
+
+def enforce_cloud_pause(
+    *,
+    cloud_first: bool,
+    experimental_cloud_first: bool,
+    publish_cloud_query_catalog: bool,
+    experimental_cloud_query_catalog: bool,
+) -> None:
+    """Fail closed unless each paused cloud path receives a second opt-in."""
+    if cloud_first and not experimental_cloud_first:
+        raise SystemExit(
+            "CWK Cloud-First is paused; production must use the local persistent mirror. "
+            "For a controlled experiment, also pass --experimental-cloud-first."
+        )
+    if publish_cloud_query_catalog and not experimental_cloud_query_catalog:
+        raise SystemExit(
+            "CWK cloud-query catalog publishing is paused. For a controlled experiment, "
+            "also pass --experimental-cloud-query-catalog."
+        )
+
+
+def build_runtime_profile(
+    *,
+    cloud_first: bool,
+    publish_cloud_query_catalog: bool,
+    sync_docdb: bool,
+    wiki_sync: bool,
+    object_catalog: dict | None = None,
+) -> dict:
+    catalog_status = "paused"
+    if publish_cloud_query_catalog:
+        catalog_status = (
+            "experimental_catalog_published"
+            if (object_catalog or {}).get("returncode") == 0
+            else "experimental_catalog_not_published"
+        )
+    return {
+        "production_mode": "local",
+        "run_mode": "experimental_cloud_first" if cloud_first else "local",
+        "local_mirror_role": "authoritative_persistent_store",
+        "cloud_first_status": "experimental_active" if cloud_first else "paused",
+        "cloud_query_status": catalog_status,
+        "docdb_role": "derived_backup_and_html_publishing" if (sync_docdb or wiki_sync) else "disabled",
+        "raw_cloud_sync": cloud_first,
+    }
+
+
 def sanitize_value(value, secrets: tuple[str, ...] = ()):
     if isinstance(value, dict):
         return {key: sanitize_value(item, secrets) for key, item in value.items()}
@@ -94,6 +148,36 @@ def run_cmd(
         "stderr": redact_text(proc.stderr[-4000:], secrets),
         "duration_seconds": round(time.monotonic() - started, 3),
     }
+
+
+def replace_cli_option(args: list[str], flag: str, value: str) -> list[str]:
+    updated = list(args)
+    if flag in updated:
+        index = updated.index(flag)
+        updated[index + 1] = value
+    else:
+        updated.extend([flag, value])
+    return updated
+
+
+def run_docdb_sync_with_retry(
+    step: str,
+    cmd: list[str],
+    manifest_path: Path,
+    steps: list[dict],
+) -> tuple[dict, Path | None]:
+    """Run one DocDB sync and one bounded retry of its persisted queue."""
+    result = run_cmd(cmd)
+    steps.append({"step": step, **result})
+    if result["returncode"] == 0:
+        return result, None
+    retry_manifest = manifest_path.with_name(f"{manifest_path.stem}-retry{manifest_path.suffix}")
+    retry_cmd = replace_cli_option(cmd, "--manifest", str(retry_manifest))
+    if "--retry-only" not in retry_cmd:
+        retry_cmd.append("--retry-only")
+    retry_result = run_cmd(retry_cmd)
+    steps.append({"step": f"{step}_retry", **retry_result})
+    return retry_result, retry_manifest
 
 
 def require_ok(step: str, result: dict) -> None:
@@ -143,6 +227,24 @@ def merge_changed_paths_manifest(output: Path, *inputs: Path) -> Path | None:
     if not changed:
         return None
     output.write_text(json.dumps({"changed_relative_paths": sorted(changed)}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return output
+
+
+def write_mirror_outputs_manifest(output: Path, mirror_root: Path, mirror_outputs: dict[str, str]) -> Path:
+    """Persist only files produced by this run for incremental DocDB sync."""
+    changed: set[str] = set()
+    for value in mirror_outputs.values():
+        path = Path(value).expanduser()
+        if not path.is_absolute():
+            path = PROJECT / path
+        try:
+            changed.add(path.resolve().relative_to(mirror_root.resolve()).as_posix())
+        except ValueError:
+            continue
+    output.write_text(
+        json.dumps({"changed_relative_paths": sorted(changed)}, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
     return output
 
 
@@ -360,9 +462,20 @@ def main() -> None:
         default=None,
         help="Fully page the current business date into local raw and enforce source/raw/Wiki equality.",
     )
+    parser.add_argument(
+        "--source-completeness-lookback-days",
+        type=int,
+        default=None,
+        help="Re-audit this many prior business dates to catch late-visible reports (default: 2).",
+    )
     parser.add_argument("--source-backfill-max-parallel", type=int, default=None)
     parser.add_argument("--source-dir", action="append", default=[], help="Use existing raw source dir instead of collecting live CWork records.")
     parser.add_argument("--app-key", default=os.environ.get("CWORK_APP_KEY") or os.environ.get("XG_BIZ_API_KEY") or "")
+    parser.add_argument("--owner-emp-id", default=None, help="Current CWork employee ID for relation labels in daily views.")
+    parser.add_argument("--owner-name", default=None, help="Current CWork employee name; used only as an ID fallback.")
+    parser.add_argument("--relation-api-base-url", default=None, help="Work Report backend base URL for authoritative relationship lookup.")
+    parser.add_argument("--relation-api-path", default=None, help="Batch current-user/report relationship endpoint path.")
+    parser.add_argument("--relation-api-timeout-seconds", type=int, default=None)
     parser.add_argument("--no-publish-mirror", action="store_true", help="Run the pipeline without copying daily/run outputs into the mirror.")
     parser.add_argument("--mirror-root", default=None, help="Mirror root for nightly publish/materialize/docdb sync.")
     parser.add_argument("--sync-docdb", action="store_true", help="Sync daily/ and runs/ mirror outputs to the personal knowledge base.")
@@ -391,6 +504,22 @@ def main() -> None:
         action=argparse.BooleanOptionalAction,
         default=None,
         help="Treat personal DocDB raw+Wiki as the authoritative persistent store and enforce cloud coverage gates.",
+    )
+    parser.add_argument(
+        "--experimental-cloud-first",
+        action="store_true",
+        help="Explicitly unlock the paused Cloud-First path for a controlled experiment.",
+    )
+    parser.add_argument(
+        "--publish-cloud-query-catalog",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Publish the object catalog used only by experimental cloud queries (default: false).",
+    )
+    parser.add_argument(
+        "--experimental-cloud-query-catalog",
+        action="store_true",
+        help="Second explicit unlock required to publish the paused cloud-query object catalog.",
     )
     parser.add_argument("--ai-enabled", action=argparse.BooleanOptionalAction, default=None)
     parser.add_argument("--ai-dry-run", action=argparse.BooleanOptionalAction, default=None)
@@ -425,7 +554,34 @@ def main() -> None:
             os.environ.get("CWK_SOURCE_BACKFILL_MAX_PARALLEL", 6),
         )
     )
+    args.source_completeness_lookback_days = int(
+        config_value(
+            args,
+            config,
+            "source_completeness_lookback_days",
+            os.environ.get("CWK_SOURCE_COMPLETENESS_LOOKBACK_DAYS", 2),
+        )
+    )
+    if args.source_completeness_lookback_days < 0 or args.source_completeness_lookback_days > 31:
+        raise SystemExit("--source-completeness-lookback-days must be between 0 and 31")
     args.app_key = config_value(args, config, "app_key", os.environ.get("CWORK_APP_KEY") or os.environ.get("XG_BIZ_API_KEY") or "")
+    args.owner_emp_id = config_value(args, config, "owner_emp_id", os.environ.get("CWK_OWNER_EMP_ID", ""))
+    args.owner_name = config_value(args, config, "owner_name", os.environ.get("CWK_OWNER_NAME", ""))
+    args.relation_api_base_url = config_value(
+        args,
+        config,
+        "relation_api_base_url",
+        os.environ.get("CWK_RELATION_API_BASE_URL", "https://sg-al-cwork-web.mediportal.com.cn"),
+    )
+    args.relation_api_path = config_value(
+        args,
+        config,
+        "relation_api_path",
+        os.environ.get("CWK_RELATION_API_PATH", ""),
+    )
+    args.relation_api_timeout_seconds = int(
+        config_value(args, config, "relation_api_timeout_seconds", os.environ.get("CWK_RELATION_API_TIMEOUT_SECONDS", 30))
+    )
     args.docdb_project_id = config_value(args, config, "docdb_project_id", os.environ.get("CWK_DOCDB_PROJECT_ID"))
     args.docdb_root_file_id = config_value(args, config, "docdb_root_file_id", os.environ.get("CWK_DOCDB_ROOT_FILE_ID"))
     args.mirror_root = config_value(args, config, "mirror_root", os.environ.get("CWK_MIRROR_ROOT", str(MIRROR)))
@@ -491,6 +647,19 @@ def main() -> None:
     if args.cloud_first is None:
         env_cloud_first = env_bool("CWK_CLOUD_FIRST")
         args.cloud_first = env_cloud_first if env_cloud_first is not None else bool(config.get("cloud_first", False))
+    if args.publish_cloud_query_catalog is None:
+        env_publish_cloud_catalog = env_bool("CWK_PUBLISH_CLOUD_QUERY_CATALOG")
+        args.publish_cloud_query_catalog = (
+            env_publish_cloud_catalog
+            if env_publish_cloud_catalog is not None
+            else bool(config.get("publish_cloud_query_catalog", False))
+        )
+    enforce_cloud_pause(
+        cloud_first=bool(args.cloud_first),
+        experimental_cloud_first=bool(args.experimental_cloud_first),
+        publish_cloud_query_catalog=bool(args.publish_cloud_query_catalog),
+        experimental_cloud_query_catalog=bool(args.experimental_cloud_query_catalog),
+    )
     if args.cloud_first:
         args.sync_docdb = True
         args.wiki_sync = True
@@ -564,16 +733,19 @@ def main() -> None:
     # read-only source pass has a different contract: page the entire business
     # date and make local raw complete before Wiki compilation.
     if args.source_completeness and not args.source_dir and not args.no_publish_mirror:
+        completeness_start_date = source_completeness_start_date(
+            args.date,
+            args.source_completeness_lookback_days,
+        )
         source_backfill_run = f"{args.run_name}-date-complete"
         source_backfill_path = RUNS / source_backfill_run / "backfill-manifest.json"
-        result = run_cmd(
-            [
+        source_backfill_cmd = [
                 sys.executable,
                 str(SCRIPTS / "cwk_backfill_range.py"),
                 "--app-key",
                 args.app_key,
                 "--start-date",
-                args.date,
+                completeness_start_date,
                 "--end-date",
                 args.date,
                 "--run-name",
@@ -582,7 +754,11 @@ def main() -> None:
                 str(mirror_root),
                 "--max-parallel",
                 str(args.source_backfill_max_parallel),
-            ],
+            ]
+        if args.cloud_first:
+            source_backfill_cmd.append("--cloud-first")
+        result = run_cmd(
+            source_backfill_cmd,
             secrets=(args.app_key,),
         )
         steps.append({"step": "complete_current_business_date", **result})
@@ -590,6 +766,44 @@ def main() -> None:
             source_completeness_failures.append("complete_current_business_date")
         if source_backfill_path.exists():
             source_backfill_manifest = read_json(source_backfill_path)
+        # The bounded incremental collector is optimized for attention, not
+        # complete daily reporting. Include only the missing records fetched
+        # by the business-date completeness pass in the analysis input. The
+        # primary collector remains first, so duplicate report IDs retain
+        # their richer live change classification.
+        source_backfill_dir = RUNS / source_backfill_run / "collected-raw"
+        if source_backfill_dir.exists() and any(source_backfill_dir.glob("*.md")):
+            source_dirs.append(source_backfill_dir)
+
+    # A report count alone is insufficient: replies and workflow opinions can
+    # change the decision meaning without creating a new report.  Every raw
+    # byte sequence promoted in this run must have its immutable thread
+    # snapshot and derived reply/node events before the rest of the pipeline
+    # is allowed to treat the run as complete.
+    if not args.no_publish_mirror:
+        timeline_paths = sorted({
+            str(path)
+            for manifest in (raw_promotion_manifest, source_backfill_manifest)
+            if isinstance(manifest, dict)
+            for path in (manifest.get("changed_relative_paths") or ((manifest.get("promotion") or {}).get("changed_relative_paths") or []))
+        })
+        if timeline_paths:
+            timeline_paths_manifest = run_dir / "thread-timeline-paths.json"
+            timeline_paths_manifest.write_text(
+                json.dumps({"changed_relative_paths": timeline_paths}, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            thread_audit_path = run_dir / "thread-timeline-audit.json"
+            result = run_cmd([
+                sys.executable,
+                str(SCRIPTS / "cwk_thread_timeline_audit.py"),
+                "--mirror-root", str(mirror_root),
+                "--paths-manifest", str(timeline_paths_manifest),
+                "--output", str(thread_audit_path),
+            ])
+            steps.append({"step": "thread_timeline_audit", **result})
+            if result["returncode"] != 0:
+                source_completeness_failures.append("thread_timeline_audit")
 
     sample_cmd = [
         sys.executable,
@@ -605,16 +819,79 @@ def main() -> None:
     steps.append({"step": "sample_pilot", **result})
     require_ok("sample_pilot", result)
 
-    result = run_cmd(
-        [
-            sys.executable,
-            str(SCRIPTS / "cwk_human_digest.py"),
-            "--run-name",
-            args.run_name,
-            "--output",
-            str(run_dir / "digest-human-v4.md"),
-        ]
-    )
+    # Relationship semantics belong to the Work Report backend.  When the
+    # endpoint is not deployed or temporarily unavailable, preserve the run
+    # and mark every item unknown instead of reimplementing node rules here.
+    relationship_manifest_path = run_dir / "report-relationships.json"
+    if args.relation_api_path and args.app_key:
+        result = run_cmd(
+            [
+                sys.executable,
+                str(SCRIPTS / "cwk_report_relation.py"),
+                "--run-name",
+                args.run_name,
+                "--output",
+                str(relationship_manifest_path),
+                "--base-url",
+                str(args.relation_api_base_url),
+                "--endpoint-path",
+                str(args.relation_api_path),
+                "--timeout",
+                str(args.relation_api_timeout_seconds),
+            ],
+            env={**os.environ, "CWORK_APP_KEY": args.app_key},
+            secrets=(args.app_key,),
+        )
+        steps.append({"step": "resolve_report_relationships", **result, "degraded": result["returncode"] != 0})
+        if result["returncode"] != 0 or not relationship_manifest_path.exists():
+            relationship_manifest_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "cwk.report_relationships.v1",
+                        "provider": "work-report-backend",
+                        "provider_status": "unavailable",
+                        "items": {},
+                        "errors": ["authoritative relationship endpoint unavailable"],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ) + "\n",
+                encoding="utf-8",
+            )
+    else:
+        relationship_manifest_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": "cwk.report_relationships.v1",
+                    "provider": "work-report-backend",
+                    "provider_status": "unavailable",
+                    "items": {},
+                    "errors": ["authoritative relationship endpoint is not configured"],
+                },
+                ensure_ascii=False,
+                indent=2,
+            ) + "\n",
+            encoding="utf-8",
+        )
+        steps.append({"step": "resolve_report_relationships", "returncode": 0, "stdout": "", "stderr": "", "skipped": True, "degraded": True})
+
+    human_digest_cmd = [
+        sys.executable,
+        str(SCRIPTS / "cwk_human_digest.py"),
+        "--run-name",
+        args.run_name,
+        "--output",
+        str(run_dir / "digest-human-v4.md"),
+        "--report-date",
+        args.date,
+        "--relationship-manifest",
+        str(relationship_manifest_path),
+    ]
+    if args.owner_emp_id:
+        human_digest_cmd.extend(["--owner-emp-id", args.owner_emp_id])
+    if args.owner_name:
+        human_digest_cmd.extend(["--owner-name", args.owner_name])
+    result = run_cmd(human_digest_cmd)
     steps.append({"step": "human_digest", **result})
     require_ok("human_digest", result)
 
@@ -686,14 +963,21 @@ def main() -> None:
 
     # RT-002 Phase 1 is deliberately Shadow Mode only.  It builds interactive
     # previews from local run artifacts and has no CWork write adapter.
-    result = run_cmd(
-        [
-            sys.executable,
-            str(SCRIPTS / "cwk_action_center.py"),
-            "--run-name",
-            args.run_name,
-        ]
-    )
+    action_center_cmd = [
+        sys.executable,
+        str(SCRIPTS / "cwk_action_center.py"),
+        "--run-name",
+        args.run_name,
+        "--report-date",
+        args.date,
+        "--relationship-manifest",
+        str(relationship_manifest_path),
+    ]
+    if args.owner_emp_id:
+        action_center_cmd.extend(["--owner-emp-id", args.owner_emp_id])
+    if args.owner_name:
+        action_center_cmd.extend(["--owner-name", args.owner_name])
+    result = run_cmd(action_center_cmd)
     steps.append({"step": "action_center_shadow", **result})
     require_ok("action_center_shadow", result)
 
@@ -703,6 +987,9 @@ def main() -> None:
     structured_sync_manifests: list[str] = []
     sync_failures: list[str] = []
     if args.sync_docdb:
+        daily_runs_paths = write_mirror_outputs_manifest(
+            run_dir / "daily-runs-changed-paths.json", mirror_root, mirror_outputs,
+        )
         sync_manifest = RUNS / f"docdb-{args.run_name}-daily-runs-sync.json"
         sync_cmd = [
             sys.executable,
@@ -713,6 +1000,8 @@ def main() -> None:
             str(sync_manifest),
             "--mirror-root",
             str(mirror_root),
+            "--paths-manifest",
+            str(daily_runs_paths),
         ]
         if args.docdb_project_id:
             sync_cmd.extend(["--project-id", args.docdb_project_id])
@@ -720,8 +1009,9 @@ def main() -> None:
             sync_cmd.extend(["--root-file-id", args.docdb_root_file_id])
         if args.sync_dry_run:
             sync_cmd.append("--dry-run")
-        result = run_cmd(sync_cmd)
-        steps.append({"step": "sync_daily_docdb", **result})
+        result, daily_retry_manifest = run_docdb_sync_with_retry(
+            "sync_daily_docdb", sync_cmd, sync_manifest, steps,
+        )
         if result["returncode"] != 0:
             sync_failures.append("sync_daily_docdb")
 
@@ -735,6 +1025,8 @@ def main() -> None:
             str(sync_runs_manifest),
             "--mirror-root",
             str(mirror_root),
+            "--paths-manifest",
+            str(daily_runs_paths),
         ]
         if args.docdb_project_id:
             sync_runs_cmd.extend(["--project-id", args.docdb_project_id])
@@ -742,8 +1034,9 @@ def main() -> None:
             sync_runs_cmd.extend(["--root-file-id", args.docdb_root_file_id])
         if args.sync_dry_run:
             sync_runs_cmd.append("--dry-run")
-        result = run_cmd(sync_runs_cmd)
-        steps.append({"step": "sync_runs_docdb", **result})
+        result, runs_retry_manifest = run_docdb_sync_with_retry(
+            "sync_runs_docdb", sync_runs_cmd, sync_runs_manifest, steps,
+        )
         if result["returncode"] != 0:
             sync_failures.append("sync_runs_docdb")
 
@@ -768,8 +1061,9 @@ def main() -> None:
                 structured_cmd.extend(["--root-file-id", args.docdb_root_file_id])
             if args.sync_dry_run:
                 structured_cmd.append("--dry-run")
-            result = run_cmd(structured_cmd)
-            steps.append({"step": f"sync_{label}_docdb", **result})
+            result, structured_retry_manifest = run_docdb_sync_with_retry(
+                f"sync_{label}_docdb", structured_cmd, structured_manifest, steps,
+            )
             if result["returncode"] != 0:
                 sync_failures.append(f"sync_{label}_docdb")
             structured_sync_manifests.append(str(structured_manifest.relative_to(PROJECT)))
@@ -786,10 +1080,13 @@ def main() -> None:
     }
     wiki_mirror = Path(str(args.wiki_mirror_root)).expanduser().resolve()
     wiki_compile_manifest = RUNS / f"wiki-compile-{args.run_name}.json"
+    wiki_fallback_manifest = RUNS / f"wiki-fallback-coverage-{args.run_name}.json"
     te_manifest = RUNS / f"wiki-topics-entities-{args.run_name}.json"
     refs_manifest = RUNS / f"wiki-source-refs-{args.run_name}.json"
     index_manifest = RUNS / f"wiki-search-index-{args.run_name}.json"
     raw_sync_manifest: Path | None = None
+    wiki_sync_retry_manifest: Path | None = None
+    wiki_sync_succeeded = False
     if args.wiki_compile:
         wiki_compile_cmd = [
             sys.executable,
@@ -813,6 +1110,7 @@ def main() -> None:
             wiki_compile_cmd.append("--refine-fallbacks")
         result = run_cmd(wiki_compile_cmd)
         steps.append({"step": "wiki_compile", **result})
+        wiki_compile_result = read_json(wiki_compile_manifest) if wiki_compile_manifest.exists() else {}
         wiki_manifest["compile"] = {
             "returncode": result["returncode"],
             "limit": args.wiki_limit,
@@ -821,11 +1119,45 @@ def main() -> None:
             "repair_model": args.wiki_repair_model,
             "refine_fallbacks": bool(args.wiki_refine_fallbacks),
             "manifest": display_path(wiki_compile_manifest),
+            "selected": wiki_compile_result.get("selected"),
+            "compiled": wiki_compile_result.get("compiled"),
+            "ai_refinement_failed": wiki_compile_result.get("ai_refinement_failed"),
+            "quality_degraded": bool(wiki_compile_result.get("quality_degraded")),
+            "coverage_preserved": wiki_compile_result.get("coverage_preserved"),
+            "hard_failure_count": wiki_compile_result.get("hard_failure_count"),
+            "active_refinement_retry_count": wiki_compile_result.get("active_refinement_retry_count"),
+            "unresolved_refinement_count": wiki_compile_result.get("unresolved_refinement_count"),
         }
         if result["returncode"] != 0:
             wiki_manifest["failures"].append("wiki_compile")
             if not args.wiki_best_effort:
                 sync_failures.append("wiki_compile")
+
+        # The model-call limit is a quality-budget control, not a coverage
+        # limit. Materialize deterministic fallback summaries for every raw
+        # record still missing a page before building navigation or enforcing
+        # the strict source -> raw -> summary gate.
+        fallback_cmd = [
+            sys.executable,
+            str(SCRIPTS / "cwk_cloud_wiki_compile.py"),
+            "--mirror-root",
+            str(wiki_mirror),
+            "--fallback-only",
+            "--limit",
+            "1",
+            "--manifest-out",
+            str(wiki_fallback_manifest),
+        ]
+        fallback_result = run_cmd(fallback_cmd)
+        steps.append({"step": "wiki_fallback_coverage", **fallback_result})
+        wiki_manifest["fallback_coverage"] = {
+            "returncode": fallback_result["returncode"],
+            "manifest": display_path(wiki_fallback_manifest),
+        }
+        if fallback_result["returncode"] != 0:
+            wiki_manifest["failures"].append("wiki_fallback_coverage")
+            if not args.wiki_best_effort:
+                sync_failures.append("wiki_fallback_coverage")
 
     if args.wiki_topics_entities:
         te_cmd = [
@@ -873,6 +1205,7 @@ def main() -> None:
             raw_sync_cmd = [
                 sys.executable, str(SCRIPTS / "cwk_sync_mirror_to_docdb.py"),
                 "--mirror-root", str(wiki_mirror), "--only-prefix", "raw/", "--allow-raw",
+                "--experimental-cloud-raw",
                 "--physical-prefix", "raw/", "--max-parallel", "4",
                 "--paths-manifest", str(raw_paths_manifest), "--manifest", str(raw_sync_manifest),
                 "--retry-queue", str(RUNS / "docdb-raw-sync-retry-queue.json"),
@@ -915,7 +1248,7 @@ def main() -> None:
 
     wiki_paths_manifest = merge_changed_paths_manifest(
         RUNS / f"wiki-changed-paths-{args.run_name}.json",
-        wiki_compile_manifest, te_manifest, refs_manifest, index_manifest,
+        wiki_compile_manifest, wiki_fallback_manifest, te_manifest, refs_manifest, index_manifest,
     )
     if wiki_paths_manifest:
         wiki_manifest["paths_manifest"] = display_path(wiki_paths_manifest)
@@ -937,6 +1270,8 @@ def main() -> None:
             "4",
             "--physical-prefix",
             "wiki/_system/search-index-",
+            "--physical-prefix",
+            "wiki/_system/manifest.json",
         ]
         if wiki_paths_manifest:
             wiki_sync_cmd.extend(["--paths-manifest", str(wiki_paths_manifest)])
@@ -946,11 +1281,17 @@ def main() -> None:
             wiki_sync_cmd.extend(["--root-file-id", args.docdb_root_file_id])
         if args.sync_dry_run:
             wiki_sync_cmd.append("--dry-run")
-        result = run_cmd(wiki_sync_cmd)
-        steps.append({"step": "wiki_sync_docdb", **result})
+        result, wiki_sync_retry_manifest = run_docdb_sync_with_retry(
+            "wiki_sync_docdb", wiki_sync_cmd, wiki_sync_manifest, steps,
+        )
+        wiki_sync_succeeded = result["returncode"] == 0
         wiki_manifest["sync"] = {
             "returncode": result["returncode"],
             "manifest": str(wiki_sync_manifest.relative_to(PROJECT)),
+            "retry_manifest": (
+                str(wiki_sync_retry_manifest.relative_to(PROJECT))
+                if wiki_sync_retry_manifest else None
+            ),
         }
         if result["returncode"] != 0:
             wiki_manifest["failures"].append("wiki_sync_docdb")
@@ -1018,7 +1359,8 @@ def main() -> None:
                     read_after_write = RUNS / f"cloud-read-after-write-{args.run_name}.json"
                     query_cmd = [
                         sys.executable, str(SCRIPTS / "cwk_wiki_query.py"), read_after_write_query,
-                        "--mode", "cloud", "--min-index-version", str(committed_index_version),
+                        "--mode", "cloud", "--experimental-cloud",
+                        "--min-index-version", str(committed_index_version),
                         "--top-k", "1", "--format", "json", "--output", str(read_after_write),
                     ]
                     if args.docdb_project_id:
@@ -1052,7 +1394,71 @@ def main() -> None:
                             })
                             sync_failures.append("cloud_first_read_after_write_assertion")
 
+    # The object catalog exists only for experimental cloud queries.  The
+    # production Local-First profile deliberately skips it while still
+    # publishing derived Wiki pages and daily HTML previews to DocDB.
+    if wiki_sync_succeeded and not args.cloud_first and args.publish_cloud_query_catalog:
+        merge_inputs = [str(wiki_sync_manifest)]
+        if wiki_sync_retry_manifest and wiki_sync_retry_manifest.exists():
+            merge_inputs.append(str(wiki_sync_retry_manifest))
+        result = run_cmd(
+            [
+                sys.executable,
+                str(SCRIPTS / "cwk_cloud_objects.py"),
+                *merge_inputs,
+                "--mirror-root",
+                str(wiki_mirror),
+            ]
+        )
+        steps.append({"step": "wiki_object_catalog_refresh", **result})
+        if result["returncode"] != 0:
+            sync_failures.append("wiki_object_catalog_refresh")
+        else:
+            catalog_sync_manifest = RUNS / f"docdb-{args.run_name}-object-catalog-sync.json"
+            catalog_sync_cmd = [
+                sys.executable,
+                str(SCRIPTS / "cwk_sync_mirror_to_docdb.py"),
+                "--mirror-root",
+                str(wiki_mirror),
+                "--only-prefix",
+                "wiki/_system/cloud-objects.json",
+                "--physical-prefix",
+                "wiki/_system/cloud-objects.json",
+                "--manifest",
+                str(catalog_sync_manifest),
+                "--retry-queue",
+                str(RUNS / "docdb-sync-retry-queue.json"),
+                "--max-parallel",
+                "1",
+            ]
+            if args.docdb_project_id:
+                catalog_sync_cmd.extend(["--project-id", args.docdb_project_id])
+            if args.docdb_root_file_id:
+                catalog_sync_cmd.extend(["--root-file-id", args.docdb_root_file_id])
+            if args.sync_dry_run:
+                catalog_sync_cmd.append("--dry-run")
+            result, catalog_retry_manifest = run_docdb_sync_with_retry(
+                "wiki_object_catalog_sync",
+                catalog_sync_cmd,
+                catalog_sync_manifest,
+                steps,
+            )
+            if result["returncode"] != 0:
+                sync_failures.append("wiki_object_catalog_sync")
+            wiki_manifest["object_catalog"] = {
+                "returncode": result["returncode"],
+                "manifest": str(catalog_sync_manifest.relative_to(PROJECT)),
+                "retry_manifest": (
+                    str(catalog_retry_manifest.relative_to(PROJECT))
+                    if catalog_retry_manifest else None
+                ),
+            }
+
     if args.source_completeness and not args.source_dir and not args.no_publish_mirror and args.wiki_compile:
+        completeness_start_date = source_completeness_start_date(
+            args.date,
+            args.source_completeness_lookback_days,
+        )
         source_coverage_path = run_dir / "source-coverage-manifest.json"
         result = run_cmd(
             [
@@ -1061,7 +1467,7 @@ def main() -> None:
                 "--app-key",
                 args.app_key,
                 "--start-date",
-                args.date,
+                completeness_start_date,
                 "--end-date",
                 args.date,
                 "--mirror-root",
@@ -1102,6 +1508,13 @@ def main() -> None:
         "source_backfill": source_backfill_manifest,
         "source_coverage": source_coverage_manifest,
         "source_completeness_failures": source_completeness_failures,
+        "runtime_profile": build_runtime_profile(
+            cloud_first=bool(args.cloud_first),
+            publish_cloud_query_catalog=bool(args.publish_cloud_query_catalog),
+            sync_docdb=bool(args.sync_docdb),
+            wiki_sync=bool(args.wiki_sync),
+            object_catalog=wiki_manifest.get("object_catalog"),
+        ),
         "safe_materialize": safe_materialize_manifest,
         "overall_pass": bool(summary.get("overall_pass")) and not sync_failures and not source_completeness_failures,
         "content_quality_pass": summary.get("overall_pass"),
