@@ -795,6 +795,50 @@ def _query_looks_entity_shaped(question: str) -> bool:
     return False
 
 
+def _legacy_index_detects_named_residual(
+    question: str,
+    summaries: list[SummaryDoc],
+    navigation: list[NavDoc],
+) -> bool:
+    """Detect a named residual in a pre-RT index without a catalog.
+
+    A pre-RT persistent index may have neither a catalog SHA nor the
+    catalog files, so catalog lookup cannot protect a bare CJK entity.
+    The immutable index still carries entity navigation titles and
+    report titles.  Use those only as a fail-closed detector (never for
+    ranking): exact entity-nav title containment wins; otherwise a
+    short single residual at the START of a report title is accepted.
+    Generic management prose collapses to an empty residual and is not
+    affected.
+    """
+    residual = _residual_after_scaffolding(question)
+    if not residual or " " in residual:
+        return False
+    residual_norm = normalize(residual).replace(" ", "")
+    if not residual_norm:
+        return False
+    for nav in navigation:
+        if nav.kind != "entity":
+            continue
+        title_norm = normalize(nav.title).replace(" ", "")
+        if title_norm and (
+            residual_norm == title_norm
+            or residual_norm in title_norm
+            or title_norm in residual_norm
+        ):
+            return True
+    # Navigation can be absent in small/pre-RT fixtures.  A short
+    # proper-name-shaped prefix in a persisted report title is a safe
+    # detector for the migration state; it does not establish scope.
+    if len(residual_norm) > 16:
+        return False
+    return any(
+        normalize(doc.title).replace(" ", "").startswith(residual_norm)
+        for doc in summaries
+        if doc.title
+    )
+
+
 def resolve_entity(question: str, catalog: dict[str, Any] | None) -> EntityResolution:
     """Resolve the query to a family (or explain the failure).
 
@@ -1044,7 +1088,7 @@ _BLOCKQUOTE_RE = re.compile(r"^\s*>+\s*(.*)$")
 # Structural boundaries that split intent from anchor even inside a
 # single-newline neighbourhood: sentence terminators AND any newline
 # (a plain ``\n`` is treated as a structural gap, not a continuation).
-_SENTENCE_SPLIT_RE = re.compile(r"(?<=[。！？!?；;])\s*|\n+")
+_SENTENCE_SPLIT_RE = re.compile(r"[。！？!?；;…⋯]|\n+")
 # Inline heading marker split preprocessor.  A raw line that carries an
 # inline ``## something`` marker without a leading newline (e.g. because
 # the source flattener collapsed structure) must be split so the block
@@ -1052,6 +1096,15 @@ _SENTENCE_SPLIT_RE = re.compile(r"(?<=[。！？!?；;])\s*|\n+")
 # becomes a single paragraph and intent/anchor pairs inside it would
 # spuriously satisfy ``same_block``.
 _INLINE_HEADING_SPLIT_RE = re.compile(r"(?<=\S)\s+(?=#{1,6}\s+\S)")
+# A source flattener may concatenate a heading without even one
+# separating space (``...有据#### A2-4``).  There is no whitespace to
+# turn into a newline, so the length-preserving recovery below replaces
+# the FIRST hash with a newline and leaves the remaining hashes as a
+# valid heading marker.  The recovered heading level is one shallower,
+# which is immaterial to the sibling/ancestor boundary invariant; the
+# important property is that every original-coordinate offset stays
+# unchanged.
+_INLINE_NO_SPACE_HEADING_RE = re.compile(r"(?<=\S)(#{2,6})(?=\s+\S)")
 # Additional preprocessors for common flattened Markdown escapes.  We
 # recover inline bullet, table-row and blockquote markers so that the
 # block parser treats each as its own block.  Multi-space indents of
@@ -1060,7 +1113,14 @@ _INLINE_HEADING_SPLIT_RE = re.compile(r"(?<=\S)\s+(?=#{1,6}\s+\S)")
 _INLINE_BULLET_SPLIT_RE = re.compile(
     r"(?<=\S)[ \t]+(?=(?:[-*+·]|\d+[.．、)])\s+\S)"
 )
-_INLINE_TABLE_ROW_SPLIT_RE = re.compile(r"(?<=\S)[ \t]+(?=\|[^\n]+\|)")
+# Flattened Markdown represents adjacent rows as ``... | | next ...``:
+# the first pipe closes the previous row and the second opens the next.
+# Splitting before EVERY cell delimiter (the previous implementation)
+# turned all cells into one giant paragraph and allowed BP-system risk
+# in one row to link to TBS in the next.  Split only the whitespace in
+# the double-pipe row boundary; each recovered row then remains a
+# complete ``| ... |`` table_row with original coordinates.
+_INLINE_TABLE_ROW_SPLIT_RE = re.compile(r"(?<=\|)[ \t]+(?=\|[ \t]*\S)")
 _INLINE_BLOCKQUOTE_SPLIT_RE = re.compile(r"(?<=\S)[ \t]+(?=>+\s*\S)")
 # Multi-space leading indents (5 or 20 spaces are common) that hide a
 # marker at line start. The block splitters below already accept
@@ -1105,6 +1165,16 @@ def _length_preserving_split(pattern: re.Pattern[str], text: str) -> str:
     return pattern.sub(_repl, text)
 
 
+def _split_no_space_headings_preserving_length(text: str) -> str:
+    """Recover ``text#### heading`` without changing offsets."""
+
+    def _repl(match: re.Match[str]) -> str:
+        hashes = match.group(1)
+        return "\n" + hashes[1:]
+
+    return _INLINE_NO_SPACE_HEADING_RE.sub(_repl, text)
+
+
 def parse_raw_blocks(content: str) -> list[dict[str, Any]]:
     """Segment a raw ``<content>`` string into auditable blocks.
 
@@ -1137,6 +1207,8 @@ def parse_raw_blocks(content: str) -> list[dict[str, Any]]:
     # multi-space regex is intentionally unused because the block
     # splitters already accept ``^\s*`` at line start — collapsing it
     # earlier would have shifted every subsequent offset by ``n-1``.
+    if _INLINE_NO_SPACE_HEADING_RE.search(content):
+        content = _split_no_space_headings_preserving_length(content)
     for pattern in (
         _INLINE_HEADING_SPLIT_RE,
         _INLINE_BULLET_SPLIT_RE,
@@ -1422,7 +1494,41 @@ def _same_sentence(text: str, a_off: int, b_off: int) -> bool:
     """
     lo, hi = min(a_off, b_off), max(a_off, b_off)
     fragment = text[lo:hi]
-    return not _SENTENCE_SPLIT_RE.search(fragment)
+    if _SENTENCE_SPLIT_RE.search(fragment):
+        return False
+
+    # ASCII full stops are sentence boundaries too, except when they
+    # are clearly internal punctuation in a decimal/version or URL /
+    # email/domain token.  Treating every ``.`` as a boundary regresses
+    # valid local evidence such as ``ALPHA v1.2 风险`` and
+    # ``ALPHA https://example.com 风险``; ignoring it entirely stitches
+    # ``ALPHA 已上线. BETA 风险``.  The small token-local check keeps the
+    # policy deterministic without attempting general NLP.
+    for match in re.finditer(r"\.", fragment):
+        idx = match.start()
+        prev_ch = fragment[idx - 1] if idx else ""
+        next_ch = fragment[idx + 1] if idx + 1 < len(fragment) else ""
+        if prev_ch.isdigit() and next_ch.isdigit():
+            continue
+        token_lo = idx
+        while token_lo > 0 and not fragment[token_lo - 1].isspace():
+            token_lo -= 1
+        token_hi = idx + 1
+        while token_hi < len(fragment) and not fragment[token_hi].isspace():
+            token_hi += 1
+        token = fragment[token_lo:token_hi].strip("()[]{}<>,，；;！!？?。")
+        if "://" in token or "@" in token:
+            continue
+        if (
+            prev_ch.isalnum()
+            and next_ch.isalnum()
+            and re.fullmatch(
+                r"(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}(?:/[^\s]*)?", token
+            )
+        ):
+            continue
+        return False
+    return True
 
 
 def _no_structural_boundary_between(
@@ -1828,6 +1934,68 @@ def _safe_empty_payload(
     }
 
 
+def _select_intent_cover_top_k(
+    rows: list[dict[str, Any]],
+    top_k: int,
+    requested_intents: list[str],
+) -> list[dict[str, Any]]:
+    """Select a deterministic final Top-K with maximal intent cover.
+
+    RT-010 supports at most four management intents, so a 4-bit
+    dynamic program is both exact and cheap: ``O(rows * top_k * 16)``.
+    The previous greedy replacement could miss a feasible two-row
+    cover (for example progress+plan and risk+owner) depending on row
+    order.  This helper maximises covered requested intents first,
+    then prefers the fewest cover rows and the earliest stable-ranked
+    row indices.  Remaining slots are filled in original order.
+    """
+    if top_k <= 0 or not rows:
+        return []
+    intents = list(dict.fromkeys(requested_intents))[:4]
+    if not intents:
+        return rows[:top_k]
+    bit_for = {intent: 1 << idx for idx, intent in enumerate(intents)}
+    row_masks: list[int] = []
+    for row in rows:
+        support = row.get("intent_support") or {}
+        mask = 0
+        for intent, bit in bit_for.items():
+            if support.get(intent):
+                mask |= bit
+        row_masks.append(mask)
+
+    # (count, mask) -> tuple(row indices).  For the same state retain
+    # the lexicographically earliest stable-ranked choice.
+    dp: dict[tuple[int, int], tuple[int, ...]] = {(0, 0): ()}
+    for idx, row_mask in enumerate(row_masks):
+        if not row_mask:
+            continue
+        snapshot = list(dp.items())
+        for (count, covered), selected in snapshot:
+            if count >= top_k:
+                continue
+            key = (count + 1, covered | row_mask)
+            candidate = selected + (idx,)
+            incumbent = dp.get(key)
+            if incumbent is None or candidate < incumbent:
+                dp[key] = candidate
+
+    def _choice_key(item: tuple[tuple[int, int], tuple[int, ...]]) -> tuple[Any, ...]:
+        (count, mask), selected = item
+        return (-mask.bit_count(), count, selected)
+
+    _state, cover_indices = min(dp.items(), key=_choice_key)
+    picked = set(cover_indices)
+    # Cover rows lead in stable order; deterministic earliest fillers
+    # follow.  This keeps every claimed intent citeable while avoiding
+    # a non-supporting filler masking the confidence anchor.
+    ordered_indices = list(cover_indices)
+    ordered_indices.extend(
+        idx for idx in range(len(rows)) if idx not in picked
+    )
+    return [rows[idx] for idx in ordered_indices[:top_k]]
+
+
 def query_mirror(
     mirror: Path,
     question: str,
@@ -1846,8 +2014,17 @@ def query_mirror(
     precomputed = load_precomputed_index(mirror) if use_index else None
     if precomputed:
         summaries, navigation, summary_index, nav_index, index_info = precomputed
-        summary_quality = index_info.pop("summary_quality_map", {})
-        quality_counts = index_info.pop("summary_quality_counts", {})
+        # ``load_precomputed_index`` returns an immutable generation cached
+        # for the lifetime of this process.  Never ``pop`` from its shared
+        # metadata: doing so made the second identical query lose all summary
+        # quality information and could change its ranking.  Copy both nested
+        # quality structures, then expose a small public index-info mapping.
+        summary_quality = dict(index_info.get("summary_quality_map") or {})
+        quality_counts = dict(index_info.get("summary_quality_counts") or {})
+        index_info = {
+            key: value for key, value in index_info.items()
+            if key not in {"summary_quality_map", "summary_quality_counts"}
+        }
     else:
         summaries = load_summaries(mirror)
         navigation = load_navigation(mirror)
@@ -1926,12 +2103,19 @@ def query_mirror(
     strict_entity_residual = (
         catalog_bound_snapshot_broken and _query_has_entity_residual(question)
     )
+    legacy_snapshot_detects_entity = (
+        persistent_index
+        and not expected_sha
+        and catalog is None
+        and _legacy_index_detects_named_residual(question, summaries, navigation)
+    )
     if catalog_mismatch and (
         require_catalog
         or entity_management_query
         or bare_entity
         or catalog_detects_entity
         or strict_entity_residual
+        or legacy_snapshot_detects_entity
     ):
         resolution = EntityResolution(
             status="unknown", reason="catalog_index_hash_mismatch_or_missing"
@@ -2239,6 +2423,14 @@ def query_mirror(
                 for ev in evidence or []:
                     if not isinstance(ev, dict):
                         continue
+                    # Entity/intent link offsets are coordinates in
+                    # ``raw_content()``.  A summary quote may instead
+                    # have been found in the wider raw evidence
+                    # haystack (H1/envelope); those offsets use a
+                    # different origin and must never be compared as
+                    # though they were content coordinates.
+                    if ev.get("raw_source") not in {"content", "linked_content"}:
+                        continue
                     offsets = ev.get("raw_offset")
                     if not (
                         isinstance(offsets, list) and len(offsets) == 2
@@ -2293,6 +2485,7 @@ def query_mirror(
                         "quote": excerpt,
                         "intent": intent,
                         "raw_offset": [lo, hi],
+                        "raw_source": "linked_content",
                     })
                 for intent in drop_intents:
                     intent_links.pop(intent, None)
@@ -2344,34 +2537,22 @@ def query_mirror(
         # one batch (the historical cheap path).
         if is_scoped_mgmt and results:
             verified_now = [r for r in results if r["evidence_status"] == "verified"]
-            supported_intents: set[str] = set()
-            for r in verified_now:
-                for intent, verified in (r.get("intent_support") or {}).items():
-                    if verified:
-                        supported_intents.add(intent)
-            all_intents_covered = intents_requested_set.issubset(supported_intents)
-            # RT-010 final blockers (Blocker 3): progressive scope must
-            # continue until the FINAL citeable Top-K can cover every
-            # requested intent, not merely until any evaluated row
-            # covers it. Look ahead: if the intent-supporting rows
-            # gathered so far, once trimmed with bucket ordering, can
-            # fit inside ``top_k`` and still cover every requested
-            # intent, we can stop; otherwise we need more candidates.
-            supporting_rows = [
-                r for r in verified_now
-                if any((r.get("intent_support") or {}).values())
-            ]
-            unique_supporting_intents = {
+            feasible = _select_intent_cover_top_k(
+                verified_now, top_k, intents_requested,
+            )
+            feasible_union = {
                 intent
-                for r in supporting_rows
-                for intent, ok in (r.get("intent_support") or {}).items()
+                for row in feasible
+                for intent, ok in (row.get("intent_support") or {}).items()
                 if ok
             }
-            fits_top_k = (
-                len(supporting_rows) <= top_k
-                or len(unique_supporting_intents) <= top_k
-            )
-            if len(verified_now) >= top_k and all_intents_covered and fits_top_k:
+            # Stop only when the exact <=4-intent DP proves that the
+            # FINAL Top-K has a feasible complete cover.  Otherwise
+            # keep scanning deterministic scope batches to exhaustion.
+            if (
+                len(verified_now) >= top_k
+                and intents_requested_set.issubset(feasible_union)
+            ):
                 break
         batch = ranked[cursor : cursor + batch_size]
         if not batch:
@@ -2401,13 +2582,6 @@ def query_mirror(
         def _supports_any_intent(row: dict[str, Any]) -> bool:
             support = row.get("intent_support") or {}
             return any(bool(v) for v in support.values())
-
-        def _row_intents(row: dict[str, Any]) -> set[str]:
-            return {
-                intent
-                for intent, verified in (row.get("intent_support") or {}).items()
-                if verified
-            }
 
         def _linkage_key(row: dict[str, Any]) -> int:
             tier = row.get("entity_linkage")
@@ -2440,54 +2614,9 @@ def query_mirror(
         # possible (RT-010 hardening blocker C — diversify final top_k).
         combined = bucket_1 + bucket_2
         if intents_requested and combined:
-            picked: list[dict[str, Any]] = []
-            picked_ids: set[str] = set()
-            covered_intents: set[str] = set()
-            # First pass: honour bucket order (strong/local/weak
-            # already sorted) but skip a row until we've reserved at
-            # least one row for each intent it uniquely covers.
-            # Deterministic greedy: iterate bucket order once,
-            # append rows that either fill top_k without over-picking
-            # OR uniquely add a not-yet-covered requested intent.
-            for row in combined:
-                if row.get("report_id") in picked_ids:
-                    continue
-                row_intents = _row_intents(row)
-                new_intents = row_intents & (intents_requested_set - covered_intents)
-                if len(picked) < top_k:
-                    picked.append(row)
-                    picked_ids.add(row.get("report_id"))
-                    covered_intents |= row_intents
-                elif new_intents:
-                    # Replace the last non-diversifying row to keep
-                    # size at top_k while surfacing the new intent.
-                    replaced = False
-                    for idx in range(len(picked) - 1, -1, -1):
-                        existing_intents = _row_intents(picked[idx])
-                        # A row is safe to displace if every intent
-                        # it uniquely covers among the picked set
-                        # will still be covered by other picked rows
-                        # after removal.
-                        others_intents: set[str] = set()
-                        for j, other in enumerate(picked):
-                            if j == idx:
-                                continue
-                            others_intents |= _row_intents(other)
-                        others_intents |= row_intents
-                        if existing_intents.issubset(others_intents):
-                            picked_ids.discard(picked[idx].get("report_id"))
-                            picked[idx] = row
-                            picked_ids.add(row.get("report_id"))
-                            covered_intents = set()
-                            for r in picked:
-                                covered_intents |= _row_intents(r)
-                            replaced = True
-                            break
-                    if not replaced:
-                        # Cannot diversify without losing an intent
-                        # already covered; stop diversifying.
-                        continue
-            results = picked
+            results = _select_intent_cover_top_k(
+                combined, top_k, intents_requested,
+            )
         else:
             results = combined[:top_k]
         # RT-010 final blockers (Blocker 3): confidence must anchor on

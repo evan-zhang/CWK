@@ -1965,6 +1965,57 @@ class FinalHardeningCatalogBindingTests(unittest.TestCase):
     """Blocker E: bare entity-only queries must fail closed when
     catalog binding is broken; plain fact queries must be unaffected."""
 
+    def test_repeated_persistent_index_query_is_cache_stable(self):
+        """A cached index generation must be observationally immutable.
+
+        The first query previously removed summary-quality metadata from the
+        shared cache with ``pop``; a second identical query in the same Agent
+        process then ranked the same corpus with every summary marked unknown.
+        """
+        mirror = SyntheticMirror()
+        try:
+            report_id = "BC000000000000000"
+            mirror.add_report(
+                report_id, "ALPHA 稳定性记录", "ALPHA 已完成阶段交付。",
+                candidate_entities=[("ALPHA", "system", "ALPHA")],
+                key_facts=[("ALPHA 已完成阶段交付", "ALPHA 已完成阶段交付")],
+            )
+            manifest = mirror.mirror / "wiki" / "_system" / "manifest.json"
+            manifest.write_text(
+                json.dumps(
+                    {
+                        "ai_refined_report_ids": [report_id],
+                        "fallback_report_ids": [],
+                        "failure_queue": [],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            mirror.build_catalog(scan_raw=False)
+            import cwk_wiki_search_index as swi
+            swi.build_index(mirror.mirror, force=True)
+            wq._INDEX_CACHE.clear()
+
+            first = wq.query_mirror(
+                mirror.mirror, "ALPHA", use_index=True, top_k=8,
+            )
+            second = wq.query_mirror(
+                mirror.mirror, "ALPHA", use_index=True, top_k=8,
+            )
+
+            self.assertEqual(first["indexed"], second["indexed"])
+            self.assertEqual(first["results"], second["results"])
+            self.assertEqual(
+                first["indexed"]["summary_quality"]["ai_refined"], 1,
+            )
+            self.assertEqual(
+                second["indexed"]["summary_quality"]["unknown"], 0,
+            )
+        finally:
+            wq._INDEX_CACHE.clear()
+            mirror.cleanup()
+
     def test_bare_alpha_fails_closed_when_catalog_missing(self):
         mirror = SyntheticMirror()
         try:
@@ -3675,6 +3726,212 @@ class FinalBlockersConfidenceAnchorTests(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# Fourth hardening: parser, evidence-coordinate, exact Top-K cover and
+# pre-RT snapshot regressions.  All synthetic entities remain neutral.
+# ---------------------------------------------------------------------------
+
+
+class FourthHardeningQueryTests(unittest.TestCase):
+    def _query_one(self, raw_body: str, question: str, *, title: str = "BETA 备忘") -> dict:
+        mirror = SyntheticMirror()
+        self.addCleanup(mirror.cleanup)
+        mirror.add_report(
+            "FH010000000000001", title, raw_body,
+            candidate_entities=[("ALPHA", "system", "ALPHA")],
+            key_facts=[("ALPHA", "ALPHA")],
+        )
+        mirror.build_catalog(scan_raw=False)
+        return mirror.query(question, top_k=4, min_score=0.0)
+
+    def test_flattened_double_pipe_rows_do_not_cross_link(self):
+        payload = self._query_one(
+            "| 项目 | 情况 | | BP系统 | 高延误风险 | | ALPHA | 无进展 |",
+            "ALPHA 风险",
+        )
+        self.assertEqual(payload["entity_resolution"]["status"], "resolved_empty")
+
+    def test_no_space_inline_heading_is_structural_boundary(self):
+        body = "ALPHA 已上线。#### BETA 项目风险 风险待处理。"
+        blocks = wq.parse_raw_blocks(body)
+        heading = next(block for block in blocks if block["kind"] == "heading")
+        self.assertIn("BETA", body[heading["start"]:heading["end"]])
+        payload = self._query_one(
+            body,
+            "ALPHA 风险",
+        )
+        self.assertEqual(payload["entity_resolution"]["status"], "resolved_empty")
+
+    def test_ascii_period_and_unicode_ellipsis_split_sentences(self):
+        for body in (
+            "ALPHA 已上线. BETA 项目风险待处理。",
+            "ALPHA 已上线……BETA 项目风险待处理。",
+        ):
+            with self.subTest(body=body):
+                payload = self._query_one(body, "ALPHA 风险")
+                self.assertEqual(
+                    payload["entity_resolution"]["status"], "resolved_empty",
+                )
+
+    def test_decimal_and_url_periods_do_not_split_local_sentence(self):
+        payload = self._query_one(
+            "ALPHA v1.2 详见 https://example.com/path 风险已确认。",
+            "ALPHA 风险",
+        )
+        self.assertEqual(payload["entity_resolution"]["status"], "resolved")
+        self.assertIn("risk", payload["intents"]["verified"])
+
+    def test_haystack_offset_cannot_close_content_link(self):
+        mirror = SyntheticMirror()
+        try:
+            mirror.add_report(
+                "FH010000000000002", "ALPHA 风险标题",
+                "ALPHA 阶段风险已确认。",
+                candidate_entities=[("ALPHA", "system", "ALPHA")],
+                # This quote exists only in the raw H1/haystack, not in
+                # <content>. Its offset must not be compared against
+                # content-coordinate intent links.
+                key_facts=[("标题证据", "ALPHA 风险标题")],
+            )
+            mirror.build_catalog(scan_raw=False)
+            payload = mirror.query("ALPHA 风险", top_k=4, min_score=0.0)
+            self.assertEqual(payload["entity_resolution"]["status"], "resolved")
+            row = payload["results"][0]
+            linked = [
+                ev for ev in row["evidence"]
+                if ev.get("kind") == "linked_intent_excerpt"
+            ]
+            self.assertTrue(linked)
+            self.assertTrue(all(ev.get("raw_source") == "linked_content" for ev in linked))
+        finally:
+            mirror.cleanup()
+
+    def test_exact_bitmask_cover_finds_feasible_two_row_solution(self):
+        rows = [
+            {"report_id": "0", "intent_support": {"progress": True, "risk": True}},
+            {"report_id": "1", "intent_support": {"progress": True, "owner": True}},
+            {"report_id": "2", "intent_support": {"plan": True}},
+            {"report_id": "3", "intent_support": {"plan": True, "owner": True}},
+        ]
+        selected = wq._select_intent_cover_top_k(
+            rows, 2, ["progress", "plan", "risk", "owner"],
+        )
+        covered = {
+            intent
+            for row in selected
+            for intent, ok in row["intent_support"].items()
+            if ok
+        }
+        self.assertEqual(covered, {"progress", "plan", "risk", "owner"})
+        self.assertEqual([row["report_id"] for row in selected], ["0", "3"])
+
+    def test_query_top_k_two_carries_complete_four_intent_cover(self):
+        mirror = SyntheticMirror()
+        try:
+            mirror.add_report(
+                "FH010000000000010", "ALPHA 状态",
+                "ALPHA 进展稳定，风险已识别。",
+                candidate_entities=[("ALPHA", "system", "ALPHA")],
+                key_facts=[("ALPHA 进展稳定，风险已识别",
+                            "ALPHA 进展稳定，风险已识别")],
+            )
+            mirror.add_report(
+                "FH010000000000011", "ALPHA 执行",
+                "ALPHA 进展由李四负责。",
+                candidate_entities=[("ALPHA", "system", "ALPHA")],
+                key_facts=[("ALPHA 进展由李四负责",
+                            "ALPHA 进展由李四负责")],
+            )
+            mirror.add_report(
+                "FH010000000000012", "ALPHA 规划",
+                "ALPHA 下一步计划由张三负责。",
+                candidate_entities=[("ALPHA", "system", "ALPHA")],
+                key_facts=[("ALPHA 下一步计划由张三负责",
+                            "ALPHA 下一步计划由张三负责")],
+            )
+            mirror.build_catalog(scan_raw=False)
+            payload = mirror.query(
+                "ALPHA 进展、计划、风险、负责人", top_k=2, min_score=0.0,
+            )
+            self.assertEqual(payload["entity_resolution"]["status"], "resolved")
+            self.assertEqual(
+                set(payload["intents"]["verified"]),
+                {"progress", "plan", "risk", "owner"},
+            )
+            self.assertEqual(payload["intents"]["missing"], [])
+            self.assertLessEqual(len(payload["results"]), 2)
+        finally:
+            mirror.cleanup()
+
+    def test_pre_rt_index_without_catalog_files_detects_bare_cjk(self):
+        mirror = SyntheticMirror()
+        try:
+            mirror.add_report(
+                "FH010000000000003", "云端虾申请",
+                "云端虾 项目相关记录。",
+                candidate_entities=[("云端虾", "system", "云端虾")],
+                key_facts=[("云端虾 项目相关记录", "云端虾 项目相关记录")],
+            )
+            mirror.build_catalog(scan_raw=False)
+            import cwk_wiki_search_index as swi
+            import gzip as _gz
+            import hashlib as _hashlib
+            swi.build_index(mirror.mirror, force=True)
+            system = mirror.mirror / "wiki" / "_system"
+            gz = system / "search-index.json.gz"
+            with _gz.open(gz, "rt", encoding="utf-8") as handle:
+                index_payload = json.load(handle)
+            for key in (
+                "entity_catalog_sha256", "entity_catalog_schema",
+                "entity_catalog_registry_version", "entity_catalog_registry_source",
+            ):
+                index_payload.pop(key, None)
+            core = {
+                key: value for key, value in index_payload.items()
+                if key not in {"index_version", "index_sha256", "generated_at"}
+            }
+            new_sha = _hashlib.sha256(
+                json.dumps(core, ensure_ascii=False, sort_keys=True,
+                           separators=(",", ":")).encode("utf-8")
+            ).hexdigest()
+            index_payload["index_sha256"] = new_sha
+            with _gz.open(gz, "wt", encoding="utf-8") as handle:
+                json.dump(index_payload, handle, ensure_ascii=False,
+                          sort_keys=True, separators=(",", ":"))
+            meta_path = system / "index-meta.json"
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            meta["index_sha256"] = new_sha
+            for key in (
+                "entity_catalog_sha256", "entity_catalog_schema",
+                "entity_catalog_registry_version", "entity_catalog_registry_source",
+            ):
+                meta.pop(key, None)
+            meta_path.write_text(
+                json.dumps(meta, ensure_ascii=False, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            (system / "search-index.json").unlink(missing_ok=True)
+            for name in (
+                "entity-catalog.json", "entity-catalog.json.gz",
+                "entity-catalog-meta.json",
+            ):
+                (system / name).unlink(missing_ok=True)
+            ec._CATALOG_CACHE.clear()
+            wq._INDEX_CACHE.clear()
+
+            entity_payload = wq.query_mirror(
+                mirror.mirror, "云端虾", use_index=True,
+            )
+            self.assertEqual(entity_payload["entity_resolution"]["status"], "unknown")
+            self.assertEqual(entity_payload["results"], [])
+            generic_payload = wq.query_mirror(
+                mirror.mirror, "本周有哪些风险", use_index=True,
+            )
+            self.assertEqual(generic_payload["entity_resolution"]["status"], "unscoped")
+        finally:
+            mirror.cleanup()
+
+
+# ---------------------------------------------------------------------------
 # Single real-corpus regression for the shipped TBS registry entry.
 # Skipped automatically when the mirror is not present.
 # ---------------------------------------------------------------------------
@@ -3838,6 +4095,32 @@ class RealCorpusRegressionTests(unittest.TestCase):
                     f"{question}: confidence must not be `none` when in-scope"
                     f" verified evidence exists (got {payload['confidence']})",
                 )
+
+    def test_bp_table_row_does_not_lend_risk_to_tbs_next_row(self):
+        """Real read-only regression for the flattened BP table.
+
+        Report 206026 has a BP-system high-risk row immediately before
+        a TBS no-progress row.  The row delimiter is flattened as
+        ``| |``; risk must not cross that structural boundary.
+        """
+        matches = list(
+            (self.mirror / "raw").glob("**/2060262441782222850-*.md")
+        )
+        if not matches:
+            self.skipTest("real BP regression raw is unavailable")
+        raw_text = matches[0].read_text(encoding="utf-8", errors="replace")
+        family = self._family_for("tbs")
+        doc = wq.SummaryDoc(
+            report_id="2060262441782222850", title="", writer="", date="",
+            source_lane="", summary_path=Path(), raw_path=matches[0], body="",
+        )
+        support, links, has_anchor = wq.compute_entity_intent_links(
+            "TBS 风险", doc, family, raw_text, "test-sha",
+            global_surface_index=self.payload.get("surface_index", {}),
+        )
+        self.assertTrue(has_anchor)
+        self.assertFalse(support.get("risk"), links)
+        self.assertNotIn("risk", links)
 
 
 if __name__ == "__main__":

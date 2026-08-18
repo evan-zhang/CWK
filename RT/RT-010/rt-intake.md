@@ -34,11 +34,20 @@ CWK 本地检索目前把 Wiki 的人物/系统/项目页面作为实体导航�
 
 ## 边界
 
-- 只改动 `scripts/cwk_wiki_query.py`、`scripts/cwk_wiki_search_index.py`
-  和新增的 `scripts/cwk_entity_catalog.py`，并新增一份**版本化、可审计**的
-  跨类型合并注册表数据文件 `config/entity-family-registry.json`
-  （仓库唯一真源；`wiki/_system/entity-family-registry.json` 仅作为
-  本地实验用途，被 sync 排除、不进入 DocDB、也不被视为规范来源）；
+- 实现文件范围：
+  - `scripts/cwk_entity_catalog.py`：机器实体目录、别名家族与边级 provenance；
+  - `scripts/cwk_wiki_search_index.py`：索引构建及 catalog 快照绑定；
+  - `scripts/cwk_wiki_query.py`：实体解析、scope 硬过滤与证据闭包；
+  - `scripts/cwk_sync_mirror_to_docdb.py`：明确排除 Local-First 实体派生物
+    及镜像 registry 覆盖，含重试队列陈旧路径清理；
+  - `config/entity-family-registry.json`：版本化、可审计的跨类型合并注册表
+    唯一真源；
+  - `tests/test_wiki_entity_scope.py`、`tests/test_rt010_registry_binding.py`、
+    `tests/test_cloud_first_index_restore.py`：实体检索、registry 三处审计绑定、
+    Local-First 排除与暂停 cloud 路径兼容回归；
+  - `RT/RT-010/**/*.md`：需求、方案、任务与交付记录；
+- `wiki/_system/entity-family-registry.json` 仅作为本地实验覆盖，被 sync
+  排除、不进入 DocDB、也不被视为规范来源；
 - 摘要（`wiki/summaries/*.md`）的 `## 候选实体` 段落是机器目录的**主要**来源；
   raw 原文作为**次要**来源，仅允许扩展已知规范/已批准别名的 postings（严格
   边界匹配，不生成新 surface / 家族）；
@@ -46,8 +55,8 @@ CWK 本地检索目前把 Wiki 的人物/系统/项目页面作为实体导航�
   不再参与机器 scope 判定；
 - 不修改 `cwk_cloud_wiki_topics_entities.py` 的 30 条限制（这是给人看的），
   只把机器检索的 scope 层从它剥离；
-- 不修改 nightly cron，只在 nightly 现有 `wiki_search_index` 步骤内部
-  额外产出 catalog；
+- 不修改 nightly cron；只在 nightly 现有 `wiki_search_index` 步骤内部
+  额外产出 catalog，并在现有同步器中增加本地派生物排除规则；
 - `.serena/`、`.spec-workflow/` 不动；本次交付不写产线数据、不发布。
 
 ## 判定 USER DECISION

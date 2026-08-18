@@ -191,6 +191,11 @@ def build_index(mirror: Path, *, force: bool = False) -> dict[str, Any]:
     core["entity_catalog_sha256"] = catalog_payload["catalog_sha256"]
     core["entity_catalog_schema"] = catalog_payload["schema_version"]
     core["entity_catalog_registry_version"] = catalog_payload["registry"]["version"]
+    # Bind the stable logical registry source into the semantic index
+    # payload itself (not just index-meta).  This lets every persisted
+    # snapshot prove which version-controlled/experimental registry source
+    # authorised its entity families without leaking an absolute path.
+    core["entity_catalog_registry_source"] = str(registry_source)
     index_sha256 = canonical_hash(core)
     old_meta: dict[str, Any] = {}
     try:
@@ -277,6 +282,7 @@ def build_index(mirror: Path, *, force: bool = False) -> dict[str, Any]:
             "entity_catalog_schema": catalog_payload["schema_version"],
             "entity_catalog_sha256": catalog_payload["catalog_sha256"],
             "entity_catalog_registry_version": catalog_payload["registry"]["version"],
+            "entity_catalog_registry_source": str(registry_source),
             "entity_catalog_families_total": catalog_payload["statistics"]["families_total"],
         }
     )

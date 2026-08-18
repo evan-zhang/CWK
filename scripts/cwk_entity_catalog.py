@@ -1073,14 +1073,21 @@ def _apply_registry(
         canonical_display = _clean_display(str(entry.get("canonical_display") or target.canonical_display), 160)
         target.canonical_display = canonical_display
         evidence_payload = []
-        for ev in entry.get("evidence", []) or []:
+        for evidence_index, ev in enumerate(entry.get("evidence", []) or []):
             # Carry the approval audit fields into every evidence row
             # so the query-layer ``scope_support.registry_evidence``
             # exposes the full audit chain (Blocker 9 contract).
             evidence_payload.append(
                 {
+                    "rule": "approved_family_registry",
                     "report_id": str(ev.get("report_id") or ""),
                     "quote": _clean_display(str(ev.get("quote") or ""), 240),
+                    # Stable compact pointer used by every posting-level
+                    # approval edge.  The full quote stays once at family
+                    # level, avoiding hundreds of repeated raw snippets in
+                    # large approved families while keeping the edge
+                    # independently auditable.
+                    "evidence_ref": f"{entry_id}:evidence:{evidence_index}",
                     "entry_id": entry_id,
                     "decided_by": decided_by,
                     "decided_at": decided_at,
@@ -1559,6 +1566,39 @@ def _serialise_family(family: Family) -> dict[str, Any]:
     # by surface + origin while keeping the catalog well within its
     # size budget on the real 8k+ mirror.
     posting_provenance: dict[str, list[dict[str, Any]]] = {}
+
+    # A registry-approved cross-type merge is itself a scope edge.  It
+    # therefore needs report-level provenance in addition to the original
+    # summary/raw anchor provenance.  Build one compact audit edge per
+    # approval entry and attach it to every posting in the approved family,
+    # including postings discovered only by the later raw-anchor scan.
+    # ``approved_family_evidence`` remains the single source for the full
+    # evidence quotes; the posting edge carries stable references to those
+    # rows plus the complete decision metadata required by RT-010.
+    registry_audits: dict[str, dict[str, Any]] = {}
+    for evidence_index, evidence in enumerate(family.approved_family_evidence):
+        entry_id = str(evidence.get("entry_id") or "")
+        if not entry_id:
+            continue
+        audit = registry_audits.setdefault(
+            entry_id,
+            {
+                "origin": "approved_family_registry",
+                "rule": "approved_family_registry",
+                "entry_id": entry_id,
+                "decided_by": str(evidence.get("decided_by") or ""),
+                "decided_at": str(evidence.get("decided_at") or ""),
+                "decision_ref": str(evidence.get("decision_ref") or ""),
+                "registry_version": str(evidence.get("registry_version") or ""),
+                "evidence_refs": [],
+            },
+        )
+        evidence_ref = str(evidence.get("evidence_ref") or "")
+        if not evidence_ref:
+            evidence_ref = f"{entry_id}:evidence:{evidence_index}"
+        if evidence_ref not in audit["evidence_refs"]:
+            audit["evidence_refs"].append(evidence_ref)
+
     for report_id in postings:
         by_origin: dict[str, dict[str, Any]] = {}
         for entry in family.posting_provenance.get(report_id, []):
@@ -1585,7 +1625,7 @@ def _serialise_family(family: Family) -> dict[str, Any]:
             quote = str(entry.get("quote") or "")
             if quote:
                 bucket["quotes"].add(quote)
-        posting_provenance[report_id] = [
+        rows = [
             {
                 "origin": origin,
                 "surfaces": sorted(bucket["surfaces"]),
@@ -1598,6 +1638,15 @@ def _serialise_family(family: Family) -> dict[str, Any]:
             }
             for origin, bucket in sorted(by_origin.items())
         ]
+        for entry_id in sorted(registry_audits):
+            audit = registry_audits[entry_id]
+            rows.append(
+                {
+                    **audit,
+                    "evidence_refs": sorted(audit["evidence_refs"]),
+                }
+            )
+        posting_provenance[report_id] = rows
     return {
         "family_id": family.family_id,
         "canonical_entity_type": family.canonical_entity_type,
