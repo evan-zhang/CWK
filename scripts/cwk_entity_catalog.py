@@ -475,16 +475,47 @@ def registry_candidates(mirror: Path) -> list[Path]:
     ]
 
 
+def _registry_source_label(path: Path, mirror: Path) -> str:
+    """Return a stable, non-sensitive logical source label for
+    ``path``. RT-010 final blockers (Blocker 8): the previous code
+    handed the absolute filesystem path to ``index-meta.json``,
+    which leaked per-machine home paths into cloud manifests and made
+    two rebuilds on different machines look different even when the
+    semantic content was identical. The logical labels are:
+
+    - ``repo:config/entity-family-registry.json`` for the canonical
+      version-controlled source;
+    - ``mirror:<relative>`` for a per-mirror override (experimental
+      only);
+    - ``external:<basename>`` for anything else (test fixtures).
+    """
+    repo_path = PROJECT / "config" / "entity-family-registry.json"
+    try:
+        if path.resolve() == repo_path.resolve():
+            return "repo:config/entity-family-registry.json"
+    except OSError:
+        pass
+    try:
+        rel = path.resolve().relative_to(mirror.resolve()).as_posix()
+        return f"mirror:{rel}"
+    except (OSError, ValueError):
+        return f"external:{path.name}"
+
+
 def load_registry(
     mirror: Path, *, override_paths: list[Path] | None = None
 ) -> tuple[dict[str, Any], str]:
-    """Return ``(registry_payload, source_path_string)``.
+    """Return ``(registry_payload, source_label)``.
 
-    ``source_path_string`` is informational only and is **not** folded
-    into the catalog hash; the catalog embeds ``registry.version`` and
-    the applied entries themselves.  Tests may pass ``override_paths``
-    to inject a fixture registry (bypassing the repo-config-first
-    precedence); production callers keep the default order.
+    ``source_label`` is a stable non-sensitive logical string (see
+    :func:`_registry_source_label`) — not an absolute path — so
+    ``index-meta.json`` / ``manifest.json`` remain reproducible
+    across machines and never leak per-host filesystem layout. The
+    label is informational only and is **not** folded into the catalog
+    hash; the catalog embeds ``registry.version`` and the applied
+    entries themselves. Tests may pass ``override_paths`` to inject a
+    fixture registry (bypassing the repo-config-first precedence);
+    production callers keep the default order.
     """
     for path in (override_paths if override_paths is not None else registry_candidates(mirror)):
         if not path.is_file():
@@ -496,7 +527,7 @@ def load_registry(
         if payload.get("schema_version") != REGISTRY_SCHEMA:
             continue
         payload.setdefault("entries", [])
-        return payload, str(path)
+        return payload, _registry_source_label(path, mirror)
     return (
         {"schema_version": REGISTRY_SCHEMA, "version": "unset", "entries": []},
         "",
@@ -694,18 +725,21 @@ def _apply_parenthetical_acronym(
         # visibility add — never overwrite the surface of a different
         # existing family).
         target_family = families[seed_fid]
-        # Decide scope_role for the newly-added surface.
-        scope_role = "hard"
-        if not is_acronym_side and existing_fid not in (None, seed_fid):
-            scope_role = "generic_candidate"
-        if not is_acronym_side and acr_norm and acr_norm not in alias_norm and existing_fid is None:
-            # Fresh generic alias that is not acronym-bearing – it is
-            # still added as hard for backward compat (no independent
-            # family owns it) but tagged with provenance so downstream
-            # can inspect the rule that produced it.  Scope role stays
-            # ``hard`` here because there is no colliding family to
-            # protect.
-            scope_role = "hard"
+        # RT-010 final blockers (Blocker 6): the bare parenthetical
+        # FULL form (the non-acronym side) always lands as
+        # ``generic_candidate`` — even when no independent same-name
+        # family exists in the corpus. The acronym is a globally
+        # distinguishing surface; the full form is generic prose that
+        # could collide with any future report that mentions it on its
+        # own (e.g. ``AI陪练系统`` derived from ``ALPHA（AI陪练系统）``
+        # must not become a hard scope key just because no
+        # ``AI陪练系统``-only report exists yet). The only path to
+        # promote a generic-candidate alias to ``hard`` is an explicit
+        # registry entry that lists it as a member (see
+        # ``_apply_registry`` promotion block below). Acronym aliases
+        # stay ``hard`` because their proper-noun shape does not
+        # collide with unrelated prose.
+        scope_role = "hard" if is_acronym_side else "generic_candidate"
         surface = target_family.surfaces.setdefault(
             alias_norm,
             ApprovedSurface(
@@ -973,6 +1007,13 @@ def _apply_registry(
         entry_id = str(entry.get("entry_id") or "").strip()
         decided_by = _registry_approver(entry)
         decided_at = _registry_approved_at(entry)
+        # RT-010 final blockers (Blocker 9): ``decision_ref`` is an
+        # audit-critical pointer to the decision doc/ticket that
+        # authorised the cross-type merge. Propagate it into every
+        # provenance record and applied entry so the semantic catalog
+        # hash changes whenever it changes. Legacy entries without a
+        # decision_ref record an empty string (stable placeholder).
+        decision_ref = str(entry.get("decision_ref") or "").strip()
         members = entry.get("members") or []
         seed_fids: list[str] = []
         member_snapshot: list[dict[str, str]] = []
@@ -1008,6 +1049,7 @@ def _apply_registry(
         if len(deduped) < 2:
             applied.append(
                 {
+                    "entry_id": entry_id,
                     "canonical_display": _clean_display(str(entry.get("canonical_display") or ""), 160),
                     "family_id": deduped[0] if deduped else "",
                     "members": member_snapshot,
@@ -1020,6 +1062,9 @@ def _apply_registry(
                         for ev in entry.get("evidence", []) or []
                     ],
                     "registry_version": str(registry.get("version") or ""),
+                    "decided_by": decided_by,
+                    "decided_at": decided_at,
+                    "decision_ref": decision_ref,
                     "status": "no_effect_members_missing" if missing_members else "no_effect_single_family",
                 }
             )
@@ -1029,10 +1074,18 @@ def _apply_registry(
         target.canonical_display = canonical_display
         evidence_payload = []
         for ev in entry.get("evidence", []) or []:
+            # Carry the approval audit fields into every evidence row
+            # so the query-layer ``scope_support.registry_evidence``
+            # exposes the full audit chain (Blocker 9 contract).
             evidence_payload.append(
                 {
                     "report_id": str(ev.get("report_id") or ""),
                     "quote": _clean_display(str(ev.get("quote") or ""), 240),
+                    "entry_id": entry_id,
+                    "decided_by": decided_by,
+                    "decided_at": decided_at,
+                    "decision_ref": decision_ref,
+                    "registry_version": str(registry.get("version") or ""),
                 }
             )
         target.approved_family_evidence.extend(evidence_payload)
@@ -1051,6 +1104,7 @@ def _apply_registry(
                         "entry_id": entry_id,
                         "decided_by": decided_by,
                         "decided_at": decided_at,
+                        "decision_ref": decision_ref,
                     }
                 )
             families.pop(other_fid, None)
@@ -1075,6 +1129,7 @@ def _apply_registry(
                 "registry_version": str(registry.get("version") or ""),
                 "decided_by": decided_by,
                 "decided_at": decided_at,
+                "decision_ref": decision_ref,
                 "status": "applied",
             }
         )

@@ -43,6 +43,16 @@ def fixture_mirror(root: Path) -> Path:
                 "# Token异常分析", "", "- 发送人：测试人", "- 时间：2026-08-04 10:00:00",
                 "- 来源类型：`test`", "", "## 摘要", "", "Token异常达到50亿。",
                 "", "## 关键事实", "", "- Token异常达到50亿  ", "  证据：> Token异常达到50亿",
+                # RT-010 final blockers: the entity-management fail-
+                # closed contract (Blocker 2) rules that a query like
+                # ``Token异常`` (ASCII residual + risk intent) must
+                # resolve via the entity catalog — otherwise a valid
+                # bound snapshot would leak unscoped BM25. Real CWK
+                # summaries always populate ``候选实体``; add one so
+                # the cloud-first smoke fixture reflects that contract.
+                "", "## 候选实体", "",
+                "- Token异常 `system`  ",
+                "  证据：> Token异常达到50亿",
             ]
         ) + "\n",
         encoding="utf-8",

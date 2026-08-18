@@ -699,25 +699,65 @@ _GENERIC_RESIDUAL_RE = re.compile(
 _QUOTED_NAME_RE = re.compile(r"[「『\"“《][^」』\"”》]{2,}[」』\"”》]")
 
 
+def _residual_after_scaffolding(question: str) -> str:
+    """Return the NFKC-normalised residual after stripping management
+    intents and the closed generic-scaffolding vocabulary. Whitespace
+    and common separators are collapsed to single ASCII spaces so
+    downstream shape checks can inspect the residual as tokens.
+
+    RT-010 final blockers (Blocker 2): the previous helpers matched
+    residuals directly against the raw input, which meant fullwidth
+    ASCII (``ｏｍｅｇａ``) and lowercase forms (``alpha``, ``omega``)
+    never reached the entity-shape detector and fell through to
+    ``unscoped``. NFKC folds fullwidth to ASCII; the case-insensitive
+    ASCII pattern used by the shape helpers below then fires.
+    """
+    if not question:
+        return ""
+    residual = unicodedata.normalize("NFKC", question)
+    for pattern in INTENT_PATTERNS.values():
+        residual = pattern.sub(" ", residual)
+    residual = _GENERIC_RESIDUAL_RE.sub(" ", residual)
+    tokens = [
+        tok for tok in re.split(r"[\s，,。.:：；;!！?？\-—_/·]+", residual) if tok
+    ]
+    tokens = [tok for tok in tokens if tok.lower() not in STOP_ASCII]
+    return " ".join(tokens).strip()
+
+
+def _query_has_entity_residual(question: str) -> bool:
+    """Return True iff, after stripping intents and generic scaffolding
+    (post-NFKC), the query still carries a non-empty residual.
+
+    RT-010 final blockers (Blocker 1): when the bound snapshot is
+    broken (persistent index declared a catalog SHA but the on-disk
+    catalog is missing / unreadable / mismatched) we cannot consult
+    the catalog to detect entities. Any non-generic residual is
+    therefore treated as evidence that the query names something
+    specific — the safe response is to fail closed rather than fall
+    back to global BM25. Purely generic queries like
+    ``本周有哪些风险`` collapse to an empty residual and continue to
+    run on the ordinary unscoped path.
+    """
+    return bool(_residual_after_scaffolding(question))
+
+
 def _query_looks_bare_entity(question: str) -> bool:
     """Return True only when the query is a bare ASCII acronym (or a
     bracket-quoted proper noun) after intent + generic scaffolding is
     stripped.  Used by the RT-010 catalog-binding fail-closed check to
-    protect bare-entity-only queries (e.g. ``ALPHA``) without touching
-    long CJK factual keywords such as ``基础事实``.
+    protect bare-entity-only queries (e.g. ``ALPHA``, ``alpha``,
+    ``ＡＬＰＨＡ``) without touching long CJK factual keywords such as
+    ``基础事实``. NFKC normalisation folds fullwidth ASCII into
+    ordinary ASCII and the pattern is case-insensitive so lowercase
+    proper nouns (`alpha`) also qualify.
     """
     if not question:
         return False
-    residual = question
-    for pattern in INTENT_PATTERNS.values():
-        residual = pattern.sub(" ", residual)
-    residual = _GENERIC_RESIDUAL_RE.sub(" ", residual)
-    tokens = [tok for tok in re.split(r"[\s，,。.:：；;!！?？]+", residual) if tok]
-    tokens = [tok for tok in tokens if tok.lower() not in STOP_ASCII]
-    residual = " ".join(tokens).strip()
+    residual = _residual_after_scaffolding(question)
     if not residual:
         return False
-    if re.search(r"[A-Z][A-Z0-9._-]{1,}", residual):
+    if re.search(r"[A-Za-z][A-Za-z0-9._-]{1,}", residual):
         return True
     if _QUOTED_NAME_RE.search(question):
         return True
@@ -728,37 +768,29 @@ def _query_looks_entity_shaped(question: str) -> bool:
     """Return True only when the query names a specific proper noun.
 
     Detection strategy after stripping intent verbs and the closed
-    generic-scaffolding vocabulary:
+    generic-scaffolding vocabulary (post-NFKC):
 
-    - ASCII acronym (``[A-Z][A-Z0-9._-]+``) survives → entity-shaped;
+    - ASCII proper-noun-shaped residual (``[A-Za-z][A-Za-z0-9._-]+``)
+      survives → entity-shaped;
     - Bracket-quoted proper name anywhere in the original query → true;
-    - A CJK residual chunk of ``>=4`` characters after all scaffolding
-      is stripped → true (long CJK sequences that survive the closed
-      scaffolding list are almost always proper nouns).
-
-    Ordinary management prose such as ``本周项目进展如何`` collapses to
-    an empty residual and correctly stays ``False``.
+    - Any CJK residual chunk of ``>=2`` characters after all
+      scaffolding is stripped → true. RT-010 final blockers (Blocker 2)
+      lowered the threshold from 4 to 2 so short CJK proper nouns
+      (``北斗``) plus a management intent (``风险``) reliably fail
+      closed instead of returning global BM25. Ordinary management
+      prose collapses to an empty residual (thanks to
+      ``_GENERIC_RESIDUAL_RE``) and correctly stays ``False``.
     """
     if not question:
         return False
-    residual = question
-    for pattern in INTENT_PATTERNS.values():
-        residual = pattern.sub(" ", residual)
-    residual = _GENERIC_RESIDUAL_RE.sub(" ", residual)
-    tokens = [tok for tok in re.split(r"[\s，,。.:：；;!！?？]+", residual) if tok]
-    tokens = [tok for tok in tokens if tok.lower() not in STOP_ASCII]
-    residual = " ".join(tokens).strip()
+    residual = _residual_after_scaffolding(question)
     if not residual:
         return False
-    if re.search(r"[A-Z][A-Z0-9._-]{1,}", residual):
+    if re.search(r"[A-Za-z][A-Za-z0-9._-]{1,}", residual):
         return True
     if _QUOTED_NAME_RE.search(question):
         return True
-    # Long CJK residual after scaffolding removal is almost certainly a
-    # proper noun (e.g. ``霜蓝鲸鱼量子披萨-进展``).  The threshold of 4
-    # keeps normal Chinese management prose out — that path already
-    # collapses to an empty residual above.
-    if re.search(r"[一-鿿]{4,}", residual):
+    if re.search(r"[一-鿿]{2,}", residual):
         return True
     return False
 
@@ -1031,8 +1063,46 @@ _INLINE_BULLET_SPLIT_RE = re.compile(
 _INLINE_TABLE_ROW_SPLIT_RE = re.compile(r"(?<=\S)[ \t]+(?=\|[^\n]+\|)")
 _INLINE_BLOCKQUOTE_SPLIT_RE = re.compile(r"(?<=\S)[ \t]+(?=>+\s*\S)")
 # Multi-space leading indents (5 or 20 spaces are common) that hide a
-# marker at line start.
+# marker at line start. The block splitters below already accept
+# ``^\s*`` at the start of a line, so no collapsing is required; the
+# regex remains as a documentation anchor only. RT-010 final blockers
+# (Blocker 4): the previous collapsing pass rewrote ``     - item``
+# to ``  - item`` which shifted every subsequent character offset by
+# ``n-1``. That misaligned block start/end coordinates with the
+# ORIGINAL raw content that intent / entity finders scan, so a sibling
+# bullet or table row would appear to fall inside the wrong block.
 _LEADING_MULTISPACE_RE = re.compile(r"^[ \t]{2,}(?=(?:[-*+·#>]|\d+[.．、)]|\|))")
+
+
+def _length_preserving_split(pattern: re.Pattern[str], text: str) -> str:
+    """Substitute matches of ``pattern`` with ``\\n`` padded to the
+    match's original length so the total text length is preserved.
+
+    RT-010 final blockers (Blocker 4): ``parse_raw_blocks`` used to
+    apply ``pattern.sub("\\n", text)`` which shortened the text when
+    the matched whitespace was longer than one character. That shifted
+    every subsequent character offset, so block start/end coordinates
+    no longer aligned with the offsets returned by
+    ``INTENT_PATTERNS[...].finditer(content)`` and
+    ``_find_surface_hits(content, ...)`` — both of which search the
+    ORIGINAL raw ``content``. The mismatch let a sibling table row /
+    list item / inline heading anchor mis-locate into a neighbouring
+    block via ``_locate_block``. Length-preserving substitution keeps
+    block offsets in the same coordinate system as the anchor/intent
+    finders, closing the leak without changing the recovery semantics.
+    """
+    def _repl(match: re.Match[str]) -> str:
+        matched = match.group(0)
+        if not matched:
+            return matched
+        # Place the newline at the END so the following marker (``##``,
+        # ``|``, ``-`` …) always starts at column 0 and the block
+        # splitter's ``^`` anchors continue to fire; putting the newline
+        # first would leave a leading space in front of the marker and
+        # break ``_HEADING_LINE_RE`` / ``_TABLE_ROW_RE``.
+        return " " * (len(matched) - 1) + "\n"
+
+    return pattern.sub(_repl, text)
 
 
 def parse_raw_blocks(content: str) -> list[dict[str, Any]]:
@@ -1058,22 +1128,15 @@ def parse_raw_blocks(content: str) -> list[dict[str, Any]]:
     blocks: list[dict[str, Any]] = []
     heading_stack: list[tuple[int, str]] = []  # (level, title)
     # Preprocess: split flattened Markdown so the block parser can
-    # honour every section / list / table / blockquote boundary.
-    # We chain independent regex passes; each substitution changes the
-    # text length by at most a single character per match, so absolute
-    # offsets shift only within the paragraph they belong to.  The
-    # downstream linkage helpers always re-derive anchor offsets from
-    # the (possibly split) content, so the shift is safe.  RT-010
-    # follow-up (blocker C): the previous version split only ``##``
-    # markers; a stitched line like ``完成 ALPHA - 风险 X`` would
-    # still resolve as one paragraph and let ``same_block`` link the
-    # two spans.  We now also recover inline bullets / table rows /
-    # blockquotes and collapse leading multi-space indents that hide
-    # a marker.  Leading multi-space collapse is applied per line.
-    if _LEADING_MULTISPACE_RE.search(content):
-        content = "\n".join(
-            _LEADING_MULTISPACE_RE.sub(" ", line) for line in content.splitlines()
-        )
+    # honour every section / list / table / blockquote boundary. Every
+    # substitution below is LENGTH-PRESERVING (see
+    # :func:`_length_preserving_split`) so block offsets remain in the
+    # ORIGINAL raw ``content`` coordinate system that entity/intent
+    # finders scan. RT-010 follow-up (blocker C) recovers inline
+    # bullets / table rows / blockquotes / inline headings; the leading
+    # multi-space regex is intentionally unused because the block
+    # splitters already accept ``^\s*`` at line start — collapsing it
+    # earlier would have shifted every subsequent offset by ``n-1``.
     for pattern in (
         _INLINE_HEADING_SPLIT_RE,
         _INLINE_BULLET_SPLIT_RE,
@@ -1081,7 +1144,7 @@ def parse_raw_blocks(content: str) -> list[dict[str, Any]]:
         _INLINE_BLOCKQUOTE_SPLIT_RE,
     ):
         if pattern.search(content):
-            content = pattern.sub("\n", content)
+            content = _length_preserving_split(pattern, content)
     lines = content.splitlines(keepends=True)
     offset = 0
     paragraph_lines: list[str] = []
@@ -1848,11 +1911,27 @@ def query_mirror(
         except Exception:
             catalog_matches = []
         catalog_detects_entity = bool(catalog_matches)
+    # RT-010 final blockers (Blocker 1): when the persistent index
+    # declared an ``entity_catalog_sha256`` but the on-disk catalog is
+    # missing / unreadable / mismatched, the bound snapshot is broken.
+    # In that state we cannot consult the catalog to detect entities
+    # reliably; therefore fail closed on any query that carries a
+    # non-empty structural residual (i.e. names anything specific after
+    # intents + generic scaffolding are stripped). Purely generic
+    # queries such as ``本周有哪些风险`` collapse to an empty residual
+    # and continue on the ordinary unscoped BM25 path.
+    catalog_bound_snapshot_broken = bool(expected_sha) and (
+        catalog is None or actual_sha != expected_sha
+    )
+    strict_entity_residual = (
+        catalog_bound_snapshot_broken and _query_has_entity_residual(question)
+    )
     if catalog_mismatch and (
         require_catalog
         or entity_management_query
         or bare_entity
         or catalog_detects_entity
+        or strict_entity_residual
     ):
         resolution = EntityResolution(
             status="unknown", reason="catalog_index_hash_mismatch_or_missing"
@@ -2142,21 +2221,41 @@ def query_mirror(
             # never a source of intent evidence on its own.
             intent_hits = support
             intent_links = links
-            # RT-010 follow-up (independent audit blocker C + G): the
-            # final citeable evidence MUST contain the linked raw
-            # snippet.  Add a bounded raw excerpt around each intent
-            # link's (anchor, intent) span so an auditor can quote the
-            # exact passage the resolver relied on.  We only inject an
-            # excerpt when no existing evidence entry already covers
-            # the linked span (to avoid duplicating a matching summary
-            # quote).
+            # RT-010 final blockers (Blocker 5): every verified intent
+            # link MUST have final citeable evidence whose raw offsets
+            # cover the required local entity-intent span. The prior
+            # substring guard (``excerpt in existing or existing in
+            # excerpt``) was loose: a summary quote that happened to
+            # share a short surface with the linked passage would be
+            # treated as covering it, even though its raw_offset did
+            # not span (min(anchor, intent), max(anchor, intent)). We
+            # now check the strict offset coverage and, if no evidence
+            # entry covers the span, inject a ``linked_intent_excerpt``
+            # anchored on those exact offsets. When we cannot supply
+            # any citeable evidence at all (raw content truncated /
+            # offsets clipped), the intent claim is dropped so the
+            # answer layer never quotes an unbacked verification.
+            def _existing_covers(span_lo: int, span_hi: int) -> bool:
+                for ev in evidence or []:
+                    if not isinstance(ev, dict):
+                        continue
+                    offsets = ev.get("raw_offset")
+                    if not (
+                        isinstance(offsets, list) and len(offsets) == 2
+                    ):
+                        continue
+                    try:
+                        lo_ev = int(offsets[0])
+                        hi_ev = int(offsets[1])
+                    except (TypeError, ValueError):
+                        continue
+                    if lo_ev <= span_lo and hi_ev >= span_hi:
+                        return True
+                return False
+
             if intent_links and raw_content_str:
-                existing_texts = [
-                    str(ev.get("quote") or "")
-                    for ev in (evidence or [])
-                    if isinstance(ev, dict) and ev.get("quote")
-                ]
-                seen_excerpts: set[str] = set(existing_texts)
+                seen_excerpts: set[str] = set()
+                drop_intents: list[str] = []
                 for intent, link in intent_links.items():
                     a_offset = link.get("anchor_offset") or [0, 0]
                     i_offset = link.get("intent_offset") or [0, 0]
@@ -2164,22 +2263,27 @@ def query_mirror(
                         a0, a1 = int(a_offset[0]), int(a_offset[1])
                         i0, i1 = int(i_offset[0]), int(i_offset[1])
                     except (TypeError, ValueError, IndexError):
+                        drop_intents.append(intent)
                         continue
-                    lo = max(0, min(a0, i0) - 40)
-                    hi = min(len(raw_content_str), max(a1, i1) + 40)
+                    span_lo = min(a0, i0)
+                    span_hi = max(a1, i1)
+                    if _existing_covers(span_lo, span_hi):
+                        # Coverage is already guaranteed by a prior
+                        # evidence entry (e.g. a raw-mapped summary
+                        # quote). Nothing to add and nothing to drop.
+                        continue
+                    lo = max(0, span_lo - 40)
+                    hi = min(len(raw_content_str), span_hi + 40)
+                    if not (lo <= span_lo and hi >= span_hi):
+                        # Cannot cover the span from raw — the link is
+                        # unauditable, drop the intent claim.
+                        drop_intents.append(intent)
+                        continue
                     excerpt = compact(
                         raw_content_str[lo:hi].replace("\n", " "), 500
                     )
                     if not excerpt:
-                        continue
-                    # A summary_quote may already reference the same
-                    # passage; skip when we can find it inside the
-                    # excerpt (or vice versa).
-                    if any(
-                        excerpt in existing or existing in excerpt
-                        for existing in existing_texts
-                        if existing
-                    ):
+                        drop_intents.append(intent)
                         continue
                     if excerpt in seen_excerpts:
                         continue
@@ -2190,6 +2294,9 @@ def query_mirror(
                         "intent": intent,
                         "raw_offset": [lo, hi],
                     })
+                for intent in drop_intents:
+                    intent_links.pop(intent, None)
+                    intent_hits[intent] = False
         # Compute the row's final linkage tier for confidence gating:
         #   ``strong`` = title/H1 contains an approved family surface.
         #   ``local``  = weak linkage but the row has at least one
@@ -2243,7 +2350,28 @@ def query_mirror(
                     if verified:
                         supported_intents.add(intent)
             all_intents_covered = intents_requested_set.issubset(supported_intents)
-            if len(verified_now) >= top_k and all_intents_covered:
+            # RT-010 final blockers (Blocker 3): progressive scope must
+            # continue until the FINAL citeable Top-K can cover every
+            # requested intent, not merely until any evaluated row
+            # covers it. Look ahead: if the intent-supporting rows
+            # gathered so far, once trimmed with bucket ordering, can
+            # fit inside ``top_k`` and still cover every requested
+            # intent, we can stop; otherwise we need more candidates.
+            supporting_rows = [
+                r for r in verified_now
+                if any((r.get("intent_support") or {}).values())
+            ]
+            unique_supporting_intents = {
+                intent
+                for r in supporting_rows
+                for intent, ok in (r.get("intent_support") or {}).items()
+                if ok
+            }
+            fits_top_k = (
+                len(supporting_rows) <= top_k
+                or len(unique_supporting_intents) <= top_k
+            )
+            if len(verified_now) >= top_k and all_intents_covered and fits_top_k:
                 break
         batch = ranked[cursor : cursor + batch_size]
         if not batch:
@@ -2362,8 +2490,20 @@ def query_mirror(
             results = picked
         else:
             results = combined[:top_k]
-        if bucket_1:
-            intent_supporting_top = bucket_1[0]
+        # RT-010 final blockers (Blocker 3): confidence must anchor on
+        # the FINAL citeable Top-K, not on the pre-trim ``bucket_1``.
+        # A row that survived bucket_1 might have been displaced during
+        # diversification; anchoring on ``bucket_1[0]`` when that row
+        # is no longer in ``results`` would leak clipped-row signal
+        # into the confidence gate.
+        intent_supporting_top = next(
+            (
+                row for row in results
+                if row.get("evidence_status") == "verified"
+                and any((row.get("intent_support") or {}).values())
+            ),
+            None,
+        )
 
     # Confidence anchor: for scoped-resolved queries, anchor on the
     # first raw-verified row that also supports at least one requested

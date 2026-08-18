@@ -36,7 +36,9 @@ CWK 本地检索目前把 Wiki 的人物/系统/项目页面作为实体导航�
 
 - 只改动 `scripts/cwk_wiki_query.py`、`scripts/cwk_wiki_search_index.py`
   和新增的 `scripts/cwk_entity_catalog.py`，并新增一份**版本化、可审计**的
-  跨类型合并注册表数据文件 `wiki/_system/entity-family-registry.json`；
+  跨类型合并注册表数据文件 `config/entity-family-registry.json`
+  （仓库唯一真源；`wiki/_system/entity-family-registry.json` 仅作为
+  本地实验用途，被 sync 排除、不进入 DocDB、也不被视为规范来源）；
 - 摘要（`wiki/summaries/*.md`）的 `## 候选实体` 段落是机器目录的**主要**来源；
   raw 原文作为**次要**来源，仅允许扩展已知规范/已批准别名的 postings（严格
   边界匹配，不生成新 surface / 家族）；

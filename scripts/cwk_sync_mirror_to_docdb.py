@@ -228,6 +228,16 @@ def iter_items(
             "wiki/_system/entity-catalog.json.gz",
             "wiki/_system/entity-catalog-meta.json",
             "wiki/_system/entity-anchors-cache.json",
+            # RT-010 final blockers (Blocker 8): the mirror-local
+            # ``entity-family-registry.json`` is an EXPERIMENTAL local
+            # override — the canonical version-controlled source lives
+            # at ``config/entity-family-registry.json`` inside the
+            # repo. Excluding the override here (and, transitively,
+            # from ``partition_retry_paths`` via ``all_prefix_items``)
+            # keeps cloud rebuilds deterministic across machines and
+            # prevents an accidentally-committed local override from
+            # silently reaching DocDB.
+            "wiki/_system/entity-family-registry.json",
         }
     ]
     if not allow_raw:

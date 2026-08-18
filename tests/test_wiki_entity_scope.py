@@ -2804,6 +2804,877 @@ class FollowUpEvidenceStitchGuardTests(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# RT-010 final blockers (independent audit, third pass) — neutral synthetic
+# regressions. Fixtures avoid TBS and other real acronyms so the
+# implementation stays independent of any single entity.
+# ---------------------------------------------------------------------------
+
+
+class FinalBlockersParserOriginalCoordinatesTests(unittest.TestCase):
+    """Blocker 4: ``parse_raw_blocks`` block offsets must live in the
+    ORIGINAL raw ``content`` coordinate system. When the preprocessor
+    changed text length, sibling list_items / table rows would
+    mis-locate into a neighbouring block and let
+    ``compute_entity_intent_links`` stitch anchor + intent across the
+    structural boundary.
+    """
+
+    def test_alpha_listitem_never_links_to_next_beta_risk_listitem(self):
+        mirror = SyntheticMirror()
+        try:
+            content = (
+                "# 今日事项\n\n"
+                "- 完成 ALPHA 数据接入\n"
+                "- BETA 项目风险 X 需跟进\n"
+                "- 例行同步\n"
+            )
+            mirror.add_report(
+                "AL010000000000001", "综合备忘", content,
+                candidate_entities=[("ALPHA", "system", "ALPHA")],
+                key_facts=[("完成 ALPHA 数据接入", "完成 ALPHA 数据接入")],
+            )
+            mirror.build_catalog(scan_raw=False)
+            payload = mirror.query("ALPHA 风险", top_k=4)
+            self.assertEqual(
+                payload["entity_resolution"]["status"], "resolved_empty",
+                "sibling list items must not stitch ALPHA anchor to BETA risk",
+            )
+            self.assertEqual(
+                payload["entity_resolution"]["reason"],
+                "no_query_evidence_in_scope",
+            )
+        finally:
+            mirror.cleanup()
+
+    def test_flattened_bullet_between_alpha_and_beta_risk_stays_split(self):
+        """A stitched paragraph ``ALPHA 稳定 - BETA 项目风险`` was
+        previously split via a length-shortening substitution which
+        shifted every downstream offset. The recovery must now be
+        length-preserving so anchor/intent offsets computed on the
+        ORIGINAL content still land in their true blocks.
+        """
+        mirror = SyntheticMirror()
+        try:
+            content = "ALPHA 数据接入完成 - BETA 项目本周风险 X 待跟进"
+            mirror.add_report(
+                "AL010000000000002", "扁平备忘", content,
+                candidate_entities=[("ALPHA", "system", "ALPHA")],
+                key_facts=[("ALPHA 数据接入完成", "ALPHA 数据接入完成")],
+            )
+            mirror.build_catalog(scan_raw=False)
+            payload = mirror.query("ALPHA 风险", top_k=4)
+            self.assertEqual(
+                payload["entity_resolution"]["status"], "resolved_empty",
+            )
+        finally:
+            mirror.cleanup()
+
+    def test_adjacent_table_rows_preserve_original_offsets(self):
+        """Two different table rows carry different subjects. The
+        parser must place each row in its own block with the ORIGINAL
+        content offsets so an intent hit in one row cannot silently
+        borrow an entity anchor from the neighbouring row.
+        """
+        mirror = SyntheticMirror()
+        try:
+            content = (
+                "# 表格记录\n\n"
+                "| 项目 | 情况 |\n"
+                "| --- | --- |\n"
+                "| ALPHA 数据接入 | 无进展 |\n"
+                "| BETA 高延误 | 本周风险 X |\n"
+            )
+            mirror.add_report(
+                "AL010000000000003", "表格备忘", content,
+                candidate_entities=[("ALPHA", "system", "ALPHA")],
+                key_facts=[("ALPHA 数据接入", "ALPHA 数据接入")],
+            )
+            mirror.build_catalog(scan_raw=False)
+            payload = mirror.query("ALPHA 风险", top_k=4)
+            self.assertEqual(
+                payload["entity_resolution"]["status"], "resolved_empty",
+                "sibling table rows must not stitch ALPHA to BETA risk",
+            )
+        finally:
+            mirror.cleanup()
+
+    def test_intent_link_anchor_offset_matches_original_content_text(self):
+        """When a locally-linked intent DOES verify, the anchor_offset
+        recorded on the intent link must point at the surface inside
+        the ORIGINAL content string. This guards against a preprocessor
+        that shifts offsets.
+        """
+        mirror = SyntheticMirror()
+        try:
+            # 5-space indent before the bullet is a common editor
+            # export; the raw ORIGINAL content still contains those
+            # spaces. If the preprocessor collapsed them we would end
+            # up with an anchor offset that does not select ``ALPHA``
+            # inside the original text.
+            content = (
+                "# 项目状态\n\n"
+                "     - ALPHA 阶段进展已确认。\n"
+            )
+            mirror.add_report(
+                "AL010000000000004", "缩进备忘", content,
+                candidate_entities=[("ALPHA", "system", "ALPHA")],
+                key_facts=[("ALPHA 阶段进展已确认",
+                            "ALPHA 阶段进展已确认")],
+            )
+            mirror.build_catalog(scan_raw=False)
+            payload = mirror.query("ALPHA 进展", top_k=4)
+            self.assertEqual(payload["entity_resolution"]["status"], "resolved")
+            row = payload["results"][0]
+            link = row["intent_links"]["progress"]
+            a0, a1 = link["anchor_offset"]
+            # Read the raw path directly so we compare against ORIGINAL
+            # content (frontmatter-stripped, envelope-stripped).
+            raw = Path(row["raw_path"]).read_text(encoding="utf-8")
+            content_str = wq.raw_content(raw)
+            self.assertGreaterEqual(a0, 0)
+            self.assertLessEqual(a1, len(content_str))
+            self.assertEqual(
+                content_str[a0:a1].casefold(), "alpha",
+                f"anchor_offset must select ALPHA in original content;"
+                f" got {content_str[a0:a1]!r}",
+            )
+        finally:
+            mirror.cleanup()
+
+
+class FinalBlockersEvidenceClosureTests(unittest.TestCase):
+    """Blocker 5: every verified intent link must have final citeable
+    evidence whose raw offsets cover the required entity-intent span.
+    A summary quote that only shares a short surface with the linked
+    passage must NOT be accepted as coverage — the coverage check must
+    be strict on raw offsets, and if no evidence can span the local
+    link, the intent claim itself is dropped.
+    """
+
+    def test_evidence_offset_covers_linked_intent_span(self):
+        mirror = SyntheticMirror()
+        try:
+            mirror.add_report(
+                "EC010000000000001", "备忘",
+                "ALPHA 阶段进展已确认。",
+                candidate_entities=[("ALPHA", "system", "ALPHA")],
+                key_facts=[("ALPHA 阶段进展已确认",
+                            "ALPHA 阶段进展已确认")],
+            )
+            mirror.build_catalog(scan_raw=False)
+            payload = mirror.query("ALPHA 进展", top_k=4)
+            row = payload["results"][0]
+            link = row["intent_links"]["progress"]
+            span_lo = min(int(link["anchor_offset"][0]),
+                          int(link["intent_offset"][0]))
+            span_hi = max(int(link["anchor_offset"][1]),
+                          int(link["intent_offset"][1]))
+            offset_covered = False
+            for ev in row["evidence"]:
+                if not isinstance(ev, dict):
+                    continue
+                offsets = ev.get("raw_offset")
+                if isinstance(offsets, list) and len(offsets) == 2:
+                    lo = int(offsets[0])
+                    hi = int(offsets[1])
+                    if lo <= span_lo and hi >= span_hi:
+                        offset_covered = True
+                        break
+            self.assertTrue(
+                offset_covered,
+                "every verified intent link must have evidence whose"
+                " raw_offset covers the (anchor, intent) span",
+            )
+        finally:
+            mirror.cleanup()
+
+    def test_linked_intent_excerpt_is_injected_when_summary_quote_uncovered(self):
+        """A summary quote that covers the ALPHA anchor but NOT the
+        intent keyword must not be treated as evidence closure. The
+        query layer must inject a ``linked_intent_excerpt`` whose
+        raw_offset actually covers both endpoints.
+        """
+        mirror = SyntheticMirror()
+        try:
+            content = "ALPHA 首次登场简报。ALPHA 阶段进展已确认。"
+            mirror.add_report(
+                "EC010000000000002", "备忘", content,
+                candidate_entities=[("ALPHA", "system", "ALPHA")],
+                key_facts=[("ALPHA 首次登场简报", "ALPHA 首次登场简报")],
+            )
+            mirror.build_catalog(scan_raw=False)
+            payload = mirror.query("ALPHA 进展", top_k=4)
+            row = payload["results"][0]
+            kinds = [ev.get("kind") for ev in row["evidence"] if isinstance(ev, dict)]
+            self.assertIn(
+                "linked_intent_excerpt", kinds,
+                "linked_intent_excerpt must be injected when no existing"
+                " evidence raw_offset covers the linked span",
+            )
+        finally:
+            mirror.cleanup()
+
+
+class FinalBlockersRegistrySourceLabelTests(unittest.TestCase):
+    """Blocker 8: ``index-meta.json`` / ``manifest.json`` must record
+    a stable non-sensitive LOGICAL registry source string (``repo:...``
+    or ``mirror:...``), never an absolute filesystem path. The mirror
+    override must also be excluded from the DocDB sync candidate list.
+    """
+
+    def test_repo_registry_source_is_labelled_relative(self):
+        mirror = SyntheticMirror()
+        try:
+            mirror.add_report(
+                "RS010000000000001", "ALPHA", "ALPHA 相关",
+                candidate_entities=[("ALPHA", "system", "ALPHA")],
+            )
+            mirror.build_catalog(scan_raw=False)
+            import cwk_wiki_search_index as swi
+            meta = swi.build_index(mirror.mirror, force=True)
+            source = str(meta.get("entity_catalog_registry_source") or "")
+            self.assertFalse(
+                source.startswith("/"),
+                f"registry source must be a logical label, not an absolute"
+                f" path (got {source!r})",
+            )
+            self.assertIn(
+                source,
+                {"repo:config/entity-family-registry.json", ""},
+                f"repo registry must be labelled as"
+                f" 'repo:config/entity-family-registry.json' (got {source!r})",
+            )
+        finally:
+            mirror.cleanup()
+
+    def test_mirror_override_source_is_relative(self):
+        mirror = SyntheticMirror()
+        try:
+            mirror.add_report(
+                "RS010000000000002", "示例系统",
+                "示例K 系统 记录。",
+                candidate_entities=[("示例K", "system", "示例K")],
+                key_facts=[("示例K 系统", "示例K 系统 记录")],
+            )
+            mirror.add_report(
+                "RS010000000000003", "示例项目",
+                "示例K 项目 侧记。",
+                candidate_entities=[("示例K", "project", "示例K")],
+                key_facts=[("示例K 项目", "示例K 项目 侧记")],
+            )
+            mirror.write_registry([
+                {
+                    "entry_id": "cross-type-示例k-unit-test",
+                    "canonical_display": "示例K",
+                    "members": [
+                        {"entity_type": "system", "normalized": "示例k"},
+                        {"entity_type": "project", "normalized": "示例k"},
+                    ],
+                    "evidence": [
+                        {"report_id": "RS010000000000002",
+                         "quote": "示例K 系统"},
+                    ],
+                    "decided_by": "unit-test",
+                    "decided_at": "2026-08-18",
+                    "decision_ref": "unit-test-ref",
+                }
+            ])
+            _payload, _cache, source = ec.build_catalog(
+                mirror.mirror, scan_raw=False, use_cache=False,
+                registry_paths=[mirror._registry_path],
+            )
+            self.assertFalse(
+                source.startswith("/"),
+                f"mirror override must be a relative label (got {source!r})",
+            )
+            self.assertTrue(
+                source.startswith("mirror:") or source.startswith("external:"),
+                f"expected mirror:/external: label, got {source!r}",
+            )
+        finally:
+            mirror.cleanup()
+
+    def test_sync_iterator_excludes_registry_override(self):
+        mirror = SyntheticMirror()
+        try:
+            mirror.add_report(
+                "RS010000000000004", "ALPHA 备忘",
+                "ALPHA 相关内容。",
+                candidate_entities=[("ALPHA", "system", "ALPHA")],
+                key_facts=[("ALPHA 相关内容", "ALPHA 相关内容")],
+            )
+            # Drop a mirror override in place — even if a developer
+            # accidentally checks one in, sync must not pick it up.
+            (mirror.mirror / "wiki" / "_system" /
+             "entity-family-registry.json").write_text(
+                '{"schema_version": "cwk.entity_family_registry.v1",'
+                ' "version": "local-override", "entries": []}',
+                encoding="utf-8",
+            )
+            mirror.build_catalog(scan_raw=False)
+            import cwk_sync_mirror_to_docdb as sync_mod
+            orig_mirror = sync_mod.MIRROR
+            sync_mod.MIRROR = mirror.mirror
+            try:
+                items = sync_mod.iter_items(limit=None, only_prefix=None)
+                rels = {item.rel.as_posix() for item in items}
+            finally:
+                sync_mod.MIRROR = orig_mirror
+            self.assertNotIn(
+                "wiki/_system/entity-family-registry.json", rels,
+                "mirror registry override must be excluded from sync",
+            )
+        finally:
+            mirror.cleanup()
+
+
+class FinalBlockersRegistryAuditHashTests(unittest.TestCase):
+    """Blocker 9: registry audit provenance must include ``entry_id``,
+    ``decided_by``, ``decided_at``, ``decision_ref``, and ``evidence``.
+    Changing ``decision_ref`` MUST change the semantic
+    ``catalog_sha256``.
+    """
+
+    def test_decision_ref_changes_catalog_sha(self):
+        base_mirror = SyntheticMirror()
+        alt_mirror = SyntheticMirror()
+        try:
+            for m in (base_mirror, alt_mirror):
+                m.add_report(
+                    "RH010000000000001", "示例J 系统", "示例J 系统 记录。",
+                    candidate_entities=[("示例J", "system", "示例J")],
+                    key_facts=[("示例J 系统", "示例J 系统 记录")],
+                )
+                m.add_report(
+                    "RH010000000000002", "示例J 项目", "示例J 项目 侧记。",
+                    candidate_entities=[("示例J", "project", "示例J")],
+                    key_facts=[("示例J 项目", "示例J 项目 侧记")],
+                )
+            base_entry = {
+                "entry_id": "cross-type-示例j-unit-test",
+                "canonical_display": "示例J",
+                "members": [
+                    {"entity_type": "system", "normalized": "示例j"},
+                    {"entity_type": "project", "normalized": "示例j"},
+                ],
+                "evidence": [
+                    {"report_id": "RH010000000000001",
+                     "quote": "示例J 系统"},
+                ],
+                "decided_by": "unit-test",
+                "decided_at": "2026-08-18",
+                "decision_ref": "ticket://REF-1",
+            }
+            alt_entry = dict(base_entry)
+            alt_entry["decision_ref"] = "ticket://REF-2"
+            base_mirror.write_registry([base_entry])
+            alt_mirror.write_registry([alt_entry])
+            base_payload = base_mirror.build_catalog(scan_raw=False)
+            alt_payload = alt_mirror.build_catalog(scan_raw=False)
+            self.assertNotEqual(
+                base_payload["catalog_sha256"],
+                alt_payload["catalog_sha256"],
+                "changing decision_ref must change catalog_sha256",
+            )
+            # Applied provenance also records the decision_ref.
+            applied = base_payload["registry"]["applied"][0]
+            self.assertEqual(applied.get("decision_ref"), "ticket://REF-1")
+        finally:
+            base_mirror.cleanup()
+            alt_mirror.cleanup()
+
+    def test_registry_provenance_carries_full_audit_chain(self):
+        mirror = SyntheticMirror()
+        try:
+            mirror.add_report(
+                "RH010000000000010", "示例L 系统", "示例L 系统 记录。",
+                candidate_entities=[("示例L", "system", "示例L")],
+                key_facts=[("示例L 系统", "示例L 系统 记录")],
+            )
+            mirror.add_report(
+                "RH010000000000011", "示例L 项目", "示例L 项目 侧记。",
+                candidate_entities=[("示例L", "project", "示例L")],
+                key_facts=[("示例L 项目", "示例L 项目 侧记")],
+            )
+            mirror.write_registry([
+                {
+                    "entry_id": "cross-type-示例l-unit-test",
+                    "canonical_display": "示例L",
+                    "members": [
+                        {"entity_type": "system", "normalized": "示例l"},
+                        {"entity_type": "project", "normalized": "示例l"},
+                    ],
+                    "evidence": [
+                        {"report_id": "RH010000000000010",
+                         "quote": "示例L 系统"},
+                    ],
+                    "decided_by": "unit-test",
+                    "decided_at": "2026-08-18",
+                    "decision_ref": "ticket://LREF",
+                }
+            ])
+            payload = mirror.build_catalog(scan_raw=False)
+            family = next(
+                f for f in payload["families"]
+                if any(s["normalized"] == "示例l" for s in f["surfaces"])
+            )
+            evidence = family["approved_family_evidence"]
+            self.assertTrue(evidence)
+            row = evidence[0]
+            for key in ("entry_id", "decided_by", "decided_at",
+                        "decision_ref", "registry_version"):
+                self.assertIn(
+                    key, row,
+                    f"approved_family_evidence must carry {key}",
+                )
+            self.assertEqual(row["decision_ref"], "ticket://LREF")
+            # Surface provenance for a merged surface must also carry
+            # the audit fields.
+            for surface in family["surfaces"]:
+                for prov in surface.get("provenance", []) or []:
+                    if prov.get("rule") == "approved_family_registry":
+                        for key in (
+                            "entry_id", "decided_by", "decided_at",
+                            "decision_ref", "registry_version",
+                        ):
+                            self.assertIn(
+                                key, prov,
+                                f"surface provenance missing {key}",
+                            )
+                        self.assertEqual(prov["decision_ref"], "ticket://LREF")
+                        break
+        finally:
+            mirror.cleanup()
+
+
+class FinalBlockersParentheticalGenericTests(unittest.TestCase):
+    """Blocker 6: every unapproved bare parenthetical full form must
+    stay ``generic_candidate`` even if no independent same-name family
+    exists in the corpus. Only an explicit registry entry may promote
+    the surface back to ``hard``.
+    """
+
+    def test_bare_parenthetical_full_form_stays_generic_alone(self):
+        """A lone parenthetical declaration like ``ALPHA（示例平台）``
+        must NOT promote ``示例平台`` to a hard scope key for the
+        ALPHA family — even without any independent ``示例平台``
+        report. Otherwise the next report that mentions only
+        ``示例平台`` will silently join ALPHA scope.
+        """
+        mirror = SyntheticMirror()
+        try:
+            mirror.add_report(
+                "PG010000000000001", "Y 报告",
+                "ALPHA 相关记录。",
+                candidate_entities=[
+                    ("ALPHA（示例平台）", "system", "ALPHA（示例平台）"),
+                ],
+                key_facts=[("ALPHA 相关记录", "ALPHA 相关记录")],
+            )
+            payload = mirror.build_catalog(scan_raw=False)
+            alpha_family = next(
+                (
+                    f for f in payload["families"]
+                    if any(s["normalized"] == "alpha" for s in f["surfaces"])
+                ),
+                None,
+            )
+            self.assertIsNotNone(alpha_family)
+            generic_surface = next(
+                (s for s in alpha_family["surfaces"] if s["normalized"] == "示例平台"),
+                None,
+            )
+            self.assertIsNotNone(generic_surface)
+            self.assertEqual(
+                generic_surface["scope_role"], "generic_candidate",
+                "bare parenthetical full form must stay generic_candidate"
+                " even when no independent 示例平台 family exists yet",
+            )
+        finally:
+            mirror.cleanup()
+
+    def test_generic_only_report_added_later_never_joins_acronym_scope(self):
+        """Add the parenthetical Y report first, then a later report
+        that mentions ONLY the generic full form. The generic-only
+        report must never enter the acronym family's postings even
+        via raw-anchor extension.
+        """
+        mirror = SyntheticMirror()
+        try:
+            mirror.add_report(
+                "PG010000000000010", "Y 报告",
+                "ALPHA 相关记录。",
+                candidate_entities=[
+                    ("ALPHA（AI陪练系统）", "system", "ALPHA（AI陪练系统）"),
+                ],
+                key_facts=[("ALPHA 相关记录", "ALPHA 相关记录")],
+            )
+            mirror.add_report(
+                "PG010000000000011", "Z 报告",
+                "AI陪练系统 相关内容记录。",
+                candidate_entities=[("AI陪练系统", "system", "AI陪练系统")],
+                key_facts=[("AI陪练系统 相关内容记录",
+                            "AI陪练系统 相关内容记录")],
+            )
+            payload = mirror.build_catalog(scan_raw=True)
+            alpha_family = next(
+                (
+                    f for f in payload["families"]
+                    if any(s["normalized"] == "alpha" for s in f["surfaces"])
+                ),
+                None,
+            )
+            self.assertIsNotNone(alpha_family)
+            self.assertNotIn(
+                "PG010000000000011", alpha_family["postings"],
+                "generic-only report must NEVER join the acronym family"
+                " via a parenthetical-derived surface",
+            )
+            # ``AI陪练系统`` alone must resolve to its independent family
+            # (or fail closed), never to the acronym family.
+            resolution = wq.resolve_entity("AI陪练系统 进展", payload)
+            if resolution.family_id:
+                self.assertNotEqual(
+                    resolution.family_id, alpha_family["family_id"],
+                    "generic surface must not resolve to acronym family"
+                    " even when it has no independent report of its own",
+                )
+        finally:
+            mirror.cleanup()
+
+
+class FinalBlockersBoundSnapshotBrokenTests(unittest.TestCase):
+    """Blocker 1: when the persistent index declares an
+    ``entity_catalog_sha256`` but the on-disk catalog is missing,
+    unreadable, or hash-mismatched, the bound snapshot is broken and
+    the query surface must fail closed on any structural entity
+    residual — including lowercase ASCII (``alpha``), CJK entities
+    (``云端虾``, ``云端虾 进展``), and fullwidth ASCII plus intent
+    (``ＡＬＰＨＡ 风险``). Purely generic prose still returns unscoped.
+    """
+
+    def _build_broken_bound_snapshot(self, mirror: "SyntheticMirror") -> None:
+        """Build a search index that DECLARES a catalog SHA, then
+        corrupt the on-disk catalog so the SHA no longer matches."""
+        import cwk_wiki_search_index as swi
+        swi.build_index(mirror.mirror, force=True)
+        system = mirror.mirror / "wiki" / "_system"
+        # Truncate/rewrite the catalog files so their sha no longer
+        # matches the persistent-index declaration.
+        (system / "entity-catalog.json").write_text("{}", encoding="utf-8")
+        (system / "entity-catalog.json.gz").unlink(missing_ok=True)
+        # Clear any cached catalog inside the entity_catalog module.
+        import cwk_entity_catalog as ec
+        ec._CATALOG_CACHE.clear()
+        wq._INDEX_CACHE.clear()
+
+    def test_lowercase_alpha_fails_closed_on_broken_bound_snapshot(self):
+        mirror = SyntheticMirror()
+        try:
+            mirror.add_report(
+                "BS010000000000001", "ALPHA", "ALPHA 相关",
+                candidate_entities=[("ALPHA", "system", "ALPHA")],
+                key_facts=[("ALPHA 相关", "ALPHA 相关")],
+            )
+            mirror.build_catalog(scan_raw=False)
+            self._build_broken_bound_snapshot(mirror)
+            payload = wq.query_mirror(
+                mirror.mirror, "alpha", use_index=True, require_catalog=False,
+            )
+            self.assertEqual(
+                payload["entity_resolution"]["status"], "unknown",
+                "lowercase 'alpha' must fail closed under broken bound snapshot",
+            )
+            self.assertEqual(payload["results"], [])
+            self.assertFalse(payload["global_fallback_used"])
+        finally:
+            mirror.cleanup()
+
+    def test_fullwidth_alpha_plus_intent_fails_closed(self):
+        mirror = SyntheticMirror()
+        try:
+            mirror.add_report(
+                "BS010000000000002", "ALPHA", "ALPHA 相关",
+                candidate_entities=[("ALPHA", "system", "ALPHA")],
+                key_facts=[("ALPHA 相关", "ALPHA 相关")],
+            )
+            mirror.build_catalog(scan_raw=False)
+            self._build_broken_bound_snapshot(mirror)
+            payload = wq.query_mirror(
+                mirror.mirror, "ＡＬＰＨＡ 风险",
+                use_index=True, require_catalog=False,
+            )
+            self.assertEqual(
+                payload["entity_resolution"]["status"], "unknown",
+                "fullwidth ALPHA + risk must fail closed under broken snapshot",
+            )
+            self.assertEqual(payload["results"], [])
+            self.assertFalse(payload["global_fallback_used"])
+        finally:
+            mirror.cleanup()
+
+    def test_cjk_bare_entity_fails_closed_on_broken_bound_snapshot(self):
+        mirror = SyntheticMirror()
+        try:
+            mirror.add_report(
+                "BS010000000000003", "云端虾申请",
+                "云端虾 项目相关记录。",
+                candidate_entities=[("云端虾", "system", "云端虾")],
+                key_facts=[("云端虾 项目相关记录",
+                            "云端虾 项目相关记录")],
+            )
+            mirror.build_catalog(scan_raw=False)
+            self._build_broken_bound_snapshot(mirror)
+            for question in ("云端虾", "云端虾 进展"):
+                payload = wq.query_mirror(
+                    mirror.mirror, question,
+                    use_index=True, require_catalog=False,
+                )
+                self.assertEqual(
+                    payload["entity_resolution"]["status"], "unknown",
+                    f"{question!r} must fail closed under broken snapshot",
+                )
+                self.assertEqual(payload["results"], [], question)
+                self.assertFalse(payload["global_fallback_used"], question)
+        finally:
+            mirror.cleanup()
+
+    def test_generic_prose_still_runs_unscoped_on_broken_bound_snapshot(self):
+        """PRESERVE clause: generic ``本周有哪些风险`` (empty structural
+        residual) must NOT be caught by the strict fail-closed path."""
+        mirror = SyntheticMirror()
+        try:
+            mirror.add_report(
+                "BS010000000000004", "任意报告", "内容占位。",
+                candidate_entities=[("ALPHA", "system", "ALPHA")],
+                key_facts=[("内容占位", "内容占位")],
+            )
+            mirror.build_catalog(scan_raw=False)
+            self._build_broken_bound_snapshot(mirror)
+            payload = wq.query_mirror(
+                mirror.mirror, "本周有哪些风险",
+                use_index=True, require_catalog=False,
+            )
+            self.assertIn(
+                payload["entity_resolution"]["status"],
+                {"unscoped", "resolved", "resolved_empty"},
+                "generic prose must not be caught by the strict"
+                " bound-snapshot fail-closed path",
+            )
+        finally:
+            mirror.cleanup()
+
+
+class FinalBlockersUnknownNormalizationTests(unittest.TestCase):
+    """Blocker 2: with a VALID catalog, queries that name unknown
+    entity shapes must resolve to ``unknown / none / results=[]``
+    when combined with a management intent. Rules are structural:
+    NFKC folds fullwidth ASCII, the ASCII shape check is case-
+    insensitive, and short CJK proper nouns (2+ chars) also count.
+    Purely generic prose stays ``unscoped``.
+    """
+
+    def _build_catalog(self) -> "SyntheticMirror":
+        mirror = SyntheticMirror()
+        mirror.add_report(
+            "UN010000000000001", "ALPHA", "ALPHA 相关",
+            candidate_entities=[("ALPHA", "system", "ALPHA")],
+        )
+        mirror.build_catalog(scan_raw=False)
+        return mirror
+
+    def test_lowercase_omega_with_risk_fails_closed(self):
+        mirror = self._build_catalog()
+        try:
+            payload = mirror.query("omega risk")
+            self.assertEqual(payload["entity_resolution"]["status"], "unknown")
+            self.assertEqual(payload["results"], [])
+            self.assertEqual(payload["confidence"], "none")
+        finally:
+            mirror.cleanup()
+
+    def test_fullwidth_omega_with_risk_fails_closed(self):
+        mirror = self._build_catalog()
+        try:
+            payload = mirror.query("ｏｍｅｇａ risk")
+            self.assertEqual(payload["entity_resolution"]["status"], "unknown")
+            self.assertEqual(payload["results"], [])
+        finally:
+            mirror.cleanup()
+
+    def test_short_cjk_entity_with_intent_fails_closed(self):
+        mirror = self._build_catalog()
+        try:
+            for question in ("北斗 风险", "北斗-风险"):
+                payload = mirror.query(question)
+                self.assertEqual(
+                    payload["entity_resolution"]["status"], "unknown",
+                    f"{question!r} names an unknown 2-char CJK proper noun"
+                    f" plus a management intent — must fail closed",
+                )
+                self.assertEqual(payload["results"], [], question)
+        finally:
+            mirror.cleanup()
+
+    def test_generic_prose_stays_unscoped(self):
+        mirror = self._build_catalog()
+        try:
+            payload = mirror.query("本周有哪些风险")
+            self.assertIn(
+                payload["entity_resolution"]["status"],
+                {"unscoped", "resolved", "resolved_empty"},
+                "generic prose must remain unscoped even under"
+                " lower CJK entity thresholds",
+            )
+        finally:
+            mirror.cleanup()
+
+
+class FinalBlockersConfidenceAnchorTests(unittest.TestCase):
+    """Blocker 3: confidence anchor / verified / missing / query_support
+    must be recomputed from the FINAL citeable Top-K, never from clipped
+    rows or the pre-trim bucket_1.
+    """
+
+    def test_top_k_1_only_progress_survives_and_risk_is_missing(self):
+        mirror = SyntheticMirror()
+        try:
+            mirror.add_report(
+                "CT010000000000001", "ALPHA 进展",
+                "ALPHA 进展报告，本周确认。",
+                candidate_entities=[("ALPHA", "system", "ALPHA")],
+                key_facts=[("ALPHA 进展报告", "ALPHA 进展报告，本周确认")],
+            )
+            mirror.add_report(
+                "CT010000000000002", "ALPHA 风险",
+                "ALPHA 风险台账，风险为 X。",
+                candidate_entities=[("ALPHA", "system", "ALPHA")],
+                key_facts=[("ALPHA 风险为 X", "ALPHA 风险为 X")],
+            )
+            mirror.build_catalog(scan_raw=False)
+            payload = mirror.query("ALPHA 进展与风险", top_k=1)
+            self.assertEqual(payload["entity_resolution"]["status"], "resolved")
+            self.assertEqual(len(payload["results"]), 1)
+            verified = payload["intents"]["verified"]
+            missing = payload["intents"]["missing"]
+            # Whichever intent the surviving row supports must appear
+            # in verified; the other MUST be missing.
+            self.assertEqual(
+                set(verified) | set(missing), {"progress", "risk"},
+            )
+            self.assertEqual(set(verified) & set(missing), set())
+            self.assertEqual(len(verified), 1)
+            self.assertEqual(len(missing), 1)
+            # Confidence anchor recomputes on the surviving row only,
+            # so a compound intent query with only one intent verified
+            # must not report ``high``.
+            self.assertNotEqual(payload["confidence"], "high")
+        finally:
+            mirror.cleanup()
+
+    def test_thirty_three_rows_progressive_scope_reaches_final_top_k(self):
+        """33 in-scope rows across two intents; the final citeable
+        Top-K (8) must cover both requested intents and the union of
+        verified intents must be recomputed from the FINAL trimmed
+        results, not from the pre-trim bucket. A row that supports
+        only one intent must not falsely lift the other.
+        """
+        mirror = SyntheticMirror()
+        try:
+            for i in range(32):
+                mirror.add_report(
+                    f"P3010000000000{i:03d}",
+                    f"占位 {i}",
+                    "ALPHA 阶段进展已确认。",
+                    summary_text=(
+                        "ALPHA 进展 进展 进展 进展 进展 进展 进展 进展"
+                    ),
+                    candidate_entities=[("ALPHA", "system", "ALPHA")],
+                    key_facts=[(
+                        "ALPHA 阶段进展已确认",
+                        "ALPHA 阶段进展已确认",
+                    )],
+                )
+            mirror.add_report(
+                "P3010000000000200",
+                "内部备忘",
+                "ALPHA 风险已识别。",
+                summary_text="内部备忘",
+                candidate_entities=[("ALPHA", "system", "ALPHA")],
+                key_facts=[("识别", "ALPHA 风险已识别")],
+            )
+            mirror.build_catalog(scan_raw=False)
+            payload = mirror.query(
+                "ALPHA 进展与风险", top_k=8, min_score=0.0,
+            )
+            self.assertEqual(payload["entity_resolution"]["status"], "resolved")
+            self.assertLessEqual(len(payload["results"]), 8)
+            self.assertIn("progress", payload["intents"]["verified"])
+            self.assertIn(
+                "risk", payload["intents"]["verified"],
+                "risk must survive to the final citeable Top-K",
+            )
+            self.assertEqual(payload["intents"]["missing"], [])
+            ids = [row["report_id"] for row in payload["results"]]
+            self.assertIn(
+                "P3010000000000200", ids,
+                "risk-supporting row must be in the final Top-K so the"
+                " recomputed intents.verified is honestly backed by a"
+                " citeable row",
+            )
+        finally:
+            mirror.cleanup()
+
+    def test_confidence_anchor_recomputes_from_final_top_k_only(self):
+        """Confidence anchor and intents.verified must be derived
+        from the FINAL citeable rows. If bucket_1 held a row that got
+        displaced during Top-K diversification, the answer's confidence
+        signal must NOT still be anchored on that displaced row.
+        """
+        mirror = SyntheticMirror()
+        try:
+            # Row A: raw-verified, progress AND risk co-occur — a
+            # strong bucket_1 candidate.
+            mirror.add_report(
+                "AC010000000000001", "ALPHA 综合",
+                "ALPHA 阶段进展已确认；ALPHA 风险为 X。",
+                candidate_entities=[("ALPHA", "system", "ALPHA")],
+                key_facts=[
+                    ("ALPHA 阶段进展已确认",
+                     "ALPHA 阶段进展已确认；ALPHA 风险为 X"),
+                ],
+            )
+            # Row B: same query surface, raw contains only progress.
+            mirror.add_report(
+                "AC010000000000002", "ALPHA 简报",
+                "ALPHA 阶段进展已确认。",
+                candidate_entities=[("ALPHA", "system", "ALPHA")],
+                key_facts=[("ALPHA 阶段进展已确认",
+                            "ALPHA 阶段进展已确认")],
+            )
+            mirror.build_catalog(scan_raw=False)
+            payload = mirror.query("ALPHA 进展与风险", top_k=2, min_score=0.0)
+            self.assertEqual(payload["entity_resolution"]["status"], "resolved")
+            # Recomputed union from final results.
+            final_intents = set()
+            for row in payload["results"]:
+                for intent, ok in (row.get("intent_support") or {}).items():
+                    if ok:
+                        final_intents.add(intent)
+            self.assertEqual(
+                set(payload["intents"]["verified"]), final_intents,
+                "intents.verified must match the union computed from"
+                " the FINAL citeable rows",
+            )
+            self.assertEqual(
+                set(payload["intents"]["missing"]),
+                {"progress", "risk"} - final_intents,
+            )
+        finally:
+            mirror.cleanup()
+
+
+# ---------------------------------------------------------------------------
 # Single real-corpus regression for the shipped TBS registry entry.
 # Skipped automatically when the mirror is not present.
 # ---------------------------------------------------------------------------
