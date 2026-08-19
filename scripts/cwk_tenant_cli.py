@@ -49,7 +49,7 @@ _TRUSTED_SCRIPTS_DIR = Path(__file__).resolve().parent
 # be modified beyond the addition.
 FROZEN_PROVIDER_SLOTS: tuple[str, ...] = (
     "cwk_tenant_cmd_core",
-    # RT-013 will ship: "cwk_tenant_cmd_binding",
+    "cwk_tenant_cmd_binding",
     # RT-019 will ship: "cwk_tenant_cmd_profile",
     # RT-026 will ship: "cwk_tenant_cmd_release",
 )
