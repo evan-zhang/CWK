@@ -297,11 +297,15 @@ RT-016 独立验收报告至少应验证：
   - crosswalk / review / manifest 文本不含
     `app_key / credential_ref / cookie / session_token / 绝对路径`；
   - 合成 legacy tree 递归 hash 在导入前后完全一致；
-  - RT-011~015 冻结文件的 SHA-256 与 HEAD 完全一致（
-    `FrozenFilesZeroDriftTests`）。
+  - RT-011~015 冻结文件的 SHA-256 与显式 `(path → sha256)` allowlist
+    基线（`7ba906f`）完全一致（`FrozenFilesZeroDriftTests`），并由
+    `FrozenBaselineExactSetTests` 对
+    `contracts/schemas/` + `contracts/rt012~015/schemas/` 做 exact-set
+    元校验：任何新增 / 缺失文件都会 fail。第三轮修复不再对
+    `HEAD:<path>` 自比较。
 - 完整测试：`python3.11 -m unittest discover -s tests -p
-  'test_rt016_*.py'`（75 tests）与
-  `python3.11 -m unittest discover -s tests`（全套）均通过。
+  'test_rt016_*.py'` 与 `python3.11 -m unittest discover -s tests`
+  （全套）均通过。测试计数以本次交付验证报告为准。
 
 ## 八、回滚
 

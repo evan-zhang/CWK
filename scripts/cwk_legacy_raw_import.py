@@ -1096,15 +1096,40 @@ def _load_manifest_line_bound(
     tenant_id: str,
     filename_run_id: str,
     line_number: int,
+    expected_entry_seq: Optional[int] = None,
 ) -> dict[str, Any]:
-    """Bound loader for a single JSONL manifest line.
+    """Bound loader for a single JSONL manifest line — third-round fail-closed.
 
-    Wraps parse errors as ``corrupt``; verifies that every line's
-    ``tenant_id`` matches the parent directory and every line's
-    ``run_id`` matches the file name.  Any mis-placed manifest line
-    fails closed — a manifest line that pretends to belong to a
-    different tenant / run must not participate in dedupe or
-    idempotency arithmetic.
+    Wraps parse errors as ``corrupt``; verifies every invariant a v2
+    manifest reader must not skip:
+
+    * strict-JSON parse (rejects trailing junk, duplicate keys, JS-style
+      literals, non-UTF-8);
+    * envelope schema validation against the pinned v2 (or audit-only v1)
+      JSON Schema (``additionalProperties:false`` / grammar);
+    * exact **JCS + NFC raw-canonical bytes** — a re-encoded line
+      (semantically identical JSON but different byte ordering / whitespace)
+      is rejected as corrupt so an attacker who cannot forge canonical
+      bytes cannot slide a payload past dedupe;
+    * ``tenant_id`` matches the parent-directory tenant;
+    * ``run_id`` matches the file name;
+    * (when the caller supplies ``expected_entry_seq``) ``entry_seq``
+      matches its position in the file (contiguous, starting at 1);
+    * outcome vs key co-occurrence: ``complete`` requires ``crosswalk_key``
+      and forbids ``review_id``; ``review`` / ``undecomposable`` require
+      ``review_id`` and forbid ``crosswalk_key``;
+    * recomputed v2 ``crosswalk_key`` from ``(tenant, namespace, kind,
+      path_hash, raw_sha)`` matches the record's declared ``crosswalk_key``;
+    * recomputed v2 ``review_id`` from ``(tenant, namespace, kind,
+      path_hash, raw_sha, run_id)`` matches the record's declared
+      ``review_id``.
+
+    Any failure raises :class:`LegacyImportError(code="corrupt")` so the
+    calling append / read path never adds the record to a dedupe set,
+    counts it as coverage, or produces an idempotent "already present"
+    reply. This is the single door for manifest-line trust — direct
+    :func:`strict_json_loads` + :func:`_validate_against` from callers is
+    forbidden.
     """
 
     try:
@@ -1146,6 +1171,21 @@ def _load_manifest_line_bound(
             f"manifest line {line_number} unknown schema {schema_id!r}",
             code="corrupt",
         )
+    # Exact JCS+NFC canonical bytes check — reject re-encoded lines even
+    # if the parse result is semantically identical.  This closes the
+    # non-JCS-strict-JSON dedupe-bypass vector.
+    try:
+        canonical = _canonical_bytes(payload)
+    except (_C.ContractError, ValueError, TypeError) as exc:
+        raise LegacyImportError(
+            f"manifest line {line_number} cannot re-canonicalize: {exc}",
+            code="corrupt",
+        ) from exc
+    if canonical != text.encode("utf-8"):
+        raise LegacyImportError(
+            f"manifest line {line_number} is not JCS+NFC canonical",
+            code="corrupt",
+        )
     if payload.get("tenant_id") != tenant_id:
         raise LegacyImportError(
             f"manifest line {line_number} tenant_id disagrees with parent dir",
@@ -1156,6 +1196,91 @@ def _load_manifest_line_bound(
             f"manifest line {line_number} run_id disagrees with file name",
             code="corrupt",
         )
+    if expected_entry_seq is not None and payload.get("entry_seq") != expected_entry_seq:
+        raise LegacyImportError(
+            f"manifest line {line_number} entry_seq "
+            f"{payload.get('entry_seq')!r} does not match expected "
+            f"{expected_entry_seq}",
+            code="corrupt",
+        )
+    # Outcome / key co-occurrence + recomputation (v2 only; v1 audit
+    # paths do not carry the v2 identity fields).
+    if schema_id == "cwk.rt016.migration_manifest_entry.v2":
+        outcome = payload.get("outcome")
+        declared_ck = payload.get("crosswalk_key")
+        declared_rid = payload.get("review_id")
+        if outcome == "complete":
+            if declared_ck is None:
+                raise LegacyImportError(
+                    f"manifest line {line_number}: complete outcome without "
+                    "crosswalk_key",
+                    code="corrupt",
+                )
+            if declared_rid is not None:
+                raise LegacyImportError(
+                    f"manifest line {line_number}: complete outcome must not "
+                    "carry review_id",
+                    code="corrupt",
+                )
+            try:
+                recomputed_ck = compute_crosswalk_key_v2(
+                    payload["tenant_id"],
+                    payload["source_namespace"],
+                    payload["source_kind"],
+                    payload["legacy_path_hash"],
+                    payload["legacy_source_sha256"],
+                )
+            except LegacyImportError as exc:
+                raise LegacyImportError(
+                    f"manifest line {line_number}: cannot recompute v2 "
+                    f"crosswalk_key: {exc}",
+                    code="corrupt",
+                ) from exc
+            if recomputed_ck != declared_ck:
+                raise LegacyImportError(
+                    f"manifest line {line_number}: recomputed v2 crosswalk_key "
+                    "disagrees with declared crosswalk_key",
+                    code="corrupt",
+                )
+        elif outcome in ("review", "undecomposable"):
+            if declared_rid is None:
+                raise LegacyImportError(
+                    f"manifest line {line_number}: {outcome} outcome without "
+                    "review_id",
+                    code="corrupt",
+                )
+            if declared_ck is not None:
+                raise LegacyImportError(
+                    f"manifest line {line_number}: {outcome} outcome must not "
+                    "carry crosswalk_key",
+                    code="corrupt",
+                )
+            try:
+                recomputed_rid = compute_review_id_v2(
+                    payload["tenant_id"],
+                    payload["source_namespace"],
+                    payload["source_kind"],
+                    payload["legacy_path_hash"],
+                    payload["legacy_source_sha256"],
+                    payload["run_id"],
+                )
+            except LegacyImportError as exc:
+                raise LegacyImportError(
+                    f"manifest line {line_number}: cannot recompute v2 "
+                    f"review_id: {exc}",
+                    code="corrupt",
+                ) from exc
+            if recomputed_rid != declared_rid:
+                raise LegacyImportError(
+                    f"manifest line {line_number}: recomputed v2 review_id "
+                    "disagrees with declared review_id",
+                    code="corrupt",
+                )
+        else:
+            raise LegacyImportError(
+                f"manifest line {line_number}: unknown outcome {outcome!r}",
+                code="corrupt",
+            )
     return payload
 
 
@@ -3329,12 +3454,16 @@ class ShadowImporter:
             )
         for line_number, line in enumerate(raw.split(b"\n")[:-1], start=1):
             if not line:
-                continue
+                raise LegacyImportError(
+                    f"manifest line {line_number} is empty",
+                    code="corrupt",
+                )
             payload = _load_manifest_line_bound(
                 line,
                 tenant_id=tenant_id,
                 filename_run_id=run_id,
                 line_number=line_number,
+                expected_entry_seq=line_number,
             )
             yield payload
 
@@ -3693,34 +3822,82 @@ class ShadowImporter:
                     if _A.child_exists(mfd, leaf):
                         current = _A.read_file(mfd, leaf)
                         current_sha = _sha256_bytes(current)
-                        # Count existing entries.
-                        existing_entries = current.split(b"\n") if current else []
-                        seen: set[tuple[str, str, str, str, str]] = set()
-                        entries_count = 0
-                        for line in existing_entries:
-                            if not line:
-                                continue
-                            try:
-                                parsed = _C.strict_json_loads(line.decode("utf-8"))
-                            except (_C.ContractError, ValueError, UnicodeDecodeError):
-                                raise LegacyImportError(
-                                    "manifest line corrupt", code="corrupt"
-                                )
-                            line_schema = (
-                                parsed.get("schema") if isinstance(parsed, dict) else None
+                        if current and not current.endswith(b"\n"):
+                            raise LegacyImportError(
+                                "manifest missing trailing newline",
+                                code="corrupt",
                             )
-                            if line_schema == "cwk.rt016.migration_manifest_entry.v2":
-                                _validate_against(_MANIFEST_ENTRY_V2_SCHEMA_ID, parsed)
-                            else:
-                                # Mixing v1 (or unknown) lines into a v2
-                                # manifest file breaks the dedupe
-                                # invariant; refuse to append.
+                        # Bounded replay: every existing line MUST pass
+                        # the single fail-closed door
+                        # (_load_manifest_line_bound), which enforces
+                        # strict JSON, JCS+NFC raw canonical bytes,
+                        # tenant / run identity, contiguous entry_seq,
+                        # outcome/key co-occurrence and recomputed v2
+                        # crosswalk_key / review_id.  Direct
+                        # strict_json_loads + schema-validate here is
+                        # forbidden — it would allow a foreign-tenant /
+                        # cross-key / non-JCS / gap-entry_seq line to
+                        # land in the dedupe set and mask a later
+                        # attempt at attributing bytes to a different
+                        # identity.
+                        existing_entries = current.split(b"\n")[:-1] if current else []
+                        seen_ck: set[str] = set()
+                        seen_rid: set[str] = set()
+                        seen_identity: set[tuple[str, str, str, str, str]] = set()
+                        seen_seq: set[int] = set()
+                        entries_count = 0
+                        for line_number, line in enumerate(existing_entries, start=1):
+                            if not line:
                                 raise LegacyImportError(
-                                    "manifest line is not v2",
+                                    f"manifest line {line_number} is empty",
                                     code="corrupt",
                                 )
+                            parsed = _load_manifest_line_bound(
+                                line,
+                                tenant_id=tenant_id,
+                                filename_run_id=run_id,
+                                line_number=line_number,
+                                expected_entry_seq=line_number,
+                            )
+                            line_schema = parsed.get("schema")
+                            if line_schema != "cwk.rt016.migration_manifest_entry.v2":
+                                # v1 in a v2 file would break dedupe
+                                # semantics; the bound loader already
+                                # accepts v1 for audit reads, so we
+                                # re-enforce v2-only for the append
+                                # path here.
+                                raise LegacyImportError(
+                                    f"manifest line {line_number} is not v2",
+                                    code="corrupt",
+                                )
+                            seq = parsed["entry_seq"]
+                            if seq in seen_seq:
+                                raise LegacyImportError(
+                                    f"manifest line {line_number} duplicate "
+                                    f"entry_seq={seq}",
+                                    code="corrupt",
+                                )
+                            seen_seq.add(seq)
                             entries_count += 1
-                            seen.add(
+                            declared_ck = parsed.get("crosswalk_key")
+                            declared_rid = parsed.get("review_id")
+                            if declared_ck is not None:
+                                if declared_ck in seen_ck:
+                                    raise LegacyImportError(
+                                        f"manifest line {line_number} replays "
+                                        f"crosswalk_key",
+                                        code="corrupt",
+                                    )
+                                seen_ck.add(declared_ck)
+                            if declared_rid is not None:
+                                if declared_rid in seen_rid:
+                                    raise LegacyImportError(
+                                        f"manifest line {line_number} replays "
+                                        f"review_id",
+                                        code="corrupt",
+                                    )
+                                seen_rid.add(declared_rid)
+                            seen_identity.add(
                                 (
                                     parsed["source_namespace"],
                                     parsed["source_kind"],
@@ -3729,15 +3906,37 @@ class ShadowImporter:
                                     parsed["outcome"],
                                 )
                             )
-                        # Idempotent: skip if same v2 identity + outcome.
+                        # Idempotent: skip if same v2 identity + outcome
+                        # already present.  The dedupe check runs
+                        # AFTER the full bounded replay so a corrupt
+                        # earlier line can never win by short-circuiting
+                        # the loop.
                         if (
                             source_namespace,
                             source_kind,
                             legacy_path_hash,
                             legacy_source_sha256,
                             outcome,
-                        ) in seen:
+                        ) in seen_identity:
                             return
+                        # Also: if the caller-supplied crosswalk_key /
+                        # review_id already appears under a different
+                        # identity tuple, that's a v2 identity collision
+                        # attempt — refuse.  This closes the "same key
+                        # bound to different identity" attack against
+                        # dedupe.
+                        if crosswalk_key is not None and crosswalk_key in seen_ck:
+                            raise LegacyImportError(
+                                "new manifest entry replays crosswalk_key "
+                                "under different identity",
+                                code="corrupt",
+                            )
+                        if review_id is not None and review_id in seen_rid:
+                            raise LegacyImportError(
+                                "new manifest entry replays review_id under "
+                                "different identity",
+                                code="corrupt",
+                            )
                         entry_seq = entries_count + 1
                     else:
                         current = b""
