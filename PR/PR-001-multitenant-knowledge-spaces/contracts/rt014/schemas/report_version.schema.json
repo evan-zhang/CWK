@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.rt014.report_version.v1",
+  "title": "Report Version Catalog Entry v1 (RT-014)",
+  "description": "One append-only entry inside a per-report catalog.jsonl. Maps a canonical_sha256 to an opaque object_id. Never contains tenant/lane/reply/node/attachment/temporary_url or any identity/credential field. additionalProperties:false + unevaluatedProperties:false at every level.",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": [
+    "schema",
+    "report_key",
+    "canonical_sha256",
+    "object_bytes_sha256",
+    "object_id",
+    "first_seen_at",
+    "source_updated_at",
+    "normalizer_version"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.report_version.v1"},
+    "report_key": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 256,
+      "pattern": "^[a-z][a-z0-9_]{0,63}:[A-Za-z0-9][A-Za-z0-9_\\-.]{0,127}$"
+    },
+    "canonical_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "object_bytes_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "object_id": {"type": "string", "pattern": "^o_[a-z2-7]{26}$"},
+    "first_seen_at": {"type": "string", "format": "date-time"},
+    "source_updated_at": {"type": "string", "format": "date-time"},
+    "normalizer_version": {"type": "string", "pattern": "^v[0-9]{1,4}$"}
+  },
+  "customKeywords": {
+    "deepForbiddenProperties": [
+      "tenant_id", "agent_id", "agent_id_hash", "credential_ref", "credentials", "app_key",
+      "lane", "read_status", "todo_status", "allowed_actions", "roles",
+      "reply", "replies", "node", "nodes", "attachment", "attachments", "attachment_permissions",
+      "attachment_url", "preview_url", "short_url", "presign_url", "download_url", "temporary_url",
+      "path", "absolute_path", "mirror_root", "auth_epoch", "binding_epoch",
+      "cookie", "session_token", "authorization"
+    ]
+  }
+}

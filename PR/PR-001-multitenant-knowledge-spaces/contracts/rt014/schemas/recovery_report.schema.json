@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.rt014.recovery_report.v1",
+  "title": "SharedEvidenceStore.recover() report v1 (RT-014)",
+  "description": "Machine-readable summary emitted by SharedEvidenceStore.recover(). Only exposes opaque catalog_key / object_id; never contains file system paths, tenant IDs, report IDs, canonical body bytes, or credential material.",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": [
+    "schema",
+    "staging_orphans_removed",
+    "catalog_dirs_scanned",
+    "objects_verified",
+    "catalog_issues"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.rt014.recovery_report.v1"},
+    "staging_orphans_removed": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1, "maxLength": 128}
+    },
+    "catalog_dirs_scanned": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "objects_verified": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "catalog_issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "unevaluatedProperties": false,
+        "required": ["code", "catalog_key"],
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": ["orphan_object", "missing_object", "sha_mismatch", "corrupt_catalog"]
+          },
+          "catalog_key": {"type": "string", "pattern": "^r_[a-z2-7]{26}$"},
+          "object_id": {"type": ["string", "null"], "pattern": "^o_[a-z2-7]{26}$"}
+        }
+      }
+    }
+  },
+  "customKeywords": {
+    "deepForbiddenProperties": [
+      "tenant_id", "agent_id", "credential_ref", "app_key",
+      "path", "absolute_path", "mirror_root",
+      "reply", "node", "attachment", "temporary_url",
+      "auth_epoch", "binding_epoch", "cookie", "session_token", "authorization",
+      "report_id", "body", "title"
+    ]
+  }
+}

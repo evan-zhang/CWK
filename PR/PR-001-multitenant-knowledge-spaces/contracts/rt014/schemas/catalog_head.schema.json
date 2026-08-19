@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.rt014.catalog_head.v1",
+  "title": "Catalog Head Pointer v1 (RT-014)",
+  "description": "Single-file summary of a per-report catalog. entry_count MUST equal head_revision and catalog.jsonl line count; catalog_jsonl_sha256 MUST equal sha256(bytes of catalog.jsonl). Deep-forbidden properties reject any tenant/lane/reply/credential leakage.",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": [
+    "schema",
+    "catalog_key",
+    "report_key",
+    "entry_count",
+    "latest_object_id",
+    "latest_canonical_sha256",
+    "catalog_jsonl_sha256",
+    "head_revision",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.rt014.catalog_head.v1"},
+    "catalog_key": {"type": "string", "pattern": "^r_[a-z2-7]{26}$"},
+    "report_key": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 256,
+      "pattern": "^[a-z][a-z0-9_]{0,63}:[A-Za-z0-9][A-Za-z0-9_\\-.]{0,127}$"
+    },
+    "entry_count": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+    "latest_object_id": {"type": "string", "pattern": "^o_[a-z2-7]{26}$"},
+    "latest_canonical_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "catalog_jsonl_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "head_revision": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+    "created_at": {"type": "string", "format": "date-time"},
+    "updated_at": {"type": "string", "format": "date-time"}
+  },
+  "customKeywords": {
+    "deepForbiddenProperties": [
+      "tenant_id", "agent_id", "agent_id_hash", "credential_ref", "credentials", "app_key",
+      "lane", "read_status", "todo_status", "allowed_actions", "roles",
+      "reply", "replies", "node", "nodes", "attachment", "attachments",
+      "attachment_url", "preview_url", "short_url", "presign_url", "download_url", "temporary_url",
+      "path", "absolute_path", "mirror_root", "auth_epoch", "binding_epoch",
+      "cookie", "session_token", "authorization"
+    ]
+  }
+}

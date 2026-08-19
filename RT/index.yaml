@@ -11,3 +11,4 @@
 | RT-011 | PR-001 外部契约探针与安全基线 (G1) | completed | Spec-Standard | 2026-08-19 |
 | RT-012 | PR-001 Instance Layout 与 Tenant Registry (G2) | completed | Spec-Standard | 2026-08-19 |
 | RT-013 | PR-001 可信 Agent 绑定与凭据边界 (G2) | completed | Spec-Standard | 2026-08-19 |
+| RT-014 | PR-001 共享不可变 Canonical Evidence Store (G3) | implementation_done | Spec-Standard | 2026-08-19 |
