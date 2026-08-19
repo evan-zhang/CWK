@@ -1,0 +1,5 @@
+{
+  "canary_id": "RT-011-CANARY-2026-08-19",
+  "purpose": "Machine-verifiable canary file. Fixture manifest MUST reference this file by exact SHA-256; tests MUST assert both the canary_id string and the on-disk SHA of this file. If either check fails, the fixture bundle was silently swapped or the loader is broken.",
+  "expected_manifest_entry_kind": "canary"
+}

@@ -1,6 +1,0 @@
-{
-  "__fixture_note": "MALICIOUS: envelope set carries an app_key. Comparator must refuse.",
-  "tenant_id": "t_aaaaaaaaaaaaaaaaaaaaaaaaaa",
-  "app_key": "APP-KEY-NEVER-ACCEPT",
-  "envelopes": []
-}

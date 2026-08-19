@@ -2,9 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "cwk.pr001.tenant_view.v1",
   "title": "TenantViewEnvelope v1",
-  "description": "Per-tenant overlay for one canonical report version. Holds lane/read/todo, roles, allowed_actions, reply/node/attachment overlays and temporary URLs. Never merged into canonical evidence.",
+  "description": "Per-tenant overlay for one canonical report version. Strict additionalProperties:false at every level.",
   "type": "object",
   "additionalProperties": false,
+  "unevaluatedProperties": false,
   "required": [
     "schema",
     "tenant_id",
@@ -15,44 +16,26 @@
   "properties": {
     "schema": {"const": "cwk.tenant_view.v1"},
     "tenant_id": {"type": "string", "pattern": "^t_[a-z0-9]{26}$"},
-    "report_key": {
-      "type": "string",
-      "description": "String encoding of ReportKey: '<source_namespace>:<report_id>'.",
-      "pattern": "^[a-z][a-z0-9_]*:[^\\s]{1,256}$"
-    },
+    "report_key": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}:[A-Za-z0-9][A-Za-z0-9_\\-.]{0,127}$"},
     "canonical_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-    "lane": {"type": ["string", "null"]},
+    "lane": {"type": ["string", "null"], "maxLength": 64},
     "read_status": {"type": ["string", "null"], "enum": [null, "unread", "read"]},
     "todo_status": {"type": ["string", "null"], "enum": [null, "pending", "done", "cancelled"]},
     "new_reply_flag": {"type": ["boolean", "null"]},
-    "roles": {
-      "type": "array",
-      "items": {"type": "string"},
-      "uniqueItems": true
-    },
-    "allowed_actions": {
-      "type": "array",
-      "items": {"type": "string"},
-      "uniqueItems": true
-    },
-    "visible_event_ids": {
-      "type": "array",
-      "items": {"type": "string"},
-      "uniqueItems": true
-    },
+    "roles": {"type": "array", "items": {"type": "string", "maxLength": 64}, "uniqueItems": true},
+    "allowed_actions": {"type": "array", "items": {"type": "string", "maxLength": 64}, "uniqueItems": true},
+    "visible_event_ids": {"type": "array", "items": {"type": "string", "maxLength": 128}, "uniqueItems": true},
     "attachment_permissions": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
+        "unevaluatedProperties": false,
         "required": ["attachment_id"],
         "properties": {
-          "attachment_id": {"type": "string"},
+          "attachment_id": {"type": "string", "maxLength": 128},
           "permission": {"type": "string", "enum": ["view", "download", "none"]},
-          "temporary_url": {
-            "type": ["string", "null"],
-            "description": "Ephemeral URL. Time-sensitive; MUST NOT be promoted to canonical evidence."
-          },
+          "temporary_url": {"type": ["string", "null"], "maxLength": 2048},
           "expires_at": {"type": ["string", "null"], "format": "date-time"}
         }
       }
@@ -62,10 +45,11 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
+        "unevaluatedProperties": false,
         "required": ["reply_id"],
         "properties": {
-          "reply_id": {"type": "string"},
-          "author": {"type": "object"},
+          "reply_id": {"type": "string", "maxLength": 128},
+          "author": {"type": "object", "additionalProperties": false, "properties": {"source_user_id": {"type": "string"}, "display_name": {"type": ["string", "null"]}}},
           "content_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
           "visible": {"type": ["boolean", "null"]}
         }
@@ -76,10 +60,11 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
+        "unevaluatedProperties": false,
         "required": ["node_id"],
         "properties": {
-          "node_id": {"type": "string"},
-          "type": {"type": ["string", "null"]},
+          "node_id": {"type": "string", "maxLength": 128},
+          "type": {"type": ["string", "null"], "maxLength": 64},
           "visible": {"type": ["boolean", "null"]},
           "content_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}
         }

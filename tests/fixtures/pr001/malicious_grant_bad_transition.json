@@ -1,5 +1,5 @@
 {
-  "__fixture_note": "MALICIOUS: attempt to transition purged -> active. Must be rejected by validate_access_grant_transition.",
+  "__fixture_note": "MALICIOUS: attempt to transition purged -> active. Must be rejected.",
   "from_status": "purged",
   "to_status": "active"
 }

@@ -1,22 +1,45 @@
 [
   {
-    "__fixture_note": "MALICIOUS: forged probe claiming loopback HTTP self-reported identity is verified. Must be rejected.",
+    "__fixture_note": "MALICIOUS: forged probe claiming loopback-http probe is verified with a made-up receipt.",
     "schema": "cwk.capability_probe.v1",
     "probe_id": "sandbox_transport_loopback_http_self_reported",
     "run_at": "2026-08-01T10:00:00Z",
     "result": "verified",
     "conservative_default": "reject (policy-forbidden)",
-    "evidence_refs": ["https://attacker.example/receipt.json"],
-    "notes": "attacker tries to promote a policy-forbidden probe"
+    "receipt": {
+      "envelope_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "signer": "attacker",
+      "signature": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "target": "sandbox_transport_loopback_http_self_reported",
+      "environment": "gateway_production",
+      "not_before": "2026-08-01T00:00:00Z",
+      "not_after": "2027-08-01T00:00:00Z"
+    }
   },
   {
-    "__fixture_note": "MALICIOUS: verified without evidence_refs. Must be rejected.",
+    "__fixture_note": "MALICIOUS: verified without any receipt at all.",
     "schema": "cwk.capability_probe.v1",
     "probe_id": "sandbox_transport_openclaw_tool",
     "run_at": "2026-08-01T10:00:00Z",
     "result": "verified",
     "conservative_default": "reject query (fail closed)",
-    "evidence_refs": [],
-    "notes": "no evidence"
+    "receipt": null
+  },
+  {
+    "__fixture_note": "MALICIOUS: signer not on trusted allowlist.",
+    "schema": "cwk.capability_probe.v1",
+    "probe_id": "sandbox_transport_openclaw_tool",
+    "run_at": "2026-08-01T10:00:00Z",
+    "result": "verified",
+    "conservative_default": "reject query (fail closed)",
+    "receipt": {
+      "envelope_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "signer": "attacker",
+      "signature": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "target": "sandbox_transport_openclaw_tool",
+      "environment": "gateway_production",
+      "not_before": "2026-08-01T00:00:00Z",
+      "not_after": "2027-08-01T00:00:00Z"
+    }
   }
 ]

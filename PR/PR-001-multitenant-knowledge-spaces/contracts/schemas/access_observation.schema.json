@@ -2,9 +2,9 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "cwk.pr001.access_observation.v1",
   "title": "AccessObservation v1",
-  "description": "A single observation of a tenant's read access to a report, produced by legacy raw decomposition or a collector observation. Enters the Access Ledger at state `discovered` or `granted`; never `active` without authoritative verification.",
   "type": "object",
   "additionalProperties": false,
+  "unevaluatedProperties": false,
   "required": [
     "schema",
     "tenant_id",
@@ -22,30 +22,11 @@
     "observed_at": {"type": "string", "format": "date-time"},
     "observation_source": {
       "type": "string",
-      "enum": [
-        "tenant_appkey_observation",
-        "legacy_raw_decomposition",
-        "delegated_admin_bootstrap"
-      ]
+      "enum": ["tenant_appkey_observation", "legacy_raw_decomposition", "delegated_admin_bootstrap"]
     },
-    "roles": {
-      "type": "array",
-      "items": {"type": "string"},
-      "uniqueItems": true
-    },
-    "visibility_scope": {
-      "type": "string",
-      "enum": ["full", "partial", "unknown"],
-      "default": "unknown"
-    },
-    "initial_status": {
-      "type": "string",
-      "enum": ["discovered", "granted"],
-      "description": "Observations may only enter as `discovered` or `granted`; never `active` without authoritative revalidation."
-    },
-    "evidence_refs": {
-      "type": "array",
-      "items": {"type": "string"}
-    }
+    "roles": {"type": "array", "items": {"type": "string", "maxLength": 64}, "uniqueItems": true},
+    "visibility_scope": {"type": "string", "enum": ["full", "partial", "unknown"]},
+    "initial_status": {"type": "string", "enum": ["discovered", "granted"]},
+    "evidence_refs": {"type": "array", "items": {"type": "string", "maxLength": 512}, "uniqueItems": true}
   }
 }

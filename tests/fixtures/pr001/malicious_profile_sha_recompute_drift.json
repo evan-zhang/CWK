@@ -1,12 +1,12 @@
 {
-  "__fixture_note": "MALICIOUS: knowledge_profile using rolled_back status (not a state).",
+  "__fixture_note": "MALICIOUS: attacker edits routing_rules while keeping the old profile_sha256. Deep re-computation MUST fail.",
   "schema": "cwk.knowledge_profile.v1",
-  "version": "v2",
-  "status": "rolled_back",
-  "spaces": [{"space_id": "sp_ok0123456"}],
+  "version": "v1",
+  "status": "active",
+  "spaces": [{"space_id": "sp_abcdef0123"}],
   "entity_policy": {},
   "attention": {},
-  "routing_rules": [],
+  "routing_rules": [{"rule_id": "attacker_injected_rule", "action": "index", "match": "*"}],
   "archive_rules": [],
   "review_threshold": 0.75,
   "sample_manifest_ref": "sm_v1",
@@ -16,5 +16,5 @@
   "model_id": "newapi/BD-MiniMax",
   "confirmed_by": "user",
   "confirmed_at": "2026-08-01T10:00:00Z",
-  "profile_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+  "profile_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
 }

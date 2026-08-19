@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.dual_user_observation.v1",
+  "title": "DualUserObservation v1 (comparator input)",
+  "description": "Per-user redacted observation of one report. Only `canonical_fields` may become candidates for verified-shared upgrade; `overlay_fields` remain tenant-specific forever.",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": ["schema", "tenant_id", "report_key", "canonical_sha256", "canonical_fields", "overlay_fields", "observed_at"],
+  "properties": {
+    "schema": {"const": "cwk.dual_user_observation.v1"},
+    "tenant_id": {"type": "string", "pattern": "^t_[a-z0-9]{26}$"},
+    "report_key": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}:[A-Za-z0-9][A-Za-z0-9_\\-.]{0,127}$"},
+    "canonical_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "canonical_fields": {
+      "type": "object",
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "required": ["title", "body", "author", "created_at", "source_updated_at"],
+      "properties": {
+        "title": {"type": "string", "maxLength": 4096},
+        "body": {"type": "string", "maxLength": 1048576},
+        "author": {
+          "type": "object",
+          "additionalProperties": false,
+          "unevaluatedProperties": false,
+          "required": ["source_user_id"],
+          "properties": {
+            "source_user_id": {"type": "string", "maxLength": 256},
+            "display_name": {"type": ["string", "null"], "maxLength": 256}
+          }
+        },
+        "created_at": {"type": "string", "format": "date-time"},
+        "source_updated_at": {"type": "string", "format": "date-time"}
+      }
+    },
+    "overlay_fields": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "lane": {"type": ["string", "null"]},
+        "read_status": {"type": ["string", "null"]},
+        "todo_status": {"type": ["string", "null"]},
+        "roles": {"type": "array", "items": {"type": "string"}},
+        "allowed_actions": {"type": "array", "items": {"type": "string"}},
+        "reply_overlay": {"type": "array"},
+        "node_overlay": {"type": "array"},
+        "attachment_permissions": {"type": "array"}
+      }
+    },
+    "observed_at": {"type": "string", "format": "date-time"}
+  }
+}

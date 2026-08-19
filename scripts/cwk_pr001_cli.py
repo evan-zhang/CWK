@@ -1,29 +1,15 @@
 #!/usr/bin/env python3
 """RT-011 public CLI: ``cwk-pr001 <subcommand>``.
 
-Subcommands (all read-only; no real credentials, no network I/O):
+Redesigned in the r1 remediation to:
 
-- ``validate``             — validate a JSON payload against the frozen v1 schema
-                             it declares (``schema`` field).
-- ``canonicalize``         — emit NFC + RFC 8785 JCS canonical JSON.
-- ``sha256``               — print canonical SHA-256 of a payload.
-- ``profile-hash``         — compute ``profile_sha256`` per DESIGN §7.2 formula.
-- ``compare-user-views``   — dual-user field comparator; no AppKey.
-- ``probe run``            — run frozen probe matrix; all conservative_unknown
-                             unless a signed evidence bundle is supplied.
-- ``probe aggregate``      — aggregate probe payloads → ``all_verified`` decision.
-- ``conformance``          — check a candidate config against
-                             ``security_defaults.json``.
-
-Exit codes:
-
-- 0 — success
-- 2 — contract/schema violation
-- 3 — probe aggregate reports ``all_verified=false`` (RT-011 default)
-- 4 — usage error
-- 5 — fixture / IO problem
-
-Errors never emit Python tracebacks and never leak absolute host paths.
+- redact all incoming file paths (never echo absolute host paths);
+- reject unknown/dangerous keys in ``security_defaults.json`` on
+  ``conformance``;
+- refuse to accept free-form ``notes`` or ``evidence_refs`` (probe schema
+  no longer carries them);
+- keep exit codes stable: 0 ok, 2 contract error, 3 probe aggregate
+  ``all_verified=false``, 4 usage error, 5 IO problem.
 """
 
 from __future__ import annotations
@@ -52,24 +38,30 @@ EXIT_IO = 5
 def _safe_path(display: str) -> str:
     """Never echo absolute host paths; show the trailing components only."""
 
-    parts = Path(display).parts
-    if len(parts) >= 2:
-        return str(Path(*parts[-2:]))
-    return parts[-1] if parts else "<input>"
+    p = Path(display)
+    parts = p.parts
+    # Drop any absolute-root indicators before we join.
+    filtered = [part for part in parts if part not in ("/", "\\")]
+    if not filtered:
+        return "<input>"
+    return "/".join(filtered[-2:]) if len(filtered) >= 2 else filtered[-1]
 
 
 def _read_json(path: str) -> Any:
     try:
-        with open(path, "r", encoding="utf-8") as fh:
-            return json.load(fh)
+        return C.strict_json_load_path(Path(path))
     except FileNotFoundError:
         print(f"error: input not found: {_safe_path(path)}", file=sys.stderr)
         raise SystemExit(EXIT_IO)
     except json.JSONDecodeError as exc:
         print(f"error: invalid JSON in {_safe_path(path)}: {exc.msg}", file=sys.stderr)
         raise SystemExit(EXIT_CONTRACT)
+    except C.ContractError as exc:
+        # Duplicate JSON keys raise ContractError from strict_json_loads.
+        print(f"contract-error: {_safe_path(path)}: {exc.args[0]}", file=sys.stderr)
+        raise SystemExit(EXIT_CONTRACT)
     except OSError as exc:
-        print(f"error: cannot read {_safe_path(path)}: {exc.strerror or exc}", file=sys.stderr)
+        print(f"error: cannot read {_safe_path(path)}: {exc.strerror or 'io error'}", file=sys.stderr)
         raise SystemExit(EXIT_IO)
 
 
@@ -82,6 +74,37 @@ def _handle_contract(exc: C.ContractError) -> int:
     prefix = f"{exc.path}: " if exc.path else ""
     print(f"contract-error: {prefix}{exc.args[0]}", file=sys.stderr)
     return EXIT_CONTRACT
+
+
+# ---------------------------------------------------------------------------
+# Redaction helpers
+# ---------------------------------------------------------------------------
+
+
+def _redact_probe(payload: dict[str, Any]) -> dict[str, Any]:
+    """Return a redacted copy suitable for CLI stdout.
+
+    The probe schema does not carry ``notes``/``evidence_refs``, but the
+    ``receipt.signature`` value is a shared secret-derived digest and must
+    not be echoed verbatim.  We keep ``envelope_sha256`` (already a hash)
+    and replace ``signature`` with ``"<redacted>"``; downstream aggregators
+    that need to verify signatures should read the source file directly.
+    """
+
+    receipt = payload.get("receipt")
+    if receipt is None:
+        return payload
+    redacted_receipt = dict(receipt)
+    if "signature" in redacted_receipt:
+        redacted_receipt["signature"] = "<redacted>"
+    out = dict(payload)
+    out["receipt"] = redacted_receipt
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Subcommand handlers
+# ---------------------------------------------------------------------------
 
 
 def cmd_validate(args: argparse.Namespace) -> int:
@@ -154,8 +177,8 @@ def cmd_profile_hash(args: argparse.Namespace) -> int:
 
 def cmd_compare(args: argparse.Namespace) -> int:
     try:
-        set_a = V.load_envelope_set(args.tenant_a)
-        set_b = V.load_envelope_set(args.tenant_b)
+        set_a = V.load_observation_set(args.tenant_a)
+        set_b = V.load_observation_set(args.tenant_b)
         report = V.compare(set_a, set_b, upgrade_threshold=args.threshold)
     except C.ContractError as exc:
         return _handle_contract(exc)
@@ -164,33 +187,21 @@ def cmd_compare(args: argparse.Namespace) -> int:
 
 
 def cmd_probe_run(args: argparse.Namespace) -> int:
-    evidence_map: dict[str, P.EvidenceBundle] = {}
-    if args.evidence:
-        try:
-            evidence_doc = _read_json(args.evidence)
-        except SystemExit:
-            raise
-        if not isinstance(evidence_doc, dict):
-            print("error: --evidence file must be a JSON object", file=sys.stderr)
-            return EXIT_USAGE
-        for probe_id, entry in evidence_doc.items():
-            if not isinstance(entry, dict):
-                print(f"error: evidence[{probe_id!r}] must be an object", file=sys.stderr)
-                return EXIT_USAGE
-            evidence_map[probe_id] = P.EvidenceBundle(
-                kind=str(entry.get("kind", "none")),
-                refs=tuple(entry.get("refs", []) or []),
-                notes=str(entry.get("notes", "") or ""),
-                sample_size=int(entry.get("sample_size", 0) or 0),
-                unique_report_key_pairs=int(entry.get("unique_report_key_pairs", 0) or 0),
-            )
+    """Run every frozen probe; without a signed receipt, all are conservative.
+
+    The CLI does not accept a ``--receipt`` flag in RT-011 because the
+    trusted signer allowlist is empty.  Test suites that need to exercise
+    the ``verified`` code path import the library and use
+    :func:`cwk_pr001_probes.build_receipt` directly.
+    """
+
     probes: list[dict[str, Any]] = []
     for probe_id in P.ALL_PROBE_IDS:
         try:
-            probes.append(P.run_probe(probe_id, evidence=evidence_map.get(probe_id)))
+            probes.append(P.run_probe(probe_id))
         except C.ContractError as exc:
             return _handle_contract(exc)
-    _emit(probes)
+    _emit([_redact_probe(p) for p in probes])
     return EXIT_OK
 
 
@@ -214,19 +225,20 @@ def cmd_probe_aggregate(args: argparse.Namespace) -> int:
 
 
 def cmd_conformance(args: argparse.Namespace) -> int:
-    """Check a candidate config against ``security_defaults.json``.
-
-    Each frozen key MUST match exactly (deep equality after NFC+JCS
-    canonicalisation).  Divergent keys are printed and cause a
-    contract-error exit code.
-    """
-
     try:
         defaults = C.load_security_defaults()
     except C.ContractError as exc:
         return _handle_contract(exc)
 
     candidate = _read_json(args.file)
+    # First: schema-strict validation catches added dangerous keys because
+    # every object is additionalProperties:false and the security handler
+    # rejects any deep dangerous keys.
+    try:
+        C.validate_security_defaults(candidate)
+    except C.ContractError as exc:
+        return _handle_contract(exc)
+
     diffs = _diff_conformance(defaults, candidate)
     if diffs:
         print("conformance-fail:", file=sys.stderr)
@@ -248,15 +260,19 @@ def _diff_conformance(expected: Any, actual: Any, path: str = "") -> list[str]:
                 diffs.append(f"{child}: missing")
                 continue
             diffs.extend(_diff_conformance(value, actual[key], child))
+        for key in actual.keys():
+            if key not in expected:
+                child = f"{path}.{key}" if path else key
+                diffs.append(f"{child}: additional key not in frozen defaults")
         return diffs
     if isinstance(expected, list):
         if not isinstance(actual, list):
             return [f"{path}: expected array, got {type(actual).__name__}"]
         if expected != actual:
-            return [f"{path}: array differs (expected {expected!r}, got {actual!r})"]
+            return [f"{path}: array differs"]
         return []
     if expected != actual:
-        return [f"{path or '<root>'}: expected {expected!r}, got {actual!r}"]
+        return [f"{path or '<root>'}: value differs"]
     return []
 
 
@@ -291,8 +307,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_probe = sub.add_parser("probe", help="Capability probes.")
     probe_sub = p_probe.add_subparsers(dest="probe_command")
-    p_run = probe_sub.add_parser("run", help="Run frozen probe matrix.")
-    p_run.add_argument("--evidence", required=False, help="Optional JSON: {probe_id: {kind, refs, ...}}.")
+    probe_sub.add_parser("run", help="Run frozen probe matrix (always conservative in RT-011).")
     p_agg = probe_sub.add_parser("aggregate", help="Aggregate probe payloads.")
     p_agg.add_argument("files", nargs="+")
 
@@ -310,7 +325,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.print_help(sys.stderr)
         return EXIT_USAGE
     if args.command == "probe" and getattr(args, "probe_command", None) is None:
-        parser.parse_args([args.command, "--help"])  # prints help then exits
+        parser.parse_args([args.command, "--help"])
         return EXIT_USAGE
 
     try:
@@ -338,7 +353,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     except C.ContractError as exc:
         return _handle_contract(exc)
     except Exception as exc:  # pragma: no cover - defensive
-        # Never leak a Python traceback or host absolute paths to stderr.
         print(f"error: internal failure ({exc.__class__.__name__})", file=sys.stderr)
         return EXIT_IO
 

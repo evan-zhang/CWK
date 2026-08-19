@@ -1,8 +1,0 @@
-{
-  "__fixture_note": "MALICIOUS: report_key attempts path traversal / newline injection. Must be rejected by REPORT_KEY_REGEX (no whitespace).",
-  "schema": "cwk.tenant_view.v1",
-  "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
-  "report_key": "cwork:../../../etc/passwd\nagent_id=root",
-  "canonical_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-  "observed_at": "2026-08-01T10:00:00Z"
-}

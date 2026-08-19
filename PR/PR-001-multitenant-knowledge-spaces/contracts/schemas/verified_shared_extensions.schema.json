@@ -2,9 +2,9 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "cwk.pr001.verified_shared_extensions.v1",
   "title": "verified_shared_extensions_vN manifest",
-  "description": "Version-controlled, append-only manifest listing tenant-view fields that have been verified as safely shareable and are therefore permitted to appear in canonical evidence. Temporary URLs (attachment presign/preview/short-link) are NEVER permitted here.",
   "type": "object",
   "additionalProperties": false,
+  "unevaluatedProperties": false,
   "required": [
     "schema",
     "version",
@@ -17,50 +17,72 @@
   ],
   "properties": {
     "schema": {"const": "cwk.verified_shared_extensions.v1"},
-    "version": {"type": "string", "pattern": "^v[0-9]+$"},
+    "version": {"type": "string", "pattern": "^v[0-9]{1,4}$"},
     "manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-    "compared_sample_size": {"type": "integer", "minimum": 50},
-    "min_field_match_rate": {"type": "number", "minimum": 0.9, "maximum": 1.0},
-    "approved_by": {"type": "string", "minLength": 1},
+    "compared_sample_size": {"type": "integer", "minimum": 50, "maximum": 100000},
+    "min_field_match_rate": {"type": "number", "minimum": 0.99, "maximum": 1.0},
+    "approved_by": {"type": "string", "minLength": 1, "maxLength": 128},
     "approved_at": {"type": "string", "format": "date-time"},
-    "decision_ref": {"type": ["string", "null"]},
+    "decision_ref": {"type": ["string", "null"], "maxLength": 512},
+    "notes": {"type": ["string", "null"], "maxLength": 1024},
     "entries": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
+        "unevaluatedProperties": false,
         "required": ["field_path", "match_rate", "sample_ids"],
         "properties": {
-          "field_path": {
-            "type": "string",
-            "description": "Dotted path from CanonicalEnvelope root. Must not equal or contain a URL field or a tenant-identity field."
-          },
-          "match_rate": {"type": "number", "minimum": 0.9, "maximum": 1.0},
+          "field_path": {"type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[A-Za-z_][A-Za-z0-9_\\.\\[\\]\\*]*$"},
+          "match_rate": {"type": "number", "minimum": 0.99, "maximum": 1.0},
           "sample_ids": {
             "type": "array",
-            "items": {"type": "string"},
-            "minItems": 1
+            "minItems": 50,
+            "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}:[A-Za-z0-9][A-Za-z0-9_\\-.]{0,127}$"},
+            "uniqueItems": true
           },
-          "notes": {"type": ["string", "null"]}
+          "notes": {"type": ["string", "null"], "maxLength": 512}
         }
       }
     }
   },
-  "forbiddenFieldPaths": [
-    "attachment_url",
-    "attachments[*].temporary_url",
-    "attachments[*].presign_url",
-    "attachments[*].preview_url",
-    "attachments[*].download_url",
-    "short_url",
-    "temporary_url",
-    "preview_url",
-    "presign_url",
-    "download_url",
-    "reply_overlay[*].temporary_url",
-    "tenant_id",
-    "agent_id",
-    "agent_id_hash",
-    "credential_ref"
-  ]
+  "customKeywords": {
+    "recomputeManifestSha256": true,
+    "forbiddenFieldPaths": [
+      "attachments[*].temporary_url",
+      "attachments[*].preview_url",
+      "attachments[*].presign_url",
+      "attachments[*].download_url",
+      "short_url",
+      "temporary_url",
+      "preview_url",
+      "presign_url",
+      "download_url",
+      "reply_overlay[*].temporary_url",
+      "node_overlay[*].temporary_url",
+      "tenant_id",
+      "agent_id",
+      "agent_id_hash",
+      "credential_ref",
+      "credentials",
+      "app_key",
+      "password",
+      "token",
+      "cookie",
+      "session_token",
+      "authorization",
+      "path",
+      "absolute_path",
+      "mirror_root",
+      "lane",
+      "read_status",
+      "todo_status",
+      "roles",
+      "allowed_actions",
+      "attachment_permissions",
+      "reply_overlay",
+      "node_overlay",
+      "visible_event_ids"
+    ]
+  }
 }

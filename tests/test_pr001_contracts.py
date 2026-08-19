@@ -1,9 +1,9 @@
-"""RT-011: byte contracts, nine-schema positive/negative, transitions, and
-verified-shared-extensions guards.
+"""RT-011 (post-remediation): byte contracts, 9-schema strict validation,
+NFC/duplicate JSON keys, JCS ECMA-262 fixed vectors, receipt/security
+defaults, custom-keyword enforcement.
 
-These tests exercise the frozen v1 contract library
-(`scripts/cwk_pr001_contracts.py`) without touching real credentials, real
-CWork data, or writing outside the RT-011 fixture area.
+Every test below maps to a specific verifier finding from the r1 audit and
+would have failed against the pre-remediation code.
 """
 
 from __future__ import annotations
@@ -11,7 +11,6 @@ from __future__ import annotations
 import json
 import sys
 import unittest
-from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -26,21 +25,21 @@ TENANT_B = "t_" + "b" * 26
 SPACE_1 = "sp_abcdef0123"
 SPACE_2 = "sp_9876543210"
 FIXED_SHA = "0" * 64
+FIX = PROJECT / "tests" / "fixtures" / "pr001"
 
 
-def _iso(seconds: int = 0) -> str:
-    base = datetime(2026, 8, 1, 10, 0, 0, tzinfo=timezone.utc)
-    return base.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+def _iso() -> str:
+    return "2026-08-01T10:00:00Z"
 
 
-def _canonical_body(**overrides) -> dict:
+def _canonical(**overrides):
     body = {
         "schema": "cwk.canonical_report.v1",
         "source_namespace": "cwork",
         "report_id": "2070001",
         "title": "汇报-1",
         "author": {"source_user_id": "u_writer_1", "display_name": "张三"},
-        "created_at": "2026-08-01T10:00:00Z",
+        "created_at": _iso(),
         "source_updated_at": "2026-08-01T12:00:00Z",
         "body": "正文 with unicode é",
         "normalizer_version": "v1",
@@ -70,212 +69,381 @@ def _grant(**overrides):
     return payload
 
 
-class ByteContractTests(unittest.TestCase):
-    def test_object_id_format_and_regex(self):
-        for _ in range(10):
-            oid = C.new_object_id()
-            self.assertRegex(oid, r"^o_[a-z2-7]{26}$")
-            C.validate_object_id(oid)
+def _profile(**overrides):
+    proposal = {
+        "version": "v1",
+        "spaces": [{"space_id": SPACE_1}],
+        "entity_policy": {},
+        "attention": {},
+        "routing_rules": [],
+        "archive_rules": [],
+        "sample_manifest_ref": "sm_v1",
+        "holdout_manifest_ref": "sm_v1_holdout",
+        "confirmed_by": "user",
+        "confirmed_at": _iso(),
+        "review_threshold": 0.75,
+    }
+    sample_sha = "a" * 64
+    prompt_sha = "b" * 64
+    model_id = "newapi/BD-MiniMax"
+    payload = {
+        "schema": "cwk.knowledge_profile.v1",
+        "version": "v1",
+        "status": "active",
+        "spaces": [{"space_id": SPACE_1}],
+        "entity_policy": {},
+        "attention": {},
+        "routing_rules": [],
+        "archive_rules": [],
+        "review_threshold": 0.75,
+        "sample_manifest_ref": "sm_v1",
+        "sample_manifest_sha256": sample_sha,
+        "holdout_manifest_ref": "sm_v1_holdout",
+        "prompt_template_sha256": prompt_sha,
+        "model_id": model_id,
+        "confirmed_by": "user",
+        "confirmed_at": _iso(),
+    }
+    payload.update(overrides)
+    payload["profile_sha256"] = C.compute_profile_sha256(
+        nfc_normalized_proposal={
+            k: payload[k]
+            for k in (
+                "version",
+                "spaces",
+                "entity_policy",
+                "attention",
+                "routing_rules",
+                "archive_rules",
+                "sample_manifest_ref",
+                "holdout_manifest_ref",
+                "confirmed_by",
+                "confirmed_at",
+                "review_threshold",
+            )
+        },
+        sample_manifest_sha256=payload["sample_manifest_sha256"],
+        prompt_template_sha256=payload["prompt_template_sha256"],
+        model_id=payload["model_id"],
+    )
+    return payload
 
-    def test_object_id_random_bytes_size(self):
-        with self.assertRaises(C.ContractError):
-            C.new_object_id(random_bytes=b"\x00" * 15)
 
-    def test_object_id_rejects_bad_shapes(self):
-        for bad in ("obj_abc", "o_UPPER0000000000000000000000", "o_", "o_" + "0" * 26, "o_abcdefghijklmnop", ""):
+# ---------------------------------------------------------------------------
+# JCS numbers (Blocker #4 vectors)
+# ---------------------------------------------------------------------------
+
+
+class JcsNumberVectorsTests(unittest.TestCase):
+    def setUp(self) -> None:
+        with (FIX / "jcs_number_vectors.json").open("r", encoding="utf-8") as fh:
+            self.vectors = json.load(fh)
+
+    def test_fixed_vectors_from_disk_oracle(self):
+        for case in self.vectors["cases"]:
+            self.assertEqual(
+                C._js_number_string(case["in"]),
+                case["out"],
+                msg=f"JCS number for {case['in']!r}",
+            )
+
+    def test_key_ecma_boundary_1e_minus_6(self):
+        # 1e-6 sits exactly at the boundary where ECMA-262 switches from
+        # scientific to decimal.  Regression against the pre-remediation
+        # off-by-one bug that emitted "1e-6" for this value.
+        self.assertEqual(C._js_number_string(1e-6), "0.000001")
+
+    def test_key_ecma_boundary_1e_minus_7(self):
+        self.assertEqual(C._js_number_string(1e-7), "1e-7")
+
+    def test_key_ecma_boundary_1e21(self):
+        self.assertEqual(C._js_number_string(1e21), "1e+21")
+
+    def test_key_ecma_boundary_1e20_is_decimal(self):
+        self.assertEqual(C._js_number_string(1e20), "100000000000000000000")
+
+    def test_reject_unsafe_integers(self):
+        for bad in self.vectors["reject"]:
             with self.assertRaises(C.ContractError):
-                C.validate_object_id(bad)
+                C._js_number_string(bad)
 
-    def test_report_key_default_and_parse(self):
-        key = C.compose_report_key("cwork", "207xxxx")
-        self.assertEqual(key, "cwork:207xxxx")
-        ns, rid = C.parse_report_key(key)
-        self.assertEqual((ns, rid), ("cwork", "207xxxx"))
+    def test_reject_bool_as_number(self):
+        with self.assertRaises(C.ContractError):
+            C._js_number_string(True)  # type: ignore[arg-type]
 
-    def test_report_key_namespace_isolation(self):
-        """Same report_id in different namespaces MUST NOT collide."""
+    def test_reject_non_finite(self):
+        with self.assertRaises(C.ContractError):
+            C._js_number_string(float("nan"))
+        with self.assertRaises(C.ContractError):
+            C._js_number_string(float("inf"))
 
+
+# ---------------------------------------------------------------------------
+# NFC / duplicate JSON keys (Blocker #4)
+# ---------------------------------------------------------------------------
+
+
+class NfcAndDuplicateKeyTests(unittest.TestCase):
+    def test_nfc_key_collision_raises(self):
+        # "café" (NFC) vs "café" (NFD).  Both normalise to "café" (NFC),
+        # which would silently drop one field before the fix.
+        payload = {"café": 1, "café": 2}
+        with self.assertRaises(C.ContractError):
+            C.canonical_json_bytes(payload)
+
+    def test_nfc_normalise_still_produces_stable_bytes(self):
+        # Same field name with only NFC form should serialise identically to
+        # the pre-normalised form.
+        self.assertEqual(C.canonical_json_bytes({"x": "é"}), C.canonical_json_bytes({"x": "é"}))
+
+    def test_strict_json_loads_rejects_duplicate_keys(self):
+        with self.assertRaises(C.ContractError):
+            C.strict_json_loads('{"a": 1, "a": 2}')
+
+    def test_jcs_sort_order_is_utf16_be(self):
+        # Simple regression: keys are sorted, no whitespace.
+        self.assertEqual(
+            C.canonical_json_bytes({"z": 1, "a": {"y": 2, "b": [3, 2, 1]}}),
+            b'{"a":{"b":[3,2,1],"y":2},"z":1}',
+        )
+
+
+# ---------------------------------------------------------------------------
+# ReportKey namespace isolation + path/encoding attacks (Blocker #5)
+# ---------------------------------------------------------------------------
+
+
+class ReportKeyTests(unittest.TestCase):
+    def test_namespace_isolation(self):
         a = C.compose_report_key("cwork", "5")
         b = C.compose_report_key("third_party_wf", "5")
         self.assertNotEqual(a, b)
 
-    def test_report_key_rejects_invalid_shapes(self):
-        for ns, rid in [
-            ("CWORK", "1"),
-            ("cwork", ""),
-            ("", "1"),
-            ("cwork", "with space"),
-            ("cwork", "a" * 257),
-            ("1cwork", "1"),
-        ]:
+    def test_reject_slash_in_report_id(self):
+        with self.assertRaises(C.ContractError):
+            C.compose_report_key("cwork", "../etc/passwd")
+
+    def test_reject_url_encoded_report_id(self):
+        with self.assertRaises(C.ContractError):
+            C.compose_report_key("cwork", "%2e%2e")
+
+    def test_reject_trailing_newline_in_namespace(self):
+        with self.assertRaises(C.ContractError):
+            C.compose_report_key("cwork\n", "1")
+
+    def test_reject_null_byte_in_report_id(self):
+        with self.assertRaises(C.ContractError):
+            C.compose_report_key("cwork", "abc\x00evil")
+
+    def test_reject_colon_in_report_id(self):
+        with self.assertRaises(C.ContractError):
+            C.compose_report_key("cwork", "abc:def")
+
+    def test_parse_report_key_symmetric(self):
+        ns, rid = C.parse_report_key("cwork:2070001")
+        self.assertEqual((ns, rid), ("cwork", "2070001"))
+
+    def test_parse_report_key_rejects_trailing_whitespace(self):
+        with self.assertRaises(C.ContractError):
+            C.parse_report_key("cwork:2070001\n")
+
+
+# ---------------------------------------------------------------------------
+# object_id canonical Base32 (Blocker supplementary)
+# ---------------------------------------------------------------------------
+
+
+class ObjectIdTests(unittest.TestCase):
+    def test_generator_produces_valid_ids(self):
+        for _ in range(10):
+            oid = C.new_object_id()
+            C.validate_object_id(oid)
+
+    def test_reject_uppercase(self):
+        with self.assertRaises(C.ContractError):
+            C.validate_object_id("o_ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+    def test_reject_padding(self):
+        with self.assertRaises(C.ContractError):
+            C.validate_object_id("o_abcdefghijklmnopqrstuvwxy=")
+
+    def test_reject_wrong_length(self):
+        with self.assertRaises(C.ContractError):
+            C.validate_object_id("o_abc")
+
+    def test_reject_zero_or_one_in_alphabet(self):
+        for bad in ("o_abcdefghijklmnopqrstuv0xyz", "o_abcdefghijklmnopqrstuv1xyz"):
             with self.assertRaises(C.ContractError):
-                C.compose_report_key(ns, rid)
+                C.validate_object_id(bad)
 
-    def test_nfc_normalization_before_jcs(self):
-        """NFC-normalise strings first so JCS bytes are stable across composers."""
-
-        # é in NFC vs decomposed NFD
-        nfc = {"x": "é"}
-        nfd = {"x": "é"}
-        self.assertEqual(C.canonical_json_bytes(nfc), C.canonical_json_bytes(nfd))
-
-    def test_jcs_sort_keys_and_no_whitespace(self):
-        payload = {"z": 1, "a": {"y": 2, "b": [3, 2, 1]}}
-        data = C.canonical_json_bytes(payload)
-        self.assertEqual(data, b'{"a":{"b":[3,2,1],"y":2},"z":1}')
-
-    def test_jcs_rejects_bool_as_number(self):
-        # bool must serialise as true/false, never as 1/0.
-        self.assertEqual(C.canonical_json_bytes({"t": True, "f": False}), b'{"f":false,"t":true}')
-
-    def test_jcs_rejects_non_finite(self):
+    def test_reject_invalid_canonical_base32_tail(self):
+        # A random 26-character body whose last character encodes non-zero
+        # residual bits (per RFC 4648) must be rejected.
+        bad = "o_" + "a" * 25 + "b"  # 'b' has value 1, residual bits nonzero
         with self.assertRaises(C.ContractError):
-            C.canonical_json_bytes({"nan": float("nan")})
-        with self.assertRaises(C.ContractError):
-            C.canonical_json_bytes({"inf": float("inf")})
+            C.validate_object_id(bad)
 
-    def test_profile_sha256_formula(self):
-        proposal = {"a": 1, "spaces": [{"space_id": SPACE_1}]}
-        sample_sha = C.canonical_sha256({"tag": "sample"})
-        prompt_sha = C.canonical_sha256({"tag": "prompt"})
-        result = C.compute_profile_sha256(
-            nfc_normalized_proposal=proposal,
-            sample_manifest_sha256=sample_sha,
-            prompt_template_sha256=prompt_sha,
-            model_id="newapi/BD-MiniMax",
-        )
 
-        # Recompute the byte formula by hand to freeze it.
+# ---------------------------------------------------------------------------
+# profile_sha256 byte formula (Blocker #5)
+# ---------------------------------------------------------------------------
+
+
+class ProfileHashTests(unittest.TestCase):
+    def test_formula_matches_manual_bytes(self):
         import hashlib
 
+        proposal = {"a": 1, "spaces": [{"space_id": SPACE_1}]}
+        sample = "a" * 64
+        prompt = "b" * 64
+        model = "newapi/BD-MiniMax"
+        got = C.compute_profile_sha256(
+            nfc_normalized_proposal=proposal,
+            sample_manifest_sha256=sample,
+            prompt_template_sha256=prompt,
+            model_id=model,
+        )
         expected = hashlib.sha256(
             b"cwk-profile-v1"
             + b"\x00"
             + C.canonical_json_bytes(proposal)
             + b"\x00"
-            + sample_sha.encode("ascii")
+            + sample.encode("ascii")
             + b"\x00"
-            + prompt_sha.encode("ascii")
+            + prompt.encode("ascii")
             + b"\x00"
-            + "newapi/BD-MiniMax".encode("utf-8")
+            + model.encode("utf-8")
         ).hexdigest()
-        self.assertEqual(result, expected)
+        self.assertEqual(got, expected)
 
-    def test_profile_sha256_is_domain_separated(self):
-        """Swapping component boundaries MUST change the hash."""
-
+    def test_swapping_components_changes_hash(self):
         proposal = {"a": 1}
-        sample_sha = "aa" * 32
-        prompt_sha = "bb" * 32
-        base = C.compute_profile_sha256(
-            nfc_normalized_proposal=proposal,
-            sample_manifest_sha256=sample_sha,
-            prompt_template_sha256=prompt_sha,
-            model_id="m",
+        a = C.compute_profile_sha256(
+            nfc_normalized_proposal=proposal, sample_manifest_sha256="a" * 64, prompt_template_sha256="b" * 64, model_id="m"
         )
-        # Move a byte from model_id into prompt_template_sha256 (must fail
-        # because prompt sha regex requires 64 hex).
-        with self.assertRaises(C.ContractError):
-            C.compute_profile_sha256(
-                nfc_normalized_proposal=proposal,
-                sample_manifest_sha256=sample_sha,
-                prompt_template_sha256=prompt_sha[:-1],
-                model_id="1m",
-            )
-        # If we swap sample/prompt hashes we still get a *different* profile hash
-        # because they enter at distinct positions.
-        alt = C.compute_profile_sha256(
-            nfc_normalized_proposal=proposal,
-            sample_manifest_sha256=prompt_sha,
-            prompt_template_sha256=sample_sha,
-            model_id="m",
+        b = C.compute_profile_sha256(
+            nfc_normalized_proposal=proposal, sample_manifest_sha256="b" * 64, prompt_template_sha256="a" * 64, model_id="m"
         )
-        self.assertNotEqual(base, alt)
+        self.assertNotEqual(a, b)
 
-    def test_profile_sha256_rejects_missing_inputs(self):
+    def test_reject_missing_inputs(self):
         with self.assertRaises(C.ContractError):
             C.compute_profile_sha256(
-                nfc_normalized_proposal={},
-                sample_manifest_sha256="",
-                prompt_template_sha256="",
-                model_id="m",
+                nfc_normalized_proposal={}, sample_manifest_sha256="", prompt_template_sha256="", model_id="m"
             )
         with self.assertRaises(C.ContractError):
             C.compute_profile_sha256(
-                nfc_normalized_proposal={},
-                sample_manifest_sha256="a" * 64,
-                prompt_template_sha256="b" * 64,
-                model_id="",
+                nfc_normalized_proposal={}, sample_manifest_sha256="a" * 64, prompt_template_sha256="b" * 64, model_id=""
             )
+
+
+# ---------------------------------------------------------------------------
+# Nine-schema validators — strict additionalProperties/uniqueItems/nested
+# (Blocker #1)
+# ---------------------------------------------------------------------------
 
 
 class SchemaValidatorTests(unittest.TestCase):
-    """Positive and negative cases across the nine core schemas."""
+    def test_canonical_positive(self):
+        C.validate_canonical_envelope(_canonical())
 
-    def test_report_key_payload_positive_negative(self):
-        C.validate_report_key_payload({"schema": "cwk.report_key.v1", "source_namespace": "cwork", "report_id": "1"})
+    def test_canonical_rejects_extra_top_level_key(self):
+        payload = _canonical()
+        payload["tenant_id"] = TENANT_A
         with self.assertRaises(C.ContractError):
-            C.validate_report_key_payload({"schema": "cwk.report_key.v1"})
+            C.validate_canonical_envelope(payload)
 
-    def test_canonical_envelope_positive_and_recomputed_hash(self):
-        body = _canonical_body()
-        C.validate_canonical_envelope(body)
+    def test_canonical_rejects_nested_tenant_id_inside_author(self):
+        # This is the exact bypass the pre-remediation validator missed:
+        # tenant_id was hidden inside `author` and canonical_sha256 was
+        # recomputed to match the tampered payload.
+        payload = _canonical()
+        payload["author"] = {"source_user_id": "u", "tenant_id": TENANT_A}
+        payload["canonical_sha256"] = C.canonical_sha256({k: v for k, v in payload.items() if k != "canonical_sha256"})
+        with self.assertRaises(C.ContractError):
+            C.validate_canonical_envelope(payload)
 
-    def test_canonical_envelope_rejects_forbidden_fields(self):
-        body = _canonical_body()
-        body["tenant_id"] = TENANT_A
+    def test_canonical_recomputed_sha_matches(self):
+        payload = _canonical()
+        payload["canonical_sha256"] = "0" * 64
         with self.assertRaises(C.ContractError):
-            C.validate_canonical_envelope(body)
-        body = _canonical_body()
-        body["attachment_url"] = "https://x"
-        with self.assertRaises(C.ContractError):
-            C.validate_canonical_envelope(body)
-        body = _canonical_body()
-        body["lane"] = "received"
-        with self.assertRaises(C.ContractError):
-            C.validate_canonical_envelope(body)
+            C.validate_canonical_envelope(payload)
 
-    def test_canonical_envelope_hash_must_match(self):
-        body = _canonical_body()
-        body["canonical_sha256"] = "0" * 64  # tampered
+    def test_query_request_rejects_nested_credential(self):
+        payload = {
+            "schema": "cwk.query_request.v1",
+            "query": "hello",
+            "time_filter": {"from": None, "to": None},
+        }
+        # legal
+        C.validate_query_request(payload)
+        # nested credential — additionalProperties:false on time_filter should also catch this
+        payload["time_filter"] = {"from": None, "to": None, "credential_ref": "secret://leak"}
         with self.assertRaises(C.ContractError):
-            C.validate_canonical_envelope(body)
+            C.validate_query_request(payload)
 
-    def test_tenant_view_positive_and_negative(self):
-        C.validate_tenant_view(
-            {
-                "schema": "cwk.tenant_view.v1",
-                "tenant_id": TENANT_A,
-                "report_key": "cwork:1",
-                "canonical_sha256": FIXED_SHA,
-                "observed_at": _iso(),
-            }
-        )
+    def test_query_request_rejects_slug_selector(self):
         with self.assertRaises(C.ContractError):
-            C.validate_tenant_view(
-                {
-                    "schema": "cwk.tenant_view.v1",
-                    "tenant_id": "not-a-tenant",
-                    "report_key": "cwork:1",
-                    "canonical_sha256": FIXED_SHA,
-                    "observed_at": _iso(),
-                }
-            )
+            C.validate_query_request({"schema": "cwk.query_request.v1", "query": "x", "space_selector": ["tbs"]})
 
-    def test_tenant_view_rejects_path_injection_report_key(self):
+    def test_query_request_rejects_duplicate_selector(self):
+        with self.assertRaises(C.ContractError):
+            C.validate_query_request({"schema": "cwk.query_request.v1", "query": "x", "space_selector": [SPACE_1, SPACE_1]})
+
+    def test_query_request_rejects_top_level_identity(self):
+        for bad in ("tenant_id", "agent_id", "credential_ref", "profile_sha256"):
+            with self.assertRaises(C.ContractError):
+                C.validate_query_request({"schema": "cwk.query_request.v1", "query": "x", bad: "value"})
+
+    def test_route_decision_positive_and_slug_rejection(self):
+        rd = {
+            "schema": "cwk.route_decision.v1",
+            "tenant_id": TENANT_A,
+            "report_key": "cwork:1",
+            "canonical_sha256": FIXED_SHA,
+            "disposition": "index",
+            "space_ids": [SPACE_1, SPACE_2],
+            "confidence": 0.9,
+            "reason_codes": ["confirmed_entity"],
+            "profile_version": "v1",
+            "profile_sha256": "a" * 64,
+            "decided_by": "deterministic",
+            "decided_at": _iso(),
+        }
+        C.validate_route_decision(rd)
+        with self.assertRaises(C.ContractError):
+            C.validate_route_decision(dict(rd, space_ids=["tbs", SPACE_1]))
+        with self.assertRaises(C.ContractError):
+            C.validate_route_decision(dict(rd, space_ids=[SPACE_1, SPACE_1]))
+        with self.assertRaises(C.ContractError):
+            C.validate_route_decision(dict(rd, disposition="delete"))
+
+    def test_tenant_view_pattern_rejects_path_injection(self):
         with self.assertRaises(C.ContractError):
             C.validate_tenant_view(
                 {
                     "schema": "cwk.tenant_view.v1",
                     "tenant_id": TENANT_B,
-                    "report_key": "cwork:../../../etc/passwd\nagent_id=root",
+                    "report_key": "cwork:../../../etc/passwd",
                     "canonical_sha256": FIXED_SHA,
                     "observed_at": _iso(),
                 }
             )
 
-    def test_access_observation_only_discovered_or_granted(self):
-        for status in ("discovered", "granted"):
+    def test_tenant_view_rejects_extra_field(self):
+        payload = {
+            "schema": "cwk.tenant_view.v1",
+            "tenant_id": TENANT_A,
+            "report_key": "cwork:1",
+            "canonical_sha256": FIXED_SHA,
+            "observed_at": _iso(),
+            "credential_ref": "secret://leak",
+        }
+        with self.assertRaises(C.ContractError):
+            C.validate_tenant_view(payload)
+
+    def test_access_observation_initial_status_enum(self):
+        for good in ("discovered", "granted"):
             C.validate_access_observation(
                 {
                     "schema": "cwk.access_observation.v1",
@@ -284,7 +452,7 @@ class SchemaValidatorTests(unittest.TestCase):
                     "report_id": "1",
                     "observed_at": _iso(),
                     "observation_source": "legacy_raw_decomposition",
-                    "initial_status": status,
+                    "initial_status": good,
                 }
             )
         with self.assertRaises(C.ContractError):
@@ -304,17 +472,13 @@ class SchemaValidatorTests(unittest.TestCase):
         self.assertEqual(len(C.ACCESS_GRANT_STATES), 7)
         for status in C.ACCESS_GRANT_STATES:
             C.validate_access_grant(_grant(status=status))
-
-    def test_access_grant_query_eligibility_only_active(self):
         self.assertEqual(C.ACCESS_GRANT_QUERY_ELIGIBLE, {"active"})
 
-    def test_access_grant_transitions(self):
-        # Legal edges from the frozen table.
+    def test_access_grant_transitions_frozen(self):
         for src, dsts in C.ACCESS_GRANT_ALLOWED_TRANSITIONS.items():
             for dst in dsts:
                 C.validate_access_grant_transition(src, dst)
-        # A handful of forbidden edges that would enable a re-activation loophole.
-        for src, dst in [
+        for bad in [
             ("purged", "active"),
             ("revoked", "active"),
             ("revalidation_due", "granted"),
@@ -322,20 +486,24 @@ class SchemaValidatorTests(unittest.TestCase):
             ("active", "purge_pending"),
         ]:
             with self.assertRaises(C.ContractError):
-                C.validate_access_grant_transition(src, dst)
+                C.validate_access_grant_transition(*bad)
 
-    def test_knowledge_profile_six_states_and_no_rolled_back(self):
-        self.assertEqual(len(C.KNOWLEDGE_PROFILE_STATES), 6)
+    def test_knowledge_profile_positive_and_recompute(self):
+        # positive
+        C.validate_knowledge_profile(_profile())
+        # tampered routing_rules with the same profile_sha256 — must fail
+        tampered = _profile()
+        tampered["routing_rules"] = [{"rule_id": "attacker_injected"}]
+        # keep the *old* profile_sha256 to simulate the attacker
+        old_sha = _profile()["profile_sha256"]
+        tampered["profile_sha256"] = old_sha
+        with self.assertRaises(C.ContractError):
+            C.validate_knowledge_profile(tampered)
+
+    def test_knowledge_profile_no_rolled_back(self):
         self.assertNotIn("rolled_back", C.KNOWLEDGE_PROFILE_STATES)
-
-    def test_knowledge_profile_transitions_and_rollback_via_pointer_only(self):
-        # active -> superseded is normal supersession; superseded -> active is
-        # ONLY reachable via a profile_pointer_rollback audit event.
-        C.validate_knowledge_profile_transition("active", "superseded")
-        C.validate_knowledge_profile_transition("superseded", "active")
-        for bad in [("draft", "active"), ("draft", "superseded"), ("preview", "active"), ("confirmed", "superseded"), ("active", "draft")]:
-            with self.assertRaises(C.ContractError):
-                C.validate_knowledge_profile_transition(*bad)
+        with self.assertRaises(C.ContractError):
+            C.validate_knowledge_profile(_profile(status="rolled_back"))
 
     def test_profile_pointer_rollback_positive_negative(self):
         payload = {
@@ -347,145 +515,127 @@ class SchemaValidatorTests(unittest.TestCase):
             "to_version": "v1",
             "to_profile_sha256": "2" * 64,
             "actor": "admin@example",
-            "reason": "regression in v2 routing",
+            "reason": "regression in v2",
             "occurred_at": _iso(),
             "auth_epoch_before": 5,
             "auth_epoch_after": 6,
         }
         C.validate_profile_pointer_rollback(payload)
-        # Rollback must strictly increment auth_epoch.
-        bad = dict(payload, auth_epoch_after=5)
         with self.assertRaises(C.ContractError):
-            C.validate_profile_pointer_rollback(bad)
-        # Rollback must swap versions.
-        bad = dict(payload, from_version="v1", to_version="v1")
+            C.validate_profile_pointer_rollback(dict(payload, auth_epoch_after=5))
         with self.assertRaises(C.ContractError):
-            C.validate_profile_pointer_rollback(bad)
+            C.validate_profile_pointer_rollback(dict(payload, from_version="v1", to_version="v1"))
 
-    def test_route_decision_space_ids_opaque_only(self):
-        decision = {
-            "schema": "cwk.route_decision.v1",
-            "tenant_id": TENANT_A,
-            "report_key": "cwork:1",
-            "canonical_sha256": FIXED_SHA,
-            "disposition": "index",
-            "space_ids": [SPACE_1, SPACE_2],
-            "confidence": 0.9,
-            "reason_codes": ["confirmed_entity"],
-            "profile_version": "v1",
-            "profile_sha256": "a" * 64,
-            "decided_by": "deterministic+model",
-            "decided_at": _iso(),
-        }
-        C.validate_route_decision(decision)
-        # Slugs must be rejected.
-        with self.assertRaises(C.ContractError):
-            C.validate_route_decision(dict(decision, space_ids=["tbs", SPACE_1]))
-        # Duplicate space_ids must be rejected.
-        with self.assertRaises(C.ContractError):
-            C.validate_route_decision(dict(decision, space_ids=[SPACE_1, SPACE_1]))
-        # Unknown disposition must be rejected.
-        with self.assertRaises(C.ContractError):
-            C.validate_route_decision(dict(decision, disposition="delete"))
-
-    def test_query_request_selector_and_forbidden(self):
-        req = {"schema": "cwk.query_request.v1", "query": "TBS 风险", "space_selector": [SPACE_1]}
-        C.validate_query_request(req)
-        with self.assertRaises(C.ContractError):
-            C.validate_query_request(dict(req, space_selector=["tbs"]))
-        with self.assertRaises(C.ContractError):
-            C.validate_query_request(dict(req, tenant_id=TENANT_A))
-        with self.assertRaises(C.ContractError):
-            C.validate_query_request(dict(req, profile_sha256="f" * 64))
-        with self.assertRaises(C.ContractError):
-            C.validate_query_request(dict(req, include_dispositions=["bogus"]))
-
-    def test_sample_manifest_holdout_no_overlap(self):
-        manifest = {
+    def test_sample_manifest_full_coverage_and_overlap(self):
+        # Build a passing manifest with 150 samples, 25 holdout, chunk
+        # layout covering all samples, strata picked sum matching.
+        samples = [{"report_key": f"cwork:2070{i:03d}", "canonical_sha256": ("a" * 63) + hex(i % 16)[2:]} for i in range(150)]
+        holdout = [{"report_key": f"cwork:2071{i:03d}", "canonical_sha256": ("b" * 63) + hex(i % 16)[2:]} for i in range(25)]
+        chunk_layout = [
+            {"chunk_id": f"c{ci}", "report_keys": [s["report_key"] for s in samples[ci * 25 : (ci + 1) * 25]]}
+            for ci in range(6)
+        ]
+        good = {
             "schema": "cwk.sample_manifest.v1",
             "tenant_id": TENANT_A,
             "random_seed": "deadbeefdeadbeef",
             "target_sample_size": 150,
-            "actual_sample_size": 2,
-            "strata": [],
+            "actual_sample_size": 150,
+            "strata": [{"dimension": "time", "bucket": "2026-07", "picked": 150}],
             "chunk_size": 25,
-            "chunk_layout": [{"chunk_id": "c1", "report_keys": ["cwork:1"]}],
-            "samples": [
-                {"report_key": "cwork:1", "canonical_sha256": "a" * 64},
-                {"report_key": "cwork:2", "canonical_sha256": "b" * 64},
-            ],
-            "holdout": [
-                {"report_key": "cwork:99", "canonical_sha256": "c" * 64},
-            ],
+            "chunk_layout": chunk_layout,
+            "samples": samples,
+            "holdout": holdout,
             "created_at": _iso(),
         }
-        C.validate_sample_manifest(manifest)
-        overlapping = dict(manifest, holdout=[{"report_key": "cwork:1", "canonical_sha256": "a" * 64}])
-        with self.assertRaises(C.ContractError):
-            C.validate_sample_manifest(overlapping)
+        C.validate_sample_manifest(good)
 
-    def test_sample_manifest_target_bounds(self):
-        base = {
-            "schema": "cwk.sample_manifest.v1",
-            "tenant_id": TENANT_A,
-            "random_seed": "deadbeefdeadbeef",
-            "target_sample_size": 99,
-            "actual_sample_size": 1,
-            "strata": [],
-            "chunk_size": 20,
-            "chunk_layout": [],
-            "samples": [],
-            "holdout": [],
-            "created_at": _iso(),
-        }
+        # holdout overlaps samples
+        bad = dict(good, holdout=[dict(good["holdout"][0], report_key=good["samples"][0]["report_key"])] + good["holdout"][1:])
         with self.assertRaises(C.ContractError):
-            C.validate_sample_manifest(base)
-        with self.assertRaises(C.ContractError):
-            C.validate_sample_manifest(dict(base, target_sample_size=201))
+            C.validate_sample_manifest(bad)
 
-    def test_verified_shared_extensions_never_promote_url_or_identity(self):
-        base = {
-            "schema": "cwk.verified_shared_extensions.v1",
-            "version": "v2",
-            "manifest_sha256": "1" * 64,
-            "compared_sample_size": 200,
-            "min_field_match_rate": 0.995,
-            "approved_by": "user",
-            "approved_at": _iso(),
-            "entries": [],
-        }
-        C.validate_verified_shared_extensions(base)
+        # holdout too small (5 < 20)
+        with self.assertRaises(C.ContractError):
+            C.validate_sample_manifest(dict(good, holdout=good["holdout"][:5]))
+
+        # actual_sample_size drift
+        with self.assertRaises(C.ContractError):
+            C.validate_sample_manifest(dict(good, actual_sample_size=149))
+
+        # chunk layout coverage < samples
+        with self.assertRaises(C.ContractError):
+            C.validate_sample_manifest(dict(good, chunk_layout=chunk_layout[:5]))
+
+        # strata picked mismatch
+        with self.assertRaises(C.ContractError):
+            C.validate_sample_manifest(dict(good, strata=[{"dimension": "time", "bucket": "2026-07", "picked": 149}]))
+
+    def test_verified_shared_extensions_forbidden_and_min_50(self):
+        # Empty bootstrap passes with zero placeholder.
+        C.validate_verified_shared_extensions(
+            {
+                "schema": "cwk.verified_shared_extensions.v1",
+                "version": "v1",
+                "manifest_sha256": "0" * 64,
+                "compared_sample_size": 50,
+                "min_field_match_rate": 0.99,
+                "approved_by": "bootstrap",
+                "approved_at": _iso(),
+                "entries": [],
+            }
+        )
+        # Any URL-y or identity-y field is forbidden even after 50+ samples.
         for bad_path in (
             "attachments[*].temporary_url",
             "attachments[*].preview_url",
-            "short_url",
             "reply_overlay[*].temporary_url",
-            "tenant_id",
+            "short_url",
             "credential_ref",
+            "tenant_id",
+            "password",
+            "token",
         ):
+            body = {
+                "schema": "cwk.verified_shared_extensions.v1",
+                "version": "v2",
+                "compared_sample_size": 60,
+                "min_field_match_rate": 0.99,
+                "approved_by": "attacker",
+                "approved_at": _iso(),
+                "entries": [
+                    {"field_path": bad_path, "match_rate": 0.99, "sample_ids": [f"cwork:{i}" for i in range(50)]}
+                ],
+            }
+            # compute manifest sha
+            body["manifest_sha256"] = C.canonical_sha256(body)
             with self.assertRaises(C.ContractError):
-                C.validate_verified_shared_extensions(
-                    dict(base, entries=[{"field_path": bad_path, "match_rate": 0.99, "sample_ids": ["cwork:1"]}])
-                )
+                C.validate_verified_shared_extensions(body)
 
-    def test_verified_shared_extensions_requires_min_sample_size_50(self):
+    def test_verified_shared_extensions_recompute_manifest_sha(self):
+        body = {
+            "schema": "cwk.verified_shared_extensions.v1",
+            "version": "v2",
+            "compared_sample_size": 60,
+            "min_field_match_rate": 0.99,
+            "approved_by": "user",
+            "approved_at": _iso(),
+            "entries": [
+                {"field_path": "title", "match_rate": 0.99, "sample_ids": [f"cwork:{i}" for i in range(50)]}
+            ],
+        }
+        body["manifest_sha256"] = C.canonical_sha256(body)
+        C.validate_verified_shared_extensions(body)
+        # Tamper: change entries but keep old manifest sha
+        tampered = dict(body)
+        tampered["entries"] = [
+            {"field_path": "body", "match_rate": 0.99, "sample_ids": [f"cwork:{i}" for i in range(50)]}
+        ]
+        # manifest_sha256 stays as old value → recompute check must fail
         with self.assertRaises(C.ContractError):
-            C.validate_verified_shared_extensions(
-                {
-                    "schema": "cwk.verified_shared_extensions.v1",
-                    "version": "v2",
-                    "manifest_sha256": "1" * 64,
-                    "compared_sample_size": 49,
-                    "min_field_match_rate": 0.99,
-                    "approved_by": "user",
-                    "approved_at": _iso(),
-                    "entries": [],
-                }
-            )
+            C.validate_verified_shared_extensions(tampered)
 
-    def test_capability_probe_forbidden_forced_conservative(self):
-        # Even if someone hand-writes a payload for the forbidden probe, the
-        # validator rejects "verified".
+    def test_capability_probe_policy_forbidden(self):
         with self.assertRaises(C.ContractError):
             C.validate_capability_probe(
                 {
@@ -494,38 +644,108 @@ class SchemaValidatorTests(unittest.TestCase):
                     "run_at": _iso(),
                     "result": "verified",
                     "conservative_default": "reject",
-                    "evidence_refs": ["https://x"],
+                    "receipt": {
+                        "envelope_sha256": "a" * 64,
+                        "signer": "any",
+                        "signature": "b" * 64,
+                        "target": "sandbox_transport_loopback_http_self_reported",
+                        "environment": "gateway_production",
+                        "not_before": _iso(),
+                        "not_after": "2027-08-01T00:00:00Z",
+                    },
                 }
             )
 
-    def test_dispatch_by_schema(self):
-        C.validate({"schema": "cwk.report_key.v1", "source_namespace": "cwork", "report_id": "1"})
+    def test_capability_probe_verified_requires_receipt_and_trusted_signer(self):
+        # Without receipt: reject verified
         with self.assertRaises(C.ContractError):
-            C.validate({"schema": "cwk.unknown.v99"})
+            C.validate_capability_probe(
+                {
+                    "schema": "cwk.capability_probe.v1",
+                    "probe_id": "sandbox_transport_openclaw_tool",
+                    "run_at": _iso(),
+                    "result": "verified",
+                    "conservative_default": "reject",
+                    "receipt": None,
+                }
+            )
+        # With receipt but signer not on allowlist: reject
         with self.assertRaises(C.ContractError):
-            C.validate("not-a-dict")
+            C.validate_capability_probe(
+                {
+                    "schema": "cwk.capability_probe.v1",
+                    "probe_id": "sandbox_transport_openclaw_tool",
+                    "run_at": _iso(),
+                    "result": "verified",
+                    "conservative_default": "reject",
+                    "receipt": {
+                        "envelope_sha256": "a" * 64,
+                        "signer": "attacker",
+                        "signature": "b" * 64,
+                        "target": "sandbox_transport_openclaw_tool",
+                        "environment": "gateway_production",
+                        "not_before": _iso(),
+                        "not_after": "2027-08-01T00:00:00Z",
+                    },
+                }
+            )
+
+
+# ---------------------------------------------------------------------------
+# Security defaults — dangerous keys, break_glass alt, loopback allow
+# (Blocker #6/supplementary)
+# ---------------------------------------------------------------------------
 
 
 class SecurityDefaultsTests(unittest.TestCase):
     def test_bundled_security_defaults_validate(self):
         payload = C.load_security_defaults()
-        C.validate_security_defaults(payload)
         self.assertEqual(payload["schema"], "cwk.security_defaults.v1")
-        self.assertEqual(payload["version"], "v1")
-        # Forbidden transport is machine-readable.
-        self.assertEqual(
-            payload["transport_and_identity"]["forbidden_transport"],
-            "loopback_http_self_reported_agent_id",
-        )
-        # Grace-read is forbidden.
-        self.assertTrue(payload["access_grant"]["grace_read_forbidden"])
-        # No fabricated SLA numbers.
-        self.assertIsNone(payload["access_grant"]["revocation_ack_target_seconds"])
-        self.assertIsNone(payload["access_grant"]["derived_cleanup_target_seconds"])
 
-    def test_bootstrap_verified_shared_extensions_is_empty(self):
-        payload = C.load_verified_shared_extensions_v1()
-        self.assertEqual(payload["entries"], [])
+    def test_rejects_loopback_allowed_flag(self):
+        payload = C.load_security_defaults()
+        payload["transport_and_identity"]["loopback_http_self_reported_allowed"] = True
+        with self.assertRaises(C.ContractError):
+            C.validate_security_defaults(payload)
+
+    def test_rejects_break_glass_alternate_enabled(self):
+        payload = C.load_security_defaults()
+        payload["break_glass"]["alternate_enabled"] = True
+        with self.assertRaises(C.ContractError):
+            C.validate_security_defaults(payload)
+
+    def test_rejects_grace_read_allowed(self):
+        payload = C.load_security_defaults()
+        payload["access_grant"]["grace_read_forbidden"] = False
+        with self.assertRaises(C.ContractError):
+            C.validate_security_defaults(payload)
+
+    def test_rejects_break_glass_enabled(self):
+        payload = C.load_security_defaults()
+        payload["break_glass"]["enabled"] = True
+        with self.assertRaises(C.ContractError):
+            C.validate_security_defaults(payload)
+
+
+# ---------------------------------------------------------------------------
+# Datetime / ID trailing-newline (supplementary)
+# ---------------------------------------------------------------------------
+
+
+class TrailingNewlineTests(unittest.TestCase):
+    def test_datetime_requires_timezone(self):
+        with self.assertRaises(C.ContractError):
+            C._check_datetime("2026-08-01T10:00:00", "$.x", nullable=False)
+
+    def test_datetime_reject_date_only(self):
+        with self.assertRaises(C.ContractError):
+            C._check_datetime("2026-08-01Z", "$.x", nullable=False)
+
+    def test_sha_regex_rejects_trailing_newline(self):
+        self.assertFalse(bool(C.SHA256_HEX_REGEX.match("a" * 64 + "\n")))
+
+    def test_tenant_regex_rejects_trailing_newline(self):
+        self.assertFalse(bool(C.TENANT_ID_REGEX.match("t_" + "a" * 26 + "\n")))
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -1,27 +1,53 @@
 #!/usr/bin/env python3
-"""RT-011: dual-user redacted-envelope comparator.
+"""RT-011 (post-remediation): dual-user redacted comparator.
 
-Implements PRD §11 / DESIGN §11 ``cwk contract compare-user-views``:
+Redesign for r1 remediation:
 
-- Input: two pre-redacted envelope collections (one per real user).
-- Never accepts ``app_key`` / ``credential_ref`` / raw path / cookie.
-- Output: per-field match statistics on the common-visibility set, plus a
-  suggested split between clean-shared, verified-shareable (only when
-  ≥50 common samples and ≥threshold match rate) and tenant overlay.
-- Never suggests promoting a URL/token/identity field.
-
-The comparator is intentionally schema-agnostic beyond the RT-011 envelope
-shape so it can consume real production redactions in later RTs (RT-017)
-via the same interface.
+- Input schema is now :data:`cwk.dual_user_observation.v1`.  The
+  observation splits fields into ``canonical_fields`` (a fixed allowlist:
+  ``title``, ``body``, ``author.source_user_id``, ``author.display_name``,
+  ``created_at``, ``source_updated_at``) and ``overlay_fields`` (everything
+  tenant-specific).  Only candidate fields inside ``canonical_fields`` can
+  ever be recommended as ``candidate_verified_shared``.
+- Overlay lists (``attachment_permissions``, ``reply_overlay``,
+  ``node_overlay``) are recursed into so a temporary URL cannot slip past
+  the top-level check.  Any ``temporary_url``/``preview_url``/etc. found
+  aborts upgrade suggestions across the run.
+- The upgrade threshold has a hard floor at 0.99; lower values raise
+  ``ContractError``.
+- For a candidate to be recommended it must:
+    * appear in every one of the ≥50 unique common report_keys
+      (100% coverage — 49/50 is not enough);
+    * match at that same rate (99%+ per manifest);
+    * have consistent canonical_sha256 across both tenants for those keys.
+- Duplicate ``report_key`` entries within one tenant abort the run;
+  conflicting canonical_sha256 for the same report_key between tenants
+  disables promotion of every candidate.
 """
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
 import cwk_pr001_contracts as C
+
+
+DEFAULT_SHARE_UPGRADE_THRESHOLD = 0.99
+MIN_COMMON_SAMPLES_FOR_UPGRADE = 50
+THRESHOLD_FLOOR = 0.99
+
+# The only field paths that may EVER be recommended for verified_shared
+# upgrade.  Everything else stays overlay forever.
+CANDIDATE_CANONICAL_FIELDS: tuple[str, ...] = (
+    "canonical_fields.title",
+    "canonical_fields.body",
+    "canonical_fields.author.source_user_id",
+    "canonical_fields.author.display_name",
+    "canonical_fields.created_at",
+    "canonical_fields.source_updated_at",
+)
 
 
 _FORBIDDEN_INPUT_KEYS = frozenset(
@@ -34,111 +60,113 @@ _FORBIDDEN_INPUT_KEYS = frozenset(
         "session_token",
         "authorization",
         "authorization_header",
+        "password",
+        "token",
     }
 )
 
-DEFAULT_SHARE_UPGRADE_THRESHOLD = 0.99
-MIN_COMMON_SAMPLES_FOR_UPGRADE = 50
-
 
 @dataclass
-class TenantEnvelopeSet:
-    """A per-tenant collection of ``TenantViewEnvelope`` payloads.
-
-    Each envelope MUST use ``report_key`` (``source_namespace:report_id``)
-    as identity; caller redaction is expected to have happened upstream.
-    """
-
+class TenantObservationSet:
     tenant_id: str
-    envelopes: list[dict[str, Any]] = field(default_factory=list)
+    observations: list[dict[str, Any]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if not C.TENANT_ID_REGEX.match(self.tenant_id or ""):
             raise C.ContractError(f"invalid tenant_id {self.tenant_id!r}", path="tenant_id")
-        for i, env in enumerate(self.envelopes):
-            self._reject_forbidden(env, path=f"envelopes[{i}]")
-            C.validate_tenant_view(env)
-            if env.get("tenant_id") != self.tenant_id:
+        seen_keys: set[str] = set()
+        for i, obs in enumerate(self.observations):
+            _reject_forbidden(obs, path=f"observations[{i}]")
+            C.validate_dual_user_observation(obs)
+            if obs["tenant_id"] != self.tenant_id:
                 raise C.ContractError(
-                    "envelope tenant_id does not match set tenant_id",
-                    path=f"envelopes[{i}].tenant_id",
+                    "observation tenant_id does not match set tenant_id",
+                    path=f"observations[{i}].tenant_id",
                 )
-
-    @staticmethod
-    def _reject_forbidden(payload: Mapping[str, Any], *, path: str) -> None:
-        hits = sorted(set(payload.keys()) & _FORBIDDEN_INPUT_KEYS)
-        if hits:
-            raise C.ContractError(
-                f"comparator refuses AppKey/credential/session fields: {hits}",
-                path=path,
-            )
+            report_key = obs["report_key"]
+            if report_key in seen_keys:
+                raise C.ContractError(
+                    f"duplicate report_key {report_key!r} in tenant observation set",
+                    path=f"observations[{i}].report_key",
+                )
+            seen_keys.add(report_key)
 
     def by_report_key(self) -> dict[str, dict[str, Any]]:
-        out: dict[str, dict[str, Any]] = {}
-        for env in self.envelopes:
-            out[env["report_key"]] = env
-        return out
+        return {obs["report_key"]: obs for obs in self.observations}
 
 
-def _iter_leaf_paths(value: Any, prefix: str = "") -> Iterable[tuple[str, Any]]:
-    """Yield ``(dotted_path, leaf_value)`` for all leaves inside ``value``.
+def _reject_forbidden(payload: Mapping[str, Any], *, path: str) -> None:
+    _scan_forbidden(payload, path=path)
 
-    Lists use ``[]`` in the path so we can compare multi-set membership
-    rather than order-sensitive equality (order-sensitive comparisons are
-    reported separately in ``list_order_agreement``).
+
+def _scan_forbidden(value: Any, *, path: str) -> None:
+    if isinstance(value, dict):
+        hits = sorted(set(value.keys()) & _FORBIDDEN_INPUT_KEYS)
+        if hits:
+            raise C.ContractError(
+                f"comparator refuses AppKey/credential/session/token fields: {hits}",
+                path=path,
+            )
+        for k, v in value.items():
+            _scan_forbidden(v, path=f"{path}.{k}")
+    elif isinstance(value, list):
+        for i, item in enumerate(value):
+            _scan_forbidden(item, path=f"{path}[{i}]")
+
+
+def _dig(obj: Any, dotted_path: str) -> tuple[bool, Any]:
+    """Return ``(present, value)`` for ``obj`` at the dotted path.
+
+    Presence is False if any segment is missing.  Values may be ``None``.
     """
 
+    current: Any = obj
+    for part in dotted_path.split("."):
+        if isinstance(current, dict) and part in current:
+            current = current[part]
+        else:
+            return False, None
+    return True, current
+
+
+def _detect_temporary_url(value: Any) -> bool:
+    """Recursively scan ``value`` for any temporary URL / token field."""
+
+    banned = ("temporary_url", "preview_url", "presign_url", "download_url", "short_url")
     if isinstance(value, dict):
-        for k in sorted(value.keys()):
-            child_path = f"{prefix}.{k}" if prefix else k
-            yield from _iter_leaf_paths(value[k], child_path)
+        for k, v in value.items():
+            if k in banned:
+                return True
+            if _detect_temporary_url(v):
+                return True
     elif isinstance(value, list):
-        yield f"{prefix}[]", value
-    else:
-        yield prefix, value
-
-
-def _is_url_field(path: str) -> bool:
-    lowered = path.lower()
-    return any(hint in lowered for hint in ("_url", "url", "presign", "download", "temporary_url", "preview_url", "short_url"))
-
-
-def _is_identity_field(path: str) -> bool:
-    lowered = path.lower()
-    return any(
-        hint in lowered
-        for hint in (
-            "tenant_id",
-            "agent_id",
-            "credential",
-            "app_key",
-            "auth_epoch",
-            "binding_epoch",
-        )
-    )
+        for item in value:
+            if _detect_temporary_url(item):
+                return True
+    return False
 
 
 def compare(
-    tenant_a: TenantEnvelopeSet,
-    tenant_b: TenantEnvelopeSet,
+    tenant_a: TenantObservationSet,
+    tenant_b: TenantObservationSet,
     *,
     upgrade_threshold: float = DEFAULT_SHARE_UPGRADE_THRESHOLD,
 ) -> dict[str, Any]:
     if tenant_a.tenant_id == tenant_b.tenant_id:
         raise C.ContractError("comparator requires two distinct tenants", path="tenant_id")
+    if upgrade_threshold < THRESHOLD_FLOOR:
+        raise C.ContractError(
+            f"upgrade_threshold {upgrade_threshold} below floor {THRESHOLD_FLOOR}",
+            path="upgrade_threshold",
+        )
 
     a_map = tenant_a.by_report_key()
     b_map = tenant_b.by_report_key()
+    common_keys = sorted(set(a_map) & set(b_map))
+    only_a = sorted(set(a_map) - set(b_map))
+    only_b = sorted(set(b_map) - set(a_map))
 
-    a_keys = set(a_map)
-    b_keys = set(b_map)
-    common_keys = sorted(a_keys & b_keys)
-    only_a = sorted(a_keys - b_keys)
-    only_b = sorted(b_keys - a_keys)
-
-    # Per-report cross-tenant leaks -- if the same report_key resolves to
-    # different canonical_sha256 between A and B, either the canonical
-    # object was mislinked or one side observed a stale version.
+    # Detect canonical_sha256 mismatches for the same report_key.
     canonical_mismatches: list[dict[str, Any]] = []
     for key in common_keys:
         if a_map[key]["canonical_sha256"] != b_map[key]["canonical_sha256"]:
@@ -150,111 +178,99 @@ def compare(
                 }
             )
 
-    field_stats: dict[str, dict[str, Any]] = {}
-    # Aggregate reply/node/attachment differences separately for FR-07 upgrade
-    # decisions.
+    # Overlay diff statistics (never trigger upgrades).
     reply_diff = 0
     node_diff = 0
     attachment_diff = 0
-    temporary_url_present = False
-
+    temporary_url_seen = False
     for key in common_keys:
-        a_env = a_map[key]
-        b_env = b_map[key]
-        for section in ("reply_overlay", "node_overlay", "attachment_permissions"):
-            a_section = a_env.get(section, []) or []
-            b_section = b_env.get(section, []) or []
-            if section == "reply_overlay":
-                reply_diff += _multiset_diff_count(a_section, b_section, key_field="reply_id")
-            elif section == "node_overlay":
-                node_diff += _multiset_diff_count(a_section, b_section, key_field="node_id")
-            else:
-                attachment_diff += _multiset_diff_count(a_section, b_section, key_field="attachment_id")
-                for item in list(a_section) + list(b_section):
-                    if isinstance(item, dict) and item.get("temporary_url"):
-                        temporary_url_present = True
+        a_overlay = a_map[key].get("overlay_fields") or {}
+        b_overlay = b_map[key].get("overlay_fields") or {}
+        reply_diff += _multiset_diff_count(a_overlay.get("reply_overlay") or [], b_overlay.get("reply_overlay") or [], key_field="reply_id")
+        node_diff += _multiset_diff_count(a_overlay.get("node_overlay") or [], b_overlay.get("node_overlay") or [], key_field="node_id")
+        attachment_diff += _multiset_diff_count(a_overlay.get("attachment_permissions") or [], b_overlay.get("attachment_permissions") or [], key_field="attachment_id")
+        if _detect_temporary_url(a_overlay) or _detect_temporary_url(b_overlay):
+            temporary_url_seen = True
 
-        a_leaves = dict(_iter_leaf_paths(a_env))
-        b_leaves = dict(_iter_leaf_paths(b_env))
-        all_paths = set(a_leaves) | set(b_leaves)
-        for path in all_paths:
-            entry = field_stats.setdefault(
-                path,
-                {
-                    "path": path,
-                    "compared": 0,
-                    "matched": 0,
-                    "present_a": 0,
-                    "present_b": 0,
-                    "sample_ids": [],
-                },
-            )
-            entry["compared"] += 1
-            present_a = path in a_leaves
-            present_b = path in b_leaves
-            entry["present_a"] += int(present_a)
-            entry["present_b"] += int(present_b)
-            if present_a and present_b:
-                if a_leaves[path] == b_leaves[path]:
-                    entry["matched"] += 1
-                    if len(entry["sample_ids"]) < 5:
-                        entry["sample_ids"].append(key)
-
-    total_common = len(common_keys)
-    suggested_verified_shared: list[dict[str, Any]] = []
-    suggested_overlay: list[dict[str, Any]] = []
-
-    for path, entry in sorted(field_stats.items()):
-        # Do not include always-shared identity fields like report_key / canonical_sha256.
-        if path in {"report_key", "canonical_sha256", "schema", "tenant_id", "observed_at"}:
-            continue
-        match_rate = (entry["matched"] / entry["compared"]) if entry["compared"] else 0.0
-        summary = {
+    # Candidate-field stats (only paths in CANDIDATE_CANONICAL_FIELDS).
+    field_stats: dict[str, dict[str, Any]] = {}
+    for path in CANDIDATE_CANONICAL_FIELDS:
+        field_stats[path] = {
             "path": path,
-            "match_rate": round(match_rate, 4),
-            "common_samples": entry["compared"],
-            "matched_samples": entry["matched"],
-            "present_only_in_a": entry["present_a"] - entry["matched"],
-            "present_only_in_b": entry["present_b"] - entry["matched"],
+            "common_samples": 0,
+            "matched_samples": 0,
+            "sample_ids": [],
         }
 
-        forbid_reason = None
-        if _is_url_field(path):
-            forbid_reason = "url_or_token_field_never_promoted"
-        elif _is_identity_field(path):
-            forbid_reason = "identity_field_never_promoted"
+    for key in common_keys:
+        for path in CANDIDATE_CANONICAL_FIELDS:
+            entry = field_stats[path]
+            present_a, val_a = _dig(a_map[key], path)
+            present_b, val_b = _dig(b_map[key], path)
+            if present_a and present_b:
+                entry["common_samples"] += 1
+                if val_a == val_b:
+                    entry["matched_samples"] += 1
+                    if len(entry["sample_ids"]) < 50:
+                        entry["sample_ids"].append(key)
 
-        if forbid_reason:
+    suggestions_verified: list[dict[str, Any]] = []
+    suggestions_overlay: list[dict[str, Any]] = []
+
+    # Global upgrade block flags.
+    block_reason: str | None = None
+    if temporary_url_seen:
+        block_reason = "temporary_url_present_in_overlay"
+    elif canonical_mismatches:
+        block_reason = "canonical_sha256_mismatch_between_tenants"
+    elif len(common_keys) < MIN_COMMON_SAMPLES_FOR_UPGRADE:
+        block_reason = f"fewer than {MIN_COMMON_SAMPLES_FOR_UPGRADE} unique common report_keys"
+
+    for path, entry in field_stats.items():
+        common = entry["common_samples"]
+        matched = entry["matched_samples"]
+        match_rate = (matched / common) if common else 0.0
+        summary = {
+            "path": path,
+            "common_samples": common,
+            "matched_samples": matched,
+            "match_rate": round(match_rate, 6),
+        }
+
+        if block_reason is not None:
             summary["recommendation"] = "keep_in_tenant_overlay"
-            summary["reason"] = forbid_reason
-            suggested_overlay.append(summary)
+            summary["reason"] = block_reason
+            suggestions_overlay.append(summary)
             continue
 
-        if (
-            total_common >= MIN_COMMON_SAMPLES_FOR_UPGRADE
-            and match_rate >= upgrade_threshold
-        ):
-            summary["recommendation"] = "candidate_verified_shared"
-            summary["reason"] = (
-                f"match_rate {match_rate:.4f} ≥ {upgrade_threshold:.4f} on "
-                f"{total_common} common samples"
-            )
-            suggested_verified_shared.append(summary)
-        else:
+        # Coverage: field must appear in ALL common keys (100%) and there
+        # must be at least MIN_COMMON_SAMPLES_FOR_UPGRADE unique keys.
+        if common < MIN_COMMON_SAMPLES_FOR_UPGRADE or common < len(common_keys):
             summary["recommendation"] = "keep_in_tenant_overlay"
-            if total_common < MIN_COMMON_SAMPLES_FOR_UPGRADE:
-                summary["reason"] = (
-                    f"only {total_common} common samples (<{MIN_COMMON_SAMPLES_FOR_UPGRADE})"
-                )
-            else:
-                summary["reason"] = f"match_rate {match_rate:.4f} below threshold"
-            suggested_overlay.append(summary)
+            summary["reason"] = (
+                f"field only present in {common}/{len(common_keys)} common samples "
+                f"(need == len(common) and >={MIN_COMMON_SAMPLES_FOR_UPGRADE})"
+            )
+            suggestions_overlay.append(summary)
+            continue
+
+        if match_rate < upgrade_threshold:
+            summary["recommendation"] = "keep_in_tenant_overlay"
+            summary["reason"] = f"match_rate {match_rate:.4f} below threshold {upgrade_threshold}"
+            suggestions_overlay.append(summary)
+            continue
+
+        summary["recommendation"] = "candidate_verified_shared"
+        summary["reason"] = (
+            f"match_rate {match_rate:.4f} on all {common} unique common samples"
+        )
+        suggestions_verified.append(summary)
 
     return {
         "schema": "cwk.compare_user_views.v1",
         "tenant_a": tenant_a.tenant_id,
         "tenant_b": tenant_b.tenant_id,
-        "sample_sizes": {"tenant_a": len(a_map), "tenant_b": len(b_map), "common": total_common},
+        "sample_sizes": {"tenant_a": len(a_map), "tenant_b": len(b_map), "common": len(common_keys)},
         "only_in_tenant_a": only_a,
         "only_in_tenant_b": only_b,
         "canonical_sha256_mismatches": canonical_mismatches,
@@ -262,13 +278,14 @@ def compare(
             "reply": reply_diff,
             "node": node_diff,
             "attachment": attachment_diff,
-            "temporary_url_seen": temporary_url_present,
+            "temporary_url_seen": temporary_url_seen,
         },
         "upgrade_threshold": upgrade_threshold,
         "min_common_samples_for_upgrade": MIN_COMMON_SAMPLES_FOR_UPGRADE,
-        "field_stats": sorted(field_stats.values(), key=lambda e: e["path"]),
-        "suggested_verified_shared": suggested_verified_shared,
-        "suggested_tenant_overlay": suggested_overlay,
+        "upgrade_block_reason": block_reason,
+        "field_stats": [field_stats[p] for p in CANDIDATE_CANONICAL_FIELDS],
+        "suggested_verified_shared": suggestions_verified,
+        "suggested_tenant_overlay": suggestions_overlay,
     }
 
 
@@ -280,27 +297,23 @@ def _multiset_diff_count(a: Sequence[Any], b: Sequence[Any], *, key_field: str) 
     return len(set(a_ids).symmetric_difference(set(b_ids)))
 
 
-def load_envelope_set(path: str) -> TenantEnvelopeSet:
-    """Load a file of shape ``{"tenant_id": ..., "envelopes": [...]}``."""
-
-    with open(path, "r", encoding="utf-8") as fh:
-        payload = json.load(fh)
+def load_observation_set(path: str) -> TenantObservationSet:
+    payload = C.strict_json_load_path(Path(path))
     if not isinstance(payload, dict):
-        raise C.ContractError("envelope set must be a JSON object", path="<root>")
-    if "app_key" in payload or "credential_ref" in payload:
-        raise C.ContractError(
-            "envelope set MUST NOT contain AppKey/credential_ref", path="<root>"
-        )
-    return TenantEnvelopeSet(
+        raise C.ContractError("observation set must be a JSON object", path="<root>")
+    _reject_forbidden(payload, path="<root>")
+    return TenantObservationSet(
         tenant_id=payload.get("tenant_id", ""),
-        envelopes=list(payload.get("envelopes", [])),
+        observations=list(payload.get("observations", [])),
     )
 
 
 __all__ = [
+    "CANDIDATE_CANONICAL_FIELDS",
     "DEFAULT_SHARE_UPGRADE_THRESHOLD",
     "MIN_COMMON_SAMPLES_FOR_UPGRADE",
-    "TenantEnvelopeSet",
+    "THRESHOLD_FLOOR",
+    "TenantObservationSet",
     "compare",
-    "load_envelope_set",
+    "load_observation_set",
 ]

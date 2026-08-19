@@ -1,0 +1,6 @@
+{
+  "__fixture_note": "MALICIOUS: comparator input contains an app_key at the top level.",
+  "tenant_id": "t_aaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "app_key": "APP-KEY-NEVER-ACCEPT",
+  "observations": []
+}

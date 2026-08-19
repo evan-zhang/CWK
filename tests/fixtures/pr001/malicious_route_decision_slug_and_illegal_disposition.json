@@ -1,5 +1,5 @@
 {
-  "__fixture_note": "MALICIOUS: RouteDecision emits a slug in space_ids AND a non-frozen disposition. Must be rejected.",
+  "__fixture_note": "MALICIOUS: RouteDecision emits slug in space_ids AND unknown disposition.",
   "schema": "cwk.route_decision.v1",
   "tenant_id": "t_aaaaaaaaaaaaaaaaaaaaaaaaaa",
   "report_key": "cwork:2070999",

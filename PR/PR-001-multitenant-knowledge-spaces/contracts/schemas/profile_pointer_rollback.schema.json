@@ -2,9 +2,9 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "cwk.pr001.profile_pointer_rollback.v1",
   "title": "profile_pointer_rollback event v1",
-  "description": "Append-only audit event capturing an atomic swap of a tenant's active KnowledgeProfile pointer to the most recent superseded version. Not a Profile status.",
   "type": "object",
   "additionalProperties": false,
+  "unevaluatedProperties": false,
   "required": [
     "schema",
     "event_type",
@@ -23,14 +23,14 @@
     "schema": {"const": "cwk.profile_pointer_rollback.v1"},
     "event_type": {"const": "profile_pointer_rollback"},
     "tenant_id": {"type": "string", "pattern": "^t_[a-z0-9]{26}$"},
-    "from_version": {"type": "string", "pattern": "^v[0-9]+$"},
+    "from_version": {"type": "string", "pattern": "^v[0-9]{1,4}$"},
     "from_profile_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-    "to_version": {"type": "string", "pattern": "^v[0-9]+$"},
+    "to_version": {"type": "string", "pattern": "^v[0-9]{1,4}$"},
     "to_profile_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-    "actor": {"type": "string", "minLength": 1},
-    "reason": {"type": "string", "minLength": 1},
+    "actor": {"type": "string", "minLength": 1, "maxLength": 128},
+    "reason": {"type": "string", "minLength": 1, "maxLength": 512},
     "occurred_at": {"type": "string", "format": "date-time"},
-    "auth_epoch_before": {"type": "integer", "minimum": 1},
-    "auth_epoch_after": {"type": "integer", "minimum": 1}
+    "auth_epoch_before": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+    "auth_epoch_after": {"type": "integer", "minimum": 1, "maximum": 9007199254740991}
   }
 }

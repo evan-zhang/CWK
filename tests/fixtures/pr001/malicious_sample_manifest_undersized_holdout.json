@@ -798,7 +798,7 @@
   ],
   "holdout": [
     {
-      "report_key": "cwork:2070000",
+      "report_key": "cwork:2071000",
       "canonical_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb0"
     },
     {
@@ -816,88 +816,8 @@
     {
       "report_key": "cwork:2071004",
       "canonical_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb4"
-    },
-    {
-      "report_key": "cwork:2071005",
-      "canonical_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb5"
-    },
-    {
-      "report_key": "cwork:2071006",
-      "canonical_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb6"
-    },
-    {
-      "report_key": "cwork:2071007",
-      "canonical_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb7"
-    },
-    {
-      "report_key": "cwork:2071008",
-      "canonical_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb8"
-    },
-    {
-      "report_key": "cwork:2071009",
-      "canonical_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb9"
-    },
-    {
-      "report_key": "cwork:2071010",
-      "canonical_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbba"
-    },
-    {
-      "report_key": "cwork:2071011",
-      "canonical_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-    },
-    {
-      "report_key": "cwork:2071012",
-      "canonical_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbc"
-    },
-    {
-      "report_key": "cwork:2071013",
-      "canonical_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbd"
-    },
-    {
-      "report_key": "cwork:2071014",
-      "canonical_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbe"
-    },
-    {
-      "report_key": "cwork:2071015",
-      "canonical_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbf"
-    },
-    {
-      "report_key": "cwork:2071016",
-      "canonical_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb0"
-    },
-    {
-      "report_key": "cwork:2071017",
-      "canonical_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb1"
-    },
-    {
-      "report_key": "cwork:2071018",
-      "canonical_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb2"
-    },
-    {
-      "report_key": "cwork:2071019",
-      "canonical_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb3"
-    },
-    {
-      "report_key": "cwork:2071020",
-      "canonical_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb4"
-    },
-    {
-      "report_key": "cwork:2071021",
-      "canonical_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb5"
-    },
-    {
-      "report_key": "cwork:2071022",
-      "canonical_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb6"
-    },
-    {
-      "report_key": "cwork:2071023",
-      "canonical_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb7"
-    },
-    {
-      "report_key": "cwork:2071024",
-      "canonical_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb8"
     }
   ],
   "created_at": "2026-08-01T10:00:00Z",
-  "__fixture_note": "MALICIOUS: holdout overlaps samples[0]."
+  "__fixture_note": "MALICIOUS: holdout has only 5 entries; PRD requires 20..30."
 }

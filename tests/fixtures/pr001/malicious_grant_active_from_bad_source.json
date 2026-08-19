@@ -1,5 +1,5 @@
 {
-  "__fixture_note": "MALICIOUS: an access observation is inserted directly as active. The observation schema forbids initial_status=active; must fail.",
+  "__fixture_note": "MALICIOUS: access observation inserted directly as active. initial_status enum forbids active.",
   "schema": "cwk.access_observation.v1",
   "tenant_id": "t_aaaaaaaaaaaaaaaaaaaaaaaaaa",
   "source_namespace": "cwork",
