@@ -998,6 +998,366 @@ def _load_review_payload(raw: bytes, *, review_id: str | None = None) -> dict[st
     return payload
 
 
+def _load_review_payload_bound(
+    raw: bytes,
+    *,
+    tenant_id: str,
+    filename_review_id: str,
+    require_v2: bool = False,
+) -> dict[str, Any]:
+    """Bound review loader for ``iter_reviews`` / audit read paths.
+
+    Verifies (in addition to schema validation):
+
+    - filename ``<review_id>.json`` matches ``payload.review_id``;
+    - ``payload.tenant_id`` matches the parent tenant directory the
+      caller is currently walking;
+    - for v2 records: the recomputed v2 ``review_id`` from the
+      payload's own identity fields matches both the payload's
+      declared ``review_id`` and the filename;
+    - if ``require_v2`` is True, v1 records are refused (used by
+      write / idempotency paths that must not accept v1 records).
+
+    Any mismatch raises :class:`LegacyImportError(code="corrupt")` so
+    a mis-placed / mis-labelled review file surfaces immediately and
+    does not silently participate in coverage arithmetic downstream.
+    """
+
+    payload = _load_review_payload(raw, review_id=filename_review_id)
+    schema_id = payload.get("schema")
+    if payload.get("review_id") != filename_review_id:
+        raise LegacyImportError(
+            "review_id inside payload disagrees with file name",
+            code="corrupt",
+            review_id=filename_review_id,
+        )
+    if payload.get("tenant_id") != tenant_id:
+        raise LegacyImportError(
+            "review tenant_id disagrees with parent directory",
+            code="corrupt",
+            review_id=filename_review_id,
+        )
+    if schema_id == "cwk.rt016.review_entry.v2":
+        # Full v2 derivation must recompute to the same review_id.
+        try:
+            recomputed = compute_review_id_v2(
+                payload["tenant_id"],
+                payload["source_namespace"],
+                payload["source_kind"],
+                payload["legacy_path_hash"],
+                payload["legacy_source_sha256"],
+                payload["run_id"],
+            )
+        except (LegacyImportError, KeyError) as exc:
+            raise LegacyImportError(
+                f"cannot recompute v2 review_id: {exc}",
+                code="corrupt",
+                review_id=filename_review_id,
+            ) from exc
+        if recomputed != filename_review_id:
+            raise LegacyImportError(
+                "recomputed v2 review_id disagrees with file name",
+                code="corrupt",
+                review_id=filename_review_id,
+            )
+        if payload.get("identity_version") != "v2":
+            raise LegacyImportError(
+                "v2 review missing identity_version=v2",
+                code="corrupt",
+                review_id=filename_review_id,
+            )
+    elif schema_id == "cwk.rt016.review_entry.v1":
+        if require_v2:
+            raise LegacyImportError(
+                "bound reader refused non-v2 review",
+                code="corrupt",
+                review_id=filename_review_id,
+            )
+        # v1 audit path: we cannot recompute the deterministic
+        # review_id from the payload (v1 lacked source_kind /
+        # legacy_path_hash bindings and, in pre-Minor-2 records, may
+        # lack source_namespace too).  We still trust that the
+        # filename matches the payload's declared review_id + the
+        # tenant parent — but the record is never v2-idempotent /
+        # never reconciler-PASS.
+        pass
+    else:  # pragma: no cover - defensive; loader rejects earlier.
+        raise LegacyImportError(
+            f"unknown review schema {schema_id!r}",
+            code="corrupt",
+            review_id=filename_review_id,
+        )
+    return payload
+
+
+def _load_manifest_line_bound(
+    raw_line: bytes,
+    *,
+    tenant_id: str,
+    filename_run_id: str,
+    line_number: int,
+) -> dict[str, Any]:
+    """Bound loader for a single JSONL manifest line.
+
+    Wraps parse errors as ``corrupt``; verifies that every line's
+    ``tenant_id`` matches the parent directory and every line's
+    ``run_id`` matches the file name.  Any mis-placed manifest line
+    fails closed — a manifest line that pretends to belong to a
+    different tenant / run must not participate in dedupe or
+    idempotency arithmetic.
+    """
+
+    try:
+        text = raw_line.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise LegacyImportError(
+            f"manifest line {line_number} is not UTF-8: {exc}",
+            code="corrupt",
+        ) from exc
+    try:
+        payload = _C.strict_json_loads(text)
+    except json.JSONDecodeError as exc:
+        raise LegacyImportError(
+            f"manifest line {line_number} is not strict JSON: {exc}",
+            code="corrupt",
+        ) from exc
+    except _C.ContractError as exc:
+        raise LegacyImportError(
+            f"manifest line {line_number} violates duplicate-key rule: {exc}",
+            code="corrupt",
+        ) from exc
+    if not isinstance(payload, dict):
+        raise LegacyImportError(
+            f"manifest line {line_number} is not a JSON object",
+            code="corrupt",
+        )
+    schema_id = payload.get("schema")
+    if schema_id == "cwk.rt016.migration_manifest_entry.v2":
+        _validate_against(_MANIFEST_ENTRY_V2_SCHEMA_ID, payload)
+        if payload.get("identity_version") != "v2":
+            raise LegacyImportError(
+                f"manifest line {line_number} missing identity_version=v2",
+                code="corrupt",
+            )
+    elif schema_id == "cwk.rt016.migration_manifest_entry.v1":
+        _validate_against(_MANIFEST_ENTRY_SCHEMA_ID, payload)
+    else:
+        raise LegacyImportError(
+            f"manifest line {line_number} unknown schema {schema_id!r}",
+            code="corrupt",
+        )
+    if payload.get("tenant_id") != tenant_id:
+        raise LegacyImportError(
+            f"manifest line {line_number} tenant_id disagrees with parent dir",
+            code="corrupt",
+        )
+    if payload.get("run_id") != filename_run_id:
+        raise LegacyImportError(
+            f"manifest line {line_number} run_id disagrees with file name",
+            code="corrupt",
+        )
+    return payload
+
+
+def canonical_tenant_view_projection(view: Any) -> dict[str, Any]:
+    """Return the semantic projection of a tenant_view_envelope.
+
+    Strips **only** ``observed_at`` (the pure observation-clock
+    metadata written by :class:`LegacyRawDecomposer._build_tenant_view`
+    from the caller's ``run_started_at``) so that legitimate
+    re-imports with a different wall-clock timestamp do not cause a
+    false positive.  Every other field — ``schema`` / ``tenant_id`` /
+    ``report_key`` / ``canonical_sha256`` / ``lane`` /
+    ``read_status`` / ``todo_status`` / ``new_reply_flag`` /
+    ``reply_overlay`` / ``node_overlay`` / anything else in the
+    RT-011 v1 envelope — is preserved and MUST match bit-for-bit
+    after JCS+NFC.  This closes the tamper vector where an attacker
+    would rewrite ``observed_at`` (and matching ``run_started_at``)
+    to justify a semantically-drifted overlay.
+    """
+
+    if not isinstance(view, dict):
+        raise LegacyImportError(
+            "tenant_view_envelope is not an object", code="corrupt"
+        )
+    projected = dict(view)
+    projected.pop("observed_at", None)
+    return projected
+
+
+def _verify_crosswalk_matches_fresh_decompose(
+    payload: dict[str, Any],
+    *,
+    raw_bytes: bytes,
+    tenant_id: str,
+    source_namespace: str,
+    source_kind: str,
+    legacy_path_hash: str,
+    legacy_source_sha256: str,
+    run_started_at: str,
+    timeline_snapshot_bytes: Optional[list[bytes]],
+    timeline_event_bytes: Optional[list[bytes]],
+    decomposer: "LegacyRawDecomposer",
+    evidence_store: "_SE.SharedEvidenceStore",
+) -> None:
+    """Fresh-decompose caller's raw and cross-check the found crosswalk.
+
+    This is the mandatory verification that the importer's finder /
+    CAS-conflict paths must run *before* returning any existing
+    crosswalk as an idempotent hit.  Without this step an attacker
+    who wrote a self-consistent payload into a v2 slot (identity
+    fields match the caller's expectations, integrity binding
+    self-agrees, bound reader passes) could still make the importer
+    silently reuse a canonical / view that does not correspond to the
+    caller's actual bytes.
+
+    Steps:
+
+    1. Fresh-decompose ``raw_bytes`` with the given ``decomposer`` +
+       identity inputs.  Anything but ``status="ok"`` is fatal.
+    2. Cross-check every derived field against the crosswalk:
+       ``canonical_sha256`` / ``object_bytes_sha256`` / ``report_key``
+       / ``report_id`` / ``source_namespace`` / ``source_kind`` /
+       ``legacy_path_hash`` / ``legacy_source_sha256`` /
+       ``view_key`` / ``observe_grant_key`` / ``crosswalk_key``.
+    3. Compare NFC+JCS-serialised fresh ``tenant_view_envelope``
+       bytes with the crosswalk's stored envelope bytes, catching any
+       lane / read_status / todo_status / reply_overlay / node_overlay
+       drift.
+    4. Call ``evidence_store.read_version(report_key, canonical_sha)``
+       (public RT-014 API only) and verify the returned canonical
+       envelope's JCS bytes equal the fresh envelope's JCS bytes
+       (bit-for-bit).  Any exception or mismatch is fatal.
+
+    Any failure raises :class:`LegacyImportError(code="corrupt")`,
+    carrying the crosswalk's opaque key for triage.
+    """
+
+    ck = payload.get("crosswalk_key")
+
+    def _fail(msg: str) -> None:
+        raise LegacyImportError(
+            msg,
+            code="corrupt",
+            crosswalk_key=ck if isinstance(ck, str) else None,
+        )
+
+    # SECURITY NOTE: we deliberately do NOT consume the crosswalk's
+    # stored ``run_started_at`` / ``tenant_view_envelope.observed_at``
+    # here — those are attacker-writable fields inside the crosswalk
+    # payload, and reusing them as trusted inputs to the fresh
+    # decomposition would give a coordinated tamper (who rewrites
+    # both the observation clock metadata AND a semantic overlay
+    # field) a free pass.  Instead we fresh-decompose with the
+    # caller's OWN run_started_at (a runtime-trusted input), which
+    # may legitimately differ across idempotent re-imports; then we
+    # compare only the **semantic projection** of the
+    # tenant_view_envelope (everything except the ``observed_at``
+    # observation clock) bit-for-bit.  A lane / read_status /
+    # todo_status / reply_overlay / node_overlay drift always
+    # surfaces; a benign observed_at bump never causes a false
+    # positive.
+
+    try:
+        fresh = decomposer.decompose(
+            raw_bytes=raw_bytes,
+            tenant_id=tenant_id,
+            source_namespace=source_namespace,
+            run_started_at=run_started_at,
+            source_kind=source_kind,
+            timeline_snapshot_bytes=timeline_snapshot_bytes,
+            timeline_event_bytes=timeline_event_bytes,
+        )
+    except LegacyImportError as exc:
+        _fail(f"fresh decompose contract error: {exc.code}")
+    if fresh.status != "ok" or fresh.canonical_envelope is None or fresh.tenant_view_envelope is None:
+        _fail("fresh decompose did not produce a canonical envelope")
+
+    fresh_canonical_sha = fresh.canonical_envelope["canonical_sha256"]
+    fresh_env_jcs = _canonical_bytes(fresh.canonical_envelope)
+    fresh_obj_bytes_sha = _sha256_bytes(fresh_env_jcs)
+    try:
+        fresh_report_key = _C.compose_report_key(
+            source_namespace, fresh.canonical_envelope["report_id"]
+        )
+    except _C.ContractError as exc:
+        _fail(f"fresh report_key composition failed: {exc}")
+    try:
+        fresh_grant_key = _AL.compute_grant_key(tenant_id, fresh_report_key)
+    except _AL.AccessLedgerError as exc:
+        _fail(f"fresh grant_key derivation failed: {exc.code}")
+    try:
+        fresh_crosswalk_key = compute_crosswalk_key_v2(
+            tenant_id,
+            source_namespace,
+            source_kind,
+            legacy_path_hash,
+            legacy_source_sha256,
+        )
+    except LegacyImportError as exc:
+        _fail(f"fresh crosswalk_key derivation failed: {exc.code}")
+
+    # Cross-check every derived field against the stored crosswalk.
+    if fresh_canonical_sha != payload.get("canonical_sha256"):
+        _fail("fresh canonical_sha256 disagrees with existing crosswalk")
+    if fresh_obj_bytes_sha != payload.get("object_bytes_sha256"):
+        _fail("fresh object_bytes_sha256 disagrees with existing crosswalk")
+    if fresh_report_key != payload.get("report_key"):
+        _fail("fresh report_key disagrees with existing crosswalk")
+    if fresh.canonical_envelope["report_id"] != payload.get("report_id"):
+        _fail("fresh report_id disagrees with existing crosswalk")
+    if source_namespace != payload.get("source_namespace"):
+        _fail("caller source_namespace disagrees with existing crosswalk")
+    if source_kind != payload.get("source_kind"):
+        _fail("caller source_kind disagrees with existing crosswalk")
+    if legacy_path_hash != payload.get("legacy_path_hash"):
+        _fail("caller legacy_path_hash disagrees with existing crosswalk")
+    if legacy_source_sha256 != payload.get("legacy_source_sha256"):
+        _fail("caller legacy_source_sha256 disagrees with existing crosswalk")
+    if fresh_grant_key != payload.get("view_key"):
+        _fail("fresh view_key disagrees with existing crosswalk")
+    if fresh_grant_key != payload.get("observe_grant_key"):
+        _fail("fresh observe_grant_key disagrees with existing crosswalk")
+    if fresh_crosswalk_key != payload.get("crosswalk_key"):
+        _fail("fresh crosswalk_key disagrees with existing crosswalk")
+
+    # TenantViewEnvelope **semantic projection** byte-level equality:
+    # any lane / read_status / todo_status / new_reply_flag /
+    # reply_overlay / node_overlay / schema / tenant_id / report_key /
+    # canonical_sha256 drift shows up here.  Only ``observed_at`` is
+    # dropped from both sides — a legitimate re-import with a bumped
+    # wall clock does not cause a false positive, but any
+    # semantic-field drift (including a coordinated tamper that also
+    # rewrote observed_at) surfaces immediately.
+    stored_view = payload.get("tenant_view_envelope")
+    if not isinstance(stored_view, dict):
+        _fail("existing crosswalk tenant_view_envelope is not an object")
+    stored_proj_jcs = _canonical_bytes(canonical_tenant_view_projection(stored_view))
+    fresh_proj_jcs = _canonical_bytes(
+        canonical_tenant_view_projection(fresh.tenant_view_envelope)
+    )
+    if stored_proj_jcs != fresh_proj_jcs:
+        _fail(
+            "tenant_view_envelope semantic projection JCS bytes disagree "
+            "between fresh decompose and existing crosswalk (overlay drift)"
+        )
+
+    # Public RT-014 read_version cross-check + bit-for-bit envelope
+    # match.  If the crosswalk points at a canonical that RT-014 will
+    # not return, or returns bytes that differ from what our fresh
+    # decompose produced, we fail closed.
+    try:
+        returned_env = evidence_store.read_version(fresh_report_key, fresh_canonical_sha)
+    except _SE.SharedEvidenceError as exc:
+        _fail(f"RT-014 read_version rejected existing crosswalk: {exc.code}")
+    returned_jcs = _C.canonical_json_bytes(returned_env)
+    if returned_jcs != fresh_env_jcs:
+        _fail(
+            "RT-014 read_version returned canonical bytes that disagree with "
+            "fresh decompose (coordinated crosswalk tampering)"
+        )
+
+
 # ---------------------------------------------------------------------------
 # Schema helpers
 # ---------------------------------------------------------------------------
@@ -2364,6 +2724,31 @@ class ShadowImporter:
                 legacy_source_sha256=legacy_source_sha256,
             )
             if existing_ck is not None and existing_payload is not None:
+                # Second-round remediation: do NOT trust the finder's
+                # bound-reader-verified payload alone.  Fresh-decompose
+                # the caller's raw bytes with this importer's decomposer
+                # and cross-check every derived field + the full
+                # tenant_view_envelope JCS bytes + RT-014 read_version
+                # bit-for-bit against the existing crosswalk.  This
+                # closes the coordinated-crosswalk-tampering hole where
+                # an attacker plants a self-consistent payload whose
+                # identity matches the caller's expectations but whose
+                # canonical / view content diverges from what the
+                # caller's raw actually decomposes to.
+                _verify_crosswalk_matches_fresh_decompose(
+                    existing_payload,
+                    raw_bytes=raw_bytes,
+                    tenant_id=tenant_id,
+                    source_namespace=source_namespace,
+                    source_kind=source_kind,
+                    legacy_path_hash=legacy_path_hash,
+                    legacy_source_sha256=legacy_source_sha256,
+                    run_started_at=run_started_at,
+                    timeline_snapshot_bytes=timeline_snapshot_bytes,
+                    timeline_event_bytes=timeline_event_bytes,
+                    decomposer=self._decomposer,
+                    evidence_store=self._evidence,
+                )
                 return _receipt_from_crosswalk(existing_payload, outcome="complete")
 
             existing_review = self._find_existing_review(
@@ -2633,9 +3018,32 @@ class ShadowImporter:
                             existing_payload = _load_crosswalk_payload_bound(
                                 existing_raw, expect=expect
                             )
-                            # Idempotent: bound-reader OK ⇒ identity is
-                            # already ours.  Compare the four output
-                            # fields that must match by construction.
+                            # Second-round remediation: CAS conflict must
+                            # also fresh-decompose caller's raw bytes and
+                            # cross-check against RT-014 read_version.
+                            # (The fresh_result we just decomposed above
+                            # would already agree by construction, but
+                            # we must not skip the RT-014 read_version +
+                            # tenant_view_envelope byte comparison — the
+                            # existing on-disk payload could be a
+                            # coordinated tamper whose bound-reader
+                            # identity still matches the caller.)
+                            _verify_crosswalk_matches_fresh_decompose(
+                                existing_payload,
+                                raw_bytes=raw_bytes,
+                                tenant_id=tenant_id,
+                                source_namespace=source_namespace,
+                                source_kind=source_kind,
+                                legacy_path_hash=legacy_path_hash,
+                                legacy_source_sha256=legacy_source_sha256,
+                                run_started_at=run_started_at,
+                                timeline_snapshot_bytes=timeline_snapshot_bytes,
+                                timeline_event_bytes=timeline_event_bytes,
+                                decomposer=self._decomposer,
+                                evidence_store=self._evidence,
+                            )
+                            # Belt-and-braces (redundant after the fresh
+                            # decompose above, but cheap):
                             if (
                                 existing_payload["canonical_sha256"]
                                 != crosswalk_payload["canonical_sha256"]
@@ -2849,7 +3257,18 @@ class ShadowImporter:
             yield payload
 
     def iter_reviews(self, *, tenant_id: str) -> Iterator[dict[str, Any]]:
-        """Iterate all durable review entries for a tenant."""
+        """Iterate all durable review entries for a tenant (audit view).
+
+        Uses the bound review loader so any mis-placed / mis-labelled
+        review file surfaces immediately as ``corrupt`` rather than
+        silently propagating: a review whose ``tenant_id`` disagrees
+        with its parent directory, or whose ``review_id`` disagrees
+        with its file name, or whose recomputed v2 review_id
+        disagrees with the file name, fails closed.  A corrupt
+        review can therefore never silently suppress ``only_legacy``
+        arithmetic downstream in the reconciler — the reconciler
+        propagates the corruption instead of counting the record.
+        """
 
         try:
             with self._tenant_fd(tenant_id) as tfd:
@@ -2866,7 +3285,11 @@ class ShadowImporter:
                             raw = _A.read_file(rfd, leaf)
                         except FileNotFoundError:
                             continue
-                        payload = _load_review_payload(raw, review_id=leaf[:-5])
+                        payload = _load_review_payload_bound(
+                            raw,
+                            tenant_id=tenant_id,
+                            filename_review_id=leaf[:-5],
+                        )
                         yield payload
         except LegacyImportError as exc:
             if exc.code in ("not_found", "not_initialized"):
@@ -2876,7 +3299,14 @@ class ShadowImporter:
     def iter_manifest(
         self, *, tenant_id: str, run_id: str
     ) -> Iterator[dict[str, Any]]:
-        """Iterate parsed manifest entries for one run."""
+        """Iterate parsed manifest entries for one run (bound reader).
+
+        Every JSONL line is validated against its schema constant and
+        cross-checked so that its ``tenant_id`` matches the parent
+        directory and its ``run_id`` matches the file name — a
+        mis-placed manifest line that pretends to belong to a
+        different tenant / run fails closed as ``corrupt``.
+        """
 
         if not _RUN_ID_REGEX.match(run_id):
             raise LegacyImportError("invalid run_id", code="contract")
@@ -2897,37 +3327,15 @@ class ShadowImporter:
             raise LegacyImportError(
                 "manifest missing trailing newline", code="corrupt"
             )
-        for line in raw.split(b"\n")[:-1]:
+        for line_number, line in enumerate(raw.split(b"\n")[:-1], start=1):
             if not line:
                 continue
-            try:
-                payload = _C.strict_json_loads(line.decode("utf-8"))
-            except UnicodeDecodeError as exc:
-                raise LegacyImportError(
-                    f"manifest line is not UTF-8: {exc}", code="corrupt"
-                ) from exc
-            except json.JSONDecodeError as exc:
-                raise LegacyImportError(
-                    f"manifest line is not strict JSON: {exc}", code="corrupt"
-                ) from exc
-            except _C.ContractError as exc:
-                raise LegacyImportError(
-                    f"manifest line violates duplicate-key rule: {exc}",
-                    code="corrupt",
-                ) from exc
-            if not isinstance(payload, dict):
-                raise LegacyImportError(
-                    "manifest line is not a JSON object", code="corrupt"
-                )
-            schema_id = payload.get("schema")
-            if schema_id == "cwk.rt016.migration_manifest_entry.v2":
-                _validate_against(_MANIFEST_ENTRY_V2_SCHEMA_ID, payload)
-            elif schema_id == "cwk.rt016.migration_manifest_entry.v1":
-                _validate_against(_MANIFEST_ENTRY_SCHEMA_ID, payload)
-            else:
-                raise LegacyImportError(
-                    f"unknown manifest line schema {schema_id!r}", code="corrupt"
-                )
+            payload = _load_manifest_line_bound(
+                line,
+                tenant_id=tenant_id,
+                filename_run_id=run_id,
+                line_number=line_number,
+            )
             yield payload
 
     # ------------------------------------------------------------------
@@ -3121,21 +3529,22 @@ class ShadowImporter:
                     raw = _A.read_file(rfd, leaf)
                 except FileNotFoundError:
                     return None
-                payload = _load_review_payload(raw, review_id=expected_review_id)
-                if payload.get("schema") != "cwk.rt016.review_entry.v2":
-                    raise LegacyImportError(
-                        "review entry at v2 slot is not v2",
-                        code="corrupt",
-                        review_id=expected_review_id,
-                    )
+                # Bound review loader with require_v2=True — a v1
+                # record at a v2 slot fails closed; the recomputed v2
+                # review_id from the payload's own fields must match
+                # the filename.
+                payload = _load_review_payload_bound(
+                    raw,
+                    tenant_id=tenant_id,
+                    filename_review_id=expected_review_id,
+                    require_v2=True,
+                )
                 if (
-                    payload.get("tenant_id") != tenant_id
-                    or payload.get("source_namespace") != source_namespace
+                    payload.get("source_namespace") != source_namespace
                     or payload.get("source_kind") != source_kind
                     or payload.get("legacy_path_hash") != legacy_path_hash
                     or payload.get("legacy_source_sha256") != legacy_source_sha256
                     or payload.get("run_id") != run_id
-                    or payload.get("review_id") != expected_review_id
                 ):
                     raise LegacyImportError(
                         "review entry binding fields disagree with caller inputs",
@@ -3475,6 +3884,7 @@ __all__ = [
     "REGISTRY_SUBDIR",
     "STAGING_SUBDIR",
     "ShadowImporter",
+    "canonical_tenant_view_projection",
     "compute_crosswalk_key",
     "compute_crosswalk_key_v2",
     "compute_legacy_path_hash",

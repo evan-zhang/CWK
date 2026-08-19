@@ -47,7 +47,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -1237,59 +1236,38 @@ class HappyPathAnchorReconcileTests(RT016TestBase):
 # ---------------------------------------------------------------------------
 
 
-_FROZEN_FILES: tuple[str, ...] = (
-    "scripts/cwk_pr001_contracts.py",
-    "scripts/cwk_pr001_probes.py",
-    "scripts/cwk_pr001_view_compare.py",
-    "scripts/cwk_pr001_cli.py",
-    "scripts/cwk_instance.py",
-    "scripts/cwk_atomic_file.py",
-    "scripts/cwk_tenant_registry.py",
-    "scripts/cwk_agent_binding.py",
-    "scripts/cwk_agent_context.py",
-    "scripts/cwk_credential_broker.py",
-    "scripts/cwk_shared_evidence.py",
-    "scripts/cwk_access_ledger.py",
-    "scripts/cwk_tenant_view.py",
-    "scripts/cwk_raw_store.py",
-    "scripts/cwk_thread_timeline.py",
-    "scripts/cwk_collect_live.py",
-    "scripts/cwk_nightly_pipeline.py",
-    "scripts/cwk_wiki_query.py",
-    "PR/PR-001-multitenant-knowledge-spaces/contracts/schemas/access_grant.schema.json",
-    "PR/PR-001-multitenant-knowledge-spaces/contracts/schemas/access_observation.schema.json",
-    "PR/PR-001-multitenant-knowledge-spaces/contracts/schemas/canonical_report.schema.json",
-    "PR/PR-001-multitenant-knowledge-spaces/contracts/schemas/tenant_view.schema.json",
-    "PR/PR-001-multitenant-knowledge-spaces/contracts/security_defaults.json",
-    "PR/PR-001-multitenant-knowledge-spaces/contracts/verified_shared_extensions_v1.json",
-    # RT-016 v1 schema files remain frozen too — v2 schemas are new
-    # additions, but any change to the v1 schema files would break
-    # backwards compat for pre-v2 records.
-    "PR/PR-001-multitenant-knowledge-spaces/contracts/rt016/schemas/decompose_report.schema.json",
-    "PR/PR-001-multitenant-knowledge-spaces/contracts/rt016/schemas/migration_crosswalk.schema.json",
-    "PR/PR-001-multitenant-knowledge-spaces/contracts/rt016/schemas/review_entry.schema.json",
-    "PR/PR-001-multitenant-knowledge-spaces/contracts/rt016/schemas/migration_manifest_entry.schema.json",
-    "PR/PR-001-multitenant-knowledge-spaces/contracts/rt016/schemas/reconciliation_report.schema.json",
-)
-
-
 class RT016V2FrozenFilesZeroDriftTests(unittest.TestCase):
-    def test_rt011_015_and_v1_schemas_unchanged_at_head(self):
-        for rel in _FROZEN_FILES:
-            path = PROJECT / rel
-            self.assertTrue(path.exists(), f"{rel} missing")
-            current = hashlib.sha256(path.read_bytes()).hexdigest()
-            head = subprocess.run(
-                ["git", "show", f"HEAD:{rel}"],
-                cwd=str(PROJECT),
-                capture_output=True,
-                check=True,
-            ).stdout
-            self.assertEqual(
-                current,
-                hashlib.sha256(head).hexdigest(),
-                f"frozen file drifted: {rel}",
-            )
+    """v2 anchor-remediation zero-drift guard — delegates to the
+    explicit allowlist baseline in ``test_rt016_schemas`` so both
+    test files share one source of truth and neither uses a git-HEAD
+    self-comparison.
+    """
+
+    def test_frozen_baselines_match_pinned_shas(self):
+        from test_rt016_schemas import (  # noqa: E402
+            FrozenFilesZeroDriftTests,
+            _FROZEN_RT011_015_BASELINE_SHAS,
+            _FROZEN_RT016_V1_SCHEMA_BASELINE_SHAS,
+        )
+        # Baseline maps must never be empty (defensive against merge
+        # accidents deleting the pinned dict).
+        self.assertGreaterEqual(len(_FROZEN_RT011_015_BASELINE_SHAS), 24)
+        self.assertGreaterEqual(len(_FROZEN_RT016_V1_SCHEMA_BASELINE_SHAS), 5)
+        # Delegate to the two dedicated tests to actually compare
+        # SHA-256s so any failure names the drifted file.
+        for method in (
+            "test_rt011_015_files_match_baseline_sha",
+            "test_rt016_v1_schemas_match_pinned_baseline_sha",
+        ):
+            case = FrozenFilesZeroDriftTests(method)
+            result = unittest.TestResult()
+            case.run(result)
+            if not result.wasSuccessful():
+                msgs = [str(e[1]) for e in (result.failures + result.errors)]
+                self.fail(
+                    f"delegated frozen check {method} failed:\n"
+                    + "\n".join(msgs)
+                )
 
 
 class RT016V2NoSecretLeakageTests(unittest.TestCase):

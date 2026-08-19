@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "cwk.pr001.rt016.review_entry.v1",
-  "title": "RT-016 legacy-undecomposable review entry v1",
-  "description": "One durable review entry written when LegacyRawDecomposer cannot produce a trustworthy 3-tuple. Zero canonical / view / grant is written for this legacy raw; only the review entry and its decompose report are persisted under registry/rt016-crosswalk/<tenant_id>/review/. Review entries never leak legacy body bytes, temporary URLs, credentials or host paths.",
+  "title": "RT-016 legacy-undecomposable review entry v1 (audit-only)",
+  "description": "One durable review entry written by pre-v2 RT-016 runs. AUDIT-ONLY as of v2: v2 (anchor-bound) records are the only source of truth for new writes and reconciler PASS. This schema deliberately keeps 'source_namespace' OPTIONAL so that truly-old v1 records emitted before RT-016 Minor-2 remediation (which had no 'source_namespace' at all) remain loadable through 'iter_reviews' / audit read paths; such records never satisfy v2 idempotency and are never counted for reconciler PASS coverage regardless of whether 'source_namespace' is present. Never leaks legacy body bytes, temporary URLs, credentials or host paths.",
   "type": "object",
   "additionalProperties": false,
   "unevaluatedProperties": false,
@@ -10,7 +10,6 @@
     "schema",
     "review_id",
     "tenant_id",
-    "source_namespace",
     "legacy_source_sha256",
     "legacy_path_hash",
     "source_kind",

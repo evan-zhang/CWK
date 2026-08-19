@@ -557,6 +557,31 @@ class MigrationReconciler:
                 mismatches.append("observe_grant_key")
             if recomputed_crosswalk_key != cw.get("crosswalk_key"):
                 mismatches.append("crosswalk_key")
+            # Second-round remediation: compare the
+            # tenant_view_envelope's **semantic projection** JCS bytes
+            # bit-for-bit.  ``canonical_tenant_view_projection`` drops
+            # only ``observed_at`` (the observation-clock metadata
+            # sourced from the caller's ``run_started_at`` — an
+            # attacker-writable field inside the crosswalk payload).
+            # Every semantic field is preserved: lane / read_status /
+            # todo_status / new_reply_flag / reply_overlay /
+            # node_overlay / schema / tenant_id / report_key /
+            # canonical_sha256.  A coordinated tamper that rewrites
+            # observed_at (and matching run_started_at) cannot hide a
+            # semantic-field drift because the projection strips both
+            # sides' observed_at symmetrically.
+            stored_view = cw.get("tenant_view_envelope")
+            if not isinstance(stored_view, dict):
+                mismatches.append("tenant_view_envelope_type")
+            else:
+                stored_proj_jcs = _C.canonical_json_bytes(
+                    _RT016.canonical_tenant_view_projection(stored_view)
+                )
+                fresh_proj_jcs = _C.canonical_json_bytes(
+                    _RT016.canonical_tenant_view_projection(fresh.tenant_view_envelope)
+                )
+                if stored_proj_jcs != fresh_proj_jcs:
+                    mismatches.append("tenant_view_envelope_bytes")
             if mismatches:
                 failure_samples.append(
                     {"classification": "re_decompose_mismatch", "opaque_key": ck}
