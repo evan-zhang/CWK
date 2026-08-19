@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.rt016.migration_manifest_entry.v1",
+  "title": "RT-016 migration manifest JSONL entry v1",
+  "description": "One line in registry/rt016-crosswalk/<tenant_id>/manifests/<run_id>.jsonl. Written after ShadowImporter finishes processing (crosswalk or review) one legacy raw. Never contains bodies or host paths; legacy_path_hash is a domain-separated SHA-256 fingerprint used only for opaque tie-breaking. The manifest is append-only within a run; the run itself may be resumed idempotently by matching legacy_source_sha256 + outcome.",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": [
+    "schema",
+    "entry_seq",
+    "tenant_id",
+    "run_id",
+    "legacy_source_sha256",
+    "legacy_path_hash",
+    "source_kind",
+    "outcome",
+    "created_at"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.rt016.migration_manifest_entry.v1"},
+    "entry_seq": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+    "tenant_id": {"type": "string", "pattern": "^t_[a-z0-9]{26}$"},
+    "run_id": {"type": "string", "pattern": "^run_[a-z2-7]{26}$"},
+    "legacy_source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "legacy_path_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "source_kind": {"type": "string", "enum": ["current_raw", "timeline_snapshot"]},
+    "outcome": {"type": "string", "enum": ["complete", "review", "undecomposable"]},
+    "crosswalk_key": {"type": ["string", "null"], "pattern": "^cw_[a-z2-7]{26}$"},
+    "review_id": {"type": ["string", "null"], "pattern": "^qe_[a-z2-7]{26}$"},
+    "canonical_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+    "view_key": {"type": ["string", "null"], "pattern": "^g_[a-z2-7]{26}$"},
+    "quarantine_reasons": {
+      "type": "array",
+      "items": {"type": "string", "maxLength": 64, "pattern": "^[a-z][a-z0-9_]{0,63}$"},
+      "uniqueItems": true,
+      "maxItems": 32
+    },
+    "created_at": {"type": "string", "format": "date-time"}
+  },
+  "customKeywords": {
+    "deepForbiddenProperties": [
+      "agent_id", "agent_id_hash", "credential_ref", "credentials", "app_key", "app_secret",
+      "body", "canonical_body", "body_text", "content", "html",
+      "reply", "replies", "node", "nodes", "attachment", "attachments",
+      "absolute_path", "mirror_root", "cwork_root", "instance_root", "path",
+      "attachment_url", "preview_url", "short_url", "presign_url", "download_url", "temporary_url",
+      "cookie", "session_token", "authorization", "prompt_template",
+      "auth_epoch", "binding_epoch"
+    ]
+  }
+}
