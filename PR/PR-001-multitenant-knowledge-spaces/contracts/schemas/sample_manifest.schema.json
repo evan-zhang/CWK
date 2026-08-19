@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.sample_manifest.v1",
+  "title": "sample_manifest_v1",
+  "description": "Immutable manifest of the stratified sample used to generate a KnowledgeProfile proposal. Written before AI proposal; its sha256 is bound into profile_sha256.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "tenant_id",
+    "random_seed",
+    "target_sample_size",
+    "actual_sample_size",
+    "strata",
+    "chunk_size",
+    "chunk_layout",
+    "samples",
+    "holdout",
+    "created_at"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.sample_manifest.v1"},
+    "tenant_id": {"type": "string", "pattern": "^t_[a-z0-9]{26}$"},
+    "random_seed": {"type": "string", "pattern": "^[0-9a-f]{16,64}$"},
+    "target_sample_size": {"type": "integer", "minimum": 100, "maximum": 200},
+    "actual_sample_size": {"type": "integer", "minimum": 1},
+    "strata": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["dimension", "bucket", "picked"],
+        "properties": {
+          "dimension": {"type": "string"},
+          "bucket": {"type": "string"},
+          "picked": {"type": "integer", "minimum": 0}
+        }
+      }
+    },
+    "chunk_size": {"type": "integer", "minimum": 1, "maximum": 50},
+    "chunk_layout": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["chunk_id", "report_keys"],
+        "properties": {
+          "chunk_id": {"type": "string"},
+          "report_keys": {
+            "type": "array",
+            "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]*:[^\\s]{1,256}$"}
+          }
+        }
+      }
+    },
+    "samples": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["report_key", "canonical_sha256"],
+        "properties": {
+          "report_key": {"type": "string", "pattern": "^[a-z][a-z0-9_]*:[^\\s]{1,256}$"},
+          "canonical_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    "holdout": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["report_key", "canonical_sha256"],
+        "properties": {
+          "report_key": {"type": "string", "pattern": "^[a-z][a-z0-9_]*:[^\\s]{1,256}$"},
+          "canonical_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    "created_at": {"type": "string", "format": "date-time"}
+  }
+}

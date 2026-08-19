@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.report_key.v1",
+  "title": "ReportKey v1",
+  "description": "Global identity of a report before global-unique report_id is proven. Defaults to source_namespace + report_id.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "source_namespace", "report_id"],
+  "properties": {
+    "schema": {"const": "cwk.report_key.v1"},
+    "source_namespace": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "Lowercase, snake_case source identifier, e.g. 'cwork'."
+    },
+    "report_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Source-side report ID. Not required to be globally unique across namespaces."
+    }
+  }
+}

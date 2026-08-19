@@ -1,0 +1,16 @@
+{
+  "__fixture_note": "MALICIOUS: canonical envelope carries forbidden tenant/overlay fields. Must be rejected by validate_canonical_envelope.",
+  "schema": "cwk.canonical_report.v1",
+  "source_namespace": "cwork",
+  "report_id": "2070999",
+  "title": "越权尝试",
+  "author": {"source_user_id": "u_writer_1"},
+  "created_at": "2026-08-01T10:00:00Z",
+  "source_updated_at": "2026-08-01T12:00:00Z",
+  "body": "body",
+  "canonical_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "normalizer_version": "v1",
+  "tenant_id": "t_aaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "lane": "received",
+  "attachment_url": "https://presign.example/token=abc"
+}

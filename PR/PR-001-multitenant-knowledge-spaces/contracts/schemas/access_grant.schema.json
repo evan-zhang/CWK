@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.access_grant.v1",
+  "title": "AccessGrant v1 (seven-state)",
+  "description": "Access ledger record. Seven states: discovered, granted, active, revalidation_due, revoked, purge_pending, purged. Only `active` may serve as a query candidate; all others fail closed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "tenant_id",
+    "source_namespace",
+    "report_id",
+    "status",
+    "roles",
+    "visibility_scope",
+    "permission_source",
+    "auth_epoch",
+    "granted_at",
+    "last_verified_at",
+    "lease_expires_at",
+    "revoked_at"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.access_grant.v1"},
+    "tenant_id": {"type": "string", "pattern": "^t_[a-z0-9]{26}$"},
+    "source_namespace": {"$ref": "report_key.schema.json#/properties/source_namespace"},
+    "report_id": {"$ref": "report_key.schema.json#/properties/report_id"},
+    "status": {
+      "type": "string",
+      "enum": [
+        "discovered",
+        "granted",
+        "active",
+        "revalidation_due",
+        "revoked",
+        "purge_pending",
+        "purged"
+      ]
+    },
+    "roles": {
+      "type": "array",
+      "items": {"type": "string"},
+      "uniqueItems": true
+    },
+    "visibility_scope": {"type": "string", "enum": ["full", "partial", "unknown"]},
+    "permission_source": {
+      "type": "string",
+      "enum": [
+        "tenant_appkey_observation",
+        "authoritative_permission_api",
+        "legacy_raw_decomposition",
+        "delegated_admin_bootstrap"
+      ]
+    },
+    "auth_epoch": {"type": "integer", "minimum": 1},
+    "granted_at": {"type": ["string", "null"], "format": "date-time"},
+    "last_verified_at": {"type": ["string", "null"], "format": "date-time"},
+    "lease_expires_at": {"type": ["string", "null"], "format": "date-time"},
+    "revoked_at": {"type": ["string", "null"], "format": "date-time"}
+  },
+  "allowedTransitions": {
+    "discovered": ["granted", "revoked"],
+    "granted": ["active", "revoked"],
+    "active": ["revalidation_due", "revoked"],
+    "revalidation_due": ["active", "revoked"],
+    "revoked": ["purge_pending"],
+    "purge_pending": ["purged"],
+    "purged": []
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.canonical_report.v1",
+  "title": "CanonicalEnvelope v1",
+  "description": "Shared, immutable canonical evidence for one version of a report. Contains only clean-shared fields; tenant lane/read/todo/reply/node/attachment/temporary-URL are strictly forbidden here.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "source_namespace",
+    "report_id",
+    "title",
+    "author",
+    "created_at",
+    "source_updated_at",
+    "body",
+    "canonical_sha256",
+    "normalizer_version"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.canonical_report.v1"},
+    "source_namespace": {"$ref": "report_key.schema.json#/properties/source_namespace"},
+    "report_id": {"$ref": "report_key.schema.json#/properties/report_id"},
+    "title": {"type": "string"},
+    "author": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_user_id"],
+      "properties": {
+        "source_user_id": {"type": "string", "minLength": 1},
+        "display_name": {"type": ["string", "null"]}
+      }
+    },
+    "created_at": {"type": "string", "format": "date-time"},
+    "source_updated_at": {"type": "string", "format": "date-time"},
+    "body": {"type": "string"},
+    "canonical_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "normalizer_version": {"type": "string", "pattern": "^v[0-9]+$"},
+    "verified_shared_extensions_ref": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["version", "sha256"],
+      "properties": {
+        "version": {"type": "string", "pattern": "^v[0-9]+$"},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "description": "Optional pointer to the verified_shared_extensions manifest that authorised any non-default clean-shared fields. Absent means only defaults are used."
+    }
+  },
+  "forbiddenProperties": [
+    "tenant_id",
+    "agent_id",
+    "agent_id_hash",
+    "credential_ref",
+    "lane",
+    "read_status",
+    "todo_status",
+    "allowed_actions",
+    "role",
+    "roles",
+    "reply",
+    "replies",
+    "node",
+    "nodes",
+    "attachment",
+    "attachments",
+    "attachment_url",
+    "preview_url",
+    "short_url",
+    "presign_url",
+    "download_url",
+    "collected_at",
+    "path",
+    "absolute_path",
+    "mirror_root"
+  ]
+}

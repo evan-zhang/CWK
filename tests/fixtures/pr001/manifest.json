@@ -1,0 +1,109 @@
+{
+  "schema": "cwk.pr001.fixture_manifest.v1",
+  "generated_by": "RT-011",
+  "note": "Every entry starting with malicious_ MUST be rejected by validators. Every other file MUST be accepted.",
+  "canary": {
+    "file": "__canary__",
+    "value": "RT-011-CANARY-2026-08-19",
+    "expected_result": "must_be_present_in_manifest_and_asserted_by_tests",
+    "purpose": "If any test consumes this manifest without asserting the canary, either the manifest was silently swapped or fixture loading is broken."
+  },
+  "entries": [
+    {
+      "file": "canonical_reports.json",
+      "bytes": 28962,
+      "sha256": "7decb0d79006e0d78473ca52cc526b41090d9238eb5c0f9b0ae22f204e286a4d",
+      "expected_result": "accept"
+    },
+    {
+      "file": "malicious_canonical_with_tenant_fields.json",
+      "bytes": 666,
+      "sha256": "045ec7621fa69737eeaad3cb4f2d0e6774ea8617394fa7855a0dae8baee97fdd",
+      "expected_result": "reject"
+    },
+    {
+      "file": "malicious_grant_active_from_bad_source.json",
+      "bytes": 479,
+      "sha256": "a006983005c0fa33fc2b513d89d2c1f4ce56f9e37f8639d73e2744fda9392ac0",
+      "expected_result": "reject"
+    },
+    {
+      "file": "malicious_grant_bad_transition.json",
+      "bytes": 183,
+      "sha256": "c504cf7975d9321a59ad13d8116b929d6906b8bbd92c197ceef02cffaa1248a9",
+      "expected_result": "reject"
+    },
+    {
+      "file": "malicious_probe_forged_verified.json",
+      "bytes": 856,
+      "sha256": "2b7779f1ce4c92444b71efd529447f1e4d620053e9de84707bd467957fc9e589",
+      "expected_result": "reject"
+    },
+    {
+      "file": "malicious_profile_rolled_back_state.json",
+      "bytes": 854,
+      "sha256": "b2d419582c42394389aa5902d87113dac439234ca05a58370e80077609d75d80",
+      "expected_result": "reject"
+    },
+    {
+      "file": "malicious_query_request_agent_injection.json",
+      "bytes": 503,
+      "sha256": "87c4d65447f78e7fa2c908f42072f2ba6303f3900bfa55c7714230552c1d2268",
+      "expected_result": "reject"
+    },
+    {
+      "file": "malicious_query_request_slug_selector.json",
+      "bytes": 306,
+      "sha256": "938afd1bf984c61dc64302ca65f03610fdad0a6273bb6fc5759405d7c0fab62f",
+      "expected_result": "reject"
+    },
+    {
+      "file": "malicious_report_key_namespace_collision.json",
+      "bytes": 377,
+      "sha256": "36ce998d61f98c0494ab0e91c3cbdb19634877573e075fe5a6eda9b426ddacf5",
+      "expected_result": "reject"
+    },
+    {
+      "file": "malicious_route_decision_slug_and_illegal_disposition.json",
+      "bytes": 648,
+      "sha256": "11e2076a70620c1db16131af2cc6a066ef413f7ff2e97178e4cb2503a4935760",
+      "expected_result": "reject"
+    },
+    {
+      "file": "malicious_sample_manifest_overlap.json",
+      "bytes": 903,
+      "sha256": "ee704bce22ff6d4edb39dc7822431921afc09c179045f33986a2e362556d0c09",
+      "expected_result": "reject"
+    },
+    {
+      "file": "malicious_tenant_a_appkey.json",
+      "bytes": 197,
+      "sha256": "3ae3a6cf186a5b08f664066b087bb1393b6905698acae5f8ad35f43335b269ac",
+      "expected_result": "reject"
+    },
+    {
+      "file": "malicious_tenant_view_path_injection.json",
+      "bytes": 419,
+      "sha256": "50182f4739702ebc26736f63361d4f48d338ea5532c8ebc477dd7210b666b4e0",
+      "expected_result": "reject"
+    },
+    {
+      "file": "malicious_verified_extensions_temporary_url.json",
+      "bytes": 569,
+      "sha256": "ad1d188856ea798e157270365755c75db500969fdaab66474a8d258a9349e351",
+      "expected_result": "reject"
+    },
+    {
+      "file": "tenant_a_views.json",
+      "bytes": 52000,
+      "sha256": "d2332682959f61ac8f82d1f31478264030c759fd0b8c277e718d6e5ac860dce5",
+      "expected_result": "accept"
+    },
+    {
+      "file": "tenant_b_views.json",
+      "bytes": 53157,
+      "sha256": "9de388d867eeed95d39073f7de152bad3b74b4938472783be47472d360b5f08e",
+      "expected_result": "accept"
+    }
+  ]
+}

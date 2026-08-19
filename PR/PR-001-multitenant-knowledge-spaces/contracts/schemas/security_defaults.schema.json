@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.security_defaults.v1",
+  "title": "security_defaults v1",
+  "description": "Machine-readable frozen security defaults for PR-001. All values represent policy (not runtime measurements); runtime SLA numbers are deliberately absent to prevent fabricated targets.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "version",
+    "report_key_composition",
+    "canonical_json",
+    "object_id",
+    "profile_sha256_recipe",
+    "transport_and_identity",
+    "access_grant",
+    "profile_lifecycle",
+    "cold_archive",
+    "cache_key",
+    "logging",
+    "break_glass"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.security_defaults.v1"},
+    "version": {"type": "string", "pattern": "^v[0-9]+$"},
+    "report_key_composition": {"type": "object"},
+    "canonical_json": {"type": "object"},
+    "object_id": {"type": "object"},
+    "profile_sha256_recipe": {"type": "object"},
+    "transport_and_identity": {"type": "object"},
+    "access_grant": {"type": "object"},
+    "profile_lifecycle": {"type": "object"},
+    "cold_archive": {"type": "object"},
+    "cache_key": {"type": "object"},
+    "logging": {"type": "object"},
+    "break_glass": {"type": "object"}
+  }
+}

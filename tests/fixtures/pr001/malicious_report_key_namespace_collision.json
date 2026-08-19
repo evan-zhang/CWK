@@ -1,0 +1,11 @@
+{
+  "__fixture_note": "MALICIOUS: two distinct namespaces reuse the same report_id (5). Downstream MUST NOT collapse them; namespace is a required component of ReportKey.",
+  "pairs": [
+    {"source_namespace": "cwork", "report_id": "5"},
+    {"source_namespace": "third_party_wf", "report_id": "5"}
+  ],
+  "expected_report_keys": [
+    "cwork:5",
+    "third_party_wf:5"
+  ]
+}

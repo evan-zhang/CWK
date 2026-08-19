@@ -1,0 +1,2152 @@
+{
+  "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "envelopes": [
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070000",
+      "canonical_sha256": "2f592ab57fde850f488a6432ed2c570cc9dd38ad93840bc03268f349a0885248",
+      "lane": "received",
+      "read_status": "unread",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070000_1",
+          "permission": "download",
+          "temporary_url": "https://presign.example/download?token=REDACT",
+          "expires_at": "2026-08-01T14:00:00Z"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070000_1"
+        },
+        {
+          "reply_id": "rp_2070000_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070000_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070001",
+      "canonical_sha256": "d0fe7b63c428f61d78a95c76eecf2ea047f5d75f0e328d04159d08be7bcc74c7",
+      "lane": "received",
+      "read_status": "read",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070001_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070001_1"
+        },
+        {
+          "reply_id": "rp_2070001_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070001_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070002",
+      "canonical_sha256": "f5f090d9f91507eb492be0e561010d213daa641561243205ec8b86cce42d1318",
+      "lane": "received",
+      "read_status": "unread",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070002_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070002_1"
+        },
+        {
+          "reply_id": "rp_2070002_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070002_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070003",
+      "canonical_sha256": "a21d037bd2f80f4adde9f936cd4357975b69e9952db6194a5e670bdd5a75e335",
+      "lane": "received",
+      "read_status": "read",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070003_1",
+          "permission": "download",
+          "temporary_url": "https://presign.example/download?token=REDACT",
+          "expires_at": "2026-08-01T14:00:00Z"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070003_1"
+        },
+        {
+          "reply_id": "rp_2070003_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070003_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070004",
+      "canonical_sha256": "354cd80d934b9ad6e561c6acd8b75e23ed151a3adbb11fa8764eaf0c8f84201a",
+      "lane": "received",
+      "read_status": "unread",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070004_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070004_1"
+        },
+        {
+          "reply_id": "rp_2070004_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070004_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070005",
+      "canonical_sha256": "1a2c46bbde95d403436a463a180ef402ed914fdb79d8b0866f5e1a1566fe149a",
+      "lane": "received",
+      "read_status": "read",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070005_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070005_1"
+        },
+        {
+          "reply_id": "rp_2070005_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070005_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070006",
+      "canonical_sha256": "103ec7515ac73ddebe0a29e787ae0007653db973240bba20912fbb408e26808e",
+      "lane": "received",
+      "read_status": "unread",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070006_1",
+          "permission": "download",
+          "temporary_url": "https://presign.example/download?token=REDACT",
+          "expires_at": "2026-08-01T14:00:00Z"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070006_1"
+        },
+        {
+          "reply_id": "rp_2070006_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070006_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070007",
+      "canonical_sha256": "d9f4c35fe62a35b4fdbfdfc9174ac9ff0259dc907b0df2f1a1b471d905089407",
+      "lane": "received",
+      "read_status": "read",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070007_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070007_1"
+        },
+        {
+          "reply_id": "rp_2070007_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070007_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070008",
+      "canonical_sha256": "8a789c1dddab6608a0c89e4641b226bd88fa0b6e4b24bb50eb7282e8020cc486",
+      "lane": "received",
+      "read_status": "unread",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070008_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070008_1"
+        },
+        {
+          "reply_id": "rp_2070008_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070008_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070009",
+      "canonical_sha256": "a201d7f6ef22144a9abb4c9bb998a4ab67f37766885c402db7ca9f7666280801",
+      "lane": "received",
+      "read_status": "read",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070009_1",
+          "permission": "download",
+          "temporary_url": "https://presign.example/download?token=REDACT",
+          "expires_at": "2026-08-01T14:00:00Z"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070009_1"
+        },
+        {
+          "reply_id": "rp_2070009_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070009_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070010",
+      "canonical_sha256": "b40f9066c724dd0fa82a77c4f00a89b3742f9bf24c2c9cc2d17eef1569941f39",
+      "lane": "received",
+      "read_status": "unread",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070010_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070010_1"
+        },
+        {
+          "reply_id": "rp_2070010_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070010_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070011",
+      "canonical_sha256": "e2bd5408edb1634457c2035211eb54a6c1388cd4d926c175dad6c9679460f919",
+      "lane": "received",
+      "read_status": "read",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070011_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070011_1"
+        },
+        {
+          "reply_id": "rp_2070011_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070011_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070012",
+      "canonical_sha256": "ed117b472f7af71ae9d7d7db52f90beca100bab923956871ea13626c9e3388ef",
+      "lane": "received",
+      "read_status": "unread",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070012_1",
+          "permission": "download",
+          "temporary_url": "https://presign.example/download?token=REDACT",
+          "expires_at": "2026-08-01T14:00:00Z"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070012_1"
+        },
+        {
+          "reply_id": "rp_2070012_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070012_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070013",
+      "canonical_sha256": "b9ce3e7d52421cb8f4df1eb0869e96de666a195033f903ff149a2eb44edb8b51",
+      "lane": "received",
+      "read_status": "read",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070013_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070013_1"
+        },
+        {
+          "reply_id": "rp_2070013_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070013_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070014",
+      "canonical_sha256": "e5574fdb7b5dd0c966ba80f4c9a610050ac2dcab937f6ecc0282558e171e74c8",
+      "lane": "received",
+      "read_status": "unread",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070014_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070014_1"
+        },
+        {
+          "reply_id": "rp_2070014_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070014_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070015",
+      "canonical_sha256": "d5eedca5e5dab01cba204515d5979e75db84a56e2e5fa8b593310310c59074d5",
+      "lane": "received",
+      "read_status": "read",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070015_1",
+          "permission": "download",
+          "temporary_url": "https://presign.example/download?token=REDACT",
+          "expires_at": "2026-08-01T14:00:00Z"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070015_1"
+        },
+        {
+          "reply_id": "rp_2070015_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070015_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070016",
+      "canonical_sha256": "32e122e2ae637191e3c23fa4a0476ac87fa2492e6991ba483288c591b2aa5fd3",
+      "lane": "received",
+      "read_status": "unread",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070016_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070016_1"
+        },
+        {
+          "reply_id": "rp_2070016_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070016_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070017",
+      "canonical_sha256": "78b1bfbb4e785266c0e375714aea3997eca020f1378d150fb1e06c235f318bc6",
+      "lane": "received",
+      "read_status": "read",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070017_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070017_1"
+        },
+        {
+          "reply_id": "rp_2070017_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070017_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070018",
+      "canonical_sha256": "9e35d241b76b53fe90396b6b1e12fc740e5d0bc86113c11bc416e4b2dc08881e",
+      "lane": "received",
+      "read_status": "unread",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070018_1",
+          "permission": "download",
+          "temporary_url": "https://presign.example/download?token=REDACT",
+          "expires_at": "2026-08-01T14:00:00Z"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070018_1"
+        },
+        {
+          "reply_id": "rp_2070018_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070018_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070019",
+      "canonical_sha256": "58ff12391de8123b0e127e5fbf8744091549c8c04127e48e224fc10a457ecc41",
+      "lane": "received",
+      "read_status": "read",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070019_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070019_1"
+        },
+        {
+          "reply_id": "rp_2070019_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070019_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070020",
+      "canonical_sha256": "a82bcf3d772145986263ef89cd7650339c9a35ca34692a6928999420c086b597",
+      "lane": "received",
+      "read_status": "unread",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070020_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070020_1"
+        },
+        {
+          "reply_id": "rp_2070020_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070020_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070021",
+      "canonical_sha256": "15215ebee4bcd63616f9eb9896e76499408bc5da5c0c1c8aa2fca6026557a40a",
+      "lane": "received",
+      "read_status": "read",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070021_1",
+          "permission": "download",
+          "temporary_url": "https://presign.example/download?token=REDACT",
+          "expires_at": "2026-08-01T14:00:00Z"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070021_1"
+        },
+        {
+          "reply_id": "rp_2070021_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070021_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070022",
+      "canonical_sha256": "48076bfc70f59cc296741fc0159660756f73635275eac986c25dce93cbdc3277",
+      "lane": "received",
+      "read_status": "unread",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070022_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070022_1"
+        },
+        {
+          "reply_id": "rp_2070022_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070022_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070023",
+      "canonical_sha256": "e194af4c1a806dceab6adb88c3a9f6ea115a3a2be3efc99549c83bc3925cb29d",
+      "lane": "received",
+      "read_status": "read",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070023_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070023_1"
+        },
+        {
+          "reply_id": "rp_2070023_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070023_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070024",
+      "canonical_sha256": "2071bc0a3f320814652cca4ae9abd475ac02513d7ed7e5eba755bcfa7b9c0434",
+      "lane": "received",
+      "read_status": "unread",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070024_1",
+          "permission": "download",
+          "temporary_url": "https://presign.example/download?token=REDACT",
+          "expires_at": "2026-08-01T14:00:00Z"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070024_1"
+        },
+        {
+          "reply_id": "rp_2070024_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070024_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070025",
+      "canonical_sha256": "fc5dd08353dba201a1040a9e5fba86008ada228dea582854c0d8f47f65a06326",
+      "lane": "received",
+      "read_status": "read",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070025_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070025_1"
+        },
+        {
+          "reply_id": "rp_2070025_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070025_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070026",
+      "canonical_sha256": "561d0309269efe8ea5d5a716f6f79058fca8f8c99823be654ae3b9745fb3da17",
+      "lane": "received",
+      "read_status": "unread",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070026_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070026_1"
+        },
+        {
+          "reply_id": "rp_2070026_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070026_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070027",
+      "canonical_sha256": "ad24432c4615a9c94911d8f5e244f5f63b14a8fc185000733a384b4c16cf6622",
+      "lane": "received",
+      "read_status": "read",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070027_1",
+          "permission": "download",
+          "temporary_url": "https://presign.example/download?token=REDACT",
+          "expires_at": "2026-08-01T14:00:00Z"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070027_1"
+        },
+        {
+          "reply_id": "rp_2070027_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070027_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070028",
+      "canonical_sha256": "bfbae7c6301556e2df647ebcf1f88c9838eb361c4e3662cfd309b32245d04ea0",
+      "lane": "received",
+      "read_status": "unread",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070028_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070028_1"
+        },
+        {
+          "reply_id": "rp_2070028_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070028_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070029",
+      "canonical_sha256": "bc94d469c13d1d4bd762fd4fcb931624222505173dd11870fb810f3d7fe52477",
+      "lane": "received",
+      "read_status": "read",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070029_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070029_1"
+        },
+        {
+          "reply_id": "rp_2070029_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070029_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070030",
+      "canonical_sha256": "7e04d394c69579a49f822d8b85984d0b51ee9593ce4e1c0aa1c6c037768577f8",
+      "lane": "received",
+      "read_status": "unread",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070030_1",
+          "permission": "download",
+          "temporary_url": "https://presign.example/download?token=REDACT",
+          "expires_at": "2026-08-01T14:00:00Z"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070030_1"
+        },
+        {
+          "reply_id": "rp_2070030_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070030_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070031",
+      "canonical_sha256": "c4d4fb278ccb04595778aa11c118d518ee1baa1178698f9a3c8f7d7554a50f35",
+      "lane": "received",
+      "read_status": "read",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070031_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070031_1"
+        },
+        {
+          "reply_id": "rp_2070031_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070031_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070032",
+      "canonical_sha256": "7e82fdd448ff2057792e8f5b084c8b6d6813c6d4a6c6f412da29e3e16b27169c",
+      "lane": "received",
+      "read_status": "unread",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070032_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070032_1"
+        },
+        {
+          "reply_id": "rp_2070032_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070032_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070033",
+      "canonical_sha256": "42a6a5aef8d08d4a51c8f40853218daf7b2412fe796adf43b1a6c063621e1555",
+      "lane": "received",
+      "read_status": "read",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070033_1",
+          "permission": "download",
+          "temporary_url": "https://presign.example/download?token=REDACT",
+          "expires_at": "2026-08-01T14:00:00Z"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070033_1"
+        },
+        {
+          "reply_id": "rp_2070033_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070033_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070034",
+      "canonical_sha256": "a1aff98bba852e61c5930801b5d326ed799298a00b2f7c08859e3cb2344e812f",
+      "lane": "received",
+      "read_status": "unread",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070034_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070034_1"
+        },
+        {
+          "reply_id": "rp_2070034_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070034_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070035",
+      "canonical_sha256": "ab80203591a05a31eaac0a4926daa04017bef63b85fc799be2ea9c5b2de3f75b",
+      "lane": "received",
+      "read_status": "read",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070035_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070035_1"
+        },
+        {
+          "reply_id": "rp_2070035_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070035_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070036",
+      "canonical_sha256": "0dd4a9b1e8903cf2b4abff68339ed7be1f0e849e335c6aac74bc5d7c42d1303e",
+      "lane": "received",
+      "read_status": "unread",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070036_1",
+          "permission": "download",
+          "temporary_url": "https://presign.example/download?token=REDACT",
+          "expires_at": "2026-08-01T14:00:00Z"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070036_1"
+        },
+        {
+          "reply_id": "rp_2070036_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070036_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070037",
+      "canonical_sha256": "e5c69c41b05cdcbe8a4f76a29f74313fa8adde6b64744fcc0c9eec4ac9bcdbe7",
+      "lane": "received",
+      "read_status": "read",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070037_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070037_1"
+        },
+        {
+          "reply_id": "rp_2070037_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070037_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070038",
+      "canonical_sha256": "0688cc27a68490f881d9d2c85c9c88cb5aba3a5947889e6b78d7ad521c88b9ab",
+      "lane": "received",
+      "read_status": "unread",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070038_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070038_1"
+        },
+        {
+          "reply_id": "rp_2070038_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070038_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070039",
+      "canonical_sha256": "e80335b18f35238479814f9cf20cfc7d3ee6ed6a9cfd7e4f2302ba96691b3649",
+      "lane": "received",
+      "read_status": "read",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070039_1",
+          "permission": "download",
+          "temporary_url": "https://presign.example/download?token=REDACT",
+          "expires_at": "2026-08-01T14:00:00Z"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070039_1"
+        },
+        {
+          "reply_id": "rp_2070039_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070039_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070040",
+      "canonical_sha256": "45e6138fda1a373b6170145382fb5bb2eac4c5a17961acd99f4d30b8e37229cb",
+      "lane": "received",
+      "read_status": "unread",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070040_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070040_1"
+        },
+        {
+          "reply_id": "rp_2070040_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070040_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070041",
+      "canonical_sha256": "de0f9d627b661261777afeefebc54b875b9da64a459e2ba62b1a5d77efae2385",
+      "lane": "received",
+      "read_status": "read",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070041_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070041_1"
+        },
+        {
+          "reply_id": "rp_2070041_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070041_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070042",
+      "canonical_sha256": "b1babc303ede5735492dff8ad4da7e36c14d03582d0fbfa892527a027d886afc",
+      "lane": "received",
+      "read_status": "unread",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070042_1",
+          "permission": "download",
+          "temporary_url": "https://presign.example/download?token=REDACT",
+          "expires_at": "2026-08-01T14:00:00Z"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070042_1"
+        },
+        {
+          "reply_id": "rp_2070042_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070042_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070043",
+      "canonical_sha256": "9df7888e245635735757704c8fc0f0a39434db3378769554a92a93fee1f7cdea",
+      "lane": "received",
+      "read_status": "read",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070043_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070043_1"
+        },
+        {
+          "reply_id": "rp_2070043_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070043_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070044",
+      "canonical_sha256": "eef4d7e604fd945d329629ddb29e997ba8c4286f524aa2bde4b5d07878749351",
+      "lane": "received",
+      "read_status": "unread",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070044_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070044_1"
+        },
+        {
+          "reply_id": "rp_2070044_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070044_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070045",
+      "canonical_sha256": "349aa4bd4d17487f58c1d97ede8f123b65587494c04fba4672015f427ef878b8",
+      "lane": "received",
+      "read_status": "read",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070045_1",
+          "permission": "download",
+          "temporary_url": "https://presign.example/download?token=REDACT",
+          "expires_at": "2026-08-01T14:00:00Z"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070045_1"
+        },
+        {
+          "reply_id": "rp_2070045_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070045_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070046",
+      "canonical_sha256": "0a1dd220ee8b21a6c57b72760a7c5407fdaa9b89ddc4d627b4cdc7fc9fb07132",
+      "lane": "received",
+      "read_status": "unread",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070046_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070046_1"
+        },
+        {
+          "reply_id": "rp_2070046_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070046_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070047",
+      "canonical_sha256": "a9622cecf1cf1a5697b63a33cc2b261d2716013370471ff868b28d42c667f654",
+      "lane": "received",
+      "read_status": "read",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070047_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070047_1"
+        },
+        {
+          "reply_id": "rp_2070047_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070047_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070048",
+      "canonical_sha256": "7587ef209f58bc2e7c8c678480f24477e1cf2eba3594bb450eca2df2e94263e0",
+      "lane": "received",
+      "read_status": "unread",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070048_1",
+          "permission": "download",
+          "temporary_url": "https://presign.example/download?token=REDACT",
+          "expires_at": "2026-08-01T14:00:00Z"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070048_1"
+        },
+        {
+          "reply_id": "rp_2070048_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070048_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070049",
+      "canonical_sha256": "b93975e9375b53dbee10183896975bb19ebd4b1dcb85103ba525cd46f0a0a6c6",
+      "lane": "received",
+      "read_status": "read",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070049_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070049_1"
+        },
+        {
+          "reply_id": "rp_2070049_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070049_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070050",
+      "canonical_sha256": "bca7010006b8ca34d5a5668ffeb96ab7811061219853dde1aaf6bb557bd4595a",
+      "lane": "received",
+      "read_status": "unread",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070050_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070050_1"
+        },
+        {
+          "reply_id": "rp_2070050_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070050_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070051",
+      "canonical_sha256": "9ea5fe37948fc9d709842f8e3e9352be045d83880c6cdc6b96c3a635905380e4",
+      "lane": "received",
+      "read_status": "read",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070051_1",
+          "permission": "download",
+          "temporary_url": "https://presign.example/download?token=REDACT",
+          "expires_at": "2026-08-01T14:00:00Z"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070051_1"
+        },
+        {
+          "reply_id": "rp_2070051_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070051_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070052",
+      "canonical_sha256": "c537065b03b44d983f94f66317fefc4719f887919cd3319e245f422f77222b6f",
+      "lane": "received",
+      "read_status": "unread",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070052_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070052_1"
+        },
+        {
+          "reply_id": "rp_2070052_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070052_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070053",
+      "canonical_sha256": "22d16c905ed0979640fff947131bc367905cb22f867bd6a868aeec8fe256952f",
+      "lane": "received",
+      "read_status": "read",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070053_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070053_1"
+        },
+        {
+          "reply_id": "rp_2070053_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070053_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070054",
+      "canonical_sha256": "408432528de7434ec2fd2f7ccc03f5cd4f2401f92e883899b29f2cddae97030f",
+      "lane": "received",
+      "read_status": "unread",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070054_1",
+          "permission": "download",
+          "temporary_url": "https://presign.example/download?token=REDACT",
+          "expires_at": "2026-08-01T14:00:00Z"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070054_1"
+        },
+        {
+          "reply_id": "rp_2070054_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070054_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070058",
+      "canonical_sha256": "57331b3a6b6bf0583de2e51e936693140330da2aa75784ec25da16aab7b503c2",
+      "lane": "received",
+      "read_status": "read",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070058_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070058_1"
+        },
+        {
+          "reply_id": "rp_2070058_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070058_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.tenant_view.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070059",
+      "canonical_sha256": "11e25541700783bb67cd9a5a08a1d8040d7bd318af285d15923c43e3ec29c580",
+      "lane": "received",
+      "read_status": "unread",
+      "todo_status": "pending",
+      "roles": [
+        "receiver"
+      ],
+      "allowed_actions": [
+        "reply",
+        "archive"
+      ],
+      "attachment_permissions": [
+        {
+          "attachment_id": "att_2070059_1",
+          "permission": "download"
+        }
+      ],
+      "reply_overlay": [
+        {
+          "reply_id": "rp_2070059_1"
+        },
+        {
+          "reply_id": "rp_2070059_2"
+        }
+      ],
+      "node_overlay": [
+        {
+          "node_id": "nd_2070059_1",
+          "type": "approve"
+        }
+      ],
+      "observed_at": "2026-08-01T13:00:00Z"
+    }
+  ]
+}

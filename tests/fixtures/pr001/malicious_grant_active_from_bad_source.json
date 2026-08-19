@@ -1,0 +1,12 @@
+{
+  "__fixture_note": "MALICIOUS: an access observation is inserted directly as active. The observation schema forbids initial_status=active; must fail.",
+  "schema": "cwk.access_observation.v1",
+  "tenant_id": "t_aaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "source_namespace": "cwork",
+  "report_id": "2070999",
+  "observed_at": "2026-08-01T10:00:00Z",
+  "observation_source": "legacy_raw_decomposition",
+  "roles": ["receiver"],
+  "visibility_scope": "full",
+  "initial_status": "active"
+}

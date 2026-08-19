@@ -1,0 +1,17 @@
+{
+  "__fixture_note": "MALICIOUS: attempts to promote attachment temporary_url to canonical. Must be rejected unconditionally.",
+  "schema": "cwk.verified_shared_extensions.v1",
+  "version": "v2",
+  "manifest_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+  "compared_sample_size": 200,
+  "min_field_match_rate": 0.995,
+  "approved_by": "attacker",
+  "approved_at": "2026-08-01T10:00:00Z",
+  "entries": [
+    {
+      "field_path": "attachments[*].temporary_url",
+      "match_rate": 0.99,
+      "sample_ids": ["cwork:2070001"]
+    }
+  ]
+}

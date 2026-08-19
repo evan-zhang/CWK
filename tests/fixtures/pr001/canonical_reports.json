@@ -1,0 +1,902 @@
+[
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070000",
+    "title": "汇报-0",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-0: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "2f592ab57fde850f488a6432ed2c570cc9dd38ad93840bc03268f349a0885248"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070001",
+    "title": "汇报-1",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-1: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "d0fe7b63c428f61d78a95c76eecf2ea047f5d75f0e328d04159d08be7bcc74c7"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070002",
+    "title": "汇报-2",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-2: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "f5f090d9f91507eb492be0e561010d213daa641561243205ec8b86cce42d1318"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070003",
+    "title": "汇报-3",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-3: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "a21d037bd2f80f4adde9f936cd4357975b69e9952db6194a5e670bdd5a75e335"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070004",
+    "title": "汇报-4",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-4: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "354cd80d934b9ad6e561c6acd8b75e23ed151a3adbb11fa8764eaf0c8f84201a"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070005",
+    "title": "汇报-5",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-5: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "1a2c46bbde95d403436a463a180ef402ed914fdb79d8b0866f5e1a1566fe149a"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070006",
+    "title": "汇报-6",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-6: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "103ec7515ac73ddebe0a29e787ae0007653db973240bba20912fbb408e26808e"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070007",
+    "title": "汇报-7",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-7: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "d9f4c35fe62a35b4fdbfdfc9174ac9ff0259dc907b0df2f1a1b471d905089407"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070008",
+    "title": "汇报-8",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-8: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "8a789c1dddab6608a0c89e4641b226bd88fa0b6e4b24bb50eb7282e8020cc486"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070009",
+    "title": "汇报-9",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-9: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "a201d7f6ef22144a9abb4c9bb998a4ab67f37766885c402db7ca9f7666280801"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070010",
+    "title": "汇报-10",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-10: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "b40f9066c724dd0fa82a77c4f00a89b3742f9bf24c2c9cc2d17eef1569941f39"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070011",
+    "title": "汇报-11",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-11: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "e2bd5408edb1634457c2035211eb54a6c1388cd4d926c175dad6c9679460f919"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070012",
+    "title": "汇报-12",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-12: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "ed117b472f7af71ae9d7d7db52f90beca100bab923956871ea13626c9e3388ef"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070013",
+    "title": "汇报-13",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-13: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "b9ce3e7d52421cb8f4df1eb0869e96de666a195033f903ff149a2eb44edb8b51"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070014",
+    "title": "汇报-14",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-14: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "e5574fdb7b5dd0c966ba80f4c9a610050ac2dcab937f6ecc0282558e171e74c8"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070015",
+    "title": "汇报-15",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-15: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "d5eedca5e5dab01cba204515d5979e75db84a56e2e5fa8b593310310c59074d5"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070016",
+    "title": "汇报-16",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-16: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "32e122e2ae637191e3c23fa4a0476ac87fa2492e6991ba483288c591b2aa5fd3"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070017",
+    "title": "汇报-17",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-17: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "78b1bfbb4e785266c0e375714aea3997eca020f1378d150fb1e06c235f318bc6"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070018",
+    "title": "汇报-18",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-18: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "9e35d241b76b53fe90396b6b1e12fc740e5d0bc86113c11bc416e4b2dc08881e"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070019",
+    "title": "汇报-19",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-19: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "58ff12391de8123b0e127e5fbf8744091549c8c04127e48e224fc10a457ecc41"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070020",
+    "title": "汇报-20",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-20: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "a82bcf3d772145986263ef89cd7650339c9a35ca34692a6928999420c086b597"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070021",
+    "title": "汇报-21",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-21: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "15215ebee4bcd63616f9eb9896e76499408bc5da5c0c1c8aa2fca6026557a40a"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070022",
+    "title": "汇报-22",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-22: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "48076bfc70f59cc296741fc0159660756f73635275eac986c25dce93cbdc3277"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070023",
+    "title": "汇报-23",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-23: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "e194af4c1a806dceab6adb88c3a9f6ea115a3a2be3efc99549c83bc3925cb29d"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070024",
+    "title": "汇报-24",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-24: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "2071bc0a3f320814652cca4ae9abd475ac02513d7ed7e5eba755bcfa7b9c0434"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070025",
+    "title": "汇报-25",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-25: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "fc5dd08353dba201a1040a9e5fba86008ada228dea582854c0d8f47f65a06326"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070026",
+    "title": "汇报-26",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-26: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "561d0309269efe8ea5d5a716f6f79058fca8f8c99823be654ae3b9745fb3da17"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070027",
+    "title": "汇报-27",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-27: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "ad24432c4615a9c94911d8f5e244f5f63b14a8fc185000733a384b4c16cf6622"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070028",
+    "title": "汇报-28",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-28: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "bfbae7c6301556e2df647ebcf1f88c9838eb361c4e3662cfd309b32245d04ea0"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070029",
+    "title": "汇报-29",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-29: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "bc94d469c13d1d4bd762fd4fcb931624222505173dd11870fb810f3d7fe52477"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070030",
+    "title": "汇报-30",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-30: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "7e04d394c69579a49f822d8b85984d0b51ee9593ce4e1c0aa1c6c037768577f8"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070031",
+    "title": "汇报-31",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-31: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "c4d4fb278ccb04595778aa11c118d518ee1baa1178698f9a3c8f7d7554a50f35"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070032",
+    "title": "汇报-32",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-32: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "7e82fdd448ff2057792e8f5b084c8b6d6813c6d4a6c6f412da29e3e16b27169c"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070033",
+    "title": "汇报-33",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-33: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "42a6a5aef8d08d4a51c8f40853218daf7b2412fe796adf43b1a6c063621e1555"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070034",
+    "title": "汇报-34",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-34: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "a1aff98bba852e61c5930801b5d326ed799298a00b2f7c08859e3cb2344e812f"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070035",
+    "title": "汇报-35",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-35: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "ab80203591a05a31eaac0a4926daa04017bef63b85fc799be2ea9c5b2de3f75b"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070036",
+    "title": "汇报-36",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-36: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "0dd4a9b1e8903cf2b4abff68339ed7be1f0e849e335c6aac74bc5d7c42d1303e"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070037",
+    "title": "汇报-37",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-37: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "e5c69c41b05cdcbe8a4f76a29f74313fa8adde6b64744fcc0c9eec4ac9bcdbe7"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070038",
+    "title": "汇报-38",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-38: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "0688cc27a68490f881d9d2c85c9c88cb5aba3a5947889e6b78d7ad521c88b9ab"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070039",
+    "title": "汇报-39",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-39: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "e80335b18f35238479814f9cf20cfc7d3ee6ed6a9cfd7e4f2302ba96691b3649"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070040",
+    "title": "汇报-40",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-40: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "45e6138fda1a373b6170145382fb5bb2eac4c5a17961acd99f4d30b8e37229cb"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070041",
+    "title": "汇报-41",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-41: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "de0f9d627b661261777afeefebc54b875b9da64a459e2ba62b1a5d77efae2385"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070042",
+    "title": "汇报-42",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-42: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "b1babc303ede5735492dff8ad4da7e36c14d03582d0fbfa892527a027d886afc"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070043",
+    "title": "汇报-43",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-43: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "9df7888e245635735757704c8fc0f0a39434db3378769554a92a93fee1f7cdea"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070044",
+    "title": "汇报-44",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-44: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "eef4d7e604fd945d329629ddb29e997ba8c4286f524aa2bde4b5d07878749351"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070045",
+    "title": "汇报-45",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-45: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "349aa4bd4d17487f58c1d97ede8f123b65587494c04fba4672015f427ef878b8"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070046",
+    "title": "汇报-46",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-46: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "0a1dd220ee8b21a6c57b72760a7c5407fdaa9b89ddc4d627b4cdc7fc9fb07132"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070047",
+    "title": "汇报-47",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-47: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "a9622cecf1cf1a5697b63a33cc2b261d2716013370471ff868b28d42c667f654"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070048",
+    "title": "汇报-48",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-48: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "7587ef209f58bc2e7c8c678480f24477e1cf2eba3594bb450eca2df2e94263e0"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070049",
+    "title": "汇报-49",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-49: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "b93975e9375b53dbee10183896975bb19ebd4b1dcb85103ba525cd46f0a0a6c6"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070050",
+    "title": "汇报-50",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-50: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "bca7010006b8ca34d5a5668ffeb96ab7811061219853dde1aaf6bb557bd4595a"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070051",
+    "title": "汇报-51",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-51: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "9ea5fe37948fc9d709842f8e3e9352be045d83880c6cdc6b96c3a635905380e4"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070052",
+    "title": "汇报-52",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-52: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "c537065b03b44d983f94f66317fefc4719f887919cd3319e245f422f77222b6f"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070053",
+    "title": "汇报-53",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-53: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "22d16c905ed0979640fff947131bc367905cb22f867bd6a868aeec8fe256952f"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070054",
+    "title": "汇报-54",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-54: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "408432528de7434ec2fd2f7ccc03f5cd4f2401f92e883899b29f2cddae97030f"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070055",
+    "title": "汇报-55",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-55: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "623815d5191b127739a3f8e8e83544cb47b2ac053d88aab44acee6f5ae632c77"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070056",
+    "title": "汇报-56",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-56: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "7e0a578660f8c62ddc9b6299add1fff4df88689fa1a9e567a720abe859f268c7"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070057",
+    "title": "汇报-57",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-57: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "899418732697da5ff1d1f5b13e30f272e52074c685798ea6b8667e3a29712d60"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070058",
+    "title": "汇报-58",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-58: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "57331b3a6b6bf0583de2e51e936693140330da2aa75784ec25da16aab7b503c2"
+  },
+  {
+    "schema": "cwk.canonical_report.v1",
+    "source_namespace": "cwork",
+    "report_id": "2070059",
+    "title": "汇报-59",
+    "author": {
+      "source_user_id": "u_writer_1",
+      "display_name": "张三"
+    },
+    "created_at": "2026-08-01T10:00:00Z",
+    "source_updated_at": "2026-08-01T12:00:00Z",
+    "body": "正文-59: NFC 测试 é",
+    "normalizer_version": "v1",
+    "canonical_sha256": "11e25541700783bb67cd9a5a08a1d8040d7bd318af285d15923c43e3ec29c580"
+  }
+]

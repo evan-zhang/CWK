@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.capability_probe.v1",
+  "title": "capability_probe v1",
+  "description": "Machine-readable result of an external capability probe. Result MUST be either `verified` (with evidence refs) or `conservative_unknown`. `pass`/`available` are NOT permitted.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "probe_id",
+    "run_at",
+    "result",
+    "conservative_default",
+    "evidence_refs"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.capability_probe.v1"},
+    "probe_id": {
+      "type": "string",
+      "enum": [
+        "report_id_global_uniqueness",
+        "permission_authoritative_events",
+        "permission_authoritative_api",
+        "trusted_agent_identity_openclaw_tool",
+        "trusted_agent_identity_uds_peercred",
+        "sandbox_transport_openclaw_tool",
+        "sandbox_transport_uds",
+        "sandbox_transport_loopback_http_self_reported",
+        "verified_shared_extensions_dual_user_sample"
+      ]
+    },
+    "run_at": {"type": "string", "format": "date-time"},
+    "result": {"type": "string", "enum": ["verified", "conservative_unknown"]},
+    "conservative_default": {
+      "type": "string",
+      "description": "Which conservative default is applied when result != verified."
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Points to captured evidence (fixture path, hash, doc anchor). MUST be non-empty when result=verified; MAY be empty for conservative_unknown."
+    },
+    "notes": {"type": ["string", "null"]}
+  },
+  "policy": {
+    "sandbox_transport_loopback_http_self_reported": {
+      "must_be": "conservative_unknown",
+      "conservative_default": "reject",
+      "rationale": "Loopback HTTP + self-reported agent_id is explicitly forbidden by PRD FR-17 and DESIGN C-13; no evidence can upgrade it to verified."
+    }
+  }
+}
