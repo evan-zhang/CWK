@@ -395,23 +395,62 @@ class MigrationReconciler:
                 crosswalks_v1.append(cw)
 
         # 4. Enumerate durable review entries (all versions considered
-        # for coverage of legacy-side undecomposables).
+        # for coverage of legacy-side undecomposables).  Coverage is
+        # bound to (legacy_path_hash, legacy_source_sha256) — a review
+        # whose recorded raw SHA does not match the current legacy raw
+        # at the same path cannot suppress only_legacy; it is a stale
+        # review from an earlier byte-generation that no longer
+        # describes what is on disk.  The mismatched review is emitted
+        # as `review_source_sha_drift` (fail-closed).
         review_entries: list[dict[str, Any]] = []
-        review_path_hashes_v2: set[str] = set()
+        review_covered_identity: set[tuple[str, str]] = set()
+        review_sha_drift: list[dict[str, Any]] = []
         for rv in self._importer.iter_reviews(tenant_id=tenant_id):
             review_entries.append(rv)
-            if rv.get("schema") == "cwk.rt016.review_entry.v2":
-                # Only v2 reviews carry namespace/kind/path bindings
-                # aligned with anchor identity; count coverage only for
-                # v2 reviews whose identity matches the anchor.
-                if (
-                    rv.get("tenant_id") == tenant_id
-                    and rv.get("source_namespace") == source_namespace
-                    and rv.get("source_kind") == source_kind
-                ):
-                    ph = rv.get("legacy_path_hash")
-                    if isinstance(ph, str):
-                        review_path_hashes_v2.add(ph)
+            if rv.get("schema") != "cwk.rt016.review_entry.v2":
+                continue
+            # Only v2 reviews carry namespace/kind/path bindings
+            # aligned with anchor identity; count coverage only for
+            # v2 reviews whose identity matches the anchor.
+            if (
+                rv.get("tenant_id") != tenant_id
+                or rv.get("source_namespace") != source_namespace
+                or rv.get("source_kind") != source_kind
+            ):
+                continue
+            ph = rv.get("legacy_path_hash")
+            rv_sha = rv.get("legacy_source_sha256")
+            if not isinstance(ph, str) or not isinstance(rv_sha, str):
+                continue
+            # Bind coverage to (path_hash, raw_sha).  A review for a
+            # path whose current on-disk SHA differs from the review's
+            # recorded raw SHA is classified as review_source_sha_drift
+            # and MUST NOT suppress only_legacy for that path.
+            legacy_lookup = legacy_by_path_hash.get(ph)
+            if legacy_lookup is None:
+                # Legacy raw at review's path is missing entirely.
+                # We still record the review identity as (path_hash,
+                # review_sha) — the only_legacy pass keys on
+                # (path_hash, current_sha) so this correctly cannot
+                # suppress a mismatched entry.  The review is not
+                # counted here; new_undecomposable_count below still
+                # counts it (a v2 review under this anchor exists).
+                review_covered_identity.add((ph, rv_sha))
+                continue
+            _rel, _data, current_sha = legacy_lookup
+            if current_sha != rv_sha:
+                # SHA drift: current legacy bytes at this path differ
+                # from what the review was written against.  Do NOT
+                # add the review to the coverage set; instead emit a
+                # fail-closed classification so operators can triage.
+                review_sha_drift.append(
+                    {
+                        "classification": "review_source_sha_drift",
+                        "opaque_key": rv.get("review_id", "qe_unknown"),
+                    }
+                )
+                continue
+            review_covered_identity.add((ph, rv_sha))
 
         # 5. Classify each v2 crosswalk.
         both_equal = 0
@@ -628,14 +667,15 @@ class MigrationReconciler:
 
             both_equal += 1
 
-        # 6. only_legacy: any legacy file whose path_hash is not covered
-        # by a v2 crosswalk (of the anchor's ns/kind) and not covered by
-        # a v2 review (of the anchor's ns/kind).
+        # 6. only_legacy: any legacy file whose (path_hash, current_sha)
+        # is not covered by a v2 crosswalk (of the anchor's ns/kind) and
+        # not covered by a v2 review (of the anchor's ns/kind) whose
+        # recorded raw SHA matches the file's current SHA on disk.
         legacy_uncovered = 0
-        for path_hash, (rel, _data, _sha) in legacy_by_path_hash.items():
+        for path_hash, (rel, _data, sha) in legacy_by_path_hash.items():
             if path_hash in crosswalk_covered_path_hashes:
                 continue
-            if path_hash in review_path_hashes_v2:
+            if (path_hash, sha) in review_covered_identity:
                 continue
             legacy_uncovered += 1
             opaque_key = _sha256_hex(
@@ -646,9 +686,18 @@ class MigrationReconciler:
             )
         only_legacy = legacy_uncovered
 
-        # 7. new_undecomposable count (v2 reviews only under the anchor).
+        # 7. Emit review_source_sha_drift samples (bounded).
+        for sample in review_sha_drift[:32]:
+            failure_samples.append(sample)
+
+        # 8. new_undecomposable count / review_count: only v2 reviews
+        # under the anchor whose recorded raw SHA matches the current
+        # on-disk SHA at their legacy_path_hash.  Reviews that no
+        # longer describe on-disk bytes must not inflate
+        # accepted-review counters.
         new_undecomposable_count = 0
         review_count = 0
+        matched_reviews: list[dict[str, Any]] = []
         for rv in review_entries:
             if rv.get("schema") != "cwk.rt016.review_entry.v2":
                 continue
@@ -658,12 +707,21 @@ class MigrationReconciler:
                 or rv.get("source_kind") != source_kind
             ):
                 continue
+            ph = rv.get("legacy_path_hash")
+            rv_sha = rv.get("legacy_source_sha256")
+            legacy_lookup = legacy_by_path_hash.get(ph)
+            if legacy_lookup is None:
+                continue
+            _rel, _data, current_sha = legacy_lookup
+            if current_sha != rv_sha:
+                # Already emitted as review_source_sha_drift above;
+                # do NOT count as accepted review.
+                continue
             new_undecomposable_count += 1
+            matched_reviews.append(rv)
             if rv.get("migration_status") == "review":
                 review_count += 1
-        for rv in review_entries[:32]:
-            if rv.get("schema") != "cwk.rt016.review_entry.v2":
-                continue
+        for rv in matched_reviews[:32]:
             failure_samples.append(
                 {"classification": "new_undecomposable", "opaque_key": rv["review_id"]}
             )

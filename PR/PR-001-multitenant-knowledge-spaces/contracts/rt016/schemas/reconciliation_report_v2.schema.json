@@ -90,7 +90,8 @@
               "re_decompose_mismatch",
               "unanchored_v1",
               "legacy_bytes_missing",
-              "read_version_bytes_mismatch"
+              "read_version_bytes_mismatch",
+              "review_source_sha_drift"
             ]
           },
           "opaque_key": {"type": "string", "maxLength": 64, "pattern": "^[a-z0-9_.:/\\-]+$"}
