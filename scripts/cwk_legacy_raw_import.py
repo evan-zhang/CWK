@@ -416,10 +416,26 @@ def compute_crosswalk_key(tenant_id: str, view_key: str, legacy_source_sha256: s
     return CROSSWALK_KEY_PREFIX + _base32_lower_16(digest)
 
 
-def compute_review_id(tenant_id: str, legacy_source_sha256: str, run_id: str) -> str:
-    """Return the deterministic per-(tenant, legacy source, run) review id."""
+def compute_review_id(
+    tenant_id: str,
+    source_namespace: str,
+    legacy_source_sha256: str,
+    run_id: str,
+) -> str:
+    """Return the deterministic per-(tenant, source_namespace, legacy source, run) review id.
+
+    ``source_namespace`` was added post RT-016 v1 to close the
+    cross-namespace idempotency collision reported by the RT-016
+    independent acceptance report (Minor-2): the same raw bytes
+    imported under two different ``source_namespace`` values must
+    yield two independent review IDs so writes never collide silently.
+    """
 
     tenant_id = _I.validate_tenant_id(tenant_id)
+    if not isinstance(source_namespace, str) or not _C.SOURCE_NAMESPACE_REGEX.match(
+        source_namespace
+    ):
+        raise LegacyImportError("invalid source_namespace grammar", code="contract")
     if not isinstance(legacy_source_sha256, str) or not _C.SHA256_HEX_REGEX.match(legacy_source_sha256):
         raise LegacyImportError("invalid legacy_source_sha256 grammar", code="contract")
     if not isinstance(run_id, str) or not _RUN_ID_REGEX.match(run_id):
@@ -428,6 +444,8 @@ def compute_review_id(tenant_id: str, legacy_source_sha256: str, run_id: str) ->
         REVIEW_ID_DOMAIN
         + b"\x00"
         + tenant_id.encode("utf-8")
+        + b"\x00"
+        + source_namespace.encode("ascii")
         + b"\x00"
         + legacy_source_sha256.encode("ascii")
         + b"\x00"
@@ -471,6 +489,206 @@ def _validate_actor_reason(actor: str, reason: str) -> None:
             code_point = ord(ch)
             if code_point < 0x20 or code_point == 0x7f or code_point > 0x7e:
                 raise LogInjectionDetected(name)
+
+
+def _validate_crosswalk_integrity(payload: dict[str, Any]) -> None:
+    """Cross-field integrity binding for a validated crosswalk payload.
+
+    Post RT-016 v1 remediation of Minor-1 (independent acceptance
+    report): the byte-level ``_canonical_bytes(payload) != raw`` check
+    only proves JCS round-trip stability, not semantic consistency
+    between the crosswalk's top-level fields and its embedded
+    ``publish_receipt`` / ``tenant_view_envelope`` /
+    ``decompose_report`` payloads.  A JCS-preserving attacker with
+    write access to ``registry/rt016-crosswalk/`` could otherwise
+    silently rewrite ``canonical_sha256`` / ``object_id`` /
+    ``observe_grant_key`` / ``view_key`` / ``crosswalk_key`` and have
+    the read layer return a semantically inconsistent record.
+
+    All of the fields checked here are unconditionally required by the
+    frozen v1 crosswalk schema, so every legitimately-produced record
+    carries the material required to verify itself; there is no
+    "legacy without integrity binding" grace path.  Any inconsistency
+    raises :class:`LegacyImportError` with ``code="corrupt"``.
+    """
+
+    if not isinstance(payload, dict):
+        raise LegacyImportError(
+            "crosswalk payload is not an object", code="corrupt"
+        )
+    crosswalk_key = payload.get("crosswalk_key")
+    tenant_id = payload.get("tenant_id")
+    source_namespace = payload.get("source_namespace")
+    report_id = payload.get("report_id")
+    report_key = payload.get("report_key")
+    view_key = payload.get("view_key")
+    observe_grant_key = payload.get("observe_grant_key")
+    canonical_sha256 = payload.get("canonical_sha256")
+    object_id = payload.get("object_id")
+    object_bytes_sha256 = payload.get("object_bytes_sha256")
+    catalog_key = payload.get("catalog_key")
+    catalog_revision = payload.get("catalog_revision")
+    legacy_source_sha256 = payload.get("legacy_source_sha256")
+    tenant_view_envelope = payload.get("tenant_view_envelope") or {}
+    publish_receipt = payload.get("publish_receipt") or {}
+    decompose_report = payload.get("decompose_report") or {}
+
+    def _fail(msg: str) -> None:
+        raise LegacyImportError(
+            msg,
+            code="corrupt",
+            crosswalk_key=crosswalk_key if isinstance(crosswalk_key, str) else None,
+        )
+
+    # 1. report_key composition.
+    try:
+        expected_report_key = _C.compose_report_key(source_namespace, report_id)
+    except _C.ContractError as exc:
+        _fail(f"invalid source_namespace/report_id composition: {exc}")
+    if report_key != expected_report_key:
+        _fail("report_key does not match compose_report_key(source_namespace, report_id)")
+
+    # 2. view_key == observe_grant_key == compute_grant_key(tenant, report_key).
+    try:
+        expected_grant_key = _AL.compute_grant_key(tenant_id, expected_report_key)
+    except _AL.AccessLedgerError as exc:
+        _fail(f"cannot recompute grant_key: {exc.code}")
+    if view_key != expected_grant_key:
+        _fail("view_key does not match H(tenant_id, report_key)")
+    if observe_grant_key != expected_grant_key:
+        _fail("observe_grant_key does not match H(tenant_id, report_key)")
+
+    # 3. crosswalk_key derivation.
+    try:
+        expected_crosswalk_key = compute_crosswalk_key(
+            tenant_id, view_key, legacy_source_sha256
+        )
+    except LegacyImportError as exc:
+        _fail(f"cannot recompute crosswalk_key: {exc.code}")
+    if crosswalk_key != expected_crosswalk_key:
+        _fail("crosswalk_key does not match H(tenant_id, view_key, legacy_source_sha256)")
+
+    # 4. canonical_sha256 must agree across every nested embedding.
+    if publish_receipt.get("canonical_sha256") != canonical_sha256:
+        _fail("publish_receipt.canonical_sha256 disagrees with top-level canonical_sha256")
+    if tenant_view_envelope.get("canonical_sha256") != canonical_sha256:
+        _fail("tenant_view_envelope.canonical_sha256 disagrees with top-level canonical_sha256")
+    if decompose_report.get("canonical_sha256") != canonical_sha256:
+        _fail("decompose_report.canonical_sha256 disagrees with top-level canonical_sha256")
+
+    # 5. object_id agrees between top-level and publish_receipt.
+    if publish_receipt.get("object_id") != object_id:
+        _fail("publish_receipt.object_id disagrees with top-level object_id")
+
+    # 6. catalog_key / catalog_revision agree.
+    if publish_receipt.get("catalog_key") != catalog_key:
+        _fail("publish_receipt.catalog_key disagrees with top-level catalog_key")
+    if publish_receipt.get("catalog_revision") != catalog_revision:
+        _fail("publish_receipt.catalog_revision disagrees with top-level catalog_revision")
+
+    # 7. publish_receipt.report_key agrees with top-level report_key.
+    if publish_receipt.get("report_key") != report_key:
+        _fail("publish_receipt.report_key disagrees with top-level report_key")
+
+    # 8. object_bytes_sha256 agrees with decompose_report.
+    if decompose_report.get("object_bytes_sha256") != object_bytes_sha256:
+        _fail("decompose_report.object_bytes_sha256 disagrees with top-level object_bytes_sha256")
+
+    # 9. legacy_source_sha256 agrees with decompose_report.
+    if decompose_report.get("legacy_source_sha256") != legacy_source_sha256:
+        _fail("decompose_report.legacy_source_sha256 disagrees with top-level legacy_source_sha256")
+
+    # 10. tenant_view_envelope.tenant_id / report_key agree.
+    if tenant_view_envelope.get("tenant_id") != tenant_id:
+        _fail("tenant_view_envelope.tenant_id disagrees with top-level tenant_id")
+    if tenant_view_envelope.get("report_key") != report_key:
+        _fail("tenant_view_envelope.report_key disagrees with top-level report_key")
+
+
+def _load_crosswalk_payload(raw: bytes, *, crosswalk_key: str | None = None) -> dict[str, Any]:
+    """Parse and fully validate crosswalk bytes → payload.
+
+    Wraps ``json.JSONDecodeError`` / ``UnicodeDecodeError`` /
+    ``_C.ContractError`` as :class:`LegacyImportError`
+    (``code="corrupt"``) so callers only need to handle a single
+    exception family (Info-1 remediation).  On success returns a fully
+    schema-validated, byte-round-tripped, cross-field-consistent
+    payload.  Any inconsistency raises corrupt.
+    """
+
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise LegacyImportError(
+            f"crosswalk bytes are not valid UTF-8: {exc}",
+            code="corrupt",
+            crosswalk_key=crosswalk_key,
+        ) from exc
+    try:
+        payload = _C.strict_json_loads(text)
+    except json.JSONDecodeError as exc:
+        raise LegacyImportError(
+            f"crosswalk bytes are not strict JSON: {exc}",
+            code="corrupt",
+            crosswalk_key=crosswalk_key,
+        ) from exc
+    except _C.ContractError as exc:
+        raise LegacyImportError(
+            f"crosswalk JSON violates duplicate-key rule: {exc}",
+            code="corrupt",
+            crosswalk_key=crosswalk_key,
+        ) from exc
+    try:
+        _validate_against(_MIGRATION_CROSSWALK_SCHEMA_ID, payload)
+        _C.validate_tenant_view(payload["tenant_view_envelope"])
+    except LegacyImportError:
+        raise
+    except _C.ContractError as exc:
+        raise LegacyImportError(
+            f"crosswalk fails RT-011 tenant_view schema: {exc}",
+            code="corrupt",
+            crosswalk_key=crosswalk_key,
+        ) from exc
+    if _canonical_bytes(payload) != raw:
+        raise LegacyImportError(
+            "crosswalk bytes not canonical JCS",
+            code="corrupt",
+            crosswalk_key=crosswalk_key,
+        )
+    _validate_crosswalk_integrity(payload)
+    return payload
+
+
+def _load_review_payload(raw: bytes, *, review_id: str | None = None) -> dict[str, Any]:
+    """Parse and fully validate a review entry — same taxonomy as crosswalk."""
+
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise LegacyImportError(
+            f"review bytes are not valid UTF-8: {exc}",
+            code="corrupt",
+            review_id=review_id,
+        ) from exc
+    try:
+        payload = _C.strict_json_loads(text)
+    except json.JSONDecodeError as exc:
+        raise LegacyImportError(
+            f"review bytes are not strict JSON: {exc}",
+            code="corrupt",
+            review_id=review_id,
+        ) from exc
+    except _C.ContractError as exc:
+        raise LegacyImportError(
+            f"review JSON violates duplicate-key rule: {exc}",
+            code="corrupt",
+            review_id=review_id,
+        ) from exc
+    try:
+        _validate_against(_REVIEW_ENTRY_SCHEMA_ID, payload)
+    except LegacyImportError:
+        raise
+    return payload
 
 
 # ---------------------------------------------------------------------------
@@ -1823,14 +2041,19 @@ class ShadowImporter:
 
         with self._tenant_fd(tenant_id, create=True) as tfd:
             # Idempotent path: check whether a crosswalk already exists
-            # for this legacy_source_sha256.  If so, return that receipt.
+            # for (tenant_id, source_namespace, legacy_source_sha256).
+            # source_namespace is part of the idempotency key so the
+            # same raw bytes imported under two different namespaces
+            # produce two distinct crosswalks (Minor-2 remediation).
             existing_ck, existing_payload = self._find_existing_crosswalk_for_legacy(
-                tfd, tenant_id, legacy_source_sha256
+                tfd, tenant_id, source_namespace, legacy_source_sha256
             )
             if existing_ck is not None and existing_payload is not None:
                 return _receipt_from_crosswalk(existing_payload, outcome="complete")
 
-            existing_review = self._find_existing_review(tfd, tenant_id, legacy_source_sha256)
+            existing_review = self._find_existing_review(
+                tfd, tenant_id, source_namespace, legacy_source_sha256, run_id
+            )
             if existing_review is not None:
                 return _receipt_from_review(existing_review, outcome=existing_review["migration_status"])
 
@@ -1849,6 +2072,7 @@ class ShadowImporter:
                 receipt = self._write_review(
                     tfd=tfd,
                     tenant_id=tenant_id,
+                    source_namespace=source_namespace,
                     legacy_source_sha256=legacy_source_sha256,
                     legacy_path_hash=legacy_path_hash,
                     source_kind=source_kind,
@@ -2064,11 +2288,11 @@ class ShadowImporter:
                         leaf = f"{crosswalk_key}.json"
                         if _A.child_exists(cfd, leaf):
                             existing_raw = _A.read_file(cfd, leaf)
-                            existing_payload = _C.strict_json_loads(
-                                existing_raw.decode("utf-8")
-                            )
-                            _validate_against(
-                                _MIGRATION_CROSSWALK_SCHEMA_ID, existing_payload
+                            # Use the same integrity-checked loader as
+                            # read_crosswalk to detect tamper on the
+                            # existing file (Minor-1 remediation).
+                            existing_payload = _load_crosswalk_payload(
+                                existing_raw, crosswalk_key=crosswalk_key
                             )
                             # Idempotent: content-identical? OK.  Even if
                             # created_at differs we keep the existing
@@ -2082,6 +2306,10 @@ class ShadowImporter:
                                 != crosswalk_payload["observe_grant_key"]
                                 or existing_payload["object_id"]
                                 != crosswalk_payload["object_id"]
+                                or existing_payload["view_key"]
+                                != crosswalk_payload["view_key"]
+                                or existing_payload["source_namespace"]
+                                != crosswalk_payload["source_namespace"]
                             ):
                                 raise LegacyImportError(
                                     "existing crosswalk drift", code="corrupt",
@@ -2208,7 +2436,26 @@ class ShadowImporter:
         """Load and validate a single crosswalk record by key.
 
         Public read API for the reconciler and audit consumers.  Never
-        returns partial or corrupt payloads.
+        returns partial or corrupt payloads.  Post RT-016 v1
+        remediation this method runs the full integrity chain:
+
+        1. Bytes decode as strict UTF-8.
+        2. Bytes parse as strict JSON (``json.JSONDecodeError`` /
+           ``UnicodeDecodeError`` / duplicate-key ``ContractError`` are
+           wrapped as ``LegacyImportError(code="corrupt")``).
+        3. Envelope schema + RT-011 tenant_view schema pass.
+        4. Byte-level JCS round-trip: ``_canonical_bytes(payload) == raw``.
+        5. Cross-field consistency (see :func:`_validate_crosswalk_integrity`):
+           ``canonical_sha256`` / ``object_id`` / ``catalog_key`` /
+           ``catalog_revision`` / ``report_key`` / ``view_key`` /
+           ``observe_grant_key`` / ``crosswalk_key`` /
+           ``object_bytes_sha256`` / ``legacy_source_sha256`` all agree
+           with the embedded ``publish_receipt`` /
+           ``tenant_view_envelope`` / ``decompose_report`` and with the
+           deterministic derivations from ``(tenant_id, source_namespace,
+           report_id, legacy_source_sha256)``.
+
+        Any failure raises :class:`LegacyImportError(code='corrupt')`.
         """
 
         if not isinstance(crosswalk_key, str) or not _CROSSWALK_KEY_REGEX.match(crosswalk_key):
@@ -2216,14 +2463,22 @@ class ShadowImporter:
         with self._tenant_fd(tenant_id) as tfd:
             with self._sub_fd(tfd, "crosswalks") as cfd:
                 raw = _A.read_file(cfd, f"{crosswalk_key}.json")
-        payload = _C.strict_json_loads(raw.decode("utf-8"))
-        _validate_against(_MIGRATION_CROSSWALK_SCHEMA_ID, payload)
-        _C.validate_tenant_view(payload["tenant_view_envelope"])
-        # Byte round-trip: the on-disk bytes MUST match canonical JCS to
-        # detect drift.
-        if _canonical_bytes(payload) != raw:
+        payload = _load_crosswalk_payload(raw, crosswalk_key=crosswalk_key)
+        # Additional cross-check: the file name key must match the
+        # payload's declared crosswalk_key.  This catches the case where
+        # an attacker renamed a file into a different key slot.
+        if payload.get("crosswalk_key") != crosswalk_key:
             raise LegacyImportError(
-                "crosswalk bytes not canonical JCS", code="corrupt",
+                "crosswalk_key inside payload disagrees with file name",
+                code="corrupt",
+                crosswalk_key=crosswalk_key,
+            )
+        # Additional cross-check: the file must live under the tenant
+        # subtree that matches the payload's declared tenant_id.
+        if payload.get("tenant_id") != tenant_id:
+            raise LegacyImportError(
+                "crosswalk tenant_id disagrees with parent directory",
+                code="corrupt",
                 crosswalk_key=crosswalk_key,
             )
         return payload
@@ -2271,9 +2526,11 @@ class ShadowImporter:
                             and _REVIEW_ID_REGEX.match(e.name[:-5])
                         )
                     for leaf in leaves:
-                        raw = _A.read_file(rfd, leaf)
-                        payload = _C.strict_json_loads(raw.decode("utf-8"))
-                        _validate_against(_REVIEW_ENTRY_SCHEMA_ID, payload)
+                        try:
+                            raw = _A.read_file(rfd, leaf)
+                        except FileNotFoundError:
+                            continue
+                        payload = _load_review_payload(raw, review_id=leaf[:-5])
                         yield payload
         except LegacyImportError as exc:
             if exc.code in ("not_found", "not_initialized"):
@@ -2307,7 +2564,21 @@ class ShadowImporter:
         for line in raw.split(b"\n")[:-1]:
             if not line:
                 continue
-            payload = _C.strict_json_loads(line.decode("utf-8"))
+            try:
+                payload = _C.strict_json_loads(line.decode("utf-8"))
+            except UnicodeDecodeError as exc:
+                raise LegacyImportError(
+                    f"manifest line is not UTF-8: {exc}", code="corrupt"
+                ) from exc
+            except json.JSONDecodeError as exc:
+                raise LegacyImportError(
+                    f"manifest line is not strict JSON: {exc}", code="corrupt"
+                ) from exc
+            except _C.ContractError as exc:
+                raise LegacyImportError(
+                    f"manifest line violates duplicate-key rule: {exc}",
+                    code="corrupt",
+                ) from exc
             _validate_against(_MANIFEST_ENTRY_SCHEMA_ID, payload)
             yield payload
 
@@ -2399,10 +2670,19 @@ class ShadowImporter:
         self,
         tenant_fd: int,
         tenant_id: str,
+        source_namespace: str,
         legacy_source_sha256: str,
     ) -> tuple[Optional[str], Optional[dict[str, Any]]]:
         """Return (crosswalk_key, payload) if a crosswalk already exists
-        for the given legacy_source_sha256 under this tenant.
+        for the given ``(tenant_id, source_namespace, legacy_source_sha256)``.
+
+        Post RT-016 v1 remediation of Minor-2 (independent acceptance
+        report): the idempotency key MUST include ``source_namespace``.
+        The same raw bytes imported under two different namespaces
+        must not silently reuse each other's crosswalk — each
+        namespace decomposes into a distinct ``report_key`` /
+        ``view_key`` / ``crosswalk_key``, and the finder must respect
+        that boundary when returning an existing record.
 
         Scans the tenant's ``crosswalks/`` subdir; safe because each
         tenant is a bounded namespace and RT-016 is not designed for
@@ -2430,14 +2710,19 @@ class ShadowImporter:
                         # per-crosswalk flock will serialise us.
                         continue
                     try:
-                        payload = _C.strict_json_loads(raw.decode("utf-8"))
-                    except (_C.ContractError, ValueError, UnicodeDecodeError):
+                        payload = _load_crosswalk_payload(raw, crosswalk_key=leaf[:-5])
+                    except LegacyImportError as exc:
+                        if exc.code == "corrupt":
+                            # A tampered / half-written file exists;
+                            # surface the corruption immediately rather
+                            # than silently skipping (defense-in-depth).
+                            raise
                         continue
                     if (
                         payload.get("tenant_id") == tenant_id
+                        and payload.get("source_namespace") == source_namespace
                         and payload.get("legacy_source_sha256") == legacy_source_sha256
                     ):
-                        _validate_against(_MIGRATION_CROSSWALK_SCHEMA_ID, payload)
                         return leaf[:-5], payload
         except LegacyImportError as exc:
             if exc.code in ("not_found", "not_initialized"):
@@ -2449,32 +2734,47 @@ class ShadowImporter:
         self,
         tenant_fd: int,
         tenant_id: str,
+        source_namespace: str,
         legacy_source_sha256: str,
+        run_id: str,
     ) -> Optional[dict[str, Any]]:
+        """Look up an existing review entry deterministically.
+
+        Post RT-016 v1 remediation of Minor-2: the review_id
+        derivation now includes ``source_namespace``, and the finder
+        computes the expected review_id from the call arguments and
+        checks that specific file directly — no scan-and-filter.  Also
+        cross-checks that the on-disk payload's ``tenant_id`` and
+        ``source_namespace`` agree with what the caller passed
+        (defense-in-depth).
+        """
+
+        expected_review_id = compute_review_id(
+            tenant_id, source_namespace, legacy_source_sha256, run_id
+        )
         try:
             with self._sub_fd(tenant_fd, "review") as rfd:
-                with os.scandir(rfd) as entries:
-                    leaves = sorted(
-                        e.name for e in entries
-                        if e.name.endswith(".json")
-                        and not e.name.startswith(_A.TEMP_PREFIX)
-                        and _REVIEW_ID_REGEX.match(e.name[:-5])
+                leaf = f"{expected_review_id}.json"
+                if not _A.child_exists(rfd, leaf):
+                    return None
+                try:
+                    raw = _A.read_file(rfd, leaf)
+                except FileNotFoundError:
+                    return None
+                payload = _load_review_payload(raw, review_id=expected_review_id)
+                if (
+                    payload.get("tenant_id") != tenant_id
+                    or payload.get("source_namespace") != source_namespace
+                    or payload.get("legacy_source_sha256") != legacy_source_sha256
+                    or payload.get("run_id") != run_id
+                    or payload.get("review_id") != expected_review_id
+                ):
+                    raise LegacyImportError(
+                        "review entry binding fields disagree with caller inputs",
+                        code="corrupt",
+                        review_id=expected_review_id,
                     )
-                for leaf in leaves:
-                    try:
-                        raw = _A.read_file(rfd, leaf)
-                    except FileNotFoundError:
-                        continue
-                    try:
-                        payload = _C.strict_json_loads(raw.decode("utf-8"))
-                    except (_C.ContractError, ValueError, UnicodeDecodeError):
-                        continue
-                    if (
-                        payload.get("tenant_id") == tenant_id
-                        and payload.get("legacy_source_sha256") == legacy_source_sha256
-                    ):
-                        _validate_against(_REVIEW_ENTRY_SCHEMA_ID, payload)
-                        return payload
+                return payload
         except LegacyImportError as exc:
             if exc.code in ("not_found", "not_initialized"):
                 return None
@@ -2486,6 +2786,7 @@ class ShadowImporter:
         *,
         tfd: int,
         tenant_id: str,
+        source_namespace: str,
         legacy_source_sha256: str,
         legacy_path_hash: str,
         source_kind: str,
@@ -2494,12 +2795,15 @@ class ShadowImporter:
         run_id: str,
         run_started_at: str,
     ) -> ImportReceipt:
-        review_id = compute_review_id(tenant_id, legacy_source_sha256, run_id)
+        review_id = compute_review_id(
+            tenant_id, source_namespace, legacy_source_sha256, run_id
+        )
         now = _utcnow_iso()
         payload = {
             "schema": "cwk.rt016.review_entry.v1",
             "review_id": review_id,
             "tenant_id": tenant_id,
+            "source_namespace": source_namespace,
             "legacy_source_sha256": legacy_source_sha256,
             "legacy_path_hash": legacy_path_hash,
             "source_kind": source_kind,
@@ -2520,8 +2824,23 @@ class ShadowImporter:
                     leaf = f"{review_id}.json"
                     if _A.child_exists(rfd, leaf):
                         existing_raw = _A.read_file(rfd, leaf)
-                        existing = _C.strict_json_loads(existing_raw.decode("utf-8"))
-                        _validate_against(_REVIEW_ENTRY_SCHEMA_ID, existing)
+                        existing = _load_review_payload(
+                            existing_raw, review_id=review_id
+                        )
+                        # Belt-and-braces: the pre-existing file must
+                        # match the caller-declared binding fields
+                        # (Minor-2 defense-in-depth).
+                        if (
+                            existing.get("tenant_id") != tenant_id
+                            or existing.get("source_namespace") != source_namespace
+                            or existing.get("legacy_source_sha256") != legacy_source_sha256
+                            or existing.get("run_id") != run_id
+                        ):
+                            raise LegacyImportError(
+                                "existing review entry binding fields disagree",
+                                code="corrupt",
+                                review_id=review_id,
+                            )
                         payload = existing
                     else:
                         _A.cas_write(

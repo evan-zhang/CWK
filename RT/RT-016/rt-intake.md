@@ -1,6 +1,9 @@
 # RT-016 rt-intake：Legacy Raw 影子迁移与数据级对账
 
-- 状态：implementation_done（由 RT-016 独立实现 Agent 交付；后续由独立 Opus Agent 黑盒验收）
+- 状态：remediation_done（RT-016 v1 已由独立 Opus Agent 黑盒验收
+  `Verdict = PASS, Minor=2, Info=2`；本次 remediation 关闭 Minor-1 /
+  Minor-2 / Info-1，Info-2 由 acceptance 报告标注为可保留。等待
+  验收 Agent 复核后再由其决定 completed 状态与 RT/index.yaml 更新）
 - Profile：Spec-Standard
 - 依赖：
   - RT-011：`cwk.canonical_report.v1`、`cwk.tenant_view.v1`、
@@ -308,3 +311,68 @@ RT-016 独立验收报告至少应验证：
 - 已 durable 写入的 crosswalk / review / manifest 保留（属于
   RT-016 命名空间，可由 RT-025 清理）；RT-014 canonical 与
   RT-015 grant 也保留（属 RT-014 / RT-015 的不可回滚语义）。
+
+## 九、v1.1 remediation（本次追加）
+
+针对独立验收报告（commit `c6a740a`，Verdict PASS with 2 Minor + 2 Info）
+在本次 remediation 关闭以下项，仅新增或更新 RT-016 所有权范围代码 /
+测试 / 文档；未修改 RT-011~015 冻结物、未修改 legacy 数据面、未修改
+`RT/index.yaml`。
+
+- **Minor-1（read 层深度防御）已修复**：新增 `_load_crosswalk_payload`
+  + `_validate_crosswalk_integrity` 内部函数，让 `read_crosswalk` /
+  `iter_crosswalks` / `_find_existing_crosswalk_for_legacy` / crosswalk
+  写入前的 CAS 冲突分支统一走同一整套完整性链路：schema →
+  RT-011 tenant_view → 字节 JCS 复核 → **跨字段一致性绑定**（top-level
+  `canonical_sha256` 等于嵌套 `publish_receipt / tenant_view_envelope /
+  decompose_report` 的对应字段；`object_id / catalog_key /
+  catalog_revision` 与 publish_receipt 对齐；`object_bytes_sha256 /
+  legacy_source_sha256` 与 decompose_report 对齐；`view_key ==
+  observe_grant_key == compute_grant_key(tenant, report_key)`；
+  `crosswalk_key == compute_crosswalk_key(tenant, view_key,
+  legacy_source_sha256)`；`report_key ==
+  compose_report_key(source_namespace, report_id)`；tenant_view_envelope
+  的 tenant_id/report_key 与顶层一致）。任一失败抛
+  `LegacyImportError(code="corrupt")`。RT-016 v1 写入的所有正当
+  crosswalk 均已满足这些绑定（schema 一直要求这些字段必填），故无
+  “无可验证完整性绑定的旧记录”被静默接受。
+
+- **Minor-2（跨 namespace 幂等碰撞）已修复**：
+  - `compute_review_id(tenant_id, source_namespace, legacy_source_sha256,
+    run_id)` 新增 `source_namespace` 参数，纳入域分隔哈希材料。
+  - `review_entry.schema.json` 新增必填字段 `source_namespace`；
+    `_write_review` 与 payload 一并存储 caller 声明的 namespace，并在
+    读取既有 review 时交叉核验 tenant_id / source_namespace /
+    legacy_source_sha256 / run_id / review_id 与调用参数完全一致。
+  - `_find_existing_crosswalk_for_legacy(tenant_fd, tenant_id,
+    source_namespace, legacy_source_sha256)` 的 filter 键新增
+    source_namespace；不同 namespace 不会复用第一次的 crosswalk，
+    同 namespace 仍幂等。
+  - `_find_existing_review(tenant_fd, tenant_id, source_namespace,
+    legacy_source_sha256, run_id)` 改为按期望 review_id 精确查找，
+    并对读到的 payload 做绑定字段交叉核验。
+
+- **Info-1（JSON 解析错误 taxonomy）已修复**：新增
+  `_load_crosswalk_payload / _load_review_payload` helper，在
+  `read_crosswalk`、`iter_crosswalks`、`iter_reviews`、`iter_manifest`、
+  `_find_existing_crosswalk_for_legacy`、`_find_existing_review`、
+  `_write_review` CAS 冲突分支等所有读路径统一把
+  `json.JSONDecodeError` / `UnicodeDecodeError` / RT-011
+  `ContractError`（duplicate JSON key）包装为
+  `LegacyImportError(code="corrupt")`。上层依赖
+  `except LegacyImportError` 的 caller 不再会看到 Python 内建异常泄漏。
+
+- **Info-2（unknown_reply_keys 键名回显）**：验收报告标注为可保留信息级
+  提示；本次 remediation 未修改（key names only，无 value 泄漏）。
+
+新增/更新文件（严格限于 RT-016 所有权范围）：
+
+- 修改：`scripts/cwk_legacy_raw_import.py`、
+  `PR/PR-001-multitenant-knowledge-spaces/contracts/rt016/schemas/review_entry.schema.json`。
+- 新增：`tests/test_rt016_remediation.py`（18 项定向 remediation 测试）。
+- 更新：本 rt-intake、`reports/实现记录.md`、`reports/交付验证报告.md`。
+
+**未修改**：RT-011~015 任何冻结模块 / schema / test；RT-016 v1 已有的
+其他 schema / test / helper；`RT/index.yaml`（保留原 `implementation_done`
+状态；`remediation_done` 由验收 Agent 复核后再决定是否升为 `completed`）；
+legacy 数据面模块；PRD / DESIGN / 开发计划。
