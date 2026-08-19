@@ -244,6 +244,7 @@ config/ access/ state/ runs/ locks/ logs/ retries/ cache/ knowledge-spaces/
 
 - 解析器输出 canonical evidence envelope 和 tenant view envelope。
 - 在完成双身份一致性差异验证（`cwk contract compare-user-views`，详见 DESIGN §11）通过并显式经由 `verified_shared_extensions` 升级流程激活之前，评论（reply）、审批/事件节点（node）、附件元数据以及任何附件下载/预览用的临时 URL 一律进入 tenant view overlay，不得写入 canonical evidence object，也不得进入 report version catalog 的稳定字段。
+- 为避免遗漏对决策有影响的评论/审批正文，Collector 可以把经 allowlist 提取、规范化并校验的正文保存为**tenant-scoped staged event evidence**；`TenantViewEnvelope v1` 仍只保存 event ID/hash。该暂存证据不是访问关系 SoR，也不是查询、路由、AI、索引或派生层输入；只有后续满足 `active` grant、未过期 lease 与显式可见事件引用（或权威 event-level receipt）后，后续消费者才可读取。
 - 临时下载 URL（含 attachment presign、preview link、跳转短链）不允许出现在 canonical object 中，即便未来升级验证通过也不允许，因为它们本身包含租户身份或时间敏感 token。
 - 个人读取、待办、lane、角色、允许操作、可见事件集合等只能进入 tenant view。
 - 升级路径：字段从 tenant overlay 提升为 `verified_shared` 必须经过 M0 契约探针输出 + 独立审核 + 版本化 `verified_shared_extensions` 清单登记；未登记的字段一律按 overlay 处理，采集器和 canonicalizer 遇到未知字段默认丢入 overlay，永不写 canonical。
@@ -281,6 +282,7 @@ revoked   -> purge_pending -> purged
 - 租户失败不影响其他租户继续运行。
 - 只允许读取工作协同，不修改源端状态。
 - 没有公司级变更流时允许每租户发现，但共享正文仍去重。
+- 评论、回复、审批和状态变化可形成 tenant-scoped staged event evidence 与“事件变化”信号；本轮列表中未出现某事件绝不等同于撤权、删除或不可见，事件正文也不得写入 run manifest、日志、错误或 prompt。
 
 ### FR-10：知识画像生成
 
@@ -331,6 +333,7 @@ revoked   -> purge_pending -> purged
 - 保存前后决策和差异。
 - 从 `archive_no_index` 进入 `index` 时补建派生知识。
 - 从 `index` 退出时清除该租户空间索引，但保留 raw。
+- staged event evidence 只能在后续 ACL 门禁确认后作为重新路由的内容输入；在此之前仅可作为不可查询的保留性证据与变化信号。
 
 ### FR-16：冷归档
 

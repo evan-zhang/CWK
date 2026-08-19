@@ -239,7 +239,7 @@ Secret backend 通过接口适配，首期可提供环境变量引用/系统 Key
 
 ### C-05：Per-tenant Collector Worker
 
-职责：使用本 tenant 身份发现可见汇报、拉取正文和用户视角，并发布 `CanonicalEnvelope`、`TenantViewEnvelope`、`AccessObservation` 及稳定事件。Collector 不直接调用尚未实现的 Router/Projector；后续消费者通过版本化接口订阅。
+职责：使用本 tenant 身份发现可见汇报、拉取正文和用户视角，并发布 `CanonicalEnvelope`、`TenantViewEnvelope`、`AccessObservation`、以及 tenant-scoped staged event evidence。Collector 不直接调用尚未实现的 Router/Projector；后续消费者通过版本化接口订阅。
 
 现有 `cwk_collect_live.py` 作为源端适配基线，但需要把输出拆为：
 
@@ -247,6 +247,7 @@ Secret backend 通过接口适配，首期可提供环境变量引用/系统 Key
 CanonicalEnvelope
 TenantViewEnvelope
 AccessObservation
+TenantEventEvidenceEnvelope (tenant-scoped, staged only)
 ```
 
 ### C-06：Canonicalizer
@@ -351,6 +352,16 @@ Tenant view 引用 canonical version，不复制正文：
   "observed_at": "..."
 }
 ```
+
+### C-09a：Tenant Event Evidence Staging
+
+职责：完整保留对当前 tenant 可见、但尚未通过双身份一致性验证的评论、回复和审批正文，避免它们在采集时被静默丢弃。它是 tenant 私有的受控宿主机暂存层，**不是** Access Ledger 的权限来源、不是 shared raw、不是 `TenantViewEnvelope` 扩展，也不是 Query、Router、AI 或索引入口。
+
+每条记录使用 RT-017 自有的 `cwk.tenant_event_evidence.v1` 契约，至少包含 opaque `event_key`、`report_key`、父 canonical SHA、受限枚举 event type、允许字段提取的 author/time/body、body SHA、去自身 hash 后的 event SHA、extractor version 和固定的 `stage_state="staged"`。禁止保存原始 source event ID、整段源 payload、附件/预览 URL、token、credential、Agent/binding/auth epoch、tenant 或宿主机路径；正文按 NFC 和严格长度/内容 allowlist 校验，歧义、HTML/URL/token、未知字段或超长内容进入 review，不能截断后静默发布。
+
+写入前 Collector 必须通过 RT-014 的公开 reader 校验父 canonical；记录采用 tenant-scoped opaque 路径、dirfd + `O_NOFOLLOW`、原子写/CAS 与每 event 锁，目录/文件权限分别为 `0700/0600`。相同事件的正文变化生成新的不可变 evidence，不能覆盖旧件；本轮列表中缺失不能推断撤权、删除或不可见。
+
+没有权威 receipt 时，staged evidence 只能安全保存，不能写入 `TenantViewStore`、不能成为 query/router/index/AI 输入。后续消费者仅在同时满足 active grant、未过期 lease、当前 `visible_event_ids` 显式引用该 `event_key`（或未来权威 event-level receipt）时才可读取，并在读前后复核 ACL。撤权后先由 ledger fail closed，再由 RT-017 注册的 cleanup consumer 幂等清理 staged body、写 purge receipt 后 ack；不得复活已撤权 evidence。
 
 ### C-10：Knowledge Profile Service
 
