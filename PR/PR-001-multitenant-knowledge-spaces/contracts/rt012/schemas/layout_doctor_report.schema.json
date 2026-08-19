@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.rt012.layout_doctor_report.v1",
+  "title": "Layout Doctor Report v1 (RT-012)",
+  "description": "Machine-readable output of `cwk tenant doctor`. Records only structural / permission / integrity findings; NEVER touches credentials or tenant view content.",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": ["schema", "checked_at", "instance_root_present", "checks", "issue_count"],
+  "properties": {
+    "schema": {"const": "cwk.rt012.layout_doctor_report.v1"},
+    "checked_at": {"type": "string", "format": "date-time"},
+    "instance_root_present": {"type": "boolean"},
+    "issue_count": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "tenant_id": {"type": ["string", "null"], "pattern": "^t_[a-z0-9]{26}$"},
+    "checks": {
+      "type": "array",
+      "minItems": 0,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "severity", "status", "detail"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1, "maxLength": 128},
+          "severity": {"type": "string", "enum": ["info", "warn", "error"]},
+          "status": {"type": "string", "enum": ["ok", "issue"]},
+          "detail": {"type": "string", "minLength": 0, "maxLength": 512}
+        }
+      }
+    }
+  }
+}

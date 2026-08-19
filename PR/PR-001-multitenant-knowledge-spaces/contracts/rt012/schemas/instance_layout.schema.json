@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.rt012.instance_layout.v1",
+  "title": "Instance Layout Descriptor v1 (RT-012)",
+  "description": "Frozen shape of CWK_INSTANCE_ROOT and every tenant sub-tree. Sub-directory names are hard-coded leaf identifiers; opaque IDs are the only variable segments. RT-013+ MAY populate these directories but MUST NOT rename, delete, or introduce new siblings.",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": ["schema", "instance_root_children", "tenant_children", "knowledge_space_children", "sensitive_dirs", "sensitive_files"],
+  "properties": {
+    "schema": {"const": "cwk.rt012.instance_layout.v1"},
+    "instance_root_children": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "enum": ["shared", "registry", "tenants", "audit", "backups", "runtime", "staging"]},
+      "minItems": 7,
+      "maxItems": 7
+    },
+    "tenant_children": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "config",
+          "access",
+          "views",
+          "routes",
+          "knowledge-spaces",
+          "indexes",
+          "review",
+          "archive",
+          "state",
+          "runs",
+          "locks",
+          "retries",
+          "cache",
+          "logs",
+          "tmp"
+        ]
+      },
+      "minItems": 15,
+      "maxItems": 15
+    },
+    "knowledge_space_children": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "enum": ["summaries", "topics", "entities", "_system"]},
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "sensitive_dirs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1},
+      "minItems": 1
+    },
+    "sensitive_files": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1},
+      "minItems": 1
+    }
+  }
+}

@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.rt012.tenant_record.v1",
+  "title": "Tenant Registry Record v1 (RT-012)",
+  "description": "The single source-of-truth record persisted at registry/tenants/<tenant_id>.json. Any tenant config file elsewhere MUST be a read-only projection with an explicit revision/hash reference back to this record.",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": [
+    "schema",
+    "tenant_id",
+    "status",
+    "credential_ref",
+    "active_profile_version",
+    "auth_epoch",
+    "record_revision",
+    "quota",
+    "created_at",
+    "updated_at",
+    "provisioning"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.rt012.tenant_record.v1"},
+    "tenant_id": {"type": "string", "pattern": "^t_[a-z0-9]{26}$"},
+    "status": {
+      "type": "string",
+      "enum": ["draft", "profile_pending", "pilot", "active", "suspended", "offboarded"]
+    },
+    "credential_ref": {"type": "null"},
+    "active_profile_version": {"type": "null"},
+    "auth_epoch": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+    "record_revision": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+    "quota": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scheme", "measurement_owner", "confirmation_owner", "limits"],
+      "properties": {
+        "scheme": {"const": "cwk.rt012.quota.unset.v1"},
+        "measurement_owner": {"const": "RT-024"},
+        "confirmation_owner": {"const": "RT-026"},
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "collector_concurrency",
+            "scheduler_concurrency",
+            "disk_bytes",
+            "ai_calls_per_day",
+            "retention_days"
+          ],
+          "properties": {
+            "collector_concurrency": {"type": "null"},
+            "scheduler_concurrency": {"type": "null"},
+            "disk_bytes": {"type": "null"},
+            "ai_calls_per_day": {"type": "null"},
+            "retention_days": {"type": "null"}
+          }
+        }
+      }
+    },
+    "created_at": {"type": "string", "format": "date-time"},
+    "updated_at": {"type": "string", "format": "date-time"},
+    "provisioning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["last_receipt_id", "last_receipt_sha256"],
+      "properties": {
+        "last_receipt_id": {"type": "string", "pattern": "^txn_[a-z0-9]{26}$"},
+        "last_receipt_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "state_history": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["from_status", "to_status", "at", "actor", "reason", "record_revision_after", "auth_epoch_after"],
+        "properties": {
+          "from_status": {"type": ["string", "null"], "enum": [null, "draft", "profile_pending", "pilot", "active", "suspended", "offboarded"]},
+          "to_status": {"type": "string", "enum": ["draft", "profile_pending", "pilot", "active", "suspended", "offboarded"]},
+          "at": {"type": "string", "format": "date-time"},
+          "actor": {"type": "string", "minLength": 1, "maxLength": 128},
+          "reason": {"type": "string", "minLength": 1, "maxLength": 256},
+          "record_revision_after": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+          "auth_epoch_after": {"type": "integer", "minimum": 1, "maximum": 9007199254740991}
+        }
+      }
+    }
+  }
+}
