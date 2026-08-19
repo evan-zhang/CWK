@@ -173,7 +173,7 @@ class ShadowImporter:
 # scripts/cwk_migration_reconciler.py
 class MigrationReconciler:
     __init__(layout, importer, evidence_store)
-    reconcile(*, tenant_id, run_id, source) -> ReconciliationReport
+    reconcile(*, anchor, run_id, source) -> ReconciliationReport
 ```
 
 `DecomposeResult`、`ImportReceipt`、`RecoveryReport`、

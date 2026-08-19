@@ -13,4 +13,4 @@
 | RT-013 | PR-001 可信 Agent 绑定与凭据边界 (G2) | completed | Spec-Standard | 2026-08-19 |
 | RT-014 | PR-001 共享不可变 Canonical Evidence Store (G3) | completed | Spec-Standard | 2026-08-19 |
 | RT-015 | PR-001 Access Ledger、Tenant View 与撤权核心 | completed | Spec-Standard | 2026-08-19 |
-| RT-016 | PR-001 Legacy Raw 影子迁移与数据级对账 (G3 M2/M3 数据侧) | implementation_done | Spec-Standard | 2026-08-19 |
+| RT-016 | PR-001 Legacy Raw 影子迁移与数据级对账 (G3 M2/M3 数据侧) | completed | Spec-Standard | 2026-08-19 |
