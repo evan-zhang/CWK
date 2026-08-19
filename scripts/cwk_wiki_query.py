@@ -671,6 +671,93 @@ def _find_entity_matches(
             continue
         raw_hits.append((n_start, n_end, payload))
     kept = entity_catalog.suppress_shorter_overlaps(raw_hits)
+    # RT-010 maintenance: contextual-compound merge.
+    #
+    # A query like ``TBS 训战系统 风险`` currently produces two hits in
+    # different families – ``tbs`` (hard in the TBS family) and
+    # ``训战系统`` (hard in an independent 训战系统 family, generic
+    # candidate visible in the TBS family) – so ``resolve_entity`` fails
+    # closed with ``unsupported_multi_entity``.  The compound
+    # ``tbs训战系统`` is however a declared hard surface of the TBS
+    # family, and ``训战系统`` alone in the TBS family carries the
+    # ``generic_candidate`` role that operators added exactly to describe
+    # this contextual usage.  When the compound is uniquely owned by a
+    # single family we can safely merge the two spans into one match
+    # against that family.
+    #
+    # Merge is intentionally narrow.  All of the following must hold:
+    #   * two adjacent hits (sorted by normalised span) with strictly
+    #     no overlap;
+    #   * only ASCII whitespace between them in the normalised query –
+    #     any connective (顿号 ``、``, ``和``, ``与`` …) breaks the rule;
+    #   * a family ``F`` exists in which
+    #       ``h1.norm`` is a ``scope_role=hard`` surface,
+    #       ``h2.norm`` is a ``scope_role=generic_candidate`` surface,
+    #       and ``h1.norm + h2.norm`` is a ``scope_role=hard`` compound
+    #       surface;
+    #   * exactly one such family ``F`` exists in the catalog (the
+    #     "unique primary family" rule).
+    # Otherwise we keep both hits untouched and let the existing
+    # multi-entity fail-closed path decide.
+    #
+    # Registry design is untouched: this only reads catalog surfaces and
+    # their pre-computed ``scope_role``.  There is no per-entity literal.
+    kept_sorted = sorted(kept, key=lambda t: (t[0], t[1]))
+
+    def _find_merge_family(h1_norm: str, h2_norm: str) -> tuple[str, dict[str, Any]] | None:
+        if not h1_norm or not h2_norm or h1_norm == h2_norm:
+            return None
+        concat = h1_norm + h2_norm
+        matches_families: list[tuple[str, dict[str, Any]]] = []
+        for fid, fam in families_by_id.items():
+            surfaces_by_norm = {
+                str(s.get("normalized") or ""): s for s in fam.get("surfaces", [])
+            }
+            s1 = surfaces_by_norm.get(h1_norm)
+            s2 = surfaces_by_norm.get(h2_norm)
+            s3 = surfaces_by_norm.get(concat)
+            if s1 is None or s2 is None or s3 is None:
+                continue
+            if str(s1.get("scope_role") or "hard") != "hard":
+                continue
+            if str(s2.get("scope_role") or "hard") != "generic_candidate":
+                continue
+            if str(s3.get("scope_role") or "hard") != "hard":
+                continue
+            matches_families.append((fid, fam))
+        if len(matches_families) != 1:
+            return None
+        return matches_families[0]
+
+    merged: list[tuple[int, int, tuple[str, str, str]]] = []
+    idx = 0
+    while idx < len(kept_sorted):
+        if idx + 1 < len(kept_sorted):
+            h1 = kept_sorted[idx]
+            h2 = kept_sorted[idx + 1]
+            n1s, n1e, p1 = h1
+            n2s, n2e, p2 = h2
+            if n1e <= n2s:
+                gap = normalised_question[n1e:n2s]
+                if gap and gap.isspace():
+                    merge_target = _find_merge_family(p1[1], p2[1])
+                    if merge_target is not None:
+                        merged_fid, merged_family = merge_target
+                        merged_norm = p1[1] + p2[1]
+                        merged_display = merged_norm
+                        for s in merged_family.get("surfaces", []):
+                            if str(s.get("normalized") or "") == merged_norm:
+                                merged_display = str(s.get("display") or merged_norm)
+                                break
+                        merged.append(
+                            (n1s, n2e, (merged_fid, merged_norm, merged_display))
+                        )
+                        idx += 2
+                        continue
+        merged.append(kept_sorted[idx])
+        idx += 1
+    kept = merged
+
     results: list[tuple[int, int, str, str, dict[str, Any]]] = []
     seen: set[tuple[int, int, str]] = set()
     for n_start, n_end, payload in kept:

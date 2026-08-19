@@ -3932,6 +3932,270 @@ class FourthHardeningQueryTests(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# RT-010 maintenance: contextual-compound merge (synthetic, TBS-free).
+# The scenarios below exercise the resolver's compound-merge and
+# fail-closed contracts using an ALPHA + 描述系统 fixture that mirrors
+# the shape of the real acronym / bare-full-form ambiguity without
+# hardcoding any real-world entity.
+# ---------------------------------------------------------------------------
+
+
+class ContextualCompoundMergeTests(unittest.TestCase):
+    """Synthetic coverage for the RT-010 maintenance merge rule.
+
+    Fixture shape (never mentions TBS or any real acronym):
+
+    - Family A ("ALPHA") registers two members – ``alpha`` and
+      ``alpha描述系统`` – as ``system`` surfaces via the mirror-local
+      registry so both land in the same family with ``scope_role=hard``.
+      A parenthetical declaration ``ALPHA（描述系统）`` in a summary adds
+      the bare ``描述系统`` alias as ``scope_role=generic_candidate``
+      inside family A.
+    - Family B ("描述系统") is created by a separate summary that lists
+      ``描述系统`` alone as a ``system`` candidate.  ``描述系统`` is then
+      hard/declared in family B.
+
+    Post-conditions we exercise:
+
+    - ``ALPHA 描述系统 …`` merges to family A because the compound
+      ``alpha描述系统`` is uniquely a hard surface of family A;
+    - ``描述系统`` alone still resolves to family B;
+    - connectives (``和``, ``与``, ``、``) between the two segments
+      REFUSE the merge and keep ``unsupported_multi_entity``;
+    - when the hard compound is missing (family A only registers
+      ``alpha``), the merge refuses and we fall back to
+      ``unsupported_multi_entity``;
+    - when two families both own the hard compound, uniqueness fails
+      and the merge refuses;
+    - merged span is exactly the covered original characters, and the
+      scaffolding-stripped BM25 residual contains no leaked surface
+      description tokens or scope drift.
+    """
+
+    @staticmethod
+    def _alpha_registry_entry(entry_id: str = "alpha-compound-merge-unit-test") -> dict:
+        return {
+            "entry_id": entry_id,
+            "canonical_display": "ALPHA",
+            "members": [
+                {"entity_type": "system", "normalized": "alpha"},
+                {"entity_type": "system", "normalized": "alpha描述系统"},
+            ],
+            "evidence": [
+                {"report_id": "ALPHA00000000000001", "quote": "ALPHA（描述系统）"},
+                {"report_id": "ALPHA00000000000002", "quote": "ALPHA描述系统"},
+            ],
+            "decided_by": "unit-test",
+            "decided_at": "2026-08-19",
+        }
+
+    def _build_alpha_fixture(self) -> SyntheticMirror:
+        mirror = SyntheticMirror()
+        # Family A ⇒ two hard surfaces (alpha, alpha描述系统) plus the
+        # parenthetical alias 描述系统 (generic_candidate).
+        mirror.add_report(
+            "ALPHA00000000000001", "ALPHA 简报",
+            "ALPHA（描述系统）已上线。ALPHA 阶段进展如下。",
+            candidate_entities=[("ALPHA（描述系统）", "system", "ALPHA（描述系统）")],
+            key_facts=[("ALPHA 阶段进展", "ALPHA 阶段进展如下")],
+        )
+        mirror.add_report(
+            "ALPHA00000000000002", "ALPHA描述系统 说明",
+            "ALPHA描述系统 是同一实体的完整叫法。",
+            candidate_entities=[("ALPHA描述系统", "system", "ALPHA描述系统")],
+            key_facts=[("完整叫法", "ALPHA描述系统 是同一实体的完整叫法")],
+        )
+        # Family B ⇒ independent 描述系统 (hard/declared).
+        mirror.add_report(
+            "DESC00000000000001", "描述系统 备忘",
+            "描述系统 是另一个独立平台。描述系统 阶段进展另议。",
+            candidate_entities=[("描述系统", "system", "描述系统")],
+            key_facts=[("独立平台", "描述系统 是另一个独立平台")],
+        )
+        mirror.write_registry([self._alpha_registry_entry()])
+        mirror.build_catalog(scan_raw=False)
+        return mirror
+
+    def _family_by_norm(self, mirror: SyntheticMirror, norm: str, *, hard_only: bool) -> dict:
+        payload = ec.load_catalog(mirror.mirror) or mirror.build_catalog(scan_raw=False)
+        for family in payload["families"]:
+            for surface in family["surfaces"]:
+                if surface["normalized"] != norm:
+                    continue
+                if hard_only and str(surface.get("scope_role") or "hard") != "hard":
+                    continue
+                return family
+        raise AssertionError(f"family for {norm} not found")
+
+    def test_alpha_and_generic_full_form_merges_to_alpha_family(self):
+        mirror = self._build_alpha_fixture()
+        try:
+            alpha_family = self._family_by_norm(mirror, "alpha", hard_only=True)
+            alpha_fid = alpha_family["family_id"]
+            payload = ec.load_catalog(mirror.mirror)
+            resolution = wq.resolve_entity("ALPHA 描述系统 风险", payload)
+            self.assertEqual(resolution.status, "resolved")
+            self.assertEqual(resolution.family_id, alpha_fid)
+            # The merged match must cover ``ALPHA 描述系统`` in its entirety.
+            self.assertEqual(len(resolution.matched_surfaces), 1)
+            start = int(resolution.matched_surfaces[0]["start"])
+            end = int(resolution.matched_surfaces[0]["end"])
+            self.assertEqual("ALPHA 描述系统 风险"[start:end], "ALPHA 描述系统")
+        finally:
+            mirror.cleanup()
+
+    def test_bare_generic_full_form_still_resolves_independent_family(self):
+        mirror = self._build_alpha_fixture()
+        try:
+            desc_family = self._family_by_norm(mirror, "描述系统", hard_only=True)
+            payload = ec.load_catalog(mirror.mirror)
+            resolution = wq.resolve_entity("描述系统 进展", payload)
+            self.assertEqual(resolution.status, "resolved")
+            self.assertEqual(resolution.family_id, desc_family["family_id"])
+        finally:
+            mirror.cleanup()
+
+    def test_connectives_refuse_merge_and_stay_unsupported(self):
+        mirror = self._build_alpha_fixture()
+        try:
+            payload = ec.load_catalog(mirror.mirror)
+            for question in (
+                "ALPHA 与 描述系统",
+                "ALPHA 和 描述系统",
+                "ALPHA、描述系统",
+            ):
+                resolution = wq.resolve_entity(question, payload)
+                self.assertEqual(
+                    resolution.status, "unsupported_multi_entity", question,
+                )
+        finally:
+            mirror.cleanup()
+
+    def test_missing_hard_compound_refuses_merge(self):
+        """Family A registers only ``alpha`` (no ``alpha描述系统``
+        compound).  Adjacent alpha + 描述系统 must not merge because
+        the compound is not a hard surface in any family."""
+        mirror = SyntheticMirror()
+        try:
+            mirror.add_report(
+                "ALPHA00000000000010", "ALPHA 简报",
+                "ALPHA（描述系统）已上线。",
+                candidate_entities=[("ALPHA（描述系统）", "system", "ALPHA（描述系统）")],
+            )
+            mirror.add_report(
+                "DESC00000000000010", "描述系统 备忘",
+                "描述系统 是另一个独立平台。",
+                candidate_entities=[("描述系统", "system", "描述系统")],
+            )
+            payload = mirror.build_catalog(scan_raw=False)
+            resolution = wq.resolve_entity("ALPHA 描述系统 风险", payload)
+            self.assertEqual(resolution.status, "unsupported_multi_entity")
+        finally:
+            mirror.cleanup()
+
+    def test_multiple_possible_primary_families_refuse_merge(self):
+        """Two independent families each own the exact same hard
+        compound and register 描述系统 as a generic_candidate.  The
+        uniqueness rule must refuse the merge (fail closed)."""
+        mirror = SyntheticMirror()
+        try:
+            # Family A: alpha (hard) + alpha描述系统 (hard) + 描述系统
+            # (generic_candidate via parenthetical).
+            mirror.add_report(
+                "ALPHA00000000000020", "ALPHA 简报",
+                "ALPHA（描述系统）已上线。ALPHA描述系统 备忘。",
+                candidate_entities=[
+                    ("ALPHA（描述系统）", "system", "ALPHA（描述系统）"),
+                    ("ALPHA描述系统", "system", "ALPHA描述系统"),
+                ],
+            )
+            # Family B: alpha (project) + alpha描述系统 (project) via a
+            # DIFFERENT entity type so the auto-merge stays separate; add
+            # a parenthetical to seed a second 描述系统 generic candidate.
+            mirror.add_report(
+                "ALPHA00000000000021", "ALPHA 项目",
+                "ALPHA（描述系统）已启动。ALPHA描述系统 项目备忘。",
+                candidate_entities=[
+                    ("ALPHA（描述系统）", "project", "ALPHA（描述系统）"),
+                    ("ALPHA描述系统", "project", "ALPHA描述系统"),
+                ],
+            )
+            # Independent 描述系统 declaration (system) – exists but not
+            # required for the merge branch we test here.
+            mirror.add_report(
+                "DESC00000000000020", "描述系统 备忘",
+                "描述系统 是独立平台。",
+                candidate_entities=[("描述系统", "system", "描述系统")],
+            )
+            # NO registry bridge → the two ALPHA families stay separate
+            # and both carry (alpha hard, alpha描述系统 hard, 描述系统
+            # generic_candidate).  Merge must refuse (not unique).
+            payload = mirror.build_catalog(scan_raw=False)
+            # Sanity: at least two families satisfy the merge preconditions.
+            candidates = 0
+            for f in payload["families"]:
+                surfaces_by_norm = {s["normalized"]: s for s in f["surfaces"]}
+                if (
+                    surfaces_by_norm.get("alpha", {}).get("scope_role") == "hard"
+                    and surfaces_by_norm.get("描述系统", {}).get("scope_role")
+                    == "generic_candidate"
+                    and surfaces_by_norm.get("alpha描述系统", {}).get("scope_role")
+                    == "hard"
+                ):
+                    candidates += 1
+            self.assertGreaterEqual(candidates, 2)
+            resolution = wq.resolve_entity("ALPHA 描述系统 风险", payload)
+            self.assertIn(
+                resolution.status,
+                {"ambiguous", "unsupported_multi_entity"},
+            )
+        finally:
+            mirror.cleanup()
+
+    def test_merged_span_strips_description_tokens_from_bm25(self):
+        """After the merge, the residual query fed to BM25 must not
+        contain the description surface (``描述系统``) and the query
+        must not leak into family B's postings.
+
+        The resolver may return ``resolved`` with in-scope evidence OR
+        ``resolved_empty`` (when the fixture carries no matching intent
+        evidence) – both are acceptable proofs that no report escaped
+        into the independent 描述系统 family's scope.
+        """
+        mirror = self._build_alpha_fixture()
+        try:
+            payload = mirror.query("ALPHA 描述系统 进展")
+            self.assertIn(
+                payload["entity_resolution"]["status"],
+                {"resolved", "resolved_empty"},
+            )
+            alpha_family = self._family_by_norm(mirror, "alpha", hard_only=True)
+            alpha_fid = alpha_family["family_id"]
+            self.assertEqual(payload["entity_resolution"]["family_id"], alpha_fid)
+            alpha_ids = set(alpha_family["postings"])
+            for row in payload.get("results", []):
+                self.assertIn(str(row["report_id"]), alpha_ids)
+            # No leakage of family B's independent report.
+            self.assertNotIn(
+                "DESC00000000000001",
+                {str(r["report_id"]) for r in payload.get("results", [])},
+                "描述系统-only report must not leak into ALPHA-merged scope",
+            )
+            # Merged surface span drives the residual; the resolver's
+            # matched_surfaces cover the full compound so token stripping
+            # takes the description out before BM25 runs.
+            resolution = wq.resolve_entity(
+                "ALPHA 描述系统 进展", ec.load_catalog(mirror.mirror)
+            )
+            residual = wq._remove_entity_tokens("ALPHA 描述系统 进展", resolution)
+            self.assertNotIn("描述系统", residual)
+            self.assertNotIn("ALPHA", residual.upper())
+            self.assertIn("进展", residual)
+        finally:
+            mirror.cleanup()
+
+
+# ---------------------------------------------------------------------------
 # Single real-corpus regression for the shipped TBS registry entry.
 # Skipped automatically when the mirror is not present.
 # ---------------------------------------------------------------------------
@@ -4015,10 +4279,41 @@ class RealCorpusRegressionTests(unittest.TestCase):
         run query_mirror end-to-end against the real mirror (read-only),
         and assert every returned report_id sits inside the resolved
         family's postings.  No fixed rank is asserted.
+
+        Sampling pool is intentionally narrow:
+
+        - only surfaces with ``scope_role=hard`` (generic candidates such
+          as bare parenthetical full forms are shared with independent
+          same-name families and MUST NOT be used as resolvers on their
+          own – that is the whole point of the ``generic_candidate``
+          role);
+        - the surface's normalized form must belong uniquely to this
+          family in ``surface_index`` (so an accidentally cross-listed
+          norm cannot drift the resolution to a different family and
+          silently invalidate the scope-precision assertion);
+        - the pool is stable-sorted by ``(display, normalized)`` before
+          the seeded RNG picks; this keeps the sample deterministic
+          without hardcoding any surface literal.
         """
         family = self._family_for("tbs")
+        family_id = family["family_id"]
         scope_ids = set(family["postings"])
-        surfaces = [s["display"] for s in family["surfaces"] if s["display"]]
+        surface_index = self.payload.get("surface_index", {}) or {}
+        pool = sorted(
+            (
+                (s["display"], s["normalized"])
+                for s in family["surfaces"]
+                if s.get("display")
+                and str(s.get("scope_role") or "hard") == "hard"
+                and list(surface_index.get(s["normalized"], []) or []) == [family_id]
+            ),
+            key=lambda item: (item[0], item[1]),
+        )
+        self.assertGreater(
+            len(pool), 0,
+            "expected at least one uniquely-owned hard surface to sample from",
+        )
+        surfaces = [display for display, _norm in pool]
         templates = ["{} 进展", "{} 风险", "{} 下一步", "{} 负责人", "{} 项目进度"]
         random.seed(2026)
         violations: list[tuple[str, str]] = []
@@ -4030,7 +4325,7 @@ class RealCorpusRegressionTests(unittest.TestCase):
             )
             self.assertEqual(payload["entity_resolution"]["status"], "resolved", question)
             self.assertEqual(
-                payload["entity_resolution"]["family_id"], family["family_id"], question,
+                payload["entity_resolution"]["family_id"], family_id, question,
             )
             for result in payload.get("results", []):
                 if str(result["report_id"]) not in scope_ids:
