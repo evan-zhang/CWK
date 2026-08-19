@@ -31,11 +31,19 @@ SCHEMA_ROOT = C.SCHEMA_ROOT / "rt016" / "schemas"
 class RT016SchemaFilesTests(unittest.TestCase):
     def test_schemas_exist(self):
         expected = {
+            # v1 schemas — retained for backward-compat read of pre-v2
+            # crosswalks/reviews (audit only).
             "decompose_report.schema.json",
             "migration_crosswalk.schema.json",
             "review_entry.schema.json",
             "migration_manifest_entry.schema.json",
             "reconciliation_report.schema.json",
+            # v2 schemas — RT-016 v2 anchor-bound records emitted by
+            # ShadowImporter and verified by MigrationReconciler.
+            "migration_crosswalk_v2.schema.json",
+            "review_entry_v2.schema.json",
+            "migration_manifest_entry_v2.schema.json",
+            "reconciliation_report_v2.schema.json",
         }
         present = {p.name for p in SCHEMA_ROOT.iterdir() if p.is_file()}
         self.assertEqual(expected, present)

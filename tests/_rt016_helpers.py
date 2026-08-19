@@ -294,6 +294,32 @@ class RT016TestBase(unittest.TestCase):
         return R16.new_run_id()
 
 
+def default_anchor(
+    tenant_id: str,
+    *,
+    source_namespace: str = "cwork",
+    source_kind: str = "current_raw",
+    decomposer_version: Optional[str] = None,
+    normalizer_version: Optional[str] = None,
+) -> "MR.ReconciliationAnchor":
+    """Build a ReconciliationAnchor keyed off the default test tuple.
+
+    Every RT-016 test that used the pre-anchor ``reconcile(tenant_id=...)``
+    signature previously implied ``source_namespace='cwork'`` +
+    ``source_kind='current_raw'`` + the module's default
+    ``decomposer_version`` / ``normalizer_version``.  This helper
+    preserves that intent explicitly.
+    """
+
+    return MR.ReconciliationAnchor(
+        tenant_id=tenant_id,
+        source_namespace=source_namespace,
+        source_kind=source_kind,
+        decomposer_version=decomposer_version or R16.DECOMPOSER_VERSION,
+        normalizer_version=normalizer_version or R16.NORMALIZER_VERSION,
+    )
+
+
 def build_legacy_tree(tmpdir: Path, files: dict[str, bytes]) -> Path:
     """Materialise a synthetic legacy tree; return the root.
 
@@ -327,6 +353,7 @@ __all__ = [
     "TR",
     "TV",
     "build_legacy_tree",
+    "default_anchor",
     "promote_tenant",
     "sample_frontmatter",
     "sample_raw",

@@ -376,3 +376,81 @@ RT-016 独立验收报告至少应验证：
 其他 schema / test / helper；`RT/index.yaml`（保留原 `implementation_done`
 状态；`remediation_done` 由验收 Agent 复核后再决定是否升为 `completed`）；
 legacy 数据面模块；PRD / DESIGN / 开发计划。
+
+## 十、v2 anchor remediation（本次追加）
+
+针对 acceptance 报告在 `a2789ef` 定位的协调篡改 Major 及关联问题，
+本次追加“最小安全修复”（严格 RT-016 owned 范围，不改
+RT-011~015 / legacy / `RT/index.yaml`）：
+
+- **v2 identity（新）**：`(tenant_id, source_namespace, source_kind,
+  legacy_path_hash, legacy_source_sha256)`；由独立 domain separator
+  产生 v2 opaque key，与 v1 opaque 空间正交。同 raw 不同 namespace/
+  path/kind 允许共享 RT-014 canonical，但绝不共用 crosswalk /
+  review / manifest 记录。
+- **v2 契约（新增 4 份 schema）**：`migration_crosswalk_v2` /
+  `review_entry_v2` / `migration_manifest_entry_v2` /
+  `reconciliation_report_v2`，均 `additionalProperties:false +
+  unevaluatedProperties:false + deepForbiddenProperties`，`schema` /
+  `identity_version` 双 discriminator。
+- **Bound reader（新）**：`_load_crosswalk_payload_bound(raw, *,
+  expect)` 是 finder / CAS conflict 的唯一入口；文件名、tenant
+  父目录、v2 recomputed key、caller 声明的 namespace / source_kind /
+  path_hash / raw_sha 必须完全绑定，否则 `LegacyImportError(code=
+  corrupt)`。v1 payload 在 v2 slot 一律拒绝。
+- **`ReconciliationAnchor`（新）**：`(tenant_id, source_namespace,
+  source_kind, decomposer_version, normalizer_version)`。
+  `reconcile(anchor=None)` 直接 `contract` 失败——绝不再退回信任
+  crosswalk 自述。每条待验 v2 crosswalk：从 LegacySource 的 dirfd
+  按 `legacy_path_hash` 只读定位 bytes；SHA-256 复核 raw_sha；用
+  anchor 的 decomposer / normalizer 版本重新 `decompose`；重新计算
+  canonical_sha / object_bytes_sha / report_key / view_key / v2
+  crosswalk_key 与 crosswalk 逐字段比对；再用重新计算的
+  `report_key + canonical_sha` 调 RT-014 `SharedEvidenceStore.
+  read_version()`；返回的 canonical envelope 重新 JCS 序列化，与
+  自己重新分解的 envelope JCS bytes 逐字节比对；任何 mismatch fail
+  closed，绝不计入 `both_equal`。
+- **v1 back-compat**：v1 crosswalk / review 仍通过 `read_crosswalk`
+  / `iter_reviews` 可读（audit only）；新 importer 幂等 / reconciler
+  PASS 一律不采信 v1 记录，v1 crosswalks 直接计入
+  `unanchored_v1_count`，永远不 `both_equal`。
+- **Manifest namespace/path coverage 修复**：v2 manifest 行必含
+  `source_namespace + source_kind + legacy_path_hash`；去重键为
+  `(source_namespace, source_kind, legacy_path_hash,
+  legacy_source_sha256, outcome)`；同 run 中混入 v1 manifest 行直接
+  抛 `corrupt`。
+
+新增文件（严格 RT-016 owned）：
+
+- `PR/PR-001-multitenant-knowledge-spaces/contracts/rt016/schemas/migration_crosswalk_v2.schema.json`
+- `PR/PR-001-multitenant-knowledge-spaces/contracts/rt016/schemas/review_entry_v2.schema.json`
+- `PR/PR-001-multitenant-knowledge-spaces/contracts/rt016/schemas/migration_manifest_entry_v2.schema.json`
+- `PR/PR-001-multitenant-knowledge-spaces/contracts/rt016/schemas/reconciliation_report_v2.schema.json`
+- `tests/test_rt016_anchor.py`（33 项定向黑盒测试）
+
+修改文件（严格 RT-016 owned）：
+
+- `scripts/cwk_legacy_raw_import.py`（v2 domain / helpers / bound
+  reader / v2 write / v2 finder / v2 review / v2 manifest；v1 loader
+  保留可读）
+- `scripts/cwk_migration_reconciler.py`（整体重写为 anchor-bound v2）
+- `tests/_rt016_helpers.py`（新增 `default_anchor()`）
+- `tests/test_rt016_schemas.py`（`test_schemas_exist` 扩容为 v1+v2）
+- `tests/test_rt016_reconciler.py`（迁移到 `anchor=` 签名）
+
+**未修改**：RT-011~015 任何字节 / schema / test / 独立验收报告；
+legacy 数据面 `cwk_raw_store.py` / `cwk_thread_timeline.py` /
+`cwk_collect_live.py` / `cwk_nightly_pipeline.py` /
+`cwk_wiki_query.py` / `cwk_entity_catalog.py` /
+`cwk_wiki_search_index.py` / `cwk_docdb_cloud.py` /
+`cwk_sync_mirror_to_docdb.py` / `cwk_tenant_cli.py` /
+`cwk_tenant_cmd_binding.py`；`RT/index.yaml`；RT-016 v1 五份契约
+schema 文件；PRD / DESIGN / 开发计划 / 独立验收报告本体。
+
+**检测边界（明确不宣称项）**：v2 anchor remediation 的“检测协调篡改”
+承诺只在 RT-016 registry 被攻击者控制 **但同时 LegacySource dirfd 只
+读读取路径与 RT-014 SharedEvidenceStore 底层 shared/ 目录彼此独立
+且未在同一时间窗口被同一攻击者篡改** 时成立。三方共谋不在本层保证
+范围。本次追加**不宣称** G3 / VG-A / M3 完成、生产系统整体不可篡改、
+真实 authority 从 `conservative_unknown` 状态改变、真实租户切换准备
+就绪或 broker/router/加密备份/legacy vs new diff 已就绪。

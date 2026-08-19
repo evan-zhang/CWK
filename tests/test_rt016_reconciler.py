@@ -19,6 +19,7 @@ from _rt016_helpers import (  # noqa: E402
     R16,
     RT016TestBase,
     build_legacy_tree,
+    default_anchor,
     sample_raw,
     utc_iso,
 )
@@ -51,7 +52,7 @@ class HappyPathReconcileTests(RT016TestBase):
             source2 = R16.LegacySource(str(root))
             source2.snapshot()
             report = self.fx.reconciler.reconcile(
-                tenant_id=tenant_id,
+                anchor=default_anchor(tenant_id),
                 run_id=run_id,
                 source=source2,
             )
@@ -91,7 +92,7 @@ class HappyPathReconcileTests(RT016TestBase):
             source2 = R16.LegacySource(str(root))
             source2.snapshot()
             report = self.fx.reconciler.reconcile(
-                tenant_id=tenant_id,
+                anchor=default_anchor(tenant_id),
                 run_id=run_id,
                 source=source2,
             )
@@ -113,7 +114,7 @@ class ClassificationTests(RT016TestBase):
             # Reconcile without importing anything: legacy file has no
             # matching crosswalk.
             report = self.fx.reconciler.reconcile(
-                tenant_id=tenant_id,
+                anchor=default_anchor(tenant_id),
                 run_id=self.new_run_id(),
                 source=source,
             )
@@ -148,7 +149,7 @@ class ClassificationTests(RT016TestBase):
             source2 = R16.LegacySource(str(empty_root))
             source2.snapshot()
             report = self.fx.reconciler.reconcile(
-                tenant_id=tenant_id,
+                anchor=default_anchor(tenant_id),
                 run_id=self.new_run_id(),
                 source=source2,
             )
@@ -176,7 +177,7 @@ class ClassificationTests(RT016TestBase):
             source = R16.LegacySource(str(root))
             source.snapshot()
             report = self.fx.reconciler.reconcile(
-                tenant_id=tenant_id,
+                anchor=default_anchor(tenant_id),
                 run_id=run_id,
                 source=source,
             )
@@ -206,7 +207,7 @@ class ClassificationTests(RT016TestBase):
             # Now mutate the legacy tree.
             (root / "a.md").write_bytes(sample_raw(body="mutated"))
             report = self.fx.reconciler.reconcile(
-                tenant_id=tenant_id,
+                anchor=default_anchor(tenant_id),
                 run_id=run_id,
                 source=source2,
             )
@@ -239,7 +240,7 @@ class ReconciliationCorruptionDetectionTests(RT016TestBase):
             source = R16.LegacySource(str(root))
             source.snapshot()
             report = self.fx.reconciler.reconcile(
-                tenant_id=tenant_id,
+                anchor=default_anchor(tenant_id),
                 run_id=self.new_run_id(),
                 source=source,
             )
@@ -273,7 +274,7 @@ class EmptyTenantTests(RT016TestBase):
             source = R16.LegacySource(str(root))
             source.snapshot()
             report = self.fx.reconciler.reconcile(
-                tenant_id=tenant_id,
+                anchor=default_anchor(tenant_id),
                 run_id=self.new_run_id(),
                 source=source,
             )
