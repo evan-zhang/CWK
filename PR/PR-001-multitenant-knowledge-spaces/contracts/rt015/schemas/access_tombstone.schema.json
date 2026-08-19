@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.rt015.access_tombstone.v1",
+  "title": "AccessLedger revocation tombstone v1 (RT-015)",
+  "description": "Written after a grant is revoked. NOT queryable (its presence alone forces every eligibility check to deny). Recorded for audit; forbids any body / temp URL / credential leakage. Once written, only recovery may rewrite an identical copy (same content_sha256).",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": [
+    "schema",
+    "grant_key",
+    "tenant_id",
+    "source_namespace",
+    "report_id",
+    "revoked_at",
+    "tenant_auth_epoch_at_revoke",
+    "revocation_receipt_id"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.rt015.access_tombstone.v1"},
+    "grant_key": {"type": "string", "pattern": "^g_[a-z2-7]{26}$"},
+    "tenant_id": {"type": "string", "pattern": "^t_[a-z0-9]{26}$"},
+    "source_namespace": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"},
+    "report_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_\\-.]{0,127}$"},
+    "revoked_at": {"type": "string", "format": "date-time"},
+    "tenant_auth_epoch_at_revoke": {"type": "integer", "minimum": 2, "maximum": 9007199254740991},
+    "revocation_receipt_id": {"type": "string", "pattern": "^rv_[a-z2-7]{26}$"}
+  },
+  "customKeywords": {
+    "deepForbiddenProperties": [
+      "agent_id", "agent_id_hash", "credential_ref", "credentials", "app_key", "app_secret",
+      "body", "body_text", "content", "reply", "replies", "node", "nodes",
+      "attachment", "attachments", "attachment_url", "temporary_url",
+      "preview_url", "short_url", "presign_url", "download_url",
+      "path", "absolute_path", "mirror_root",
+      "cookie", "session_token", "authorization"
+    ]
+  }
+}

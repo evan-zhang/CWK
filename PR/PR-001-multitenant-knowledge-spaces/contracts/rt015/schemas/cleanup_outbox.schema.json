@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.rt015.cleanup_outbox.v1",
+  "title": "AccessLedger cleanup outbox v1 (RT-015)",
+  "description": "Idempotent enqueue-once record describing what a downstream consumer (tenant view purge, RT-021 space index cleanup, RT-022 cache invalidation) MUST perform after a revocation. RT-015 only produces the outbox item; consumers ack via their own idempotency mechanism. The outbox never contains raw bodies, temp URLs or credential material — only opaque grant/report identifiers and a fixed consumer allowlist.",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": [
+    "schema",
+    "outbox_id",
+    "grant_key",
+    "tenant_id",
+    "source_namespace",
+    "report_id",
+    "tenant_auth_epoch_after",
+    "revocation_receipt_id",
+    "consumers",
+    "created_at"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.rt015.cleanup_outbox.v1"},
+    "outbox_id": {"type": "string", "pattern": "^co_[a-z2-7]{26}$"},
+    "grant_key": {"type": "string", "pattern": "^g_[a-z2-7]{26}$"},
+    "tenant_id": {"type": "string", "pattern": "^t_[a-z0-9]{26}$"},
+    "source_namespace": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"},
+    "report_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_\\-.]{0,127}$"},
+    "tenant_auth_epoch_after": {"type": "integer", "minimum": 2, "maximum": 9007199254740991},
+    "revocation_receipt_id": {"type": "string", "pattern": "^rv_[a-z2-7]{26}$"},
+    "consumers": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": ["tenant_view", "space_index", "cache", "review_queue", "archive_metadata"]
+      }
+    },
+    "created_at": {"type": "string", "format": "date-time"}
+  },
+  "customKeywords": {
+    "deepForbiddenProperties": [
+      "agent_id", "agent_id_hash", "credential_ref", "credentials", "app_key", "app_secret",
+      "body", "body_text", "content", "reply", "replies", "node", "nodes",
+      "attachment", "attachments", "attachment_url", "temporary_url",
+      "preview_url", "short_url", "presign_url", "download_url",
+      "path", "absolute_path", "mirror_root",
+      "cookie", "session_token", "authorization"
+    ]
+  }
+}
