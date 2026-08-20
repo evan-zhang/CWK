@@ -1,6 +1,6 @@
 # RT-015 rt-intake：Access Ledger、Tenant View 与撤权核心
 
-- 状态：implementation_done（由 RT-015 独立实现 Agent 交付；由独立验收 Agent 黑盒验收）
+- 状态：completed（独立黑盒验收 PASS；closure commit `7ba906f`）
 - Profile：Spec-Standard
 - 依赖：
   - RT-011：`cwk.access_grant.v1`、`cwk.access_observation.v1`、`cwk.tenant_view.v1`

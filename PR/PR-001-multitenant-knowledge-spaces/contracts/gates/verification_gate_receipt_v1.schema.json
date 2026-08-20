@@ -1,0 +1,302 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.verification_gate_receipt.v1",
+  "title": "PR-001 unified verification gate receipt v1 (VG-A~VG-E)",
+  "description": "The single machine-readable receipt format produced by every wave integration gate VG-A..VG-E. Produced by the gate itself (never by a downstream consumer); consumed only by RT-024 and RT-026. Anti-cycle rule: prerequisite_refs is NOT free-form. The pattern below only bounds the id space; the authoritative per-gate allowlist is allowed_prerequisite_ids in gate_registry_v1.json, which caps RT refs at the gate's own feeder_rt, permits only strictly earlier VGs, and permits only release gates that are already upstream at that point. Forward references such as VG-B -> VG-C or VG-A -> RT-025 / G5 are therefore rejected, and G6, G7 and RT-026 are excluded by pattern because they are strictly downstream of every VG. Narrative Markdown remains allowed but is NOT a substitute: consumers read only this JSON. Deep-forbidden fields reject tenant bodies, credentials, absolute host paths and raw model output.",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": [
+    "schema",
+    "gate_id",
+    "feeder_rt",
+    "feeder_rt_independent_pass",
+    "status",
+    "conclusion",
+    "synthetic",
+    "producer",
+    "consumers",
+    "prerequisite_refs",
+    "evidence",
+    "artifacts",
+    "created_at",
+    "receipt_sha256"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.pr001.verification_gate_receipt.v1"
+    },
+    "gate_id": {
+      "description": "Which wave integration gate this receipt is for.",
+      "enum": [
+        "VG-A",
+        "VG-B",
+        "VG-C",
+        "VG-D",
+        "VG-E"
+      ]
+    },
+    "feeder_rt": {
+      "description": "The RT whose independent PASS is the precondition for running this gate. Frozen 1:1 mapping, see gate_registry_v1.json.",
+      "enum": [
+        "RT-015",
+        "RT-018",
+        "RT-021",
+        "RT-023",
+        "RT-025"
+      ]
+    },
+    "feeder_rt_independent_pass": {
+      "description": "True only when the feeder RT already has an independent acceptance PASS. status=pass requires this to be true.",
+      "type": "boolean"
+    },
+    "status": {
+      "description": "not_run = planned placeholder; implementation_done = gate implementer self-recorded, NOT a PASS; pass/fail = signed by an independent verifier.",
+      "enum": [
+        "not_run",
+        "implementation_done",
+        "pass",
+        "fail"
+      ]
+    },
+    "conclusion": {
+      "description": "Machine conclusion. conservative_unknown is the mandatory value whenever any required capability is only synthetically satisfied.",
+      "enum": [
+        "not_run",
+        "integration_verified",
+        "conservative_unknown",
+        "blocked",
+        "failed"
+      ]
+    },
+    "synthetic": {
+      "description": "True when any fake/synthetic provider, fake authority, fake identity or test-only registration hook was used. A synthetic receipt can never carry conclusion=integration_verified.",
+      "type": "boolean"
+    },
+    "synthetic_reason": {
+      "description": "Required when synthetic=true. Stable opaque reason code, no host paths or credentials.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{2,63}$"
+    },
+    "producer": {
+      "description": "Opaque agent identifier of the gate implementer that generated this receipt.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,63}$"
+    },
+    "verifier": {
+      "description": "Opaque agent identifier of the independent verifier. Required when status is pass or fail; must differ from producer.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,63}$"
+    },
+    "consumers": {
+      "description": "Frozen consumer allowlist. VG receipts are consumed only by RT-024 and RT-026.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 2,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "RT-024",
+          "RT-026"
+        ]
+      }
+    },
+    "prerequisite_refs": {
+      "description": "Upstream receipts this gate consumed. The pattern bounds the id space to RT-011..RT-025 and G0..G5 / VG-A..VG-E (G6, G7 and RT-026 are structurally excluded), but the binding allowlist is allowed_prerequisite_ids for this gate_id in gate_registry_v1.json: no RT above the gate's feeder_rt, no same or later VG, no release gate that is not already upstream. uniqueItems only dedupes whole objects, so ref_id uniqueness is enforced separately as a semantic rule: the same ref_id may not appear twice even with a different ref_sha256.",
+      "type": "array",
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "ref_id",
+          "ref_sha256"
+        ],
+        "properties": {
+          "ref_id": {
+            "type": "string",
+            "pattern": "^(RT-0(1[1-9]|2[0-5])|G[0-5]|VG-[A-E])$"
+          },
+          "ref_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      }
+    },
+    "evidence": {
+      "description": "Reproduction evidence. Commands must be repo-relative and free of absolute host paths.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "test_command",
+        "tests_run",
+        "tests_failed",
+        "python_version"
+      ],
+      "properties": {
+        "test_command": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "tests_run": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tests_failed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tests_skipped": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "python_version": {
+          "type": "string",
+          "pattern": "^3\\.[0-9]{1,2}\\.[0-9]{1,2}$"
+        },
+        "narrative_ref": {
+          "description": "Optional repo-relative path to the human-readable Markdown narrative. Never authoritative on its own.",
+          "type": "string",
+          "pattern": "^PR/PR-001-multitenant-knowledge-spaces/gate-receipts/[^/]+\\.md$"
+        }
+      }
+    },
+    "artifacts": {
+      "description": "Repo-relative artifact paths with content hashes. Absolute paths, .., and ~ are rejected by pattern.",
+      "type": "array",
+      "maxItems": 128,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "sha256"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "pattern": "^(?!/)(?!.*\\.\\.)[A-Za-z0-9_./\\-\\u4e00-\\u9fff]{1,255}$"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "tested_subject_commit": {
+      "description": "The exact 40-hex git commit of the implementation candidate this gate run was executed against. CONTRACT ADDITION v1.1: STATUS.md and DESIGN.md already stated that VG-B..VG-E bind an exact subject commit plus an environment fingerprint, but the schema carried neither field, so the claim was prose only. The field is OPTIONAL at the schema level and REQUIRED by semantic rule for every gate with rerun_allowed=true (VG-B..VG-E); VG-A is the pinned legacy exception and must NOT be rewritten to add it, because doing so would change its receipt_sha256 and break its pin. Validated by ancestry and owner scope, never by equality with a moving head: it must be a STRICT ancestor of the commit introducing the receipt, and it must have touched the gate's feeder RT package.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "owner_scope_tree_sha256": {
+      "description": "CONTRACT ADDITION v1.2. sha256(b\"cwk-owner-scope-tree-v1\\0\" + the sorted, NUL-terminated `git ls-tree -r -z` records under the feeder RT's owner_code_path_prefixes at tested_subject_commit). Ancestry says WHEN the subject was frozen and owner scope says WHICH package it touched; without this digest every commit satisfying both is interchangeable, so a receipt could be re-pointed at a neighbouring commit undetected. Optional at the schema level and REQUIRED by semantic rule for rerun_allowed=true gates (VG-B..VG-E); absent on the pinned VG-A receipt, which must never be rewritten because that would change its receipt_sha256 and break its pin.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "environment_fingerprint": {
+      "description": "Exact environment/build identity the gate run happened in, so 'the integration passed somewhere' can never stand in for 'it passed here'. Optional at the schema level, required by semantic rule for rerun_allowed=true gates, absent on the pinned VG-A receipt. A consumer RECOMPUTES these values against the environment being certified rather than pattern-matching them.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "python_version",
+        "platform",
+        "toolchain_build"
+      ],
+      "properties": {
+        "python_version": {
+          "type": "string",
+          "pattern": "^3\\.[0-9]{1,2}\\.[0-9]{1,2}$"
+        },
+        "platform": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "toolchain_build": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "sandbox_profile": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      }
+    },
+    "sequence": {
+      "description": "Monotonic run counter for this gate_id. First run is 1; a chain of N receipts occupies exactly the integers 1..N with the current receipt at the tip (sequence=N) and the archive holding 1..N-1. sequence, not created_at, is the primary ordering proof: created_at monotonicity is an auxiliary cross-check that catches backdating but cannot by itself prove there is no gap, fork or orphan. Required for gates with rerun_allowed=true. VG-A is a pinned legacy exception: its receipt predates this field and must NOT be mutated to add it.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "supersedes_receipt_sha256": {
+      "description": "Chain link to the immediately preceding CURRENT receipt for the same gate_id. Absent when sequence=1. Required when sequence>1, where it must equal the receipt_sha256 of the archived receipt whose sequence is exactly this receipt's sequence minus 1, and that archived file must itself be named <that hash>.json. Only gates with rerun_allowed=true in synthetic_closure_map_v1.json may ever carry this field: a rerun_allowed=false gate (VG-A) never rotates, so a supersedes link on it is proof of an illegal rotation and must fail closed.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "receipt_sha256": {
+      "description": "sha256(b\"cwk-verification-gate-receipt-v1\\0\" + JCS_UTF8(NFC(record_without_receipt_sha256))).",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "deepForbiddenKeys": [
+    "tenant_id",
+    "agent_id",
+    "app_key",
+    "appkey",
+    "credential",
+    "credential_ref",
+    "token",
+    "authorization",
+    "cookie",
+    "secret",
+    "body",
+    "raw",
+    "raw_body",
+    "title",
+    "instance_root",
+    "mirror_root",
+    "abs_path",
+    "absolute_path",
+    "prompt",
+    "model_output"
+  ],
+  "semanticRules": [
+    "status=pass requires feeder_rt_independent_pass=true and a verifier distinct from producer.",
+    "status in {pass, fail} requires the verifier field to be present.",
+    "status=not_run requires conclusion=not_run and evidence.tests_run=0.",
+    "conclusion=integration_verified requires synthetic=false and status=pass.",
+    "synthetic=true requires synthetic_reason and forbids conclusion=integration_verified.",
+    "evidence.tests_failed>0 forbids status=pass.",
+    "feeder_rt must equal the frozen mapping for gate_id in gate_registry_v1.json.",
+    "prerequisite_refs must not contain the receipt's own gate_id (no self-reference).",
+    "prerequisite_refs must not contain G6, G7 or RT-026 (enforced by pattern; downstream-only).",
+    "every prerequisite_refs[].ref_id must be a member of allowed_prerequisite_ids for this gate_id in gate_registry_v1.json; any other id is a forward reference and must fail closed.",
+    "prerequisite_refs must not cite an RT whose ordinal is above this gate's feeder_rt (e.g. VG-A may not cite RT-025).",
+    "prerequisite_refs must not cite the same gate or any later gate in the frozen order VG-A < VG-B < VG-C < VG-D < VG-E (e.g. VG-B may not cite VG-C).",
+    "prerequisite_refs must not cite a release gate that is not yet upstream at this point: G3 consumes VG-A, G4 consumes VG-C, G5 consumes VG-D, so those gates are excluded from their own consumers' allowlists.",
+    "prerequisite_refs[].ref_id must be unique within a receipt; two entries with the same ref_id and different ref_sha256 are invalid even though uniqueItems accepts them as distinct objects.",
+    "consumers must be a subset of the frozen consumer allowlist for gate_id in gate_registry_v1.json.",
+    "receipt_path in gate_registry_v1.json always holds the CURRENT receipt; superseded receipts live append-only under gate-receipts/VG-{X}/archive/ with filename <that receipt's own receipt_sha256>.json, never named receipt.json.",
+    "sequence is the primary ordering proof for a rerun_allowed=true gate: the archive plus the current receipt must occupy exactly the integers 1..N with no gap, no duplicate and no orphan, and the current receipt must be the tip (sequence=N).",
+    "supersedes_receipt_sha256 is absent when sequence=1 and required when sequence>1; when present it must equal the receipt_sha256 of the archived receipt at sequence-1, so the chain is a single unique prefix walk with no fork and no cycle.",
+    "created_at must strictly increase along the chain as an auxiliary check: a receipt whose created_at is not strictly later than the receipt it supersedes is invalid even when its sequence looks correct. created_at alone is never accepted as the ordering proof.",
+    "a gate with rerun_allowed=false in synthetic_closure_map_v1.json must have an absent or empty archive, must never carry supersedes_receipt_sha256, and its current receipt_sha256 must equal that gate's pinned_current_receipt_sha256; any other current receipt for it is rejected. VG-A is that pinned legacy exception and must not be rewritten to add sequence, tested_subject_commit, environment_fingerprint or any other new field.",
+    "a CURRENT receipt only closes anything when the WHOLE receipt is valid, not merely when synthetic=false. Before history or closure is even considered the evaluator must confirm: status=pass, conclusion=integration_verified, feeder_rt_independent_pass=true, a verifier present and DISTINCT from producer, evidence.tests_failed=0 with evidence.tests_run>0, feeder_rt equal to the frozen mapping for gate_id, consumers a subset of the frozen consumer allowlist, every prerequisite_refs[].ref_id inside allowed_prerequisite_ids with no duplicate ref_id and no self-reference, and every artifacts[].sha256 equal to the hash of a safely-read regular file on disk. A reviewer demonstrated that without this a receipt carrying status=fail / conclusion=failed / synthetic=false was reported CLOSED, and that producer==verifier, tests_failed=1, a wrong feeder_rt and artifact hash drift were all accepted.",
+    "every gate with rerun_allowed=true must carry tested_subject_commit and environment_fingerprint, and both are RECOMPUTED by the consumer: the commit must exist, must be a STRICT ancestor of the commit that introduces the receipt, and must have touched the gate's feeder RT package; the fingerprint must equal the environment actually being certified. A 40-hex string that names no commit, a commit on an unrelated branch, and the receipt's own commit are all rejected.",
+    "receipt, archive entries and every referenced artifact are read through a fail-closed openat/O_NOFOLLOW/dirfd chain with post-read identity re-verification, not through a check-then-read on a path string. This applies to the receipt FILE itself, not only to its artifacts: a current receipt that is a symlink, is hardlinked, sits behind a swapped parent directory, or is rewritten while being read is INVALID.",
+    "an archive directory is validated by exact membership: every entry must be a non-symlink regular file with exactly one hard link whose name is <its own recomputed receipt_sha256>.json. A junk file, a nested directory, a dotfile, a symlink, a hardlink or a misnamed JSON file invalidates the history instead of being silently skipped by a '*.json' glob.",
+    "for every gate with rerun_allowed=true, owner_scope_tree_sha256 is REQUIRED and is recomputed from the repository at tested_subject_commit over the feeder RT's owner_code_path_prefixes. VG-A is exempt: it is pinned by hash and adding a field would change that hash.",
+    "tested_subject_commit is checked against a DERIVED evidence commit, never an asserted one: the unique LATEST commit reachable from an explicitly injected evaluation_commit that changed this receipt's path, with exactly one parent, whose blob equals both the blob at evaluation_commit and the bytes the fail-closed reader returns from disk. Taking the first commit that ADDED the path is wrong for a rerunnable gate, because a later run occupies the same path and would bind the earlier evidence commit. Owner scope is matched on exact path boundaries, so RT/RT-023-evil never satisfies RT/RT-023, and evidence-output prefixes are disjoint from code prefixes so a receipt-only commit can never satisfy 'the subject touched the feeder package'."
+  ]
+}

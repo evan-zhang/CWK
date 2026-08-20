@@ -1,6 +1,6 @@
 # RT-014 rt-intake：共享不可变 Canonical Evidence Store
 
-- 状态：implementation_done (由 RT-014 独立实现 Agent 交付；等待新独立验收 Agent 黑盒验收)
+- 状态：completed（独立黑盒验收 PASS；closure commit `e483f67`）
 - Profile：Spec-Standard
 - 依赖：
   - RT-011（`CanonicalEnvelope v1` schema、`canonical_json_bytes`、`canonical_sha256`、`compose_report_key`、

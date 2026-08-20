@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.script_evolution_policy.v1",
+  "title": "PR-001 Script Evolution Policy v1 (Wave-0, central, immutable)",
+  "description": "Frozen Wave-0 policy that predeclares every legal append-only evolution of the RT-016 genesis-pinned legacy scripts. Exactly 9 evolvable paths and 10 ordered stages. Owner RTs append receipts only; they must never edit this policy, its schemas, the guard helper or the guard tests. Patterns are anchored with \\A and \\Z because the RT-011 subset engine matches with re.search, where $ would also match before a trailing newline.",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": [
+    "schema",
+    "policy_id",
+    "policy_version",
+    "frozen_at",
+    "genesis_source",
+    "genesis_entry_count",
+    "genesis_manifest_sha256",
+    "genesis_link_domain",
+    "receipt_schema_file",
+    "receipt_root_dir_template",
+    "evolvable_paths",
+    "companion_immutable_paths",
+    "tenant_cli",
+    "stages"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.pr001.script_evolution_policy.v1"},
+    "policy_id": {"const": "pr001-script-evolution-v1"},
+    "policy_version": {"const": "v1"},
+    "frozen_at": {"type": "string", "format": "date-time"},
+    "genesis_source": {"const": "tests/test_rt016_schemas.py::_FROZEN_RT011_015_BASELINE_SHAS"},
+    "genesis_entry_count": {"type": "integer", "minimum": 26, "maximum": 26},
+    "genesis_manifest_sha256": {"type": "string", "pattern": "\\A[0-9a-f]{64}\\Z"},
+    "genesis_link_domain": {"const": "cwk-pr001-script-evolution-genesis-v1"},
+    "receipt_schema_file": {"const": "receipt_v1.schema.json"},
+    "receipt_root_dir_template": {"const": "RT/<owner_rt>/receipts/script-evolution"},
+    "evolvable_paths": {
+      "type": "array",
+      "minItems": 9,
+      "maxItems": 9,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "unevaluatedProperties": false,
+        "required": ["target_path", "genesis_sha256", "owner_rts", "max_ordinal"],
+        "properties": {
+          "target_path": {"type": "string", "pattern": "\\Ascripts/cwk_[a-z0-9_]{1,64}\\.py\\Z"},
+          "genesis_sha256": {"type": "string", "pattern": "\\A[0-9a-f]{64}\\Z"},
+          "owner_rts": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 2,
+            "uniqueItems": true,
+            "items": {"type": "string", "pattern": "\\ART-0(12|13|17|19|21|22|26)\\Z"}
+          },
+          "max_ordinal": {"type": "integer", "minimum": 1, "maximum": 2}
+        }
+      }
+    },
+    "companion_immutable_paths": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "unevaluatedProperties": false,
+        "required": ["target_path", "sha256", "reason"],
+        "properties": {
+          "target_path": {"type": "string", "pattern": "\\Ascripts/cwk_[a-z0-9_]{1,64}\\.py\\Z"},
+          "sha256": {"type": "string", "pattern": "\\A[0-9a-f]{64}\\Z"},
+          "reason": {"type": "string", "minLength": 8, "maxLength": 256}
+        }
+      }
+    },
+    "tenant_cli": {
+      "type": "object",
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "required": [
+        "target_path",
+        "slot_symbol",
+        "slot_annotation",
+        "baseline_slots",
+        "slot_name_pattern",
+        "max_slot_span_lines"
+      ],
+      "properties": {
+        "target_path": {"const": "scripts/cwk_tenant_cli.py"},
+        "slot_symbol": {"const": "FROZEN_PROVIDER_SLOTS"},
+        "slot_annotation": {"const": "tuple[str, ...]"},
+        "baseline_slots": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "\\A[a-z][a-z0-9_]{0,63}\\Z"}
+        },
+        "slot_name_pattern": {"const": "\\Acwk_tenant_cmd_[a-z][a-z0-9_]{0,47}\\Z"},
+        "max_slot_span_lines": {"type": "integer", "minimum": 6, "maximum": 16}
+      }
+    },
+    "stages": {
+      "type": "array",
+      "minItems": 10,
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "unevaluatedProperties": false,
+        "required": [
+          "stage_index",
+          "owner_rt",
+          "target_path",
+          "ordinal",
+          "adds_provider_slot",
+          "requires_stage_index",
+          "receipt_path",
+          "migration_note_path",
+          "acceptance_test_prefix"
+        ],
+        "properties": {
+          "stage_index": {"type": "integer", "minimum": 1, "maximum": 10},
+          "owner_rt": {"type": "string", "pattern": "\\ART-0(12|13|17|19|21|22|26)\\Z"},
+          "target_path": {"type": "string", "pattern": "\\Ascripts/cwk_[a-z0-9_]{1,64}\\.py\\Z"},
+          "ordinal": {"type": "integer", "minimum": 1, "maximum": 2},
+          "adds_provider_slot": {
+            "type": ["string", "null"],
+            "pattern": "\\Acwk_tenant_cmd_[a-z][a-z0-9_]{0,47}\\Z"
+          },
+          "requires_stage_index": {"type": ["integer", "null"], "minimum": 1, "maximum": 10},
+          "receipt_path": {
+            "type": "string",
+            "pattern": "\\ART/RT-0[0-9]{2}/receipts/script-evolution/[a-z0-9][a-z0-9._-]{0,63}\\.json\\Z"
+          },
+          "migration_note_path": {
+            "type": "string",
+            "pattern": "\\ART/RT-0[0-9]{2}/reports/migrations/[a-z0-9][a-z0-9._-]{0,63}\\.md\\Z"
+          },
+          "acceptance_test_prefix": {"type": "string", "pattern": "\\Atests/test_rt0[0-9]{2}_\\Z"}
+        }
+      }
+    }
+  },
+  "customKeywords": {
+    "deepForbiddenProperties": [
+      "app_key",
+      "credential_ref",
+      "agent_id",
+      "absolute_path",
+      "mirror_root"
+    ],
+    "policy": {
+      "append_only": true,
+      "central_owner": "Wave-0",
+      "downstream_rts_may_edit": false,
+      "semantic_rules_enforced_by": "tests/pr001_script_evolution_guard.py"
+    }
+  }
+}

@@ -1,0 +1,250 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.capability_activation_receipt.v1",
+  "title": "PR-001 capability activation receipt v1",
+  "description": "The single machine-readable format that closes a *capability* gap left open by a synthetic verification gate. This is NOT a VG receipt and never lives under gate-receipts/: it is produced by the owning RT named in synthetic_closure_map_v1.json (RT-017 for the CWork authority/revocation source, RT-023 for Gateway trusted identity + controlled transport) and consumed by RT-026 only. Wave-0 produced read-only feasibility notes, never one of these. A synthetic VG receipt is never upgraded, re-signed or reinterpreted; instead the residual capability gap it names is closed by these separately owned receipts. Absent, unreadable, schema-invalid, hash-mismatched or itself-synthetic => the gap stays open and go/no-go is NO_GO. RT-026 must not create, backfill or infer one.",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": [
+    "schema",
+    "capability_id",
+    "owner_rt",
+    "owner_rt_independent_pass",
+    "status",
+    "conclusion",
+    "synthetic",
+    "producer",
+    "consumers",
+    "closes_gate_ids",
+    "sequence",
+    "evidence",
+    "evidence_refs",
+    "artifacts",
+    "tested_subject_commit",
+    "owner_scope_tree_sha256",
+    "environment_fingerprint",
+    "created_at",
+    "expires_at",
+    "receipt_sha256"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.pr001.capability_activation_receipt.v1"},
+    "capability_id": {
+      "description": "Which external capability this receipt activates. Frozen enum, see synthetic_closure_map_v1.json.",
+      "enum": ["cwork-authority-source", "gateway-identity-transport"]
+    },
+    "owner_rt": {
+      "description": "The RT that owns and produces this receipt. Must equal owner_rt for capability_id in synthetic_closure_map_v1.json. RT-024 and RT-026 are consumers and can never be owners.",
+      "type": "string",
+      "pattern": "^RT-0(1[1-9]|2[0-3]|25)$"
+    },
+    "owner_rt_independent_pass": {
+      "description": "True only when the owning RT already has an independent acceptance PASS. status=pass requires this to be true.",
+      "type": "boolean"
+    },
+    "status": {
+      "description": "not_run = planned placeholder; implementation_done = owner self-recorded, NOT a PASS; pass/fail = signed by an independent verifier.",
+      "enum": ["not_run", "implementation_done", "pass", "fail"]
+    },
+    "conclusion": {
+      "description": "capability_activated is the ONLY conclusion that closes a synthetic gap. blocked/conservative_unknown record real but insufficient progress and keep the gap open.",
+      "enum": ["not_run", "capability_activated", "conservative_unknown", "blocked", "failed"]
+    },
+    "synthetic": {
+      "description": "True when any fake authority, fake signer, fake identity, mock transport or test-only registration hook was used. A synthetic activation receipt can never close a synthetic gate gap; it can never carry conclusion=capability_activated.",
+      "type": "boolean"
+    },
+    "synthetic_reason": {
+      "description": "Required when synthetic=true. Stable opaque reason code, no host paths or credentials.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{2,63}$"
+    },
+    "producer": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,63}$"
+    },
+    "verifier": {
+      "description": "Opaque agent identifier of the independent verifier. Required when status is pass or fail; must differ from producer.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,63}$"
+    },
+    "consumers": {
+      "description": "Frozen consumer allowlist. Capability activation receipts are consumed only by RT-026's go/no-go evaluator.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "uniqueItems": true,
+      "items": {"enum": ["RT-026"]}
+    },
+    "closes_gate_ids": {
+      "description": "The synthetic VG gaps this receipt contributes to closing. Every entry must list this capability_id in its required_capability_ids in synthetic_closure_map_v1.json; a receipt cannot unilaterally claim to close a gate the map did not map to it.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "uniqueItems": true,
+      "items": {"enum": ["VG-A", "VG-B", "VG-C", "VG-D", "VG-E"]}
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["test_command", "tests_run", "tests_failed", "python_version"],
+      "properties": {
+        "test_command": {"type": "string", "minLength": 1, "maxLength": 512},
+        "tests_run": {"type": "integer", "minimum": 0},
+        "tests_failed": {"type": "integer", "minimum": 0},
+        "tests_skipped": {"type": "integer", "minimum": 0},
+        "python_version": {"type": "string", "pattern": "^3\\.[0-9]{1,2}\\.[0-9]{1,2}$"},
+        "narrative_ref": {
+          "description": "Optional repo-relative path to the human-readable Markdown narrative. Never authoritative on its own.",
+          "type": "string",
+          "pattern": "^PR/PR-001-multitenant-knowledge-spaces/capability-receipts/[^/]+/[^/]+\\.md$"
+        }
+      }
+    },
+    "evidence_refs": {
+      "description": "Role-tagged bindings to evidence that already exists independently of this receipt. Every required_evidence_roles role for this capability_id in synthetic_closure_map_v1.json must be covered here. Each path must be a safe repo-relative regular file (no absolute path, no '..', no symlink, no hardlink, no directory) whose sha256 is recomputed from disk at evaluation time. A receipt may never reference its own path, another capability's activation receipt, or any gate receipt: that would make its own hash an input to itself.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["role", "path", "sha256"],
+        "properties": {
+          "role": {"type": "string", "pattern": "^[a-z][a-z0-9_]{2,63}$"},
+          "path": {"type": "string", "pattern": "^(?!/)(?!.*\\.\\.)(?!.*//)[A-Za-z0-9_./\\-\\u4e00-\\u9fff]{1,255}$"},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    "artifacts": {
+      "description": "Repo-relative artifact paths with content hashes. Absolute paths, .., and ~ are rejected by pattern. Must be non-empty for a closing receipt: an activation receipt with no bound artifact proves nothing.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256"],
+        "properties": {
+          "path": {"type": "string", "pattern": "^(?!/)(?!.*\\.\\.)(?!.*//)[A-Za-z0-9_./\\-\\u4e00-\\u9fff]{1,255}$"},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    "sequence": {
+      "description": "Monotonic issue counter for this capability_id. The first issue is 1; a chain of N receipts occupies exactly the integers 1..N, with the CURRENT receipt at the tip (sequence=N) and the archive under activation_archive_dir holding 1..N-1. sequence, not created_at, is the primary ordering proof.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "previous_receipt_sha256": {
+      "description": "Chain link to the immediately preceding current receipt for the same capability_id. Forbidden when sequence=1; required when sequence>1, where it must equal the recomputed receipt_sha256 of the archived receipt at sequence-1, and that archived file must be named <that hash>.json.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "renewal_probe_ref": {
+      "description": "Required when sequence>1, forbidden when sequence=1: the FRESH real capability probe MANIFEST that justified this renewal, bound by content hash rather than by name alone. CONTRACT REVISION v1.1: this was a bare path string, which a reviewer showed was unenforceable -- a nonexistent path and a verbatim re-reference to the previous issue's evidence were both accepted. It became an object so the probe is hash-bound like every other piece of evidence. CONTRACT REVISION v1.2: hash-DIFFERENCE alone is still not freshness, because any single flipped byte satisfies it. The referenced file must now be a probe MANIFEST carrying exactly capability_id, sequence, challenge, observed_at, tested_subject_commit, environment_fingerprint, api_version, result, verifier and signature, every field of which is recomputed at evaluation time under renewal_probe_manifest_rule in synthetic_closure_map_v1.json. The validator requires the path to resolve, through the same fail-closed openat/O_NOFOLLOW read as every other bound file, to an existing NON-EMPTY regular file whose sha256 equals this sha256; to sit at the capability's sequence-specific renewal_probe_path_template so an earlier probe cannot be replayed under a later sequence; to have been changed by the evidence commit that introduced this receipt; and to differ from every evidence_refs[].sha256 and artifacts[].sha256 of the receipt being superseded. Re-running the same probe and re-binding the identical bytes is therefore not a renewal. Renewal is only permitted while the owning RT's independent acceptance is still valid.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {"type": "string", "pattern": "^(?!/)(?!.*\\.\\.)(?!.*//)[A-Za-z0-9_./\\-\\u4e00-\\u9fff]{1,255}$"},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "tested_subject_commit": {
+      "description": "The exact 40-hex git commit of the implementation candidate this evidence was produced against, frozen BEFORE this receipt is written. The receipt lands in a later evidence-only commit and reports reference the receipt later still, so no two artifacts ever hash each other. An evaluator recomputes this against the candidate commit under review and rejects a mismatch instead of trusting prose.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "owner_scope_tree_sha256": {
+      "description": "CONTRACT ADDITION v1.2. A domain-separated digest, sha256(b\"cwk-owner-scope-tree-v1\\0\" + the sorted `git ls-tree -r -z` records under owner_code_path_prefixes for this capability at tested_subject_commit, each record NUL-terminated). Ancestry says WHEN the subject was frozen and owner scope says WHICH package it touched; this says exactly WHICH CONTENT was tested. Without it, any commit that satisfies ancestry and touches the owner package is interchangeable with any other, so a receipt could be silently re-pointed at a neighbouring commit. The evaluator recomputes it from the repository; a mismatch means the receipt does not describe the code it claims to.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "environment_fingerprint": {
+      "description": "Exact environment/build identity the evidence was produced in, so 'the capability worked somewhere' can never stand in for 'it worked here'.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["python_version", "platform", "toolchain_build"],
+      "properties": {
+        "python_version": {"type": "string", "pattern": "^3\\.[0-9]{1,2}\\.[0-9]{1,2}$"},
+        "platform": {"type": "string", "minLength": 1, "maxLength": 128},
+        "toolchain_build": {"type": "string", "minLength": 1, "maxLength": 128},
+        "sandbox_profile": {"type": "string", "minLength": 1, "maxLength": 128}
+      }
+    },
+    "created_at": {
+      "description": "Strict RFC3339 UTC timestamp, second precision, trailing Z. Local offsets, missing Z, whitespace and out-of-range fields are rejected. NOT-BEFORE: created_at must also be no later than the evaluation instant plus activation_max_clock_skew_seconds from synthetic_closure_map_v1.json. Without that bound a receipt dated 2099-01-01 evaluates as comfortably VALID, which a reviewer demonstrated; the skew allowance exists to tolerate NTP drift between signer and evaluator, never to admit future-dated evidence.",
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    },
+    "expires_at": {
+      "description": "Strict RFC3339 UTC expiry, second precision, trailing Z, strictly after created_at, AND bounded above: 0 < (expires_at - created_at) <= max_validity_seconds for this capability_id in synthetic_closure_map_v1.json, inclusive at the upper end. The bound lives in that frozen config, never here, so a receipt can never widen its own TTL. Real external capability is time-bounded, so a current receipt whose expires_at is in the past is EXPIRED and leaves the gap OPEN exactly like an absent receipt. This is not a dead end: the owner renews by publishing a new current receipt at sequence+1 after a fresh real probe.",
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    },
+    "receipt_sha256": {
+      "description": "sha256(b\"cwk-capability-activation-receipt-v1\\0\" + JCS_UTF8(NFC(record_without_receipt_sha256))). Deliberately a different domain separator from the VG receipt, so the two receipt families can never be swapped.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "deepForbiddenKeys": [
+    "tenant_id",
+    "agent_id",
+    "app_key",
+    "appkey",
+    "credential",
+    "credential_ref",
+    "token",
+    "authorization",
+    "cookie",
+    "secret",
+    "body",
+    "raw",
+    "raw_body",
+    "instance_root",
+    "mirror_root",
+    "abs_path",
+    "absolute_path",
+    "prompt",
+    "model_output"
+  ],
+  "semanticRules": [
+    "status=pass requires owner_rt_independent_pass=true and a verifier distinct from producer.",
+    "status in {pass, fail} requires the verifier field to be present.",
+    "status=not_run requires conclusion=not_run and evidence.tests_run=0.",
+    "conclusion=capability_activated requires synthetic=false and status=pass.",
+    "synthetic=true requires synthetic_reason and forbids conclusion=capability_activated.",
+    "evidence.tests_failed>0 forbids status=pass.",
+    "a closing receipt requires evidence.tests_run>0, evidence.tests_failed=0 and 0<=evidence.tests_skipped<=evidence.tests_run: a receipt that ran nothing, or skipped more than it ran, never closes a gap.",
+    "a closing receipt requires a non-empty artifacts array and an evidence_refs entry for every required_evidence_roles role declared for its capability_id in synthetic_closure_map_v1.json; the two capabilities have different role lists and neither may substitute the other's.",
+    "every artifacts[].path and evidence_refs[].path must resolve inside the repository to an existing REGULAR file: symlinks, hardlinked files with link count > 1, directories, device nodes, absolute paths, '..' segments and '//' are all rejected, and each sha256 is recomputed from the bytes on disk.",
+    "a receipt may not bind its own activation_receipt_path, any other capability's activation_receipt_path, or ANY path under gate-receipts/ — current or archived. That would make the receipt's hash an input to itself, and it would invert the dependency order: a VG receipt is downstream sibling evidence consumed by RT-026, so VG-B may never appear in cwork-authority-source and VG-D may never appear in gateway-identity-transport.",
+    "no VG gate is a precondition of any activation receipt. gateway-identity-transport binds RT-023's own independent PASS plus real controlled-transport, identity and trust-store evidence and is written BEFORE VG-D runs; cwork-authority-source binds RT-017's own independent PASS plus real authority-source evidence and does not wait for VG-B.",
+    "created_at and expires_at must both be strict RFC3339 UTC with a trailing Z and second precision, and created_at < expires_at; anything else is rejected before the hash is even recomputed.",
+    "a current receipt whose expires_at is in the past at evaluation time is EXPIRED: the gap is OPEN and the verdict is NO_GO, exactly as if the file were absent. Expiry is never waived by an older archived receipt or by the sibling capability still being in date.",
+    "created_at < expires_at is necessary but NOT sufficient. Every receipt in the chain, current and archived, must satisfy 0 < (expires_at - created_at) <= max_validity_seconds for its capability_id in synthetic_closure_map_v1.json. The upper bound is INCLUSIVE: a lifetime exactly equal to max_validity_seconds is valid, one second more is rejected. This is checked without consulting the evaluator's clock, so a 9999-year TTL is invalid the moment it is written rather than merely expired a very long time from now — otherwise an unbounded TTL would let one probe certify a real external capability forever and quietly re-create the dead end expiry exists to remove.",
+    "sequence starts at 1 and is the primary ordering proof. sequence=1 forbids previous_receipt_sha256 and renewal_probe_ref; sequence=k>1 requires both, with previous_receipt_sha256 equal to the recomputed hash of the archived receipt at sequence k-1.",
+    "renewal_probe_ref must be RESOLVED, not merely present. Its path must read back through the fail-closed openat/O_NOFOLLOW chain as an existing, non-empty, non-symlinked, non-hardlinked regular file whose sha256 equals renewal_probe_ref.sha256, and that sha256 must differ from every evidence_refs[].sha256 and artifacts[].sha256 of the receipt at sequence k-1. A missing path, an empty file, a hash mismatch, or a re-reference to the previous issue's bytes all mean no fresh probe happened, so the renewal is invalid and the gap stays OPEN.",
+    "differing bytes are NOT freshness. The resolved renewal_probe_ref file must additionally parse as a probe MANIFEST with exactly the fields capability_id, sequence, challenge, observed_at, tested_subject_commit, environment_fingerprint, api_version, result, verifier and signature, and the evaluator recomputes every one of them: capability_id equals this receipt's, sequence equals this receipt's sequence, challenge is 64-hex and unique to this sequence, tested_subject_commit equals this receipt's, environment_fingerprint matches the observed environment, result is pass, verifier is named, observed_at is timezone-aware, strictly later than the previous issue's probe, no later than the evaluation instant plus activation_max_clock_skew_seconds and no older than activation_max_probe_age_seconds, and signature recomputes as HMAC-SHA256 over b\"cwk-capability-renewal-probe-v1\\0\" + JCS of the other nine fields. The manifest must live at the sequence-specific renewal_probe_path_template and must have been changed by the evidence commit that introduced this receipt. Anything less lets one flipped byte in a copied file masquerade as a fresh real probe, which is exactly the defect this rule closes.",
+    "owner_scope_tree_sha256 must recompute from the repository at tested_subject_commit over that capability's owner_code_path_prefixes. Ancestry plus owner scope leaves every qualifying commit interchangeable; this digest pins the exact content that was tested, so drift between the subject commit and the code the receipt describes is detected rather than assumed away.",
+    "created_at must not be later than the evaluation instant plus activation_max_clock_skew_seconds. A future-dated receipt is invalid, not merely 'not yet expired'. The evaluation instant is injected: production derives real UTC now, fixtures pass a deterministic instant, and no evaluator may bake a constant date into its code.",
+    "the archive under activation_archive_dir is append-only, each archived filename equals that receipt's own recomputed receipt_sha256, and the archive plus the current receipt occupy exactly 1..N with no gap, fork, orphan or cycle. created_at and expires_at strictly increase along the chain as an auxiliary check only.",
+    "renewal never mutates a signed receipt in place: the superseded current receipt is first copied byte-identically into the archive, then a new current receipt is published at sequence+1. RT-026 reads the CURRENT receipt only and never an archived one.",
+    "tested_subject_commit is validated by ANCESTRY and OWNERSHIP, never by equality with a moving head. ANCESTRY: it must be an ancestor of the commit that introduces this receipt file, so evidence binds a frozen earlier subject and the receipt lands later. OWNERSHIP: it must be the commit this receipt's own evidence_refs and artifacts were actually produced against. It is explicitly NOT required to equal RT-026's final HEAD or any later merge commit: downstream merges legitimately advance HEAD after an honest probe, and demanding equality would invalidate valid evidence and re-create the dead end. environment_fingerprint must match the environment being certified. A consumer must recompute both; neither may be asserted in prose alone.",
+    "owner_rt must equal owner_rt for capability_id in synthetic_closure_map_v1.json.",
+    "owner_rt must never be RT-024 or RT-026; both are consumers only (RT-024 is excluded by pattern, RT-026 by pattern).",
+    "closes_gate_ids must equal EXACTLY the set of gates whose required_capability_ids in synthetic_closure_map_v1.json contains this capability_id — no extra gate the map did not map to it, and no omitted gate it is required for.",
+    "this receipt is NOT cwk.rt023.capability_receipt.v1. That one is RT-023's short-lived, per-call, signed runtime transport credential, verified by CapabilityReceiptVerifier against the root-owned trust store on every sandbox request, and it never appears in this repository as a file. This one is the repo-level PR-001 activation record: a RENEWABLE current receipt at a fixed path plus an append-only archive of its superseded issues, consumed only by RT-026's go/no-go aggregator, and never used to authorize a request. It is explicitly not write-once-forever — that stale wording contradicted the sequence/previous_receipt_sha256/archive chain defined above and is corrected here.",
+    "a capability gap counts as CLOSED only when the CURRENT receipt satisfies ALL of: status=pass, synthetic=false, owner_rt_independent_pass=true, conclusion=capability_activated, verifier present and distinct from producer, consumers exactly [RT-026], closes_gate_ids exactly the mapped set, every required_evidence_roles role covered, recomputed receipt_sha256 matches, every artifacts[].sha256 matches the file on disk and every evidence_refs[].sha256 likewise resolves to a safe regular file, the chain 1..N is intact, 0 < (expires_at - created_at) <= max_validity_seconds, and expires_at is still in the future at evaluation time. Anything else leaves the gap OPEN and forces NO_GO.",
+    "this receipt must live at activation_receipt_path for its capability_id in synthetic_closure_map_v1.json, which is under capability-receipts/, never under gate-receipts/ (VG receipt paths stay exclusively registry-declared).",
+    "closing a capability gap NEVER edits, re-signs or reinterprets the synthetic VG receipt, and never triggers a rotation of it: every gate closed this way has rerun_allowed=false in synthetic_closure_map_v1.json, so its current receipt keeps synthetic=true and conclusion=conservative_unknown permanently and remains listed as scoped evidence with an explicit production caveat."
+  ]
+}

@@ -20,6 +20,10 @@ import cwk_tenant_cli_api as API  # noqa: E402
 import cwk_tenant_registry as R  # noqa: E402
 
 
+def _root(path: str) -> str:
+    return str(Path(path).resolve())
+
+
 def _run(*argv: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
     real_env = dict(os.environ)
     if env is not None:
@@ -35,15 +39,15 @@ def _run(*argv: str, env: dict[str, str] | None = None) -> subprocess.CompletedP
 
 
 def _promote(tmp: str, tenant_id: str, new_status: str) -> None:
-    os.environ[I.ENV_VAR] = tmp
-    layout = I.InstanceLayout.open()
-    reg = R.TenantRegistry(layout)
-    rec = reg.get(tenant_id)
-    payload = dict(rec.payload)
-    payload["status"] = new_status
-    with layout.registry_fd("tenants") as fd:
-        body = (json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
-        A.cas_write(fd, f"{tenant_id}.json", body, expected_previous_sha256=rec.on_disk_sha256)
+    os.environ[I.ENV_VAR] = _root(tmp)
+    with I.InstanceLayout.open() as layout:
+        reg = R.TenantRegistry(layout)
+        rec = reg.get(tenant_id)
+        payload = dict(rec.payload)
+        payload["status"] = new_status
+        with layout.registry_fd("tenants") as fd:
+            body = (json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+            A.cas_write(fd, f"{tenant_id}.json", body, expected_previous_sha256=rec.on_disk_sha256)
 
 
 class SlotTests(unittest.TestCase):
@@ -56,7 +60,7 @@ class SlotTests(unittest.TestCase):
 
     def test_help_lists_binding_commands(self):
         with tempfile.TemporaryDirectory() as tmp:
-            r = _run("--help", env={"CWK_INSTANCE_ROOT": tmp})
+            r = _run("--help", env={"CWK_INSTANCE_ROOT": _root(tmp)})
         self.assertEqual(r.returncode, 0, r.stderr)
         for cmd in (
             "bind-agent",
@@ -73,7 +77,7 @@ class SlotTests(unittest.TestCase):
 class BindCmdTests(unittest.TestCase):
     def test_bind_happy_path(self):
         with tempfile.TemporaryDirectory() as tmp:
-            env = {"CWK_INSTANCE_ROOT": tmp}
+            env = {"CWK_INSTANCE_ROOT": _root(tmp)}
             r = _run("init", "--actor", "admin", env=env)
             self.assertEqual(r.returncode, 0, r.stderr)
             tid = json.loads(r.stdout)["tenant_id"]
@@ -92,19 +96,19 @@ class BindCmdTests(unittest.TestCase):
     def test_bind_bad_tenant_id_exits_contract(self):
         with tempfile.TemporaryDirectory() as tmp:
             r = _run("bind-agent", "--tenant-id", "not-a-tenant", "--agent-id", "alice",
-                     "--actor", "admin", env={"CWK_INSTANCE_ROOT": tmp})
+                     "--actor", "admin", env={"CWK_INSTANCE_ROOT": _root(tmp)})
         self.assertEqual(r.returncode, API.EXIT_CONTRACT, r.stderr)
         self.assertNotIn("Traceback", r.stderr)
 
     def test_bind_unknown_tenant_exits_io(self):
         with tempfile.TemporaryDirectory() as tmp:
             r = _run("bind-agent", "--tenant-id", "t_" + "z" * 26, "--agent-id", "alice",
-                     "--actor", "admin", env={"CWK_INSTANCE_ROOT": tmp})
+                     "--actor", "admin", env={"CWK_INSTANCE_ROOT": _root(tmp)})
         self.assertEqual(r.returncode, API.EXIT_IO, r.stderr)
 
     def test_duplicate_bind_exits_conflict(self):
         with tempfile.TemporaryDirectory() as tmp:
-            env = {"CWK_INSTANCE_ROOT": tmp}
+            env = {"CWK_INSTANCE_ROOT": _root(tmp)}
             r = _run("init", "--actor", "admin", env=env)
             tid = json.loads(r.stdout)["tenant_id"]
             _run("bind-agent", "--tenant-id", tid, "--agent-id", "alice", "--actor", "admin", env=env)
@@ -115,7 +119,7 @@ class BindCmdTests(unittest.TestCase):
 class RevokeCmdTests(unittest.TestCase):
     def test_revoke_after_bind(self):
         with tempfile.TemporaryDirectory() as tmp:
-            env = {"CWK_INSTANCE_ROOT": tmp}
+            env = {"CWK_INSTANCE_ROOT": _root(tmp)}
             r = _run("init", "--actor", "admin", env=env)
             tid = json.loads(r.stdout)["tenant_id"]
             _run("bind-agent", "--tenant-id", tid, "--agent-id", "alice", "--actor", "admin", env=env)
@@ -128,7 +132,7 @@ class RevokeCmdTests(unittest.TestCase):
 class ListBindingsCmdTests(unittest.TestCase):
     def test_list_starts_empty(self):
         with tempfile.TemporaryDirectory() as tmp:
-            env = {"CWK_INSTANCE_ROOT": tmp}
+            env = {"CWK_INSTANCE_ROOT": _root(tmp)}
             r = _run("list-bindings", env=env)
         self.assertEqual(r.returncode, 0, r.stderr)
         body = json.loads(r.stdout)
@@ -138,7 +142,7 @@ class ListBindingsCmdTests(unittest.TestCase):
 class SetCredentialCmdTests(unittest.TestCase):
     def test_set_credential_happy_path(self):
         with tempfile.TemporaryDirectory() as tmp:
-            env = {"CWK_INSTANCE_ROOT": tmp}
+            env = {"CWK_INSTANCE_ROOT": _root(tmp)}
             r = _run("init", "--actor", "admin", env=env)
             tid = json.loads(r.stdout)["tenant_id"]
             r = _run(
@@ -155,7 +159,7 @@ class SetCredentialCmdTests(unittest.TestCase):
 
     def test_set_credential_bad_uri_exits_contract(self):
         with tempfile.TemporaryDirectory() as tmp:
-            env = {"CWK_INSTANCE_ROOT": tmp}
+            env = {"CWK_INSTANCE_ROOT": _root(tmp)}
             r = _run("init", "--actor", "admin", env=env)
             tid = json.loads(r.stdout)["tenant_id"]
             r = _run(
@@ -175,7 +179,7 @@ class SetCredentialCmdTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             r = _run(
                 "set-credential", "--material", "SECRET",
-                env={"CWK_INSTANCE_ROOT": tmp},
+                env={"CWK_INSTANCE_ROOT": _root(tmp)},
             )
         # argparse rejects the unknown --material flag.
         self.assertEqual(r.returncode, API.EXIT_USAGE, r.stderr)
@@ -186,7 +190,7 @@ class RotateBindingSecretCmdTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             r = _run(
                 "rotate-binding-secret", "--phase", "begin", "--actor", "admin",
-                env={"CWK_INSTANCE_ROOT": tmp},
+                env={"CWK_INSTANCE_ROOT": _root(tmp)},
             )
         self.assertEqual(r.returncode, API.EXIT_USAGE, r.stderr)
 
@@ -198,7 +202,7 @@ class RotateBindingSecretCmdTests(unittest.TestCase):
             os.chmod(real, 0o600)
             link = os.path.join(tmp, "link.mat")
             os.symlink(real, link)
-            env = {"CWK_INSTANCE_ROOT": tmp}
+            env = {"CWK_INSTANCE_ROOT": _root(tmp)}
             r = _run(
                 "rotate-binding-secret", "--phase", "begin",
                 "--material-file", link,
@@ -209,7 +213,7 @@ class RotateBindingSecretCmdTests(unittest.TestCase):
 
     def test_rotate_finalize_when_stable_is_noop(self):
         with tempfile.TemporaryDirectory() as tmp:
-            env = {"CWK_INSTANCE_ROOT": tmp}
+            env = {"CWK_INSTANCE_ROOT": _root(tmp)}
             _run("init", "--actor", "admin", env=env)
             r = _run("rotate-binding-secret", "--phase", "finalize", "--actor", "admin", env=env)
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -220,7 +224,7 @@ class RotateBindingSecretCmdTests(unittest.TestCase):
 class DoctorCmdTests(unittest.TestCase):
     def test_doctor_binding_clean(self):
         with tempfile.TemporaryDirectory() as tmp:
-            env = {"CWK_INSTANCE_ROOT": tmp}
+            env = {"CWK_INSTANCE_ROOT": _root(tmp)}
             _run("init", "--actor", "admin", env=env)
             r = _run("doctor:binding", env=env)
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -232,12 +236,12 @@ class DoctorCmdTests(unittest.TestCase):
 class HelpAndErrorTests(unittest.TestCase):
     def test_bind_help_exits_zero(self):
         with tempfile.TemporaryDirectory() as tmp:
-            r = _run("bind-agent", "--help", env={"CWK_INSTANCE_ROOT": tmp})
+            r = _run("bind-agent", "--help", env={"CWK_INSTANCE_ROOT": _root(tmp)})
         self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_unknown_flag_exits_usage(self):
         with tempfile.TemporaryDirectory() as tmp:
-            r = _run("bind-agent", "--not-a-flag", env={"CWK_INSTANCE_ROOT": tmp})
+            r = _run("bind-agent", "--not-a-flag", env={"CWK_INSTANCE_ROOT": _root(tmp)})
         self.assertEqual(r.returncode, API.EXIT_USAGE, r.stderr)
         self.assertNotIn("Traceback", r.stderr)
 
@@ -247,7 +251,7 @@ class SecretEnvNotPropagatedTests(unittest.TestCase):
 
     def test_no_leak(self):
         with tempfile.TemporaryDirectory() as tmp:
-            env = {"CWK_INSTANCE_ROOT": tmp, "CWORK_APP_KEY": "should-never-leak"}
+            env = {"CWK_INSTANCE_ROOT": _root(tmp), "CWORK_APP_KEY": "should-never-leak"}
             _run("init", "--actor", "admin", env=env)
             r = _run("list-bindings", env=env)
         self.assertNotIn("should-never-leak", r.stdout)

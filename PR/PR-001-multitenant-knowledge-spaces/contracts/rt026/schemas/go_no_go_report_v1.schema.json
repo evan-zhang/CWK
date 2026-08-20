@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.go_no_go_report.v1",
+  "title": "PR-001 RT-026 machine go/no-go evaluation v1",
+  "description": "Machine evidence consumed only by G6. READY_FOR_G7_REVIEW means ready to be submitted to G6; it grants no authorization.",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": [
+    "schema", "report_id", "receipt_kind", "status", "conclusion",
+    "producer", "producer_role", "verifier", "verifier_role",
+    "tested_subject_commit", "owner_scope_tree_sha256", "environment_fingerprint",
+    "input_classes", "verification_gate_ids", "release_gate_ids", "capability_ids",
+    "security_gate_ids", "excluded_input_ids", "input_refs", "policy_ref",
+    "run_evidence", "artifacts", "open_blocker_count", "open_major_count",
+    "candidate_frozen_at", "started_at", "completed_at", "created_at", "report_sha256"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.pr001.go_no_go_report.v1"},
+    "report_id": {"const": "RT-026-GO-NO-GO"},
+    "receipt_kind": {"const": "go_no_go_evaluation"},
+    "status": {"enum": ["pass", "fail", "not_run"]},
+    "conclusion": {"enum": ["READY_FOR_G7_REVIEW", "NO_GO", "NOT_RUN"]},
+    "producer": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._:@/-]{0,127}$"},
+    "producer_role": {"const": "go_no_go_evaluator"},
+    "verifier": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._:@/-]{0,127}$"},
+    "verifier_role": {"const": "independent_go_no_go_verifier"},
+    "tested_subject_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "owner_scope_tree_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "environment_fingerprint": {
+      "type": "object", "additionalProperties": false, "unevaluatedProperties": false,
+      "required": ["python_version", "platform", "toolchain_build"],
+      "properties": {
+        "python_version": {"type": "string", "pattern": "^3\\.[0-9]{1,2}\\.[0-9]{1,2}$"},
+        "platform": {"type": "string", "minLength": 1, "maxLength": 128},
+        "toolchain_build": {"type": "string", "minLength": 1, "maxLength": 128},
+        "sandbox_profile": {"type": "string", "minLength": 1, "maxLength": 128}
+      }
+    },
+    "input_classes": {"type": "array", "minItems": 10, "maxItems": 10, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "verification_gate_ids": {"type": "array", "minItems": 5, "maxItems": 5, "uniqueItems": true, "items": {"pattern": "^VG-[A-E]$"}},
+    "release_gate_ids": {"type": "array", "minItems": 5, "maxItems": 5, "uniqueItems": true, "items": {"pattern": "^G[1-5]$"}},
+    "capability_ids": {"type": "array", "minItems": 2, "maxItems": 2, "uniqueItems": true, "items": {"pattern": "^CAP:(cwork-authority-source|gateway-identity-transport)$"}},
+    "security_gate_ids": {"type": "array", "minItems": 10, "maxItems": 10, "uniqueItems": true, "items": {"pattern": "^SG:RT-0(1[7-9]|2[0-6])$"}},
+    "excluded_input_ids": {"const": ["G6", "G7"]},
+    "input_refs": {
+      "type": "array", "minItems": 29, "maxItems": 29, "uniqueItems": true,
+      "items": {
+        "type": "object", "additionalProperties": false, "unevaluatedProperties": false,
+        "required": ["input_id", "input_class", "ref_kind", "ref_path", "raw_sha256", "schema_id"],
+        "properties": {
+          "input_id": {"type": "string", "minLength": 1, "maxLength": 128},
+          "input_class": {"type": "string", "minLength": 1, "maxLength": 64},
+          "ref_kind": {"type": "string", "minLength": 1, "maxLength": 64},
+          "ref_path": {"type": "string", "pattern": "^(?!/)(?!.*\\.\\.)[A-Za-z0-9_./\\-\\u4e00-\\u9fff]{1,255}$"},
+          "raw_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "schema_id": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "policy_ref": {
+      "type": "object", "additionalProperties": false, "unevaluatedProperties": false,
+      "required": ["ref_path", "raw_sha256", "schema_id"],
+      "properties": {
+        "ref_path": {"type": "string", "pattern": "^(?!/)(?!.*\\.\\.)[A-Za-z0-9_./\\-\\u4e00-\\u9fff]{1,255}$"},
+        "raw_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "schema_id": {"const": "cwk.pr001.release_gate_registry.v1"}
+      }
+    },
+    "run_evidence": {
+      "type": "object", "additionalProperties": false, "unevaluatedProperties": false,
+      "required": ["run_id", "engagement_id", "session_id", "runner_id", "command", "checks_total", "checks_failed", "exit_code", "result"],
+      "properties": {
+        "run_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{2,63}$"},
+        "engagement_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{2,63}$"},
+        "session_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{2,63}$"},
+        "runner_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._:@/-]{0,127}$"},
+        "command": {"type": "string", "minLength": 1, "maxLength": 512},
+        "checks_total": {"type": "integer", "minimum": 0},
+        "checks_failed": {"type": "integer", "minimum": 0},
+        "exit_code": {"type": "integer", "minimum": 0, "maximum": 255},
+        "result": {"enum": ["pass", "fail", "not_run"]}
+      }
+    },
+    "artifacts": {
+      "type": "array", "minItems": 3, "maxItems": 3, "uniqueItems": true,
+      "items": {
+        "type": "object", "additionalProperties": false, "unevaluatedProperties": false,
+        "required": ["role", "path", "raw_sha256"],
+        "properties": {
+          "role": {"enum": ["input_manifest", "evaluation_log", "launcher_run_attestation"]},
+          "path": {"type": "string", "pattern": "^(?!/)(?!.*\\.\\.)[A-Za-z0-9_./\\-\\u4e00-\\u9fff]{1,255}$"},
+          "raw_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    "open_blocker_count": {"type": "integer", "minimum": 0},
+    "open_major_count": {"type": "integer", "minimum": 0},
+    "candidate_frozen_at": {"type": "string", "format": "date-time"},
+    "started_at": {"type": "string", "format": "date-time"},
+    "completed_at": {"type": "string", "format": "date-time"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "report_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

@@ -117,7 +117,7 @@ class LedgerFixture:
     def __init__(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         self._prev_env = os.environ.get(I.ENV_VAR)
-        os.environ[I.ENV_VAR] = self._tmp.name
+        os.environ[I.ENV_VAR] = str(Path(self._tmp.name).resolve())
         self.layout = I.InstanceLayout.open()
         self.layout.initialize()
         self.tenants = TR.TenantRegistry(self.layout)
@@ -131,6 +131,7 @@ class LedgerFixture:
         self.view_store = TV.TenantViewStore(self.layout, self.ledger, self.evidence)
 
     def close(self) -> None:
+        self.layout.close()
         if self._prev_env is None:
             os.environ.pop(I.ENV_VAR, None)
         else:

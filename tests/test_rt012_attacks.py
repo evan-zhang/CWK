@@ -117,6 +117,47 @@ class InstanceRootAttacks(unittest.TestCase):
                 I.resolve_instance_root()
 
 
+class RootAnchorAttackTests(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.base = Path(self._tmp.name).resolve()
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_layout_never_switches_from_tenant_a_to_tenant_b(self):
+        root = self.base / "instance-a"
+        root.mkdir()
+        (root / "tenant-marker").write_text("tenant-a", encoding="utf-8")
+        layout = I.InstanceLayout.open(root=str(root))
+        try:
+            root.rename(self.base / "parked-a")
+            replacement = self.base / "instance-a"
+            replacement.mkdir()
+            (replacement / "tenant-marker").write_text("tenant-b", encoding="utf-8")
+            with self.assertRaises(I.InstanceRootError):
+                with layout.root_fd():
+                    pass
+        finally:
+            layout.close()
+
+    def test_component_symlink_swap_never_reaches_target(self):
+        parent = self.base / "parent"
+        root = parent / "instance"
+        root.mkdir(parents=True)
+        target = self.base / "target"
+        (target / "instance").mkdir(parents=True)
+        layout = I.InstanceLayout.open(root=str(root))
+        try:
+            parent.rename(self.base / "parked-parent")
+            os.symlink(target, parent)
+            with self.assertRaises(I.InstanceRootError):
+                with layout.root_fd():
+                    pass
+        finally:
+            layout.close()
+
+
 # ---------------------------------------------------------------------------
 # Tenant ID / space ID grammar
 # ---------------------------------------------------------------------------
@@ -161,7 +202,7 @@ class TenantIdAttackMatrix(unittest.TestCase):
 class CrossTenantIsolationTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
-        os.environ[I.ENV_VAR] = self._tmp.name
+        os.environ[I.ENV_VAR] = str(Path(self._tmp.name).resolve())
         self.layout = I.InstanceLayout.open()
         self.layout.initialize()
         self.reg = R.TenantRegistry(self.layout)
@@ -169,6 +210,7 @@ class CrossTenantIsolationTests(unittest.TestCase):
         self.b, _ = self.reg.init_tenant(actor="admin", reason="tenant_b")
 
     def tearDown(self):
+        self.layout.close()
         self._tmp.cleanup()
         os.environ.pop(I.ENV_VAR, None)
 
@@ -206,13 +248,14 @@ class CrossTenantIsolationTests(unittest.TestCase):
 class TenantTreeSoftlinkAttacks(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
-        os.environ[I.ENV_VAR] = self._tmp.name
+        os.environ[I.ENV_VAR] = str(Path(self._tmp.name).resolve())
         self.layout = I.InstanceLayout.open()
         self.layout.initialize()
         self.reg = R.TenantRegistry(self.layout)
         self.tenant, _ = self.reg.init_tenant(actor="admin")
 
     def tearDown(self):
+        self.layout.close()
         self._tmp.cleanup()
         os.environ.pop(I.ENV_VAR, None)
 
@@ -335,7 +378,10 @@ class SecretScanTests(unittest.TestCase):
 
     def test_cli_output_never_leaks_secrets(self):
         with tempfile.TemporaryDirectory() as tmp:
-            env = {**os.environ, "CWK_INSTANCE_ROOT": tmp}
+            env = {
+                **os.environ,
+                "CWK_INSTANCE_ROOT": str(Path(tmp).resolve()),
+            }
             for argv in (
                 ["--help"],
                 ["state-graph"],
@@ -388,12 +434,13 @@ class SecretScanTests(unittest.TestCase):
 class RollbackSafetyTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
-        os.environ[I.ENV_VAR] = self._tmp.name
+        os.environ[I.ENV_VAR] = str(Path(self._tmp.name).resolve())
         self.layout = I.InstanceLayout.open()
         self.layout.initialize()
         self.reg = R.TenantRegistry(self.layout)
 
     def tearDown(self):
+        self.layout.close()
         self._tmp.cleanup()
         os.environ.pop(I.ENV_VAR, None)
 

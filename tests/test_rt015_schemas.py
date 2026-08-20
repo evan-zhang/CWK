@@ -363,7 +363,23 @@ class FrozenFilesZeroDriftTests(unittest.TestCase):
 
     def test_no_drift_from_head(self):
         import subprocess
+        policy_path = (
+            PROJECT
+            / "PR"
+            / "PR-001-multitenant-knowledge-spaces"
+            / "contracts"
+            / "script-evolution"
+            / "policy_v1.json"
+        )
+        policy = json.loads(policy_path.read_text(encoding="utf-8"))
+        evolvable = {entry["target_path"] for entry in policy["evolvable_paths"]}
+        self.assertIn("scripts/cwk_instance.py", evolvable)
         for rel in self.RT011_14_PATHS:
+            # The central script-evolution guard now owns these paths and
+            # verifies their genesis-to-receipt chain.  This historical
+            # RT-015 test keeps its direct HEAD check for every immutable path.
+            if rel in evolvable:
+                continue
             path = PROJECT / rel
             if not path.exists():
                 # Not our problem — skip if repo layout changed.

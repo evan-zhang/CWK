@@ -10,6 +10,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 
@@ -54,7 +55,8 @@ def _promote(layout: I.InstanceLayout, tenant_id: str, new_status: str) -> None:
 class _Base(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
-        os.environ[I.ENV_VAR] = self._tmp.name
+        self.instance_root = str(Path(self._tmp.name).resolve())
+        os.environ[I.ENV_VAR] = self.instance_root
         self.layout = I.InstanceLayout.open()
         self.layout.initialize()
         self.tenant_reg = R.TenantRegistry(self.layout)
@@ -62,6 +64,7 @@ class _Base(unittest.TestCase):
         self.store = CB.CredentialRefStore(self.layout).initialize()
 
     def tearDown(self):
+        self.layout.close()
         self._tmp.cleanup()
         os.environ.pop(I.ENV_VAR, None)
 
@@ -191,7 +194,7 @@ class EnvPollutionTests(_Base):
         try:
             # Broker constructed with an ISOLATED env snapshot lacking
             # CWK_CRED_t1 — it must NOT fall back to os.environ.
-            isolated = {"CWK_INSTANCE_ROOT": self._tmp.name}
+            isolated = {"CWK_INSTANCE_ROOT": self.instance_root}
             broker = CB.CredentialBroker(
                 layout=self.layout,
                 backends=CB.BackendRegistry({"env_ref": CB.EnvRefBackend(env=isolated)}),
@@ -221,7 +224,7 @@ class SecretScanTests(_Base):
             tenant_id=t1.tenant_id, reference_uri="secret://env-t1",
             backend="env_ref", actor="admin", reason="t",
         )
-        isolated = {"CWK_INSTANCE_ROOT": self._tmp.name, "CWK_CRED_t1": "material-goes-here"}
+        isolated = {"CWK_INSTANCE_ROOT": self.instance_root, "CWK_CRED_t1": "material-goes-here"}
         broker = CB.CredentialBroker(
             layout=self.layout,
             backends=CB.BackendRegistry({"env_ref": CB.EnvRefBackend(env=isolated)}),
@@ -271,7 +274,7 @@ class CrossTenantTests(_Base):
             backend="env_ref", actor="admin", reason="t",
         )
         # No credential for t2.
-        isolated = {"CWK_INSTANCE_ROOT": self._tmp.name, "CWK_CRED_a": "a-material"}
+        isolated = {"CWK_INSTANCE_ROOT": self.instance_root, "CWK_CRED_a": "a-material"}
         broker = CB.CredentialBroker(
             layout=self.layout,
             backends=CB.BackendRegistry({"env_ref": CB.EnvRefBackend(env=isolated)}),
@@ -308,7 +311,7 @@ class LegacyFallbackTests(_Base):
             tenant_id=t1.tenant_id, reference_uri="secret://env-missing",
             backend="env_ref", actor="admin", reason="t",
         )
-        isolated = {"CWK_INSTANCE_ROOT": self._tmp.name}
+        isolated = {"CWK_INSTANCE_ROOT": self.instance_root}
         broker = CB.CredentialBroker(
             layout=self.layout,
             backends=CB.BackendRegistry({"env_ref": CB.EnvRefBackend(env=isolated)}),
@@ -415,7 +418,15 @@ class Rt012FrozenFilesUntouchedTests(unittest.TestCase):
         self.assertEqual(COREM.PROVIDER_NAME, "cwk_tenant_cmd_core")
 
 
-class ConcurrentBindTests(_Base):
+class ConcurrentBindTests(unittest.TestCase):
+    """Canonical direct TestCase surface for the Stage-10 receipt."""
+
+    def setUp(self):
+        _Base.setUp(self)
+
+    def tearDown(self):
+        _Base.tearDown(self)
+
     def test_parallel_bind_same_agent_only_one_wins(self):
         t1, _ = self.tenant_reg.init_tenant(actor="admin")
         _promote(self.layout, t1.tenant_id, "active")
@@ -445,6 +456,134 @@ class ConcurrentBindTests(_Base):
         # can produce either a BindingConflictError or a RevisionConflict
         # (surfacing as an AtomicFileError).
         self.assertEqual(len(oks), 1, f"results={results!r}")
+
+    def test_late_prior_active_recheck_allows_only_one_commit(self):
+        """Force the exact early-check/late-snapshot race deterministically.
+
+        Both workers first prove the record absent.  The loser then pauses
+        before its second ``get_by_hash`` until the winner has committed.  A
+        correct bind path re-checks the newly visible status and rejects it;
+        the historical bug treated the winner's active record as a revoked
+        predecessor and committed binding_epoch=2.
+        """
+
+        tenant, _ = self.tenant_reg.init_tenant(actor="admin")
+        _promote(self.layout, tenant.tenant_id, "active")
+        auth_epoch_before = self.tenant_reg.get(tenant.tenant_id).auth_epoch
+
+        initial_reads_complete = threading.Barrier(2)
+        winner_committed = threading.Event()
+        original_get = self.binding_reg.get_by_hash
+        call_counts: dict[int, int] = {}
+        call_counts_lock = threading.Lock()
+
+        def _controlled_get(agent_id_hash: str) -> B.BindingRecord:
+            ident = threading.get_ident()
+            with call_counts_lock:
+                call_counts[ident] = call_counts.get(ident, 0) + 1
+                call_number = call_counts[ident]
+
+            if call_number == 1:
+                try:
+                    return original_get(agent_id_hash)
+                except B.BindingNotFound:
+                    initial_reads_complete.wait(timeout=5)
+                    raise
+
+            if threading.current_thread().name == "bind-loser" and call_number == 2:
+                self.assertTrue(winner_committed.wait(timeout=5), "winner did not commit")
+            return original_get(agent_id_hash)
+
+        self.binding_reg.get_by_hash = _controlled_get  # type: ignore[method-assign]
+
+        def _worker(role: str) -> str:
+            try:
+                rec, _ = self.binding_reg.bind(
+                    tenant_id=tenant.tenant_id,
+                    raw_agent_id="alice",
+                    actor="admin",
+                    reason=role,
+                )
+                if role == "winner":
+                    winner_committed.set()
+                return f"ok:{rec.binding_epoch}"
+            except B.BindingConflictError:
+                return "conflict"
+
+        winner = threading.Thread(
+            target=lambda: results.__setitem__("winner", _worker("winner")),
+            name="bind-winner",
+        )
+        loser = threading.Thread(
+            target=lambda: results.__setitem__("loser", _worker("loser")),
+            name="bind-loser",
+        )
+        results: dict[str, str] = {}
+        winner.start()
+        loser.start()
+        winner.join(timeout=10)
+        loser.join(timeout=10)
+        self.assertFalse(winner.is_alive(), "winner thread hung")
+        self.assertFalse(loser.is_alive(), "loser thread hung")
+
+        self.assertEqual(results, {"winner": "ok:1", "loser": "conflict"})
+        final = self.binding_reg.get_by_hash(self.binding_reg.hash_agent_id("alice"))
+        self.assertEqual(final.binding_epoch, 1)
+        with B._binding_sub(self.layout, "receipts") as fd:
+            receipt_names = sorted(
+                entry.name for entry in os.scandir(fd) if entry.name.endswith(".json")
+            )
+        self.assertEqual(len(receipt_names), 1)
+        auth_epoch_after = self.tenant_reg.get(tenant.tenant_id).auth_epoch
+        self.assertEqual(auth_epoch_after, auth_epoch_before + 1)
+
+    def test_sequential_duplicate_bind_conflicts_same_and_cross_tenant(self):
+        first, _ = self.tenant_reg.init_tenant(actor="admin")
+        second, _ = self.tenant_reg.init_tenant(actor="admin")
+        _promote(self.layout, first.tenant_id, "active")
+        _promote(self.layout, second.tenant_id, "active")
+        self.binding_reg.bind(
+            tenant_id=first.tenant_id,
+            raw_agent_id="alice",
+            actor="admin",
+            reason="first",
+        )
+        with self.assertRaises(B.BindingConflictError):
+            self.binding_reg.bind(
+                tenant_id=first.tenant_id,
+                raw_agent_id="alice",
+                actor="admin",
+                reason="same-tenant-duplicate",
+            )
+        with self.assertRaises(B.BindingConflictError):
+            self.binding_reg.bind(
+                tenant_id=second.tenant_id,
+                raw_agent_id="alice",
+                actor="admin",
+                reason="cross-tenant-duplicate",
+            )
+
+    def test_revoked_predecessor_still_allows_two_step_rebind(self):
+        first, _ = self.tenant_reg.init_tenant(actor="admin")
+        second, _ = self.tenant_reg.init_tenant(actor="admin")
+        _promote(self.layout, first.tenant_id, "active")
+        _promote(self.layout, second.tenant_id, "active")
+        original, _ = self.binding_reg.bind(
+            tenant_id=first.tenant_id,
+            raw_agent_id="alice",
+            actor="admin",
+            reason="first",
+        )
+        rebound, receipts = self.binding_reg.rebind(
+            raw_agent_id="alice",
+            new_tenant_id=second.tenant_id,
+            actor="admin",
+            reason="move",
+        )
+        self.assertEqual(rebound.tenant_id, second.tenant_id)
+        self.assertEqual(rebound.status, "active")
+        self.assertGreaterEqual(rebound.binding_epoch, original.binding_epoch + 2)
+        self.assertEqual(len(receipts), 2)
 
 
 if __name__ == "__main__":  # pragma: no cover

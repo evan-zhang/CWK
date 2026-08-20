@@ -1,6 +1,8 @@
 # PR-001：CWK 多租户共享证据与专题知识空间详细设计
 
-> 状态：G0 PASS，允许启动 RT-011
+> 状态：RT-011～RT-016 completed；按剩余工作执行冻结，下一波并行启动 **RT-017 + RT-022**；
+> **RT-019 不是第三条并行链**，必须等 RT-017 完整、不可再拆的 Stage-01
+> compatibility surface 独立验收 PASS 之后才能开工
 > 版本：0.1.0
 > 日期：2026-08-19
 > 对应需求：`PRD.md`
@@ -250,6 +252,45 @@ AccessObservation
 TenantEventEvidenceEnvelope (tenant-scoped, staged only)
 ```
 
+#### C-05a：Wave-0 neutral PilotAdmission ABI
+
+Pilot allowlist 不从 TenantRegistry、环境变量、CWD 或 RT-026 私有配置推断；所有 consumer
+只依赖中央冻结的 `PilotAdmissionProviderV1`：
+
+```python
+class PilotAdmissionProviderV1(Protocol):
+    API_VERSION = "cwk.pilot_admission_provider.v1"
+    @property
+    def purpose(self) -> str: ...
+    def snapshot(
+        self, *, agent_snapshot: AgentContextSnapshot
+    ) -> PilotAdmissionSnapshotV1: ...
+```
+
+- provider 在构造期绑定 `collector_run | profile_workflow | query_broker`；调用方法没有
+  `purpose=` 参数。
+- snapshot 字段恰好为 `schema,tenant_id,purpose,admitted,
+  admission_policy_revision,admission_policy_sha256,as_of,expires_at,snapshot_sha256`；
+  `0 < TTL <= 300s`，`as_of <= now < expires_at`。
+- `snapshot_sha256 = SHA256(b"cwk-pilot-admission-snapshot-v1\0" + JCS(
+  snapshot excluding only snapshot_sha256))`。这只是完整性绑定，权威性仍来自注入的
+  provider；Null provider 稳定返回 `unavailable`。
+- 只有 tenant status=`pilot` 强制 `admitted=true`；`profile_pending/active` 不因该 ABI
+  改变原状态权限。Collector/Scheduler 用 `collector_run`，Profile/Router/Projector 用
+  `profile_workflow`，Broker 用 `query_broker`。
+- 三件 neutral 工件由 Wave-0 中央控制面冻结，不属于任何 RT owner：
+  `scripts/cwk_pilot_admission_api.py`（SHA-256
+  `2bc26ff3b2b71bcfc1d3a5d7fba4a0cca99392a63837a62186086c9f6e817900`）、
+  `contracts/cross_rt/schemas/pilot_admission_snapshot_v1.schema.json`（
+  `af003563cff163350e2b0ef458a9c5029b0d4330a559779ec0464055aebcc6a6`）、
+  `tests/test_pr001_pilot_admission_contract.py`（
+  `1416d8d273868b91eeb0f0f563a1e3103cba8ec27c8a15d5209dd6eb1395386e`）。
+
+RT-023 只能提供与 production factory 物理分离的 non-production sandbox adapter，不能
+用于 VG-D/G5 的 production claim；RT-026 是唯一 production adapter owner，必须从
+release switch、有效 G7、target environment/instance、component flags 与 tenant
+allowlist 推导，off/shadow/过期/撤销/坏配置全部拒绝。
+
 ### C-06：Canonicalizer
 
 职责：从源端响应中提取跨用户稳定候选字段，规范化 JSON，计算哈希，生成不可变对象和 report version。
@@ -331,7 +372,21 @@ revoked   -> purge_pending -> purged
 - 只有 `active` 允许作为候选来源。`discovered / granted(未激活) / revalidation_due(过期未复核) / revoked / purge_pending / purged` 全部 fail closed。
 - `revalidation_due` 期间的“宽限可读”被明确禁止。
 - 没有权威撤销事件时使用不超过 15 分钟的 lease 定期复核；复核失败立即降级为 `revalidation_due` 并进入拒答。
+- RT-017 的 `CWorkAuthorityProvider` 只通过 Credential Broker 获取当前 tenant 的短租约凭据；只读 ABI 固定为 `observe_visible(cursor)`、`verify_grant(report_key)`、`consume_revocations(cursor)`，并区分 `ALLOW / EXPLICIT_DENY / NOT_FOUND / TRANSIENT_UNKNOWN / AUTH_FAILURE / SCHEMA_ERROR`。只有后端明确承诺为权威语义的 `ALLOW` 可签发不超过 15 分钟的短 lease receipt；明确 deny/revoke 立即撤权，其余状态全部 fail closed。bounded list 缺项不是撤权，现有关系观察接口也不能冒充 ACL 权威源。
 - SLA 首期采用“安全默认 + 后续基准替换”表述（对应 PRD FR-08）：撤权事件下逻辑拒绝 ≤60s 目标、派生清理 ≤5min 目标；RT-011 只验证权威能力，最终值在 RT-024 实测并于 RT-026 试点 go/no-go 引用前不虚构指标。
+
+RT-017 的 `list_profile_eligible(*, snapshot)` 不从 grant/view 私自填充 current canonical
+SHA。它必须注入 `CanonicalVersionProviderV1`，对每个 eligible `report_key` 调用
+`resolve_current(*, report_key)`，再由 provider 通过 RT-014 公开
+`SharedEvidenceStore.read_version(report_key, canonical_sha256)` 验证对象。返回快照字段
+恰好为 `schema,report_key,canonical_sha256,catalog_revision,catalog_head_sha256`；禁止
+枚举 catalog、调用 RT-014 私有 `_read_*`、或返回 path/object_id。冻结工件：
+`scripts/cwk_canonical_version_provider.py`（
+`4e6ec4ee88b5b23ebda160ccfb5dd60ee0c39092ca26e2247cf3caae67e1f518`）、
+`contracts/rt017/schemas/canonical_version_snapshot_v1.schema.json`（
+`dca2aceaad46fba973eb51d3ee7c4faa2350dc5191ac1af711cdb66f6bc6a3b3`）、
+`tests/test_rt017_canonical_version_provider.py`（
+`aab334e40e36cdb2f48ec2178393921dc91dae585675d28a952065250434dc06`）。
 
 ### C-09：Tenant View Store
 
@@ -423,6 +478,7 @@ AI 失败、超时、输出不合约一律进入 review 或按确定性规则执
 职责：为每个 tenant/space 生成可重建的 summary、topics、entities、index、daily/action/risk views。
 
 - 空间由稳定 opaque `space_id`（如 `sp_...`）标识；用户可读 slug（`tbs`、`sfe`）只是 tenant 配置中的 UI 别名。所有派生投影、审计、路由决策、缓存键、目录路径 `knowledge-spaces/<space_id>/` 均使用 opaque ID；slug 改名不影响任何持久化产物。
+- 首期空间不嵌套；每 tenant 最多 32 个空间。状态固定为 `active | disabled`。slug 为 tenant 内唯一的 lowercase ASCII `^(?=.{1,32}$)[a-z](?:[a-z0-9-]*[a-z0-9])?$`，禁止尾部 `-`，并保留 `all/shared/raw/system/archive/review`；只有已确认 Profile activation 或宿主机 admin 可创建，沙箱不能直接创建。
 - 每个派生文件记录 tenant internal ID、`space_id`、canonical_sha256、profile_version/profile_sha256 和生成器版本。
 - 同一 report 可被多个 space 投影，但事实字段引用同一 canonical evidence。
 - 空间特有的“为何重要”“专题解释”与基础事实分栏保存。
@@ -444,13 +500,13 @@ AI 失败、超时、输出不合约一律进入 review 或按确定性规则执
 }
 ```
 
-- `space_selector` 是 opaque `space_id` 数组。用户可读 slug（如 `tbs`）不得由沙箱本地读取 tenant 配置解析；RT-023 通过同一可信身份链提供 `list_spaces`/解析接口，Broker 请求只接受返回的 opaque ID。
-- `include_dispositions` 默认 `["index"]`；可显式加入 `archive_no_index` 或 `review` 以查询冷归档或待复核内容。任何未列入的 disposition 不进入候选。
+- `space_selector` 是 opaque `space_id` 数组。用户可读 slug（如 `tbs`）不得由沙箱本地读取 tenant 配置解析；RT-023 通过同一可信身份链提供固定的三个 Tool operation `query`/`list_spaces`/`resolve_slug`，Broker 请求只接受 `list_spaces`/`resolve_slug` 返回的 opaque ID。`resolve_slug` 是独立只读入口，只接受严格 `{slug}` 对象，slug 做严格 lowercase ASCII 字节匹配（不 lower/casefold/NFC/NFKC/去空白），变体一律按"不存在"等价拒绝；slug 不得混入 QueryRequest。
+- 缺省 `space_selector` 使用 active Profile 的默认 active space 集；显式空数组非法。`include_dispositions` 默认 `["index"]`，显式空数组非法；可显式加入 `archive_no_index` 或 `review`。`time_filter.from` 必须不晚于 `to`。
 - 请求体不允许出现 `tenant_id`、`agent_id`、`credential_ref`、`mirror_root`、绝对路径、`auth_epoch`、`profile_version` 等身份/权限字段。
 
 传输与身份：
 
-- **政策/ADR（G1）**：首期强制 OpenClaw 受控 Tool，Agent 身份由 Gateway 在 Tool 元数据注入；请求体身份字段必须拒绝。G1 只冻结政策、默认和能力探针，真实运行时合规由 RT-023、VG-D、G5 验收。
+- **政策/ADR（G1）**：首期强制 OpenClaw 原生受控 Tool plugin factory，Agent 身份由 Gateway 通过 tool execution context 注入；请求体身份字段必须递归拒绝。HTTP `/tools/invoke` 允许 operator 请求体选择 Agent，不属于本身份边界，不得用作沙箱查询通道。G1 只冻结政策、默认和能力探针，真实运行时合规由 RT-023、VG-D、G5 验收。
 - **后备本机实现**：Unix domain socket + `SO_PEERCRED`（或等价 peer credential，例如 macOS `LOCAL_PEERCRED`）。socket 权限 `0600`，位于 `runtime/query-broker.sock`。仍不接受请求体中的 `agent_id`；由 kernel 提供的 peer uid/pid 映射到宿主机 secret backend 中登记的可信 Agent 身份。
 - **禁止**：loopback HTTP + 请求体自报 `agent_id`、共享共享目录挂载、任何依赖用户输入声明租户的方案。这些方案任何时候都不满足 G1，即使加签名也不接受。
 
@@ -458,17 +514,43 @@ AI 失败、超时、输出不合约一律进入 review 或按确定性规则执
 
 1. 从传输层可信元数据取 Agent 身份，立即 HMAC；请求体身份字段一律拒绝；
 2. 通过 `agent_id_hash` 查询 Binding Registry，加载 `tenant_id`、`binding_epoch`、`status`；non-active fail closed；
-3. 加载 tenant `status`、`auth_epoch`、`active_profile_version/sha`；只有 `pilot/active` 允许继续，且 `pilot` 必须命中 allowlist；随后记录快照 `req_snapshot = {auth_epoch, binding_epoch, profile_sha}`；
-4. 校验 requested `space_id` 属于该 tenant 且未停用；
+3. 加载 tenant `status`、`auth_epoch`；只有 `pilot/active` 允许继续。`active` 对
+   PilotAdmission 调用 0 次；`pilot` 在读取 Profile、检索或 cache lookup 前以构造期绑定
+   `purpose=query_broker` 的 provider 做第一次准入快照。Profile 与 space 事实随后通过
+   **一次**注入式调用 `ProfileSpaceSnapshotProviderV1.snapshot(agent_snapshot)` 获取（见
+   下方 ABI 冻结），并记录
+   `req_snapshot = {auth_epoch,binding_epoch,profile_sha,space_ids,membership_versions,
+   index_versions,tenant_status,admission_policy_revision,
+   pilot_admission_snapshot_sha256}`；
+4. 缺省 `space_selector` 展开为 `default_space_ids`；显式 `space_selector` 必须是 `queryable_space_ids` 的子集，否则按存在性等价的 `access_denied` 拒绝；
 5. 从 Access Ledger 得到该 tenant 的 active grant 集，与 space membership 取交集，形成不可越权候选域；
 6. 仅在候选域对应的 tenant space index 中执行召回；旧索引中无授权的标题/数量/时序不得进入检索器；
-7. 对 Top-K 每个 report 再次读取 Binding + Tenant + Grant，**复核 `req_snapshot` 与当前值一致**，任一不一致（例如 in-flight 撤权导致 `auth_epoch` 递增）立即拒答该证据；
-8. 回读 shared object 并验证 SHA；
-9. 生成 evidence bundle；
-10. 可选让回答模型仅基于 evidence bundle 组织答案；
-11. 输出证据、截至时间和安全状态，写审计记录（只记 hash、长度、意图分类、授权 report id、`req_snapshot`）。
+7. 对 Top-K 每个 report 再次读取 Binding + Tenant + Grant，**复核 `req_snapshot` 与当前值一致**，任一不一致（例如 in-flight 撤权导致 `auth_epoch` 递增）立即拒绝整次请求；
+8. `pilot` 在上述 fresh context/grant/profile 复核后、EvidenceReader 前执行第二次
+   PilotAdmission；cache hit 也不得跳过两次准入。deny/unavailable 不缓存；revision
+   high-water 回退或两次 policy/snapshot 漂移都拒绝整次请求；
+9. 回读 shared object并验证 SHA；
+10. 生成 evidence bundle；
+11. 可选让回答模型仅基于 evidence bundle 组织答案；
+12. 输出证据、截至时间和安全状态，写审计记录（只记 hash、长度、意图分类、授权 report id、`req_snapshot`）。
 
 `index`、`archive_no_index`、`review` 各自使用独立 `limit`、timeout 和 concurrency；冷归档默认 limit 不高于普通 index 的一半，并禁止共享 raw 全扫描。
+
+**`ProfileSpaceSnapshotProviderV1` 单一所有权（并行 ABI 闭包）**：Broker 不读 Profile/Space 的私有磁盘布局，也不 import `cwk_knowledge_profile.py`/`cwk_space_registry.py`/`cwk_space_projector.py`；Profile 与 space 视图只经**构造注入**的 provider 获得。
+
+```python
+API_VERSION = "cwk.profile_space_snapshot_provider.v1"
+
+class ProfileSpaceSnapshotProviderV1(Protocol):
+    API_VERSION = "cwk.profile_space_snapshot_provider.v1"
+    def snapshot(self, agent_snapshot: AgentContextSnapshot) -> ProfileSpaceSnapshotV1: ...
+```
+
+- **owner = RT-022**（ABI + `cwk.profile_space_snapshot.v1` schema），**生产 adapter = RT-021**（零漂移消费，不得 fork/扩展/收窄或重定义同名 schema）。RT-022 只用 fake provider，可与 RT-019/021 并行开发。
+- 单次调用一次性返回 `profile_sha256`、`profile_version`、`default_space_ids`、`queryable_space_ids`、`membership_versions`、`index_versions`、`as_of`、`snapshot_sha256`；禁止 per-space 回调或 N+1。它取代了 `SpaceIndexProvider.list_active_spaces/versions`，后者只保留 `retrieve`，避免同一事实双 owner。
+- 不变式由 Broker 侧强制（provider 不可信）：`default_space_ids ⊆ queryable_space_ids`；两个 versions 映射的键集合精确等于 `queryable_space_ids`；违反、出现未知 space ID 或返回 slug/路径/正文/credential/他租户 ID 即 provider corruption，拒绝整次请求。
+- **0 space 不是特例路径**：即使没有任何可查询 space，返回值仍必须携带非空 `profile_sha256` 并进入 `req_snapshot` 与 cache key；随后按正常授权语义得到空候选域，映射为与未授权字节等价的 `access_denied`。
+- 二次 ACL 阶段重新调用一次并逐字段比对；任何漂移即整次请求 fail closed，不返回部分 bundle。
 
 本节的授权/检索核心由 RT-022 实现；OpenClaw Tool/UDS transport、`list_spaces`、沙箱 client 与真实 SpaceIndexProvider 由 RT-023 实现。Broker 不提供 break-glass、跨 tenant 读取或“管理员模拟用户”通道。
 
@@ -618,6 +700,7 @@ AI 只接收当前 tenant 已授权样本的 evidence bundle，并输出固定 s
 Sample manifest 与 proposal SHA 绑定：
 
 - 采样阶段生成 `sample_manifest_v1`：随机种子、分层参数、候选总数、每桶入样 `report_key + canonical_sha256`、chunk 划分方式、holdout 集合；写为不可变文件并计算 `sample_manifest_sha256`。
+- `sample_manifest_v1` 是 train + holdout 的唯一联合 manifest；两集合必须 disjoint。`sample_manifest_ref` 与 `holdout_manifest_ref` 必须是同一个 opaque ref，均指向这份联合 manifest，validator 复核同一文件与 SHA。active-grant 候选少于 120 篇时进入 `insufficient_authorized_sample`，不得缩小安全下限或重复样本。
 - Proposal 输出中必须包含 `sample_manifest_sha256`。RT-011 冻结字节规约：先由 profile normalizer 把所有字符串规范化为 Unicode NFC，再对结果执行 RFC 8785 JCS 并编码为 UTF-8；JCS 本身不承担 Unicode 归一化。`profile_sha256 = sha256(b"cwk-profile-v1\0" + jcs_utf8(nfc_normalized_proposal) + b"\0" + sample_manifest_sha256_ascii + b"\0" + prompt_template_sha256_ascii + b"\0" + model_id_utf8)`。禁止无分隔符字符串拼接。
 - Profile 激活时 registry 同时保存 `sample_manifest_ref`、`holdout_manifest_ref`、`prompt_template_sha256`、`model_id`；缺任一字段拒绝激活。
 - 回滚与影响分析必须以 manifest+profile SHA 组合为主键，避免不同样本产生同名 profile 版本。
@@ -652,11 +735,14 @@ Sample manifest 与 proposal SHA 绑定：
 ### 8.2 幂等键
 
 ```text
-route_job_key = tenant_id + report_key + canonical_sha256 + profile_sha256
-projection_key = route_job_key + space_id + projector_version
+LP(x) = uint32_be(len(UTF8(NFC(x)))) || UTF8(NFC(x))
+route_job_key = "rj_" + base32(sha256(b"cwk-route-job-v1\0" ||
+  LP(tenant_id) || LP(report_key) || LP(canonical_sha256) || LP(profile_sha256)))[0:26]
+projection_key = "pj_" + base32(sha256(b"cwk-projection-job-v1\0" ||
+  LP(route_job_key) || LP(space_id) || LP(projector_version)))[0:26]
 ```
 
-相同键重复执行不得生成重复成员、重复摘要或冲突版本。
+所有字符串先 NFC，再 UTF-8 length-prefix；相同键重复执行不得生成重复成员、重复摘要或冲突版本。
 
 ### 8.3 冷归档变化侦测
 
@@ -715,7 +801,7 @@ filter_hash + index_version
 - `cwk_thread_timeline.py`：RT-014 复用不可变事件和去重思想；原实现保持 legacy 兼容。
 - `cwk_collection_state.py`：RT-017 独占 tenant-scoped adapter；不得回写仓库级多租户状态。
 - `cwk_collect_live.py`：RT-017 独占改造。
-- `cwk_tenant_cli.py`：RT-012 独占共享 dispatcher 与冻结的 command-provider registry；`cwk_tenant_cmd_binding.py` 归 RT-013，`cwk_tenant_cmd_profile.py` 归 RT-019，`cwk_tenant_cmd_release.py` 归 RT-026；后续 RT 不得修改 dispatcher。
+- `cwk_tenant_cli.py`：RT-012 独占共享 dispatcher、loader、ABI 与安全语义；`cwk_tenant_cmd_binding.py` 归 RT-013，`cwk_tenant_cmd_profile.py` 归 RT-019，`cwk_tenant_cmd_release.py` 归 RT-026。RT-019、RT-026 各只允许一次“把自身 provider module 名加入 frozen slot tuple”的最小兼容修订，并须追加 migration note/append-only evolution receipt 与独立负向验收；中央 policy/pin/guard 不得由这些 RT 修改，除此之外后续 RT 不得修改 dispatcher。
 - `cwk_entity_catalog.py`、`cwk_wiki_search_index.py`：RT-021 独占 tenant/space 投影适配。
 - `cwk_wiki_query.py`：RT-022 独占 Broker/raw-loader 库函数适配；legacy CLI 不向沙箱暴露。
 - `cwk_sync_mirror_to_docdb.py`：首期不作为共享 raw 数据面；若需要兼容层，只能由 RT-026 通过默认关闭的 feature flag 接入。
@@ -923,13 +1009,111 @@ Legacy raw 分解器 `LegacyRawDecomposer` 契约：
 3. **用户知识方案**：RT-019 Knowledge Profile 共创；RT-020 Holdout/Router；RT-021 多知识空间 Projector 与索引。
 4. **安全查询与生产化准备**：RT-022 Query Broker 授权核心；RT-023 沙箱传输与客户端；RT-024 审计、可观测性与容量基准；RT-025 加密备份与 Clean-room 恢复；RT-026 试点准备、影子切换与回滚。
 
-在 RT-015、RT-018、RT-021、RT-023、RT-025 后分别执行 VG-A～VG-E 集成门禁。依赖满足且代码所有权不冲突的 RT 可受控并行，但任何 RT 都必须由独立实现 Agent 与独立验收 Agent 分离交付；波次 receipt 未通过不得进入后续安全边界。
+在 RT-015、RT-018、RT-021、RT-023、RT-025 **各自独立验收 PASS 之后**分别执行 VG-A～VG-E 集成门禁。依赖满足且代码所有权不冲突的 RT 可受控并行，但任何 RT 都必须由独立实现 Agent 与独立验收 Agent 分离交付；波次 receipt 未通过不得进入后续安全边界。
 
-规范依赖：`RT-011 → RT-012 → {RT-013,RT-014} → RT-015`；RT-015 后分出 migration（RT-016）、collector/scheduler（RT-017→018）、profile/router/projector（RT-019→020→021）和 Broker core（RT-022）；RT-021+022+RT-011 汇入 RT-023；RT-023/VG-D 与运行/知识链汇入 RT-024；RT-025 消费权威状态（明确包括 RT-012～015、RT-019～021 的产物）与 RT-024；RT-026 消费 RT-016/018/023/025 及全部 VG receipt。完整 DAG 以 `plans/开发计划.md` §2 为准。
+**门禁反环规则**：某个 VG 的 PASS 永远不是其前置 RT 的完成条件——顺序固定为「RT 独立 PASS → 执行该 VG → VG receipt 供下游 RT/G 消费」。同理，G6 由新鲜最终验收者在 RT-026 独立 PASS 之后签发，RT-026 不得消费 G6/G7；`READY_FOR_G7_REVIEW` 是 G6 之前的 RT-026 自身结论，G7 release readiness 在 G6 之后授权。
 
-三轴 crosswalk：G0 是本轮文档独立复审；G1=RT-011；G2=RT-012～013；G3=RT-014～016；G4=RT-019～021+VG-C；G5=RT-022～023+VG-D；G6=RT-024～026+VG-E+最终独立验收；G7 是 RT-026 后的独立部署授权。M0～M5 与 VG-A～E 保持独立定义，不按编号与 G 强行配对。
+规范依赖：`RT-011 → RT-012 → {RT-013,RT-014} → RT-015`；RT-015 后**直接**分出三支——migration（RT-016）、collector/scheduler（RT-017→018）和 Broker core（RT-022，独立并行分支）；profile/router/projector 链**不从 RT-015 直接分出**，而是挂在 RT-017 之下：`RT-017（完整 Stage-01 AccessLedger compatibility surface）→ RT-019 → RT-020 → RT-021`；RT-021+022+RT-011 汇入 RT-023；VG-B/VG-C/VG-D 与运行/知识链汇入 RT-024；RT-025 消费权威状态（明确包括 RT-012～016、RT-018～021 的产物）与 RT-024；RT-026 消费 RT-016/018/023/024/025 及 VG-A～VG-E + G1～G5 receipt（不含 G6/G7）。完整 DAG 以 `plans/开发计划.md` §2 为准。
 
-唯一代码所有权：共享 tenant CLI dispatcher/provider registry=`RT-012`；Collector=`RT-017`；实体/搜索投影=`RT-021`；Query Core/raw-loader=`RT-022`；transport/client=`RT-023`；Audit/Metrics=`RT-024`；Backup/Recovery=`RT-025`；legacy nightly/install/feature flag=`RT-026`。RT-013/019/026 只能新增各自 CLI provider，不能回改 dispatcher；跨 RT 只能通过冻结 schema/provider 接口协作。
+**profile/router 链的真实起点是 RT-017，不是 RT-015**：RT-019 的 sampler 必须在 `profile_pending` 状态下读取候选语料，而 RT-015 的公共 `list_query_eligible` 只放行 `pilot|active`，直接扫 Access Ledger 私有目录非法。唯一合法入口是 RT-017 新增的版本化 snapshot-only 只读 ABI `AccessLedger.list_profile_eligible(*, snapshot)`（`cwk.profile_eligibility.v1`），其 `canonical_sha256` 只能由构造注入的 `CanonicalVersionProviderV1` 解析，且同一 Stage-01 还必须完成 authority 注入、cleanup outbox v2/v1 reader 和 `PilotAdmissionProviderV1(purpose="profile_workflow")` 边界。因此 RT-019 必须等待 **RT-017 完整 Stage-01 独立验收 PASS** 之后才能开工；该 evolution 额度不得先签一份窄 eligibility receipt 再二次修改。RT-019 不得放宽 `list_query_eligible`，也不得自建 eligibility 判定。
+
+由此，Wave-1 的真实可并行度是 **2** 条链而非 3 条：**RT-017**（collector + 完整 Stage-01）与 **RT-022**（Broker core）。RT-022 之所以能全程独立并行，是因为它自己拥有并冻结 fake `ProfileSpaceSnapshotProviderV1` 与 fake `SpaceIndexProvider`，不读 RT-019/RT-021 的私有布局，真实 adapter 推迟到 RT-021。**不得再把 RT-017/RT-019/RT-022 表述为"三条完全独立的分支"。**
+
+三轴 crosswalk：G0 是本轮文档独立复审；G1=RT-011；G2=RT-012～013；G3=RT-014～016；G4=RT-019～021+VG-C；G5=RT-022～023+VG-D；G6=在 RT-024～026 各自独立 PASS + VG-A～VG-E 全 PASS 之后，由新鲜最终验收者签发（消费 RT-026 go/no-go 报告，不被 RT-026 消费）；G7 是 G6 之后的独立部署/release readiness 授权。M0～M5 与 VG-A～E 保持独立定义，不按编号与 G 强行配对。
+
+### 21.1 统一 gate receipt 契约
+
+VG-A～VG-E 的唯一机读格式与路径由中央契约 `contracts/gates/` 冻结，消费者不再需要从 Markdown 猜结论：
+
+| 文件 | 作用 |
+| --- | --- |
+| `verification_gate_receipt_v1.schema.json` | `cwk.pr001.verification_gate_receipt.v1`——五个 gate 的唯一 receipt 格式 |
+| `gate_registry_v1.json` | **冻结配置**：feeder RT、精确 `receipt_path`、consumer allowlist、每 gate `allowed_prerequisite_ids` |
+| `gate_registry_v1.schema.json` | registry 自身 schema |
+| `synthetic_closure_map_v1.json` | **冻结配置**：synthetic gate 的能力缺口闭合路径（`closure_mode`、`required_capability_ids`、`rerun_allowed`、current/archive 规则） |
+| `synthetic_closure_map_v1.schema.json` | closure map 自身 schema（封闭 5 gate / 2 capability，结构性禁状态与时点观测字段） |
+| `capability_activation_receipt_v1.schema.json` | `cwk.pr001.capability_activation_receipt.v1`——闭合能力缺口的唯一 receipt 格式，owner 为 RT-017 / RT-023 |
+
+- **registry 是不可变配置，不含状态**：没有 `status`/`conclusion`/`verdict`/`last_run_at`，schema 的 `forbiddenEntryKeys` 结构性禁止它们回流。跑一个 VG 不需要改中央配置。
+- **状态解析规则唯一**：`receipt_path` 不存在 ⇒ 该 gate **NOT RUN**；存在 ⇒ 状态就是该 receipt 内部的 `status`/`conclusion`。不得从 registry、`narrative_refs` 或任何 Markdown 推断。
+- **精确路径**：`gate-receipts/VG-{A..E}/receipt.json`，每 gate 恰好一份。
+- **每 gate `allowed_prerequisite_ids`** 是 `prerequisite_refs[].ref_id` 的冻结穷举允许集，由三条秩规则推导：①不得引用序号高于自身 `feeder_rt` 的 RT；②只允许波次顺序中严格更早的 VG；③只允许该时点已在上游的 G——**消费本 gate 的 G 必须排除**（G3 消费 VG-A、G4 消费 VG-C、G5 消费 VG-D）。另外 `ref_id` 在单份 receipt 内必须唯一。这挡住了 `VG-B → VG-C`、`VG-A → RT-025/G5` 这类前向引用；`G6`/`G7`/`RT-026` 在 pattern 层即被排除。
+- **RT-024 与 RT-026 只消费**：不创建、不补写、不猜测任何 receipt，静态检查证明它们未写入 `gate-receipts/**/receipt.json`。
+- **两条 consumer 关系互不派生**：`consumers`（**直接 RT 消费者**，值空间恰为 `{RT-024, RT-026}`）与 `release_gate_consumers`（**release gate 消费者**，值空间恰为 `{G3, G4, G5, G6}`）是两条不同的关系。早期版本只有前者、而计划断言后者，读起来像自相矛盾；现在两者都显式且机读。冻结值：`VG-A → {G3, G6}`、`VG-B → {G6}`、`VG-C → {G4, G6}`、`VG-D → {G5, G6}`、`VG-E → {G6}`，必须是 `release_gate_registry_v1.json` 中 `consumes_verification_gates` 的**精确逆关系**，双向对账。release gate 永不进 `consumers`，RT 永不进 `release_gate_consumers`。
+- **VG-A 的 receipt 现已存在**（`gate-receipts/VG-A/receipt.json`），固定 `status=pass`、`synthetic=true`、`conclusion=conservative_unknown`——**只表示 synthetic gate 通过，不表示真实 authority 可用**，任何下游不得升级该结论。它必须在 Wave-0 就地生成：RT-026 要求它作为前置输入，若由 RT-026 生成即构成 `VG-A → RT-026 → VG-A` 新环。
+- VG-B～VG-E 当前无 receipt 文件因而 NOT RUN，这是**当前观测而非冻结约束**；owner RT 独立 PASS 后可随时生成，契约测试自动接管校验。
+- 校验（2026-08-21 模块实测计数）：`tests.test_pr001_gate_contracts`（211 tests）、
+  `tests.test_pr001_security_gate_contracts`（206 tests）、
+  `tests.test_pr001_release_gate_contracts`（106 tests）、
+  `tests.test_pr001_release_gate_validation`（166 tests）。全量
+  `python3.11 -m unittest discover -s tests -p 'test_*.py'` 当前可收集 2059 tests；本轮完整
+  实跑尚未完成，因此这里不记录全量 PASS 或 skip 结论。
+
+#### release gate 契约（G1～G7）
+
+VG-A～VG-E 是**波次内**集成门禁；G1～G7 是**发布链**门禁，两者不可互相替代。机器权威同在 `contracts/gates/`：`release_gate_registry_v1.json`（七条目，配置非状态）、`release_gate_registry_v1.schema.json`、`release_gate_receipt_v1.schema.json`（**仅 G1～G6**）、`release_authorization_receipt_v1.schema.json`（**仅 G7**）。
+
+- **独立 receipt 根**：release receipt 落在 `release-gate-receipts/`，**不与 `gate-receipts/` 合并**。后者已被断言为 VG 的精确闭合（该根下每个 `receipt.json` 都必须落在 VG registry 路径上），把 G receipt 放进去会立刻被判为 undeclared extra，唯一出路是削弱那条已生效的 fail-closed 检查。精确路径：`release-gate-receipts/G1..G6/receipt.json`、`release-gate-receipts/G7/authorization.json`、归档 `release-gate-receipts/G<n>/archive/<自身hash>.json`。该根**当前不存在**，实现工作不得创建。
+- **验证 ≠ 授权**：G1～G6 回答"这份东西被验证过了吗"，G7 回答"这份东西可以被部署吗"。不同信任根，因此不同 schema `$id`、不同文件名（`authorization.json` vs `receipt.json`）、不同 domain separator（`cwk-release-authorization-receipt-v1\0` vs `cwk-release-gate-receipt-v1\0`）、不同自哈希字段（`authorization_sha256` vs `receipt_sha256`）。跨族重放在哈希与字段名两处同时失败。G7 必须由**外部信任根**签发，任何项目内 agent / 实现 agent / 验收 agent / go-no-go 评估者 / 测试签名者签的 G7 一律 INVALID，无论内容多完美。
+- **精确 DAG**：`G1={G0, RT-011}`；`G2={G1, RT-012, RT-013}`；`G3={G2, RT-014, RT-015, RT-016, VG-A}`（范围上限＝数据/迁移级对账，且被 VG-A 的 synthetic 上限传染性压住）；`G4={G3, RT-019, RT-020, RT-021, VG-C}`；`G5={G4, RT-022, RT-023, VG-D, CAP:gateway-identity-transport}`；`G6={G1..G5, RT-017..RT-026, VG-A..VG-E, 两份 CAP, 十份 SG:RT-017..026, RT-026-GO-NO-GO}`；`G7={G6}`。receipt 的 `prerequisite_refs[].ref_id` 多重集必须与之**精确相等**——少一个和多一个同样非法。**G6 重新绑定 G1～G5 全部五个**而非只引 G5：链式传递会让一个已被撤销或过期的中段门禁悄悄留在结论里。
+- **G0 不是 registry 条目**：它是 RT 之前的**文档评审**门禁，证据是叙述性 Markdown，无 feeder RT、无测试证据、无 artifact 哈希集、无环境绑定，建模成第八条目等于让一份 Markdown 冒充可验证门禁。它只能作为 ref_id `G0` 出现在 G1 前置集里，并被冻结为 `bootstrap_gate.final_wave0_review_report_path`（`reviews/审核报告-wave0-final.md`）。**该报告当前不存在，因此 G1 恒为 NOT_RUN**；第四轮报告 `historical_narrative_ref` 写在本轮契约整改之前，**明确不足以满足 G0**，只保留用于溯源。
+- **G6 的新鲜性是重算的，不是自报的**：`verifier_provenance.prior_engagement_ids` 必须为空，`freshness_attestation` 四项必须为 `true`，`fresh_evidence_classes` 必须集齐五类（全量回归/攻击面/恢复/回滚/默认关闭），并有 `expires_at`（`expires_at - created_at` 严格为正且 ≤30 天）。校验器扫描磁盘上全部 RT 验收、VG、上游 release gate 与 SG receipt，只要该 verifier 身份出现在任何一份的 producer/verifier 位上即判定不新鲜——自报清白而与重算矛盾本身就是违规。
+- **G7 的授权面窄到极致**：唯一机器前置恰为 `{G6}`，不重新消费 RT/VG/G1～G5。理由是职责分离——授权者若能直接引用底层证据，就能绕过或改写 G6 对这些证据的判断。授权还须：人类 `authorizing_principal`（`kind` 恒为 `human_user`）、非推断渠道（无 `inferred`/`derived_from_g6`/`implied_by_policy` 成员）、外部信任根签名（密钥 active 且未过期）、封闭的 `authorized_actions`（无 GA/扩大切换/schema 迁移/凭据轮换成员）、`scope.migration_phase` 恒为 `M4` 且只带计数不带租户标识、target commit/instance/environment 绑定、nonce 反重放、`not_before ≤ now < expires_at` 且窗口 ≤30 天、`revocable` 恒为 true 且撤销是 append-only 的新签名条目。
+- **AUTHORIZATION IS NOT EXECUTION**：一份有效 G7 只是允许操作者在窗口与范围内执行所列动作，它自身不启用租户、不翻开关、不部署、不注入凭据、不改 cron。执行代码必须在**每一次动作发生时**重新校验签名、密钥状态、时间窗、nonce、目标绑定与范围；把一次通过的校验当成长期许可就是重放。
+- **RT-026 的终态语义**：终态 token 冻结为 `READY_FOR_G7_REVIEW`，其**规范含义恰为 `READY_FOR_G6_FINAL_ACCEPTANCE`**——"该候选包可以被**提交**进入 G6 最终验收"。这是一个已被承认的 v1 命名失误（名字提 G7、含义指 G6），保留而不改名是因为它已冻结在 `synthetic_closure_map_v1.json` 与可执行断言里，改名等于对冻结契约做无版本破坏。所有面向人的文档必须把它注解为"可提交 G6 最终验收"，绝不得渲染成 `G7_AUTHORIZED` / `RELEASE_APPROVED` 之类。RT-026 达到该结论**不授权任何东西**：不签发 G6、不跳过 G6、不请求 G7、也不使 G7 变得可达。
+- **状态**：`release-gate-receipts/` 不存在，因此 G1～G7 **七个条目当前全部 NOT_RUN**。缺失永远不得从下游门禁、叙述文档、registry 或"前置全绿"推断——前置全绿是**运行**一个门禁的前提，绝不是它 receipt 的替代品。
+
+#### synthetic gate 的闭合路径（不是死角）
+
+VG-A 永久 synthetic。若规则停在"任一 hard gate 为 synthetic ⇒ 无条件 NO_GO"，则即便 RT-017/RT-023 后来交付真实能力，`READY_FOR_G7_REVIEW` 也永不可达。`synthetic_closure_map_v1.json` 在保持 fail-closed 的前提下把出口显式化：
+
+- **"永不升级"三重含义**：①已签发 receipt 永不就地编辑/重签；②任何下游（RT-024/RT-026/G6/G7）都不得把 `synthetic=true`/`conservative_unknown` 读成更强结论，**闭合后也不行**；③**不可重跑**仅对 `rerun_allowed=false` 成立——只有 VG-A，因为它验证的是 `FakeSigningAuthority` 下的 host chain，synthetic 范围是永久事实。
+- **VG-A 的缺口只能由两份单独 owner 的 activation receipt 闭合**：`cwork-authority-source`（owner **RT-017**）与 `gateway-identity-transport`（owner **RT-023**），路径在 `capability-receipts/<capability_id>/receipt.json`，**不在 `gate-receipts/` 下**，domain separator 也不同，两族 receipt 无法互换。它们与 §5.1 的 SG-00 逐条对应。
+- **闭合是合取**：`status=pass` ∧ `synthetic=false` ∧ `owner_rt_independent_pass=true` ∧ `conclusion=capability_activated` ∧ `receipt_sha256` 重算一致 ∧ 全部 `artifacts[].sha256` 与磁盘一致。任一不成立 ⇒ **OPEN ⇒ NO_GO**。闭合之后 VG-A 仍以 scoped evidence + 显式生产 caveat 列出，只是不再单独构成永久 blocker。
+- **VG-B～VG-E** 若出现 synthetic receipt，只能靠**非 synthetic 重跑**（或先修订 closure map 显式映射真实 activation receipt），不得借用 VG-A 的映射。重跑遵循 current/archive 规则：先把被取代 receipt 按字节归档到 `gate-receipts/VG-{X}/archive/{被取代 receipt_sha256}.json`（append-only），再发布新的 current receipt；任何已签发工件永不就地修改。
+- **VG-B～VG-E 的链是可机读遍历的，不是叙述**：每份 receipt 带单调整数 `sequence`（首跑=1，archive 与 current 合起来恰好占满 `1..N`，current 位于链尾），并以 `supersedes_receipt_sha256` 把第 k 份链接到第 k-1 份（首跑该字段必须缺席）。校验器走**唯一一条前缀链**，拒绝 gap / fork / orphan / cycle；每个归档文件名必须等于其自身重算出的 receipt hash；current 必须链接到最新归档项；全链 `gate_id` 必须一致。`created_at` 严格递增是**辅助**校验，**不是唯一排序证据**。空目录 / 无 current / 无 archive 仍为 `NOT_RUN`，不是失败。
+- **VG-A 是 pinned legacy exception**：其当前 receipt 由冻结配置中的静态不可变哈希 `7058a91a1a5d48a8daca2967b77e7cb64cea578fb66ee3b69f3c12ff3e918657` 钉住，**没有** `sequence`、**没有** supersedes 链接，archive 必须保持缺席或为空；不得为了补新字段而改动它的字节。任何替代的 VG-A current receipt，或任何 VG-A 归档 / 轮换尝试，都被直接拒绝。
+- **activation receipt 有界 TTL 且可续签**：每个 capability 在闭包图冻结 `max_validity_seconds`（`cwork-authority-source` 90 天 = 7776000s；`gateway-identity-transport` 30 天 = 2592000s，**刻意更短**——陈旧的 trust-store 声明是静默认证绕过，而不只是过期的权限列表）。校验器对链上**每一份** receipt 强制 `0 < expires_at - created_at <= max_validity_seconds`，上界为**闭区间**（正好等于上界有效，多一秒无效），且不依赖评估器时钟。该界只存在于冻结配置中，receipt 无法自行放宽自己的 TTL。续签复用同形的 current + append-only archive（`sequence`、`previous_receipt_sha256`、`capability-receipts/<capability_id>/archive/<旧 receipt_sha256>.json`）：owner 须在其 RT 验收仍然有效、且完成**一次新的真实探测**之后才可续签，禁止原地覆盖；RT-026 只读 current。
+- **subject 绑定是祖先 + 归属，不是 HEAD 相等**：activation、security 与 VG-B～VG-E receipt 都绑定精确 40 位 hex `tested_subject_commit` 与环境/构建指纹。该 commit 必须是引入此 receipt 的 evidence-only commit 的**祖先**，且必须是该 receipt 自身证据与 artifacts 所针对的那个 commit；它**不要求**等于 RT-026 的最终 HEAD——下游合并会在诚实证据产出之后合法推进 HEAD。
+#### Security Gate SG-00～SG-10 的机器权威
+
+`contracts/security/` 下三个文件构成 SG-00～SG-10 的**唯一机器权威**：
+`security_gate_registry_v1.json`（冻结 registry）、
+`security_gate_registry_v1.schema.json`（以 `forbiddenKeys` 禁掉一切可变状态字段，
+证明 registry 是 config-not-state）与单一
+`security_gate_receipt_v1.schema.json`。中央计划 §5.1 的 Markdown 矩阵是**派生文档**，
+冲突时以 registry 为准；说明见 `contracts/security/README.md`。
+
+- registry 声明十条精确路径 `security-receipts/RT-0{17..26}/receipt.json`、31 个全局唯一
+  的冻结 claim ID、每个 RT **自身任务表**中的生产任务，以及六类文件系统攻击
+  （`path_traversal` / `symlink_component` / `symlink_leaf` / `hardlink` / `toctou` /
+  `special_file`——symlink 拆成 component 与 leaf 是因为 `O_NOFOLLOW` 只防末段；
+  `special_file` 与 `hardlink` 分开是因为 `O_NOFOLLOW` 不拒绝 FIFO）。
+  **SG-03 的 owner 集合恰为 RT-017～RT-026 全部十个包**。
+- 状态只由「receipt 是否存在」及其自身 `status`/`conclusion` 推导；缺席 ⇒ `NOT_RUN`
+  ⇒ `NO_GO`。反向亦然：`security-receipts/` 下出现 registry 未声明的额外 receipt 是硬失败。
+- N/A 只允许 registry `na_permitted_claim_ids` 明确许可者（当前**仅** RT-022 的
+  `SGC-022-02`），且必须给出 registry 允许的 `reason_code` + 自然语言理由 + 静态证据；
+  **漏项 ≠ N/A**。
+- **反自依赖（接口级署名排除，不是 OS 级写拒绝）**：RT-026 自身的 SG-03/SG-10 receipt 是唯一
+  `preflight-security` 条目，由**独立预检验证者**在实现候选 commit 冻结之后、只读 go/no-go
+  评估器运行之前签发。Wave-0 成立的**恰好**是两条接口级规则：①`go_no_go_evaluation`
+  **不在** `write_phase_allowlist` 的**声明写阶段**内；②评估器把自己的
+  `go_no_go_evaluator_identity` **注入**校验并重算署名排除性，任何 `producer` 或 `verifier`
+  等于该身份的 receipt 一律判 INVALID。二者合起来的结论是：评估器既不是该证据的**声明阶段
+  写者**，也不是它的**署名作者**，因此 RT-026 不依赖自己署名的输出，十份 receipt 仍被精确声明。
+  `evaluator_identity_excluded` 是一条**必须与上述重算结果一致的声明**，一致性由校验方重算，
+  声明本身**不构成证明**；不一致即 fail closed。
+  **这两条都不证明**该进程在操作系统层面无法写入仓库——阶段 allowlist 是声明检查，身份比对
+  是字符串比对。OS 级只读执行（可信启动器、启动器签发的运行证明、前后精确成员清单、真实写
+  拒绝证据）归口 **AC-026-11**（任务 T026-15a～d），Wave-0 **未**证明；任何文档、receipt 或
+  报告都不得把接口级结论表述为 OS 级结论。
+- `independent_security_verification_pass` 是**独立安全/预检结论**，**不等价于**该 RT 的
+  最终 PASS；对 RT-026 尤其不表示 RT-026 已 PASS 或 G6 已签发。
+
+- **closure map 同样是配置不是状态**：不含 `status`/`closed`，也不含 `wave0_status`/`current_state_note` 这类时点观测；"是否已闭合"永远在评估时从磁盘 receipt 重算，人读现状快照只放 README/STATUS/可行性文档。RT-026 只聚合，不得创建 activation receipt、不得轮换 gate receipt、不得改 map。
+
+唯一代码所有权：共享 tenant CLI dispatcher/loader/ABI/security semantics=`RT-012`；Collector=`RT-017`；实体/搜索投影=`RT-021`；Query Core/raw-loader=`RT-022`；transport/client=`RT-023`；Audit/Metrics=`RT-024`；Backup/Recovery=`RT-025`；legacy nightly/install/feature flag=`RT-026`。RT-013 只能新增自身 CLI provider；RT-019/026 除各自 provider 外，各允许一次只增加自身 frozen slot 的最小兼容修订，且必须有 migration note、append-only evolution receipt 与独立负向验收；中央 policy/pin/guard 不得由这些 RT 修改。跨 RT 只能通过冻结 schema/provider 接口协作。
 
 ## 22. 生产放量条件
 

@@ -1,0 +1,448 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.synthetic_closure_map.v1",
+  "title": "PR-001 synthetic gate closure map v1",
+  "description": "Validates synthetic_closure_map_v1.json: the frozen table describing how a synthetic VG's capability gap can be closed without mutating any signed receipt in place and without reinterpreting a synthetic conclusion. Exactly five gate_closure entries (one per VG) and exactly two capabilities. Like the gate registry this file is configuration only and must never carry a mutable status or a point-in-time observation: additionalProperties:false plus forbiddenEntryKeys structurally prevent status/verdict/closed/wave0_status/current_state_note style fields from creeping in, so both 'has this run?' and 'is the gap closed?' are always recomputed from receipts on disk rather than read out of config.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "description",
+    "registry_ref",
+    "activation_receipt_schema_ref",
+    "activation_receipt_schema_id",
+    "closure_rule",
+    "receipt_history_rule",
+    "archive_path_template",
+    "archive_dir_template",
+    "chain_rule",
+    "evaluation_rule",
+    "evidence_binding_rule",
+    "activation_history_rule",
+    "activation_expiry_rule",
+    "activation_validity_bound_rule",
+    "activation_max_clock_skew_seconds",
+    "activation_not_before_rule",
+    "activation_max_validity_seconds_ceiling",
+    "activation_subject_binding_rule",
+    "activation_owner_scope_rule",
+    "activation_report_freeze_rule",
+    "activation_archive_path_template",
+    "archive_membership_rule",
+    "aggregation_rule",
+    "capabilities",
+    "gate_closure",
+    "activation_max_probe_age_seconds",
+    "owner_scope_tree_rule",
+    "renewal_probe_manifest_rule",
+    "path_boundary_rule",
+    "evidence_commit_derivation_rule"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.pr001.synthetic_closure_map.v1"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "registry_ref": {
+      "type": "string",
+      "const": "PR/PR-001-multitenant-knowledge-spaces/contracts/gates/gate_registry_v1.json"
+    },
+    "activation_receipt_schema_ref": {
+      "type": "string",
+      "const": "PR/PR-001-multitenant-knowledge-spaces/contracts/gates/capability_activation_receipt_v1.schema.json"
+    },
+    "activation_receipt_schema_id": {
+      "const": "cwk.pr001.capability_activation_receipt.v1"
+    },
+    "closure_rule": {
+      "description": "Prose statement disambiguating the three meanings of 'never upgraded' (no in-place mutation, no downstream reinterpretation, no rerun for rerun_allowed=false gates) and stating that only separately owned activation receipts close the capability gap a permanently synthetic gate names.",
+      "type": "string",
+      "minLength": 1
+    },
+    "receipt_history_rule": {
+      "description": "Prose statement of the current-vs-archive rule: receipt_path always holds the CURRENT receipt; a superseded receipt is archived byte-identically under its own receipt_sha256 before rotation; the archive is append-only; rerun_allowed=false gates never rotate; nothing signed is ever edited in place.",
+      "type": "string",
+      "minLength": 1
+    },
+    "archive_path_template": {
+      "type": "string",
+      "const": "PR/PR-001-multitenant-knowledge-spaces/gate-receipts/VG-{gate_letter}/archive/{superseded_receipt_sha256}.json"
+    },
+    "archive_dir_template": {
+      "type": "string",
+      "const": "PR/PR-001-multitenant-knowledge-spaces/gate-receipts/VG-{gate_letter}/archive"
+    },
+    "chain_rule": {
+      "description": "Prose statement of the machine-checkable receipt history chain: NOT_RUN iff no current receipt; archive filenames equal their own recomputed hash; first run has an empty archive and no supersedes link; a rerun forms one linear append-only chain whose newest archived hash equals the current receipt's supersedes_receipt_sha256; created_at strictly increases; rerun_allowed=false gates admit only the first-run shape and must match pinned_current_receipt_sha256.",
+      "type": "string",
+      "minLength": 1
+    },
+    "evaluation_rule": {
+      "description": "Prose statement of the exact per-gate evaluation: that gap state is derived from the CURRENT receipt on disk rather than any caller-supplied flag, which fields must all hold for a gap to count as CLOSED, and that anything else is OPEN and forces NO_GO.",
+      "type": "string",
+      "minLength": 1
+    },
+    "evidence_binding_rule": {
+      "description": "Prose statement that an activation receipt binds pre-existing independent evidence: safe repo-relative regular files only, and never its own path, another capability's activation receipt, or anything under gate-receipts/ — because a VG receipt is downstream sibling evidence and binding one would both invert the dependency order and make a hash an input to itself.",
+      "type": "string",
+      "minLength": 1
+    },
+    "activation_history_rule": {
+      "description": "Prose statement of the activation receipt lifecycle: current + append-only archive, monotonic sequence 1..N with the current receipt at the tip, previous_receipt_sha256 linking sequence k to k-1, archive filenames equal to their own hash, renewal only after a fresh real probe while the owning RT's acceptance is still valid, no in-place mutation, and RT-026 reading the current receipt only.",
+      "type": "string",
+      "minLength": 1
+    },
+    "activation_expiry_rule": {
+      "description": "Prose statement that every activation receipt carries expires_at with created_at < expires_at, that an expired current receipt leaves the gap OPEN and forces NO_GO exactly like an absent one, and that the renewal path in activation_history_rule is what keeps expiry from becoming a dead end.",
+      "type": "string",
+      "minLength": 1
+    },
+    "activation_validity_bound_rule": {
+      "description": "Prose statement that expires_at > created_at is not sufficient: every receipt in the chain must satisfy 0 < (expires_at - created_at) <= that capability's max_validity_seconds, inclusive at the upper bound, checked independently of the evaluator's clock so an absurd TTL is invalid at write time rather than merely expired later.",
+      "type": "string",
+      "minLength": 1
+    },
+    "activation_max_clock_skew_seconds": {
+      "description": "Frozen not-before allowance in seconds. created_at must be no later than the evaluation instant plus this value. Bounded well below any real TTL so it can never be used to smuggle in future-dated evidence.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3600
+    },
+    "activation_not_before_rule": {
+      "type": "string",
+      "minLength": 40
+    },
+    "activation_max_validity_seconds_ceiling": {
+      "description": "Hard upper bound on any capability's max_validity_seconds. No capability may declare a longer TTL policy, so the bound cannot be widened one capability at a time. 7776000 = 90 days.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 7776000
+    },
+    "activation_subject_binding_rule": {
+      "description": "Prose statement of the tested_subject_commit rule: ANCESTRY (the bound commit must be an ancestor of the commit introducing the receipt) plus OWNERSHIP (it must be the commit the receipt's own evidence_refs and artifacts were produced against), explicitly NOT equality with RT-026's final HEAD or any later merge commit.",
+      "type": "string",
+      "minLength": 1
+    },
+    "activation_owner_scope_rule": {
+      "type": "string",
+      "minLength": 40
+    },
+    "activation_report_freeze_rule": {
+      "type": "string",
+      "minLength": 40
+    },
+    "activation_archive_path_template": {
+      "type": "string",
+      "const": "PR/PR-001-multitenant-knowledge-spaces/capability-receipts/{capability_id}/archive/{superseded_receipt_sha256}.json"
+    },
+    "archive_membership_rule": {
+      "type": "string",
+      "minLength": 40
+    },
+    "aggregation_rule": {
+      "description": "Prose statement that RT-026 only aggregates, may never create/backfill/infer an activation receipt or rotate a gate receipt, and that this file records no point-in-time observation.",
+      "type": "string",
+      "minLength": 1
+    },
+    "capabilities": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "capability_id",
+          "title",
+          "owner_rt",
+          "sg_ref",
+          "owner_task_id",
+          "owner_task_ref",
+          "owner_contract_ref",
+          "generation_timing",
+          "activation_receipt_path",
+          "activation_archive_dir",
+          "owner_evidence_path_prefixes",
+          "max_validity_seconds",
+          "max_validity_note",
+          "feasibility_ref",
+          "closure_condition",
+          "production_conditions",
+          "required_evidence_roles",
+          "static_note",
+          "owner_code_path_prefixes",
+          "renewal_probe_path_template"
+        ],
+        "properties": {
+          "capability_id": {
+            "enum": [
+              "cwork-authority-source",
+              "gateway-identity-transport"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "owner_task_id": {
+            "description": "The exact checklist item in the owning RT's 开发任务.md that produces this receipt.",
+            "type": "string",
+            "pattern": "^([A-E]-[0-9]{2}[a-z]?|T0[0-9]{2}-[0-9]{2}[a-z]?)$"
+          },
+          "owner_task_ref": {
+            "description": "Repo-relative path of the owning RT's task list. Must live under the owner_rt package.",
+            "type": "string",
+            "pattern": "^RT/RT-0(1[1-9]|2[0-3]|25)/tasks/[^/]+\\.md$"
+          },
+          "owner_contract_ref": {
+            "description": "Repo-relative path of the owning RT's requirements contract, which states the real/non-synthetic production conditions.",
+            "type": "string",
+            "pattern": "^RT/RT-0(1[1-9]|2[0-3]|25)/specs/[^/]+\\.md$"
+          },
+          "generation_timing": {
+            "description": "Static statement of WHEN in the owning RT's lifecycle this receipt may be written, and why that ordering creates no dependency cycle with VG receipts or RT-026.",
+            "type": "string",
+            "minLength": 1
+          },
+          "production_conditions": {
+            "description": "Exact real / non-synthetic conditions that must all hold before the owner may sign. The final entry must state that absence or unknown produces NO activation receipt at all.",
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 12,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required_evidence_roles": {
+            "description": "Capability-specific evidence roles. A closing receipt must carry an evidence_refs entry for every role listed here; a receipt missing any role leaves the gap OPEN.",
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 12,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]{2,63}$"
+            }
+          },
+          "owner_rt": {
+            "description": "Owning RT. RT-024 and RT-026 are consumers only and are excluded by pattern.",
+            "type": "string",
+            "pattern": "^RT-0(1[1-9]|2[0-3]|25)$"
+          },
+          "sg_ref": {
+            "description": "The Security Gate row in plans/剩余工作执行计划-2026-08-20.md §5.1 that owns this capability's evidence.",
+            "type": "string",
+            "pattern": "^SG-(0[0-9]|10)$"
+          },
+          "activation_receipt_path": {
+            "description": "Exact repo-relative path of the activation receipt. Deliberately under capability-receipts/, never gate-receipts/, so it can never be mistaken for a VG receipt nor violate the registry-declared-path invariant.",
+            "type": "string",
+            "pattern": "^PR/PR-001-multitenant-knowledge-spaces/capability-receipts/[a-z][a-z0-9-]{2,63}/receipt\\.json$"
+          },
+          "activation_archive_dir": {
+            "description": "Append-only archive directory for superseded activation receipts of this capability. Sibling of activation_receipt_path, and never named receipt.json, so an archived receipt is never scanned as a current one.",
+            "type": "string",
+            "pattern": "^PR/PR-001-multitenant-knowledge-spaces/capability-receipts/[a-z][a-z0-9-]{2,63}/archive$"
+          },
+          "owner_evidence_path_prefixes": {
+            "description": "Repo-relative prefixes of the owner's EVIDENCE OUTPUT for this capability. A path under one of these is explicitly disqualified from counting as owner code scope, so a commit that changed nothing but the receipt cannot satisfy 'the subject modified the owning package'.",
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 8,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^(?!/)(?!.*\\.\\.)[A-Za-z0-9_./\\-]{1,200}/$"
+            }
+          },
+          "max_validity_seconds": {
+            "description": "Frozen maximum lifetime, in seconds, of any activation receipt for this capability. The validator enforces 0 < (expires_at - created_at) <= this value on every receipt in the chain, inclusive at the upper bound. Lives here in config, never in the receipt it constrains, so an owner cannot widen its own TTL. Must not exceed activation_max_validity_seconds_ceiling. Minimum 3600 so a one-second TTL cannot be used to make a capability trivially and permanently expired.",
+            "type": "integer",
+            "minimum": 3600,
+            "maximum": 7776000
+          },
+          "max_validity_note": {
+            "description": "Why this capability's bound is what it is — which external facts rotate and how fast. Static justification, never an observation of a current receipt.",
+            "type": "string",
+            "minLength": 16,
+            "maxLength": 1024
+          },
+          "feasibility_ref": {
+            "type": "string",
+            "pattern": "^PR/PR-001-multitenant-knowledge-spaces/references/"
+          },
+          "closure_condition": {
+            "description": "Static condition that must hold before the owner may sign an activation receipt. Must not describe what is true today.",
+            "type": "string",
+            "minLength": 1
+          },
+          "static_note": {
+            "description": "Static ownership/scope statement only. Must never describe a run outcome or a current observation.",
+            "type": "string",
+            "minLength": 1
+          },
+          "owner_code_path_prefixes": {
+            "description": "Repo-relative prefixes of the owner's CODE. tested_subject_commit must have modified at least one path under these, matched on exact path boundaries. Deliberately DISJOINT from owner_evidence_path_prefixes so evidence output can never satisfy owner code scope.",
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 8,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^RT/RT-0[0-9]{2}/$"
+            }
+          },
+          "renewal_probe_path_template": {
+            "description": "Sequence-specific path a renewal probe manifest must occupy. '{sequence}' is substituted with the receipt's sequence, so an earlier probe cannot be replayed under a later sequence.",
+            "type": "string",
+            "pattern": "^PR/PR-001-multitenant-knowledge-spaces/capability-receipts/[a-z0-9-]+/probes/sequence-\\{sequence\\}\\.json$"
+          }
+        }
+      }
+    },
+    "gate_closure": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "gate_id",
+          "synthetic_expected",
+          "rerun_allowed",
+          "closure_mode",
+          "required_capability_ids",
+          "static_note"
+        ],
+        "properties": {
+          "gate_id": {
+            "enum": [
+              "VG-A",
+              "VG-B",
+              "VG-C",
+              "VG-D",
+              "VG-E"
+            ]
+          },
+          "synthetic_expected": {
+            "description": "Whether this gate is known in advance to be permanently synthetic. This is a frozen property of the gate's own scope, not an observation of a receipt. Only VG-A is.",
+            "type": "boolean"
+          },
+          "expected_synthetic_reason": {
+            "description": "Required when synthetic_expected=true, forbidden otherwise. Must equal the synthetic_reason in that gate's current receipt.",
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{2,63}$"
+          },
+          "rerun_allowed": {
+            "description": "Whether a fresh execution of this gate may publish a new current receipt under receipt_history_rule. False only for gates whose synthetic scope is permanent (VG-A), which therefore never rotate and close solely via activation receipts.",
+            "type": "boolean"
+          },
+          "pinned_current_receipt_sha256": {
+            "description": "Immutable identity of the ONE current receipt a rerun_allowed=false gate is ever permitted to have. Required when rerun_allowed=false, forbidden otherwise. This is not an observation of a run: it is the frozen hash that any current receipt for this gate must equal, so a silently replaced, re-signed or alternate VG-A receipt is rejected even if it is internally self-consistent.",
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "closure_mode": {
+            "enum": [
+              "capability_activation_receipts",
+              "non_synthetic_rerun"
+            ]
+          },
+          "required_capability_ids": {
+            "type": "array",
+            "maxItems": 2,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "cwork-authority-source",
+                "gateway-identity-transport"
+              ]
+            }
+          },
+          "static_note": {
+            "description": "Static rule/scope statement only. Must never describe a run outcome or a current observation.",
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "activation_max_probe_age_seconds": {
+      "description": "Frozen upper bound on how much older a renewal probe's observed_at may be than the created_at of the receipt it certifies. A probe older than this did not certify THAT renewal. The anchor is deliberately the certifying receipt rather than the evaluation instant: a probe is an observation made at renewal time, and it is the receipt's own expires_at, not the probe age, that bounds how long the renewal stays valid.",
+      "const": 86400
+    },
+    "owner_scope_tree_rule": {
+      "description": "Freezes the owner-scope tree digest that pins exactly which content a subject commit contained.",
+      "type": "string",
+      "minLength": 120
+    },
+    "renewal_probe_manifest_rule": {
+      "description": "Freezes the renewal probe manifest shape and every field the evaluator recomputes.",
+      "type": "string",
+      "minLength": 120
+    },
+    "path_boundary_rule": {
+      "description": "Freezes exact path-boundary containment for every prefix comparison in this map.",
+      "type": "string",
+      "minLength": 120
+    },
+    "evidence_commit_derivation_rule": {
+      "description": "Freezes how the evidence commit E is derived rather than asserted.",
+      "type": "string",
+      "minLength": 120
+    }
+  },
+  "forbiddenEntryKeys": [
+    "status",
+    "conclusion",
+    "verdict",
+    "result",
+    "closed",
+    "open",
+    "passed",
+    "last_run_at",
+    "observed_at",
+    "current_state",
+    "current_state_note",
+    "wave0_status",
+    "present",
+    "exists",
+    "activated",
+    "receipt_sha256",
+    "tests_run"
+  ],
+  "semanticRules": [
+    "The map is frozen configuration: neither the top level nor any entry may carry a closure verdict or a point-in-time observation (see forbiddenEntryKeys). Both run status and closure are always recomputed from receipts on disk.",
+    "gate_id values are unique and cover exactly {VG-A, VG-B, VG-C, VG-D, VG-E}, in the frozen wave order.",
+    "capability_id values are unique and cover exactly {cwork-authority-source, gateway-identity-transport}.",
+    "activation_receipt_path is unique per capability and its directory segment equals capability_id.",
+    "activation_receipt_path must never sit under gate-receipts/, so VG receipt paths stay exclusively registry-declared.",
+    "closure_mode=capability_activation_receipts requires a non-empty required_capability_ids; closure_mode=non_synthetic_rerun requires an empty one.",
+    "synthetic_expected=true requires closure_mode=capability_activation_receipts, expected_synthetic_reason, and rerun_allowed=false; synthetic_expected=false forbids expected_synthetic_reason and requires rerun_allowed=true.",
+    "rerun_allowed=false is exactly equivalent to closure_mode=capability_activation_receipts: a gate that cannot be re-run must have an activation-receipt closure path, otherwise it would be an unreachable dead end.",
+    "pinned_current_receipt_sha256 is required exactly when rerun_allowed=false and forbidden otherwise; a rerun_allowed=false gate's current receipt must match the pin byte-for-byte by recomputed hash, must never carry supersedes_receipt_sha256, and must have an absent or empty archive directory.",
+    "gate history is verified mechanically under chain_rule, never asserted: a caller may not pass in whether the current receipt is synthetic, it is read from the current receipt on disk, and NOT_RUN or INVALID history fails closed exactly like an OPEN gap.",
+    "an activation receipt binds pre-existing evidence only; it may never reference its own path, another capability's activation receipt, or anything under gate-receipts/, because that would make its own hash an input to itself and would invert the dependency order by binding downstream sibling evidence.",
+    "no capability's closure_condition, generation_timing, production_conditions or required_evidence_roles may name or require a VG gate: VG-B is not a precondition of cwork-authority-source and VG-D is not a precondition of gateway-identity-transport. Each activation receipt binds only its owning RT's own independent PASS plus real capability evidence, and every VG stays an independent sibling input to RT-026.",
+    "activation receipts are neither write-once-forever nor silently overwritable: each capability has a current receipt plus an append-only archive under activation_archive_dir, with monotonic sequence 1..N, previous_receipt_sha256 linking k to k-1, archive filenames equal to their own hash, strictly increasing created_at and expires_at, and renewal only after a fresh real probe. RT-026 reads the current receipt only.",
+    "every activation receipt carries expires_at with created_at < expires_at; an expired current receipt leaves the gap OPEN and forces NO_GO exactly like an absent one, and expiry is never waived by an older archived receipt or by a sibling capability still being in date.",
+    "expires_at > created_at is necessary but NOT sufficient: every receipt in a capability's chain, current and archived alike, must satisfy 0 < (expires_at - created_at) <= that capability's max_validity_seconds. The upper bound is inclusive, so a lifetime exactly equal to max_validity_seconds is valid and one second more is rejected. A 9999-year or otherwise unbounded TTL is therefore invalid at write time, not merely expired later, and is caught without consulting the evaluator's clock.",
+    "max_validity_seconds is declared per capability in this config and must never exceed activation_max_validity_seconds_ceiling; a receipt may not carry its own TTL policy, so an owner can never widen the bound on the artifact the bound constrains.",
+    "tested_subject_commit is validated by ANCESTRY and OWNERSHIP, never by equality with a moving head: it must be an ancestor of the commit that introduces the receipt file, and it must be the commit the receipt's own evidence_refs and artifacts were produced against. Requiring it to equal RT-026's final HEAD is explicitly wrong, because downstream merges legitimately advance HEAD after an honest probe and such a rule would invalidate valid evidence and re-create the dead end.",
+    "every required_evidence_roles role must be covered by an evidence_refs entry in a closing receipt, and required_evidence_roles is non-empty and capability-specific: the two capabilities do not share one generic evidence list.",
+    "owner_task_ref and owner_contract_ref must both sit inside the owner_rt package, so the RT that owns the capability is also the RT whose task list and contract describe producing and verifying the receipt.",
+    "every required_capability_ids entry must resolve to a declared capability in this file.",
+    "immutability applies to every gate regardless of rerun_allowed: a signed receipt artifact is never edited, patched or re-signed in place. Rotation for rerun_allowed=true gates happens by archiving the superseded receipt byte-identically at archive_path_template and then publishing a new current receipt at receipt_path with a strictly later created_at.",
+    "the archive is append-only and each archived filename equals that receipt's own domain-separated receipt_sha256, so history tampering is detectable by recomputation; a rerun_allowed=false gate has an empty archive.",
+    "no downstream consumer (RT-024, RT-026, G6, G7) may reinterpret a synthetic=true / conservative_unknown receipt as anything stronger, whether or not its capability gap has been closed.",
+    "a synthetic gate whose gap is closed remains listed in the RT-026 go/no-go report as scoped evidence with an explicit production caveat; it simply stops being a standalone permanent blocker.",
+    "a gate carrying synthetic=true with no closure_mode able to close it (missing or invalid activation receipts, or a rerun that never happened) is OPEN, which forces NO_GO. OPEN is never downgraded to N/A."
+  ]
+}

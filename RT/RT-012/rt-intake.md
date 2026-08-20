@@ -121,3 +121,13 @@ RT-012 也把以下能力**明确留给后续 RT**，不在本 RT 内提供：
 - Query Broker / 沙箱 → RT-022 / RT-023；
 - 中央审计 / 备份 → RT-024 / RT-025；
 - Release / 试点 → RT-026。
+
+## 2026-08-21 pre-checkpoint remediation intake
+
+- 触发：只读复核复现 `resolve_instance_root()` 只检查 leaf，祖先 symlink 与已打开后的
+  ancestor/root replacement 可令同一 `InstanceLayout` 静默切换 inode。
+- 范围：仅 `scripts/cwk_instance.py`、RT-012 canonical tests/权威文档、必要的
+  RT-012～016/VG-A canonical temp fixtures，以及中央 script-evolution stage-09。
+- 不在范围：production、credential、scheduler/cron、security/release receipts、历史验收
+  报告改写、commit/push。
+- 完成语义：代码/测试/演进 receipt 闭合后仍须新的独立验收；旧 RT-012 PASS 不能替代本修订。

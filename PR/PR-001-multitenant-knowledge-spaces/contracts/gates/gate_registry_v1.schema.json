@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.gate_registry.v1",
+  "title": "PR-001 verification gate registry v1",
+  "description": "Validates gate_registry_v1.json: the frozen VG-A..VG-E gate table. Exactly five entries, one per gate, each with a frozen feeder RT and exactly one machine receipt path. The registry is configuration only: it MUST NOT carry any mutable execution status. additionalProperties:false plus the forbiddenEntryKeys list below structurally prevent a status/conclusion/verdict field from creeping back in.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "description",
+    "receipt_schema_ref",
+    "receipt_schema_id",
+    "downstream_only_ids",
+    "consumer_relation_model",
+    "release_gate_registry_ref",
+    "status_resolution_rule",
+    "prerequisite_rank_rule",
+    "gates"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.pr001.gate_registry.v1"},
+    "description": {"type": "string", "minLength": 1},
+    "receipt_schema_ref": {
+      "type": "string",
+      "const": "PR/PR-001-multitenant-knowledge-spaces/contracts/gates/verification_gate_receipt_v1.schema.json"
+    },
+    "receipt_schema_id": {"const": "cwk.pr001.verification_gate_receipt.v1"},
+    "downstream_only_ids": {
+      "description": "IDs that are strictly downstream of every VG and must never appear as a VG input.",
+      "type": "array",
+      "const": ["G6", "G7", "RT-026"]
+    },
+    "consumer_relation_model": {
+      "description": "Prose statement freezing the TWO separate consumer relations over VG-A..VG-E: `consumers` (direct RT consumers, value space {RT-024, RT-026}) and `release_gate_consumers` (release-gate consumers, value space {G3, G4, G5, G6}). Earlier revisions carried only the first while the plan asserted the second, which read as a contradiction; both are now explicit and neither is derivable from the other.",
+      "type": "string",
+      "minLength": 1
+    },
+    "release_gate_registry_ref": {
+      "description": "Pointer to the authority for the release-gate side of the second relation. The inverse of release_gate_consumers here must equal consumes_verification_gates there.",
+      "type": "string",
+      "const": "PR/PR-001-multitenant-knowledge-spaces/contracts/gates/release_gate_registry_v1.json"
+    },
+    "status_resolution_rule": {
+      "description": "Prose statement that runtime status comes only from receipt_path existence plus the receipt's own status/conclusion.",
+      "type": "string",
+      "minLength": 1
+    },
+    "prerequisite_rank_rule": {
+      "description": "Prose statement of the exact rank constraints from which every gate's allowed_prerequisite_ids is derived (RT rank capped at feeder_rt, strictly earlier VGs only, only already-upstream release gates), plus the ref_id uniqueness requirement.",
+      "type": "string",
+      "minLength": 1
+    },
+    "gates": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "gate_id",
+          "title",
+          "feeder_rt",
+          "definition_ref",
+          "receipt_path",
+          "narrative_refs",
+          "consumers",
+          "release_gate_consumers",
+          "allowed_prerequisite_ids",
+          "static_note"
+        ],
+        "properties": {
+          "gate_id": {"enum": ["VG-A", "VG-B", "VG-C", "VG-D", "VG-E"]},
+          "title": {"type": "string", "minLength": 1, "maxLength": 128},
+          "feeder_rt": {"enum": ["RT-015", "RT-018", "RT-021", "RT-023", "RT-025"]},
+          "definition_ref": {"type": "string", "pattern": "^PR/PR-001-multitenant-knowledge-spaces/plans/"},
+          "receipt_path": {
+            "type": "string",
+            "pattern": "^PR/PR-001-multitenant-knowledge-spaces/gate-receipts/VG-[A-E]/receipt\\.json$"
+          },
+          "narrative_refs": {
+            "type": "array",
+            "maxItems": 4,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^PR/PR-001-multitenant-knowledge-spaces/gate-receipts/[^/]+\\.md$"
+            }
+          },
+          "consumers": {
+            "description": "RELATION 1 - DIRECT RT CONSUMERS. The RT delivery packages whose own implementation reads this VG receipt JSON as an input. Value space is exactly {RT-024, RT-026}; a release gate must NEVER be added here. This is not the release-gate consumption relation, which lives in release_gate_consumers.",
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 2,
+            "uniqueItems": true,
+            "items": {"enum": ["RT-024", "RT-026"]}
+          },
+          "release_gate_consumers": {
+            "description": "RELATION 2 - RELEASE-GATE CONSUMERS. The release gates that must cite this VG receipt inside their frozen prerequisite set. Value space is exactly {G3, G4, G5, G6}; an RT must NEVER be added here. Frozen as VG-A -> [G3, G6], VG-B -> [G6], VG-C -> [G4, G6], VG-D -> [G5, G6], VG-E -> [G6], which must be the exact inverse of consumes_verification_gates in release_gate_registry_v1.json. G6 appears for every gate because final acceptance re-binds all five; G1 and G2 appear for none because no VG exists before RT-015; G7 appears for none because an authorization consumes no verification evidence beyond G6.",
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 2,
+            "uniqueItems": true,
+            "items": {"enum": ["G3", "G4", "G5", "G6"]}
+          },
+          "allowed_prerequisite_ids": {
+            "description": "Frozen exhaustive allowlist for this gate's receipt prerequisite_refs[].ref_id. Derived from the rank rule at prerequisite_rank_rule; any ref_id outside this set is a forward reference and must fail closed. G6, G7 and RT-026 are excluded by pattern; the gate's own id and every later VG are excluded by the rank rule.",
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 32,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^(RT-0(1[1-9]|2[0-5])|G[0-5]|VG-[A-E])$"
+            }
+          },
+          "static_note": {
+            "description": "Static rule/scope statement only. Must never describe a run outcome.",
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  },
+  "forbiddenEntryKeys": [
+    "status",
+    "conclusion",
+    "verdict",
+    "result",
+    "passed",
+    "last_run_at",
+    "receipt_sha256",
+    "tests_run"
+  ],
+  "semanticRules": [
+    "The registry is frozen configuration: neither the top level nor any gate entry may carry a mutable execution status (see forbiddenEntryKeys).",
+    "Runtime status is derived only from receipt_path existence and the status/conclusion inside that receipt.",
+    "gate_id values are unique and cover exactly {VG-A, VG-B, VG-C, VG-D, VG-E}.",
+    "feeder_rt values are unique; the frozen mapping is VG-A=RT-015, VG-B=RT-018, VG-C=RT-021, VG-D=RT-023, VG-E=RT-025.",
+    "receipt_path is unique per gate and its VG-x segment matches gate_id.",
+    "No gate may list G6, G7 or RT-026 as a producer or as a prerequisite input.",
+    "`consumers` is RELATION 1, DIRECT RT CONSUMERS, restricted to RT-024 / RT-026. `release_gate_consumers` is RELATION 2, RELEASE-GATE CONSUMERS, restricted to G3 / G4 / G5 / G6. The two relations are disjoint in value space and neither is derivable from the other; a release gate must never appear in `consumers` and an RT must never appear in `release_gate_consumers`.",
+    "release_gate_consumers is frozen as VG-A -> [G3, G6], VG-B -> [G6], VG-C -> [G4, G6], VG-D -> [G5, G6], VG-E -> [G6], and must be the EXACT inverse of consumes_verification_gates in release_gate_registry_v1.json. The two files are cross-checked in both directions, so a one-sided edit is a detectable contradiction rather than a silent divergence.",
+    "Being a release-gate consumer of VG-x and being in VG-x's allowed_prerequisite_ids are MUTUALLY EXCLUSIVE for the same G: a gate that consumes VG-x cannot also be upstream of it. G3, G4 and G5 therefore appear in release_gate_consumers of VG-A, VG-C and VG-D respectively and are absent from those same gates' allowed_prerequisite_ids. G6 consumes every VG and appears in no allowlist at all.",
+    "allowed_prerequisite_ids must never contain the gate's own gate_id, nor any VG later than it in the frozen wave order VG-A < VG-B < VG-C < VG-D < VG-E.",
+    "allowed_prerequisite_ids must never contain an RT whose ordinal exceeds that gate's feeder_rt.",
+    "allowed_prerequisite_ids must never contain a release gate that consumes this gate: G3 consumes VG-A, G4 consumes VG-C, G5 consumes VG-D.",
+    "allowed_prerequisite_ids is monotonically non-decreasing along VG-A -> VG-E: each gate's allowlist is a superset of the previous gate's allowlist plus that previous gate id."
+  ]
+}

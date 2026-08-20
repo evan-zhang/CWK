@@ -33,7 +33,8 @@ def _promote(layout: I.InstanceLayout, tenant_id: str, new_status: str) -> None:
 class _Base(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
-        os.environ[I.ENV_VAR] = self._tmp.name
+        self.instance_root = str(Path(self._tmp.name).resolve())
+        os.environ[I.ENV_VAR] = self.instance_root
         self.layout = I.InstanceLayout.open()
         self.layout.initialize()
         self.tenant_reg = R.TenantRegistry(self.layout)
@@ -44,6 +45,7 @@ class _Base(unittest.TestCase):
         _promote(self.layout, self.tenant_id, "active")
 
     def tearDown(self):
+        self.layout.close()
         self._tmp.cleanup()
         os.environ.pop(I.ENV_VAR, None)
 
@@ -233,7 +235,7 @@ class DualWriteConsistencyTests(_Base):
             tenant_id=self.tenant_id, new_reference_uri="secret://env-b",
             new_backend="env_ref", actor="admin", reason="t",
         )
-        env = {"CWK_INSTANCE_ROOT": self._tmp.name, "CWK_CRED_a": "old", "CWK_CRED_b": "new"}
+        env = {"CWK_INSTANCE_ROOT": self.instance_root, "CWK_CRED_a": "old", "CWK_CRED_b": "new"}
         broker = CB.CredentialBroker(
             layout=self.layout,
             backends=CB.BackendRegistry({"env_ref": CB.EnvRefBackend(env=env)}),

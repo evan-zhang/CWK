@@ -81,12 +81,13 @@ class StateMachineTests(unittest.TestCase):
 class RegistryBaseTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
-        os.environ[I.ENV_VAR] = self._tmp.name
+        os.environ[I.ENV_VAR] = str(Path(self._tmp.name).resolve())
         self.layout = I.InstanceLayout.open()
         self.layout.initialize()
         self.reg = R.TenantRegistry(self.layout)
 
     def tearDown(self):
+        self.layout.close()
         self._tmp.cleanup()
         os.environ.pop(I.ENV_VAR, None)
 

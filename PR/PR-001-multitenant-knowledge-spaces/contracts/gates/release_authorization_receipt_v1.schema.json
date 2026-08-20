@@ -1,0 +1,264 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.release_authorization_receipt.v1",
+  "title": "PR-001 release authorization v1 (G7 only)",
+  "description": "The machine-readable format for G7, the release readiness AUTHORIZATION. It is deliberately NOT a release gate receipt: it lives at release-gate-receipts/G7/authorization.json rather than receipt.json, it uses the domain separator cwk-release-authorization-receipt-v1\\0 rather than cwk-release-gate-receipt-v1\\0, and it has no status/conclusion/tests/artifacts surface at all. The separation exists because verification and authorization have different trust roots and must not be forgeable from one another: a verifier answers 'was this built and tested correctly?', an authorizer answers 'may this be deployed to real tenants?'. G7's only machine input is a CURRENT valid G6, so an authorizer can never re-litigate, override or substitute for verification. It must be signed by an EXTERNAL trust root; no project agent, implementation agent, acceptance agent, go/no-go evaluator or test signer may produce it, and a signature chaining to any in-repo or test key is INVALID regardless of contents.",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": [
+    "schema",
+    "gate_id",
+    "decision",
+    "authorizing_principal",
+    "authorization_channel",
+    "external_signature",
+    "g6_receipt_ref",
+    "authorized_actions",
+    "scope",
+    "target_binding",
+    "nonce",
+    "sequence",
+    "not_before",
+    "expires_at",
+    "revocable",
+    "recorded_by",
+    "created_at",
+    "authorization_sha256"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.pr001.release_authorization_receipt.v1"},
+    "gate_id": {"const": "G7"},
+    "decision": {
+      "description": "The authorizer's answer. Note there is no 'pass' and no 'conclusion': an authorization is a decision, not a verdict about correctness. denied and withdrawn are first-class so that a revocation is itself a signed artefact rather than the silent deletion of a file.",
+      "enum": ["authorized", "denied", "withdrawn"]
+    },
+    "authorizing_principal": {
+      "description": "WHO authorized. kind must be human_user: G7 exists precisely so that a human, not a pipeline, takes responsibility for exposing real tenants. Any non-human kind is rejected, and the id is opaque - never an email, never a credential.",
+      "type": "object",
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": {"const": "human_user"},
+        "id": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{2,63}$"}
+      }
+    },
+    "authorization_channel": {
+      "description": "HOW the authorization was obtained. Both allowed values require an affirmative human act. There is deliberately no 'inferred', no 'derived_from_g6', no 'implied_by_policy' and no 'agent_relayed' member: an authorization that could be inferred is not an authorization, and inference is exactly how a pipeline would grant itself deployment rights.",
+      "enum": ["explicit_user_instruction", "signed_out_of_band_approval"]
+    },
+    "external_signature": {
+      "description": "DETACHED signature by an EXTERNAL trust root over the canonical signed payload. Every field here except signature_b64 is a MIRROR of the authoritative trust store record looked up by the pair (trust_root_id, key_id); mirrors must match the record exactly, and actual verification uses the STORE's public key and algorithm, never the values carried here. An artefact may never nominate the key that validates it. trust_root_id must resolve in the production trust store and must NOT be any project, implementation, acceptance, evaluator or test identity.",
+      "type": "object",
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "required": ["trust_root_id", "key_id", "key_state", "key_not_before", "key_expires_at", "algorithm", "signature_b64"],
+      "properties": {
+        "trust_root_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{2,63}$"},
+        "key_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{2,63}$"},
+        "key_state": {"enum": ["active", "revoked", "expired", "suspended"]},
+        "key_not_before": {"type": "string", "format": "date-time"},
+        "key_expires_at": {"type": "string", "format": "date-time"},
+        "algorithm": {
+          "description": "ecdsa-p256-sha256 is the ONLY algorithm in v1. ed25519 was removed deliberately: the reference platform ships LibreSSL 3.3.6, which has no Ed25519, and Python 3.11 here has neither cryptography nor PyNaCl. Leaving an algorithm in the enum that the validator cannot actually verify is a fail-OPEN hazard - an artefact declares it, verification cannot run, and an implementation is tempted to skip. One algorithm that is genuinely verifiable beats two where one is aspirational.",
+          "const": "ecdsa-p256-sha256"
+        },
+        "signature_b64": {
+          "description": "Base64 of a CANONICAL ASN.1 DER ECDSA-Sig-Value SEQUENCE{r INTEGER, s INTEGER} with LOW-S normalisation (s <= n/2). ECDSA is malleable: for any valid (r,s), the pair (r, n-s) is also valid over the same message, so without low-S an attacker can mint a second distinct signature_b64 for an unchanged body. Because authorization_sha256 covers signature_b64, that produces a DIFFERENT authorization hash for the SAME authorization - two valid-looking artefacts, one decision. Low-S plus strict DER makes the encoding unique. Non-canonical DER - leading zero padding, wrong length octets, indefinite length, trailing bytes - is rejected rather than tolerated.",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]{64,512}={0,2}$"
+        }
+      }
+    },
+    "g6_receipt_ref": {
+      "description": "The ONLY machine prerequisite. It pins the G6 final acceptance by recomputed hash and repeats G6's own subject commit and expiry, so an authorization cannot be re-pointed at a different or lapsed G6 without detection.",
+      "type": "object",
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "required": ["ref_id", "ref_path", "ref_sha256", "g6_tested_subject_commit", "g6_expires_at"],
+      "properties": {
+        "ref_id": {"const": "G6"},
+        "ref_path": {
+          "type": "string",
+          "const": "PR/PR-001-multitenant-knowledge-spaces/release-gate-receipts/G6/receipt.json"
+        },
+        "ref_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "g6_tested_subject_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "g6_expires_at": {"type": "string", "format": "date-time"}
+      }
+    },
+    "authorized_actions": {
+      "description": "The EXHAUSTIVE closed list of what this authorization permits. Anything absent is forbidden. The enum contains no member for expanded rollout, GA, schema migration or credential rotation, so a controlled-pilot authorization can never be stretched into a general release mandate.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "enable_pilot_broker_for_allowlisted_tenants",
+          "enable_pilot_schedule_for_allowlisted_tenants",
+          "inject_production_credentials_for_allowlisted_tenants",
+          "switch_pilot_cron_for_allowlisted_tenants"
+        ]
+      }
+    },
+    "scope": {
+      "description": "The blast radius. Counts and phase only - never tenant identifiers, which are deep-forbidden. migration_phase is pinned to M4: G7 authorizes the CONTROLLED PILOT and nothing beyond it, so M5 expansion requires its own separate authorization.",
+      "type": "object",
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "required": ["migration_phase", "tenant_allowlist_sha256", "allowlisted_tenant_count", "pilot_window_days"],
+      "properties": {
+        "migration_phase": {"const": "M4"},
+        "tenant_allowlist_sha256": {
+          "description": "sha256(b\"cwk-release-tenant-allowlist-v1\\0\" + the sorted, NUL-terminated, NFC-normalised tenant ids). A COUNT ALONE IS NOT A BINDING: two different tenant sets of the same size are interchangeable under a count check, which is exactly how an authorization for tenants {a,b} gets replayed against tenants {c,d}. The enforcing code recomputes this digest from the ACTUAL deployment allowlist and requires an exact match. It is privacy-preserving by construction, so the artefact binds WHICH tenants without ever naming them - tenant_id and tenant_ids stay deep-forbidden and the digest is the only permitted representation.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "allowlisted_tenant_count": {
+          "description": "Must equal the number of ids that went into tenant_allowlist_sha256. Carried alongside the digest so a same-count-different-set replay fails on the digest and a different-count set fails on both.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3
+        },
+        "pilot_window_days": {"type": "integer", "minimum": 1, "maximum": 30}
+      }
+    },
+    "target_binding": {
+      "description": "WHAT and WHERE this authorization applies to. Without it an authorization for one commit in one instance could be replayed against a different build or a different deployment. All three are recomputed by the enforcing code, and target_commit must equal g6_receipt_ref.g6_tested_subject_commit.",
+      "type": "object",
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "required": ["target_commit", "instance_id", "environment_fingerprint"],
+      "properties": {
+        "target_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "instance_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{2,63}$"},
+        "environment_fingerprint": {
+          "type": "object",
+          "additionalProperties": false,
+          "unevaluatedProperties": false,
+          "required": ["python_version", "platform", "toolchain_build"],
+          "properties": {
+            "python_version": {"type": "string", "pattern": "^3\\.[0-9]{1,2}\\.[0-9]{1,2}$"},
+            "platform": {"type": "string", "minLength": 1, "maxLength": 128},
+            "toolchain_build": {"type": "string", "minLength": 1, "maxLength": 128},
+            "sandbox_profile": {"type": "string", "minLength": 1, "maxLength": 128}
+          }
+        }
+      }
+    },
+    "nonce": {
+      "description": "Single-use anti-replay value, unique across the entire authorization history including the archive. A repeated nonce means the same authorization is being presented twice and is rejected even if every signature verifies.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{32,64}$"
+    },
+    "sequence": {
+      "description": "Monotonic counter over the G7 authorization chain. 1 is the first authorization; the archive holds 1..N-1 and the current file is the tip at N. A withdrawal is a new signed entry at N+1, never an edit or deletion of an earlier one.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "supersedes_authorization_sha256": {
+      "description": "FORBIDDEN when sequence=1, REQUIRED when sequence>1, where it must equal the recomputed hash of the archived authorization at sequence-1.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "not_before": {
+      "description": "Start of the validity window. Presenting an authorization before this instant is rejected, so a pre-signed future authorization cannot be activated early.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "description": "End of the validity window. Every authorization expires; there is no perpetual grant. Must be strictly after not_before and at most 30 days later.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "revocable": {
+      "description": "Always true. An authorization that could not be withdrawn would make the pilot irreversible, which contradicts the one-click legacy rollback requirement.",
+      "const": true
+    },
+    "revocation_ref": {
+      "description": "Present only when decision=withdrawn: the hash of the authorization being withdrawn.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "recorded_by": {
+      "description": "The opaque identity that TRANSCRIBED this authorization into the repository. It is a clerical role with no authority: it must differ from authorizing_principal.id, and it must never be an RT-026 identity or the go/no-go evaluator, so the component that would benefit from the authorization can never be the one that records it.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,63}$"
+    },
+    "created_at": {"type": "string", "format": "date-time"},
+    "authorization_sha256": {
+      "description": "sha256(b\"cwk-release-authorization-receipt-v1\\0\" + JCS_UTF8(NFC(record_without_authorization_sha256))). The field is deliberately NOT named receipt_sha256 and the separator is deliberately NOT cwk-release-gate-receipt-v1\\0, so an authorization can never be replayed as a verification receipt or vice versa.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "deepForbiddenKeys": [
+    "tenant_id",
+    "tenant_ids",
+    "agent_id",
+    "app_key",
+    "appkey",
+    "credential",
+    "credential_ref",
+    "token",
+    "cookie",
+    "secret",
+    "private_key",
+    "body",
+    "raw",
+    "raw_body",
+    "instance_root",
+    "mirror_root",
+    "abs_path",
+    "absolute_path",
+    "prompt",
+    "model_output",
+    "status",
+    "conclusion",
+    "tests_run",
+    "tests_failed",
+    "artifacts",
+    "verifier",
+    "producer"
+  ],
+  "semanticRules": [
+    "gate_id is const G7. This schema validates exactly one artefact, at release-gate-receipts/G7/authorization.json. A file named receipt.json under G7, or an authorization.json under G1..G6, is a closure violation.",
+    "verification fields are deep-forbidden here: status, conclusion, tests_run, tests_failed, artifacts, verifier and producer must all be absent. An authorization that carried a verification verdict could be mistaken for one, which is precisely the collapse this separation prevents.",
+    "the domain separator is cwk-release-authorization-receipt-v1\\0 and the self-hash field is authorization_sha256, both deliberately different from the release gate receipt family. Cross-family replay therefore fails on both the field name and the hash.",
+    "authorizing_principal.kind must be human_user. No agent, service account, pipeline, scheduler or automation identity may hold this role.",
+    "authorization_channel must be explicit_user_instruction or signed_out_of_band_approval. There is no inferred or derived channel: G7 may never be produced as a consequence of G6 being green, of every gate passing, or of any policy evaluation. Inference is not authorization.",
+    "external_signature.trust_root_id must resolve in the PRODUCTION trust store and must NOT be any project identity, implementation agent, acceptance agent, go/no-go evaluator, or test signer. A test signer is rejected in production mode even when the signature is cryptographically valid, because the whole point of an external trust root is that the project cannot mint its own deployment permission.",
+    "external_signature.key_state must be active at validation time, and key_expires_at must be strictly in the future. A signature made with a revoked or expired key is INVALID even if it verifies mathematically.",
+    "the TRUST STORE is an authoritative mapping keyed by the PAIR (trust_root_id, key_id), never by key_id alone - two roots may number their keys the same way, and collapsing the key would let a weaker root's key validate a stronger root's authorization. Each record carries trust_root_id, key_id, public_key, algorithm, state, not_before, expires_at, revoked_at, purpose and principal_id. Lookup FAILS CLOSED: an unknown pair is rejected, never treated as an unconstrained key.",
+    "every external_signature field except signature_b64 is a MIRROR of that trust record and must match it exactly: a forged key_id, a key_state of active where the store says revoked or suspended, an algorithm the store does not issue for that key, or a key_expires_at later than the store's are each rejected. Verification then uses the STORE's public_key and the STORE's algorithm, NEVER the values the artefact carries, so an artefact can never nominate the key that validates it.",
+    "the trust record's purpose must be the release-authorization purpose - a key issued for code signing or transport identity may not authorise a deployment - and principal_id must equal the authorizing principal and must not resolve to any in-repo, project or test identity.",
+    "key validity is judged at the EVALUATION instant, not the signing instant: the instant must fall at or after not_before and strictly before expires_at, and revoked_at must be null or strictly after it. A key revoked or expired AFTER a genuine signature was made therefore still rejects, because the question at use time is whether this authorization may be relied on NOW.",
+    "the signature is DETACHED and its payload is explicitly bounded. Construction is frozen: deep-copy the record; delete EXACTLY two things - the top-level authorization_sha256 and the nested external_signature.signature_b64, nothing else, since every extra exclusion is a field an attacker may then mutate freely; normalise recursively to NFC; serialise with RFC 8785 JCS to UTF-8; prefix cwk-release-authorization-signature-v1\\0; sign and verify those bytes DIRECTLY. Only THEN is authorization_sha256 computed, over cwk-release-authorization-receipt-v1\\0 and the full record excluding ONLY itself - so it covers signature_b64 and binds the final signature.",
+    "there is deliberately NO signed_payload_sha256 field. An earlier revision carried one, and it was SELF-REFERENTIAL and therefore unimplementable: the signed payload removes only authorization_sha256 and signature_b64, so a signed_payload_sha256 field would remain inside the very bytes it claims to digest, and computing it would require already knowing it. The fix is NOT to make it a third excluded field - each additional exclusion is a field an attacker may then mutate with impunity - but to delete it. A verifier reconstructs the payload from the frozen two-key exclusion rule and verifies the signature over those bytes directly; no cached digest is needed, and no cached digest can disagree with the bytes.",
+    "the previous revision signed 'the body excluding authorization_sha256', which still contained signature_b64 and was therefore UNIMPLEMENTABLE in a second way: producing the signature required already knowing it. Because signature_b64 is now outside the signed payload, mutating the signature alone leaves the signed payload BYTES unchanged - so the real cryptographic verification fails on its own merits - while also breaking authorization_sha256. That asymmetry is the executable proof that the exclusion is real.",
+    "signature_b64 must be CANONICAL ASN.1 DER SEQUENCE{r,s} with LOW-S normalisation (s <= n/2). ECDSA is malleable - for any valid (r,s) the pair (r, n-s) verifies over the same message - so without low-S an attacker mints a second distinct signature for an UNCHANGED body, and since authorization_sha256 covers signature_b64 that yields two valid-looking authorizations for one decision. Non-canonical DER (leading zero padding, wrong length octets, indefinite length, trailing bytes) is rejected rather than tolerated.",
+    "ecdsa-p256-sha256 is the ONLY permitted algorithm in v1. ed25519 was removed because the reference platform ships LibreSSL 3.3.6, which has no Ed25519, and the Python here has neither cryptography nor PyNaCl: an algorithm the validator cannot actually verify is a fail-OPEN hazard. A validator that cannot perform real verification must FAIL CLOSED with an explicit dependency error and must never skip, stub or whitelist-by-digest the check.",
+    "signature verification is REAL cryptographic verification against the trust record's public key. A digest whitelist, an 'expected signature' table or any equivalent stub is NOT verification: it accepts whatever the fixture author enumerated and would accept a forged artefact in production.",
+    "the signature and authorization_sha256 are checked INDEPENDENTLY and both must hold. Three cases separate them cleanly: mutating a body field and recomputing authorization_sha256 WITHOUT re-signing leaves the self-hash correct and fails only signature verification; replacing signature_b64 with another key's signature and recomputing authorization_sha256 leaves the signed payload bytes untouched and again fails only signature verification; corrupting authorization_sha256 alone leaves the signature verifiable and fails only the self-hash. Each is rejected on its own.",
+    "g6_receipt_ref is the ONLY machine prerequisite. G7 does not re-consume RT-011..RT-026, VG-A..VG-E or G1..G5. This narrow authority is the separation of duties: the authorizer may only decide whether an ALREADY-VERIFIED candidate may be deployed, never whether it was verified, and therefore cannot overrule or repair a verifier's judgement.",
+    "g6_receipt_ref.ref_sha256 is RECOMPUTED from the file at ref_path through a fail-closed openat/O_NOFOLLOW chain. The referenced G6 must itself be fully valid with status=pass and conclusion=READY_FOR_G7_AUTHORIZATION; a missing, failing, synthetic or hash-drifted G6 makes the authorization INVALID.",
+    "the referenced G6 must be CURRENT and unexpired: g6_receipt_ref.g6_expires_at must match the G6 receipt and must be strictly in the future at validation time. An authorization resting on a lapsed final acceptance is rejected, because the assembled system it certified may have drifted.",
+    "target_binding.target_commit must equal g6_receipt_ref.g6_tested_subject_commit, and target_binding.environment_fingerprint must equal the environment being deployed to. An authorization for one build or one instance must never be honoured against another.",
+    "authorized_actions is an EXHAUSTIVE closed list: anything not listed is forbidden. The enum has no member for expanded rollout, GA, schema migration or credential rotation, so a pilot authorization can never be stretched into a general release mandate.",
+    "scope.migration_phase is pinned to M4. G7 authorizes the controlled pilot only; M5 expansion requires its own separate authorization and may never be inferred from this one.",
+    "scope carries counts and a DIGEST, never tenant identifiers - tenant_id and tenant_ids are deep-forbidden - so an authorization artefact can never become a tenant data leak.",
+    "scope.tenant_allowlist_sha256 = sha256(b\"cwk-release-tenant-allowlist-v1\\0\" + the sorted, NUL-terminated, NFC-normalised tenant ids), and scope.allowlisted_tenant_count must equal the number of ids that went into it. The enforcing code RECOMPUTES the digest from the ACTUAL deployment allowlist at the moment of each action and requires an exact match.",
+    "a count alone is NOT a binding: two different tenant sets of the same size are interchangeable under a count check, which is exactly how an authorization for tenants {a,b} is replayed against tenants {c,d}. The same-count-different-set case must be rejected on the digest, and it is the reason the digest exists rather than the count being trusted.",
+    "target_binding.instance_id and target_binding.environment_fingerprint must equal the instance and environment actually being deployed to. An authorization minted for one instance replayed against another is rejected even when the tenant digest, the commit and every signature match.",
+    "nonce must be unique across the entire authorization history including the archive. A repeated nonce is a replay and is rejected even when every signature verifies and the window is open.",
+    "not_before <= now < expires_at is required at every use. expires_at must be strictly after not_before and at most 30 days later; there is no perpetual authorization.",
+    "sequence is the primary ordering proof: the archive plus the current authorization must occupy exactly 1..N with no gap, duplicate or orphan, and the current file must be the tip. supersedes_authorization_sha256 is forbidden at sequence=1 and required above it, equal to the recomputed hash of the archived entry at sequence-1.",
+    "revocation is append-only: decision=withdrawn is a NEW signed entry at the next sequence carrying revocation_ref, never an edit or deletion of the superseded file. Deleting an authorization file is therefore not a valid revocation and must not be treated as one.",
+    "recorded_by must differ from authorizing_principal.id and must never be an RT-026 identity or the go/no-go evaluator identity. The component that benefits from an authorization may not be the component that writes it down.",
+    "RT-026 must never generate, request, infer, pre-populate or template this artefact. RT-026's terminal conclusion token READY_FOR_G7_REVIEW means READY_FOR_G6_FINAL_ACCEPTANCE - permission to be SUBMITTED to G6 - and grants nothing. Presence or absence of a G7 authorization must leave RT-026's own conclusion unchanged, which is the executable proof that no cycle exists.",
+    "AUTHORIZATION IS NOT EXECUTION. A valid G7 permits the listed actions to be performed by the operator within the window and scope; it does not itself enable a tenant, flip a switch, deploy, inject a credential or change a cron. Enforcement code must consult the authorization at the moment of each action and re-verify signature, key state, window, nonce, target binding and scope every time; treating a past validation as standing permission is a replay.",
+    "a missing authorization.json means G7 is NOT_RUN and unauthorized. It must never be inferred from G6 being green, from all gates passing, from the registry, or from any narrative document. No release gate receipt or authorization exists in this repository today."
+  ]
+}

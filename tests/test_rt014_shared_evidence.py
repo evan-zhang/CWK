@@ -62,13 +62,14 @@ class _StoreFixture:
     def __init__(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         self._prev_env = os.environ.get("CWK_INSTANCE_ROOT")
-        os.environ["CWK_INSTANCE_ROOT"] = self._tmp.name
+        os.environ["CWK_INSTANCE_ROOT"] = str(Path(self._tmp.name).resolve())
         self.layout = I.InstanceLayout.open()
         self.layout.initialize()
         self.store = S.SharedEvidenceStore.open(self.layout)
         self.store.initialize()
 
     def close(self) -> None:
+        self.layout.close()
         if self._prev_env is None:
             os.environ.pop("CWK_INSTANCE_ROOT", None)
         else:
@@ -111,23 +112,23 @@ class InitializationTests(_StoreTest):
         # Fresh store without initialize() — the shared/ children must not
         # exist for our sub-store, so publish must fail closed.
         with tempfile.TemporaryDirectory() as tmp:
-            os.environ["CWK_INSTANCE_ROOT"] = tmp
-            layout = I.InstanceLayout.open()
-            layout.initialize()  # RT-012 layout only creates shared/ leaf
-            store = S.SharedEvidenceStore.open(layout)
-            with self.assertRaises(S.SharedEvidenceError) as cm:
-                store.publish(_canonical_envelope())
-            self.assertEqual(cm.exception.code, "not_initialized")
+            os.environ["CWK_INSTANCE_ROOT"] = str(Path(tmp).resolve())
+            with I.InstanceLayout.open() as layout:
+                layout.initialize()  # RT-012 layout only creates shared/ leaf
+                store = S.SharedEvidenceStore.open(layout)
+                with self.assertRaises(S.SharedEvidenceError) as cm:
+                    store.publish(_canonical_envelope())
+                self.assertEqual(cm.exception.code, "not_initialized")
 
     def test_read_before_initialize_fails_closed(self):
         with tempfile.TemporaryDirectory() as tmp:
-            os.environ["CWK_INSTANCE_ROOT"] = tmp
-            layout = I.InstanceLayout.open()
-            layout.initialize()
-            store = S.SharedEvidenceStore.open(layout)
-            with self.assertRaises(S.SharedEvidenceError) as cm:
-                store.read_version("cwork:207", "0" * 64)
-            self.assertEqual(cm.exception.code, "not_initialized")
+            os.environ["CWK_INSTANCE_ROOT"] = str(Path(tmp).resolve())
+            with I.InstanceLayout.open() as layout:
+                layout.initialize()
+                store = S.SharedEvidenceStore.open(layout)
+                with self.assertRaises(S.SharedEvidenceError) as cm:
+                    store.read_version("cwork:207", "0" * 64)
+                self.assertEqual(cm.exception.code, "not_initialized")
 
 
 # ---------------------------------------------------------------------------

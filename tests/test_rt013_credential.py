@@ -33,7 +33,8 @@ def _promote_tenant(layout: I.InstanceLayout, tenant_id: str, new_status: str) -
 class _BrokerBase(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
-        os.environ[I.ENV_VAR] = self._tmp.name
+        self.instance_root = str(Path(self._tmp.name).resolve())
+        os.environ[I.ENV_VAR] = self.instance_root
         self.layout = I.InstanceLayout.open()
         self.layout.initialize()
         self.tenant_reg = R.TenantRegistry(self.layout)
@@ -44,6 +45,7 @@ class _BrokerBase(unittest.TestCase):
         _promote_tenant(self.layout, self.tenant_id, "active")
 
     def tearDown(self):
+        self.layout.close()
         self._tmp.cleanup()
         os.environ.pop(I.ENV_VAR, None)
 
@@ -56,7 +58,7 @@ class _BrokerBase(unittest.TestCase):
 
     def _new_broker(self, *, env: dict[str, str] | None = None) -> CB.CredentialBroker:
         if env is None:
-            env = {"CWK_INSTANCE_ROOT": self._tmp.name, "CWK_CRED_test1": "super-secret-material"}
+            env = {"CWK_INSTANCE_ROOT": self.instance_root, "CWK_CRED_test1": "super-secret-material"}
         backends = CB.BackendRegistry({"env_ref": CB.EnvRefBackend(env=env)})
         return CB.CredentialBroker(layout=self.layout, backends=backends, inherit_env=env)
 
@@ -138,7 +140,7 @@ class LeaseEnvTests(_BrokerBase):
             tenant_id=self.tenant_id, reference_uri="secret://env-test1",
             backend="env_ref", actor="admin", reason="t",
         )
-        broker = self._new_broker(env={"CWK_INSTANCE_ROOT": self._tmp.name, "CWK_CRED_test1": "sekret"})
+        broker = self._new_broker(env={"CWK_INSTANCE_ROOT": self.instance_root, "CWK_CRED_test1": "sekret"})
         os.environ["ATTACKER_INJECTED"] = "boom"
         try:
             with broker.lease(agent_id_hash=ah, tenant_id=self.tenant_id, purpose="collector_run") as lease:
@@ -254,7 +256,7 @@ class BackendTests(_BrokerBase):
             broker = CB.CredentialBroker(
                 layout=self.layout,
                 backends=CB.BackendRegistry({"file_ref": backend}),
-                inherit_env={"CWK_INSTANCE_ROOT": self._tmp.name},
+                inherit_env={"CWK_INSTANCE_ROOT": self.instance_root},
             )
             with broker.lease(
                 agent_id_hash=ah, tenant_id=self.tenant_id, purpose="collector_run"
@@ -336,7 +338,7 @@ class RotationInFlightTests(_BrokerBase):
             with broker.lease(agent_id_hash=ah, tenant_id=self.tenant_id, purpose="collector_run") as _:
                 pass
         # After finalize, the NEW reference is active.
-        env = {"CWK_INSTANCE_ROOT": self._tmp.name, "CWK_CRED_test2": "new-material"}
+        env = {"CWK_INSTANCE_ROOT": self.instance_root, "CWK_CRED_test2": "new-material"}
         self.store.rotate_finalize(tenant_id=self.tenant_id, actor="admin", reason="t")
         broker2 = self._new_broker(env=env)
         with broker2.lease(agent_id_hash=ah, tenant_id=self.tenant_id, purpose="collector_run") as lease:
@@ -357,7 +359,7 @@ class RepoEnvFallbackTests(_BrokerBase):
                 backend="env_ref", actor="admin", reason="t",
             )
             # Isolated env intentionally missing CWK_CRED_nowhere.
-            broker = self._new_broker(env={"CWK_INSTANCE_ROOT": self._tmp.name})
+            broker = self._new_broker(env={"CWK_INSTANCE_ROOT": self.instance_root})
             with self.assertRaises(CB.CredentialBackendError):
                 with broker.lease(
                     agent_id_hash=ah, tenant_id=self.tenant_id, purpose="collector_run"

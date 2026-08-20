@@ -67,13 +67,14 @@ class _Fx:
     def __init__(self):
         self._tmp = tempfile.TemporaryDirectory()
         self._prev = os.environ.get("CWK_INSTANCE_ROOT")
-        os.environ["CWK_INSTANCE_ROOT"] = self._tmp.name
+        os.environ["CWK_INSTANCE_ROOT"] = str(Path(self._tmp.name).resolve())
         self.layout = I.InstanceLayout.open()
         self.layout.initialize()
         self.store = S.SharedEvidenceStore.open(self.layout)
         self.store.initialize()
 
     def close(self):
+        self.layout.close()
         if self._prev is None:
             os.environ.pop("CWK_INSTANCE_ROOT", None)
         else:

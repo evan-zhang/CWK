@@ -867,6 +867,15 @@ class BindingRegistry:
         prior_sha: Optional[str] = None
         try:
             prior = self.get_by_hash(existing_hash)
+            # The earlier conflict check and this late CAS snapshot are two
+            # distinct reads.  A concurrent binder can commit between them.
+            # Only a revoked record is a legal predecessor for bind(); an
+            # active/suspended record observed here must fail closed rather
+            # than being mistaken for a rebindable historical revision.
+            if prior.status != "revoked":
+                raise BindingConflictError(
+                    f"agent already bound (tenant={prior.tenant_id}, status={prior.status})"
+                )
             prior_epoch = prior.binding_epoch
             prior_sha = prior.on_disk_sha256
         except BindingNotFound:

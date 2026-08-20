@@ -14,3 +14,13 @@
 | RT-014 | PR-001 共享不可变 Canonical Evidence Store (G3) | completed | Spec-Standard | 2026-08-19 |
 | RT-015 | PR-001 Access Ledger、Tenant View 与撤权核心 | completed | Spec-Standard | 2026-08-19 |
 | RT-016 | PR-001 Legacy Raw 影子迁移与数据级对账 (G3 M2/M3 数据侧) | completed | Spec-Standard | 2026-08-19 |
+| RT-017 | PR-001 Per-tenant Collector Worker | planned | Spec-Standard | 2026-08-20 |
+| RT-018 | PR-001 宿主机 Tenant Scheduler | planned | Spec-Standard | 2026-08-20 |
+| RT-019 | PR-001 Knowledge Profile 提案、确认与版本生命周期 | planned | Spec-Standard | 2026-08-20 |
+| RT-020 | PR-001 Holdout 预览、路由器与决策日志 | planned | Spec-Standard | 2026-08-20 |
+| RT-021 | PR-001 多知识空间 Projector 与索引 | planned | Spec-Standard | 2026-08-20 |
+| RT-022 | PR-001 Query Broker 授权核心 | planned | Spec-Standard | 2026-08-20 |
+| RT-023 | PR-001 沙箱传输、客户端与真实空间集成 | planned | Spec-Standard | 2026-08-20 |
+| RT-024 | PR-001 安全审计、可观测性与容量基准 | planned | Spec-Standard | 2026-08-20 |
+| RT-025 | PR-001 加密备份与 Clean-room 恢复 | planned | Spec-Standard | 2026-08-20 |
+| RT-026 | PR-001 试点准备、影子切换与回滚工具 | planned | Spec-Standard | 2026-08-20 |

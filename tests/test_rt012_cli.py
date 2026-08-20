@@ -18,6 +18,10 @@ sys.path.insert(0, str(PROJECT / "scripts"))
 import cwk_tenant_cli_api as API  # noqa: E402
 
 
+def _root(path: str) -> str:
+    return str(Path(path).resolve())
+
+
 def _run(*argv: str, env: dict[str, str] | None = None, cwd: str | None = None) -> subprocess.CompletedProcess[str]:
     real_env = dict(os.environ)
     if env is not None:
@@ -35,7 +39,7 @@ def _run(*argv: str, env: dict[str, str] | None = None, cwd: str | None = None) 
 class HelpAndErrorTests(unittest.TestCase):
     def test_help_exit_zero(self):
         with tempfile.TemporaryDirectory() as tmp:
-            r = _run("--help", env={"CWK_INSTANCE_ROOT": tmp})
+            r = _run("--help", env={"CWK_INSTANCE_ROOT": _root(tmp)})
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("init", r.stdout)
         self.assertIn("doctor", r.stdout)
@@ -43,13 +47,13 @@ class HelpAndErrorTests(unittest.TestCase):
 
     def test_no_command_exits_usage(self):
         with tempfile.TemporaryDirectory() as tmp:
-            r = _run(env={"CWK_INSTANCE_ROOT": tmp})
+            r = _run(env={"CWK_INSTANCE_ROOT": _root(tmp)})
         self.assertEqual(r.returncode, API.EXIT_USAGE)
         self.assertNotIn("Traceback", r.stderr)
 
     def test_unknown_subcommand_exits_usage(self):
         with tempfile.TemporaryDirectory() as tmp:
-            r = _run("wat", env={"CWK_INSTANCE_ROOT": tmp})
+            r = _run("wat", env={"CWK_INSTANCE_ROOT": _root(tmp)})
         self.assertEqual(r.returncode, API.EXIT_USAGE)
         self.assertNotIn("Traceback", r.stderr)
 
@@ -64,7 +68,7 @@ class HelpAndErrorTests(unittest.TestCase):
 class StateGraphTests(unittest.TestCase):
     def test_state_graph_shape(self):
         with tempfile.TemporaryDirectory() as tmp:
-            r = _run("state-graph", env={"CWK_INSTANCE_ROOT": tmp})
+            r = _run("state-graph", env={"CWK_INSTANCE_ROOT": _root(tmp)})
         self.assertEqual(r.returncode, 0)
         g = json.loads(r.stdout)
         self.assertEqual(g["schema"], "cwk.rt012.state_graph.v1")
@@ -75,7 +79,7 @@ class StateGraphTests(unittest.TestCase):
 class InitFlowTests(unittest.TestCase):
     def test_init_then_show(self):
         with tempfile.TemporaryDirectory() as tmp:
-            env = {"CWK_INSTANCE_ROOT": tmp}
+            env = {"CWK_INSTANCE_ROOT": _root(tmp)}
             r = _run("init", "--actor", "admin", env=env)
             self.assertEqual(r.returncode, 0, r.stderr)
             body = json.loads(r.stdout)
@@ -92,21 +96,21 @@ class InitFlowTests(unittest.TestCase):
 
     def test_show_unknown_tenant(self):
         with tempfile.TemporaryDirectory() as tmp:
-            env = {"CWK_INSTANCE_ROOT": tmp}
+            env = {"CWK_INSTANCE_ROOT": _root(tmp)}
             r = _run("show", "--tenant-id", "t_" + "z" * 26, env=env)
         self.assertEqual(r.returncode, API.EXIT_IO)
         self.assertNotIn("Traceback", r.stderr)
 
     def test_show_bad_tenant_id_returns_contract(self):
         with tempfile.TemporaryDirectory() as tmp:
-            env = {"CWK_INSTANCE_ROOT": tmp}
+            env = {"CWK_INSTANCE_ROOT": _root(tmp)}
             r = _run("show", "--tenant-id", "not-a-tenant", env=env)
         self.assertEqual(r.returncode, API.EXIT_CONTRACT)
         self.assertNotIn("Traceback", r.stderr)
 
     def test_list_empty(self):
         with tempfile.TemporaryDirectory() as tmp:
-            env = {"CWK_INSTANCE_ROOT": tmp}
+            env = {"CWK_INSTANCE_ROOT": _root(tmp)}
             r = _run("list", env=env)
         self.assertEqual(r.returncode, 0)
         body = json.loads(r.stdout)
@@ -116,7 +120,7 @@ class InitFlowTests(unittest.TestCase):
 class DoctorTests(unittest.TestCase):
     def test_doctor_uninit_root_reports_issue(self):
         with tempfile.TemporaryDirectory() as tmp:
-            env = {"CWK_INSTANCE_ROOT": tmp}
+            env = {"CWK_INSTANCE_ROOT": _root(tmp)}
             r = _run("doctor", env=env)
         self.assertEqual(r.returncode, API.EXIT_CONTRACT)
         body = json.loads(r.stdout)
@@ -125,7 +129,7 @@ class DoctorTests(unittest.TestCase):
 
     def test_doctor_clean_after_init(self):
         with tempfile.TemporaryDirectory() as tmp:
-            env = {"CWK_INSTANCE_ROOT": tmp}
+            env = {"CWK_INSTANCE_ROOT": _root(tmp)}
             _run("init", "--actor", "admin", env=env)
             r = _run("doctor", env=env)
         self.assertEqual(r.returncode, 0, r.stdout)
@@ -142,7 +146,7 @@ class ProviderFailClosedTests(unittest.TestCase):
             (evil_dir / "cwk_tenant_cmd_core.py").write_text(
                 "raise RuntimeError('evil provider ran')\n"
             )
-            env = {"CWK_INSTANCE_ROOT": tmp, "PYTHONPATH": str(evil_dir)}
+            env = {"CWK_INSTANCE_ROOT": _root(tmp), "PYTHONPATH": str(evil_dir)}
             r = _run("state-graph", env=env, cwd=str(evil_dir))
         # Dispatcher must have loaded the trusted provider, not the evil one.
         self.assertEqual(r.returncode, 0, r.stderr)

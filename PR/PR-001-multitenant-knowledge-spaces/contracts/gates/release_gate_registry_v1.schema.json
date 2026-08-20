@@ -1,0 +1,813 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.release_gate_registry.v1",
+  "title": "PR-001 release gate registry v1 (G1..G7)",
+  "description": "Validates release_gate_registry_v1.json: the frozen G1..G7 release gate table. Exactly seven entries. G0 is structurally excluded from `gates` and lives only in the separate bootstrap_gate object. The registry is CONFIGURATION only and MUST NOT carry any mutable execution status: additionalProperties:false, unevaluatedProperties:false and the forbiddenEntryKeys list below structurally prevent status/conclusion/verdict/last_run_at from creeping back in. Six of seven entries are release VERIFICATION gates bound to cwk.pr001.release_gate_receipt.v1; G7 alone is a release AUTHORIZATION bound to cwk.pr001.release_authorization_receipt.v1, with a different filename and a different domain separator.",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": [
+    "schema",
+    "description",
+    "receipt_root",
+    "receipt_schema_ref",
+    "receipt_schema_id",
+    "authorization_schema_ref",
+    "authorization_schema_id",
+    "downstream_only_ids",
+    "bootstrap_gate",
+    "consumer_relation_model",
+    "status_resolution_rule",
+    "root_closure_rule",
+    "root_separation_rule",
+    "prerequisite_rank_rule",
+    "authorization_separation_rule",
+    "rt026_terminal_conclusion_rule",
+    "go_no_go_contract",
+    "release_version_resolution",
+    "prerequisite_resolution",
+    "synthetic_propagation_rule",
+    "owner_scope_model",
+    "owner_scope_recomputation_rule",
+    "orchestration_provenance_rule",
+    "g6_fresh_evidence_common_fields",
+    "g6_fresh_evidence_roles",
+    "g6_fresh_evidence_rule",
+    "trust_store_rule",
+    "detached_signature_rule",
+    "tenant_allowlist_binding_rule",
+    "archive_validation_rule",
+    "gates"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.pr001.release_gate_registry.v1"},
+    "description": {"type": "string", "minLength": 1},
+    "receipt_root": {
+      "description": "Root of the release gate evidence subtree. Deliberately DISJOINT from gate-receipts/, which is already an exact VG-A..VG-E closure.",
+      "type": "string",
+      "const": "PR/PR-001-multitenant-knowledge-spaces/release-gate-receipts/"
+    },
+    "receipt_schema_ref": {
+      "type": "string",
+      "const": "PR/PR-001-multitenant-knowledge-spaces/contracts/gates/release_gate_receipt_v1.schema.json"
+    },
+    "receipt_schema_id": {"const": "cwk.pr001.release_gate_receipt.v1"},
+    "authorization_schema_ref": {
+      "type": "string",
+      "const": "PR/PR-001-multitenant-knowledge-spaces/contracts/gates/release_authorization_receipt_v1.schema.json"
+    },
+    "authorization_schema_id": {"const": "cwk.pr001.release_authorization_receipt.v1"},
+    "downstream_only_ids": {
+      "description": "IDs that are strictly downstream of every entry and must never appear in any required_prerequisite_ids. G7 authorizes; nothing verifies against it.",
+      "type": "array",
+      "const": ["G7"]
+    },
+    "bootstrap_gate": {
+      "description": "G0, the pre-RT document review gate, held OUTSIDE the seven entries. It has no feeder RT, no machine receipt, no test evidence and no environment binding, so it cannot be modelled as a release gate entry without letting a Markdown file impersonate a verifiable gate.",
+      "type": "object",
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "required": [
+        "gate_id",
+        "in_registry",
+        "exclusion_reason",
+        "historical_narrative_ref",
+        "final_wave0_review_report_path",
+        "resolution_rule"
+      ],
+      "properties": {
+        "gate_id": {"const": "G0"},
+        "in_registry": {
+          "description": "Always false. G0 is never one of the seven entries.",
+          "const": false
+        },
+        "exclusion_reason": {"type": "string", "minLength": 1},
+        "historical_narrative_ref": {
+          "description": "The round-4 review report. Provenance only, explicitly INSUFFICIENT to satisfy G0.",
+          "type": "string",
+          "pattern": "^PR/PR-001-multitenant-knowledge-spaces/reviews/[^/]+\\.md$"
+        },
+        "final_wave0_review_report_path": {
+          "description": "The FROZEN path of the final Wave-0 independent review report, the only artefact that can satisfy G0. It may legitimately be absent, in which case G0 is UNSATISFIED and G1 is NOT_RUN.",
+          "type": "string",
+          "pattern": "^PR/PR-001-multitenant-knowledge-spaces/reviews/[^/]+\\.md$"
+        },
+        "resolution_rule": {"type": "string", "minLength": 1}
+      }
+    },
+    "consumer_relation_model": {
+      "description": "Prose statement freezing the two distinct consumer relations: direct RT consumers (gate_registry_v1.json `consumers`, value space {RT-024, RT-026}) versus release-gate consumers (this file's `consumes_verification_gates`). Neither is derivable from the other.",
+      "type": "string",
+      "minLength": 1
+    },
+    "status_resolution_rule": {"type": "string", "minLength": 1},
+    "root_closure_rule": {"type": "string", "minLength": 1},
+    "root_separation_rule": {"type": "string", "minLength": 1},
+    "prerequisite_rank_rule": {"type": "string", "minLength": 1},
+    "authorization_separation_rule": {"type": "string", "minLength": 1},
+    "rt026_terminal_conclusion_rule": {"type": "string", "minLength": 1},
+    "go_no_go_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "required": ["schema_ref", "schema_id", "report_path", "domain_separator", "terminal_conclusion", "terminal_meaning", "policy_ref_path", "exact_input_ids", "evidence_inputs", "exact_artifact_roles", "self_hash_rule"],
+      "properties": {
+        "schema_ref": {"const": "PR/PR-001-multitenant-knowledge-spaces/contracts/rt026/schemas/go_no_go_report_v1.schema.json"},
+        "schema_id": {"const": "cwk.pr001.go_no_go_report.v1"},
+        "report_path": {"const": "RT/RT-026/reports/go-no-go-report.json"},
+        "domain_separator": {"const": "cwk-rt026-go-no-go-report-v1\\0"},
+        "terminal_conclusion": {"const": "READY_FOR_G7_REVIEW"},
+        "terminal_meaning": {"const": "READY_FOR_G6_FINAL_ACCEPTANCE_ONLY"},
+        "policy_ref_path": {"const": "PR/PR-001-multitenant-knowledge-spaces/contracts/gates/release_gate_registry_v1.json"},
+        "exact_input_ids": {"const": ["VG-A", "VG-B", "VG-C", "VG-D", "VG-E", "G1", "G2", "G3", "G4", "G5", "CAP:cwork-authority-source", "CAP:gateway-identity-transport", "SG:RT-017", "SG:RT-018", "SG:RT-019", "SG:RT-020", "SG:RT-021", "SG:RT-022", "SG:RT-023", "SG:RT-024", "SG:RT-025", "SG:RT-026", "EVIDENCE:rt016-data-diff", "EVIDENCE:query-diff-six-layer", "EVIDENCE:rt024-benchmark", "EVIDENCE:rt025-vge-recovery", "EVIDENCE:rollback-rehearsal", "EVIDENCE:default-off", "EVIDENCE:open-findings"]},
+        "evidence_inputs": {"const": {
+          "EVIDENCE:rt016-data-diff": {"input_class": "rt016_data_diff", "ref_kind": "data_diff_report", "ref_path": "RT/RT-016/reports/data-diff.json", "schema_id": null},
+          "EVIDENCE:query-diff-six-layer": {"input_class": "query_diff_six_layer", "ref_kind": "query_diff_report", "ref_path": "RT/RT-026/reports/query-diff-six-layer.json", "schema_id": null},
+          "EVIDENCE:rt024-benchmark": {"input_class": "rt024_benchmark", "ref_kind": "benchmark_report", "ref_path": "RT/RT-024/reports/benchmark.json", "schema_id": null},
+          "EVIDENCE:rt025-vge-recovery": {"input_class": "rt025_vge_recovery", "ref_kind": "recovery_report", "ref_path": "RT/RT-025/reports/vge-recovery.json", "schema_id": null},
+          "EVIDENCE:rollback-rehearsal": {"input_class": "rollback_rehearsal", "ref_kind": "rollback_report", "ref_path": "RT/RT-026/reports/rollback-rehearsal.json", "schema_id": null},
+          "EVIDENCE:default-off": {"input_class": "default_off", "ref_kind": "default_off_report", "ref_path": "RT/RT-026/reports/default-off.json", "schema_id": null},
+          "EVIDENCE:open-findings": {"input_class": "open_findings", "ref_kind": "findings_report", "ref_path": "RT/RT-026/reports/open-findings.json", "schema_id": null}
+        }},
+        "exact_artifact_roles": {"const": ["input_manifest", "evaluation_log", "launcher_run_attestation"]},
+        "self_hash_rule": {"type": "string", "minLength": 1}
+      }
+    },
+    "release_version_resolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "required": ["logical_ref_path_field", "lookup_key_field", "storage_locations", "as_of_field", "selection_rule", "current_expiry_clock", "cycle_guard_fields", "closure_rule"],
+      "properties": {
+        "logical_ref_path_field": {"const": "ref_path"},
+        "lookup_key_field": {"const": "raw_sha256"},
+        "storage_locations": {"const": ["current", "archive"]},
+        "as_of_field": {"const": "consumer.created_at"},
+        "selection_rule": {"type": "string", "minLength": 1},
+        "current_expiry_clock": {"const": "evaluation_context.now"},
+        "cycle_guard_fields": {"const": ["gate_id", "receipt_sha256"]},
+        "closure_rule": {"type": "string", "minLength": 1}
+      }
+    },
+    "synthetic_propagation_rule": {"type": "string", "minLength": 1},
+    "owner_scope_recomputation_rule": {"type": "string", "minLength": 1},
+    "owner_scope_model": {
+      "description": "The machine-readable definition of WHICH paths each gate owns. Without it owner_scope_tree_sha256 is unrecomputable and therefore unfalsifiable - any 64-hex value satisfies a format check. Code prefixes and evidence-output prefixes are kept disjoint so that evidence can never bootstrap its own subject binding.",
+      "type": "object",
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "required": [
+        "binding_rule",
+        "scope_mode",
+        "scope_mode_rationale",
+        "candidate_tree_excluded_prefixes",
+        "candidate_tree_excluded_patterns",
+        "exclusion_closure_rule",
+        "path_boundary_rule",
+        "disjointness_rule",
+        "rt_touch_scope_rule",
+        "rt_owner_code_prefixes",
+        "rt_owner_code_patterns",
+        "rt_owner_evidence_prefixes",
+        "excluded_evidence_prefixes",
+        "gate_owner_scope_rt_ids",
+        "gate_owner_scope_derivation_rule",
+        "owner_scope_recomputation_rule_ref"
+      ],
+      "properties": {
+        "binding_rule": {"type": "string", "minLength": 1},
+        "scope_mode": {
+          "description": "FAIL-CLOSED by construction. Per-RT implementation allowlists are fail-OPEN - anything unlisted drifts invisibly - and ownership is not partitionable, since scripts/cwk_tenant_cli.py is exercised by RT-012, RT-013 and RT-014 alike. Binding the whole non-evidence tree means a newly added script or test is in scope automatically, so forgetting to update this registry makes gates stricter rather than weaker.",
+          "const": "candidate_tree_minus_closed_exclusions"
+        },
+        "scope_mode_rationale": {"type": "string", "minLength": 1},
+        "candidate_tree_excluded_prefixes": {
+          "description": "The four receipt roots. Excluded because they are EVIDENCE OUTPUT: if a gate's own receipt were inside the digest, writing the evidence would change the subject the evidence describes and no fixed point would exist.",
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^PR/PR-001-multitenant-knowledge-spaces/[a-z-]+/$"}
+        },
+        "candidate_tree_excluded_patterns": {
+          "description": "The sixteen RT reports directories, as one anchored pattern. Same rationale as the receipt roots.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "exclusion_closure_rule": {"type": "string", "minLength": 1},
+        "path_boundary_rule": {"type": "string", "minLength": 1},
+        "disjointness_rule": {"type": "string", "minLength": 1},
+        "rt_touch_scope_rule": {"type": "string", "minLength": 1},
+        "rt_owner_code_patterns": {
+          "description": "Regex templates completing each RT's TOUCH scope beyond its package directory. Not the owner-tree basis; a supplementary signal only.",
+          "type": "object",
+          "additionalProperties": false,
+          "unevaluatedProperties": false,
+          "required": ["description", "templates"],
+          "properties": {
+            "description": {"type": "string", "minLength": 1},
+            "templates": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 8,
+              "uniqueItems": true,
+              "items": {"type": "string", "pattern": "^\\^.*\\{rt_digits\\}"}
+            }
+          }
+        },
+        "rt_owner_code_prefixes": {
+          "description": "Per-RT package TOUCH prefixes: specs, tasks and the intake document, plus the exact remediated runtime owned by RT-012/Stage-09 or RT-013/Stage-10. Deliberately excludes reports/, which is evidence output. Combined with rt_owner_code_patterns for the touch and legacy-no-drift checks; NOT the owner-tree basis.",
+          "type": "object",
+          "additionalProperties": false,
+          "unevaluatedProperties": false,
+          "minProperties": 16,
+          "maxProperties": 16,
+          "propertyNames": {"pattern": "^RT-0(1[1-9]|2[0-6])$"},
+          "patternProperties": {
+            "^RT-0(1[1-9]|2[0-6])$": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 8,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "anyOf": [
+                  {"pattern": "^RT/RT-0(1[1-9]|2[0-6])/(specs/|tasks/|rt-intake\\.md)$"},
+                  {"enum": ["scripts/cwk_instance.py", "scripts/cwk_agent_binding.py"]}
+                ]
+              }
+            }
+          }
+        },
+        "rt_owner_evidence_prefixes": {
+          "description": "Per-RT owner EVIDENCE-OUTPUT prefixes. A commit touching only these does NOT satisfy 'the subject commit touched the feeder packages'.",
+          "type": "object",
+          "additionalProperties": false,
+          "unevaluatedProperties": false,
+          "minProperties": 16,
+          "maxProperties": 16,
+          "propertyNames": {"pattern": "^RT-0(1[1-9]|2[0-6])$"},
+          "patternProperties": {
+            "^RT-0(1[1-9]|2[0-6])$": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 4,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^RT/RT-0(1[1-9]|2[0-6])/reports/$"
+              }
+            }
+          }
+        },
+        "excluded_evidence_prefixes": {
+          "description": "The four receipt roots. Never owner code, for the same reason reports/ is not: a receipt must not be able to manufacture its own subject binding.",
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^PR/PR-001-multitenant-knowledge-spaces/[a-z-]+/$"}
+        },
+        "gate_owner_scope_rt_ids": {
+          "description": "The RTs whose owner code each gate's subject binding covers. G6 is the case that matters: its feeder_rts are only RT-024..RT-026, but its owner scope is the RT-017..RT-026 union, because it directly cites all ten acceptances. Scoping G6 to its three feeders would leave RT-017..RT-023 code drift invisible to the final gate.",
+          "type": "object",
+          "additionalProperties": false,
+          "unevaluatedProperties": false,
+          "minProperties": 6,
+          "maxProperties": 6,
+          "propertyNames": {"pattern": "^G[1-6]$"},
+          "patternProperties": {
+            "^G[1-6]$": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 16,
+              "uniqueItems": true,
+              "items": {"type": "string", "pattern": "^RT-0(1[1-9]|2[0-6])$"}
+            }
+          }
+        },
+        "gate_owner_scope_derivation_rule": {"type": "string", "minLength": 1},
+        "owner_scope_recomputation_rule_ref": {"type": "string", "minLength": 1}
+      }
+    },
+    "orchestration_provenance_rule": {"type": "string", "minLength": 1},
+    "g6_fresh_evidence_rule": {"type": "string", "minLength": 1},
+    "trust_store_rule": {"type": "string", "minLength": 1},
+    "detached_signature_rule": {"type": "string", "minLength": 1},
+    "tenant_allowlist_binding_rule": {"type": "string", "minLength": 1},
+    "archive_validation_rule": {"type": "string", "minLength": 1},
+    "g6_fresh_evidence_common_fields": {
+      "description": "Fields EVERY fresh_evidence_refs entry must carry, regardless of role. Frozen so that a new role cannot be introduced with a thinner binding than the existing nine.",
+      "type": "array",
+      "minItems": 17,
+      "maxItems": 17,
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"}
+    },
+    "g6_fresh_evidence_roles": {
+      "description": "The EXACT nine required completion roles for a G6 receipt. The role multiset of fresh_evidence_refs must EQUAL this set: a missing role and an unknown role are equally invalid, and there is no 'covered by another run' allowance.",
+      "type": "array",
+      "minItems": 9,
+      "maxItems": 9,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "unevaluatedProperties": false,
+        "required": ["role", "description", "required_role_fields", "role_assertions"],
+        "properties": {
+          "role": {
+            "enum": [
+              "full_regression",
+              "wiki_smoke",
+              "legacy_smoke",
+              "attack_suite",
+              "secret_scan",
+              "restore_drill",
+              "rollback_drill",
+              "default_off_verification",
+              "final_findings_reconciliation"
+            ]
+          },
+          "description": {"type": "string", "minLength": 1},
+          "required_role_fields": {
+            "description": "Role-specific fields beyond g6_fresh_evidence_common_fields. These carry the semantics that role names alone cannot: findings_count for secret_scan, open_blocker_count/open_major_count for final_findings_reconciliation, and so on.",
+            "type": "array",
+            "maxItems": 6,
+            "uniqueItems": true,
+            "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"}
+          },
+          "role_assertions": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 6,
+            "items": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    },
+    "prerequisite_resolution": {
+      "description": "How a prerequisite_refs[] entry is BOUND to real evidence. A ref_id is a label, not a binding: an earlier revision compared ref_id against a caller-supplied {ref_id: hash} map, so any 64-hex string injected under the right key satisfied the check. Resolution is therefore canonical (the path comes from a declared authority, never from the caller), typed (family and schema must agree) and recomputed (the hash is derived from the bytes the fail-closed reader actually returned).",
+      "type": "object",
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "required": [
+        "binding_rule",
+        "families",
+        "markdown_acceptance_marker",
+        "bootstrap_report_id",
+        "acceptance_marker_styles",
+        "legacy_acceptance_grandfather_rule",
+        "legacy_acceptance_drift_rule",
+        "rt_acceptance_reports",
+        "go_no_go_report_path",
+        "go_no_go_path_separation_rule",
+        "receipt_roots_that_must_not_contain_evidence_reports",
+        "required_body_checks"
+      ],
+      "properties": {
+        "binding_rule": {"type": "string", "minLength": 1},
+        "families": {
+          "description": "One entry per prerequisite id family. Every id in any required_prerequisite_ids must match EXACTLY ONE family's ref_id_pattern, and an id matching zero families is unresolvable and therefore invalid.",
+          "type": "array",
+          "minItems": 7,
+          "maxItems": 7,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "unevaluatedProperties": false,
+            "required": ["family", "ref_id_pattern", "ref_kind", "body_kind", "schema_id", "path_source", "forbidden_paths", "note"],
+            "properties": {
+              "family": {
+                "enum": [
+                  "bootstrap_review",
+                  "release_gate",
+                  "rt_acceptance",
+                  "verification_gate",
+                  "capability_activation",
+                  "security_gate",
+                  "go_no_go"
+                ]
+              },
+              "ref_id_pattern": {"type": "string", "minLength": 1},
+              "ref_kind": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+              "body_kind": {"enum": ["json", "markdown"]},
+              "schema_id": {
+                "description": "The schema id the referenced JSON body must declare, or null for the two Markdown families. A body carrying a different schema id is a cross-family substitution and is rejected even when path and hash are correct.",
+                "type": ["string", "null"],
+                "minLength": 1
+              },
+              "path_source": {
+                "description": "The DECLARED AUTHORITY that maps ref_id to its canonical path. Never the caller, and never a path pattern the caller's value merely has to match.",
+                "type": "string",
+                "minLength": 1
+              },
+              "forbidden_paths": {
+                "description": "Paths that are explicitly rejected for this family even though they exist, are readable and hash stably. These enumerate the PLAUSIBLE SUBSTITUTES - chiefly the superseded round-4 review - because those are what a lenient resolver actually accepts.",
+                "type": "array",
+                "maxItems": 8,
+                "uniqueItems": true,
+                "items": {"type": "string", "minLength": 1}
+              },
+              "note": {"type": "string", "minLength": 1}
+            }
+          }
+        },
+        "markdown_acceptance_marker": {
+          "description": "The frozen machine-parseable block for marker_style=cwk_acceptance_v1. Naive substring matching on the word PASS is explicitly forbidden: PASS occurs in ordinary prose, in quoted contract text and in tables of contents, so a substring test accepts reports that say the opposite of what they are read to say.",
+          "type": "object",
+          "additionalProperties": false,
+          "unevaluatedProperties": false,
+          "required": ["description", "block_open", "block_close", "field_line_pattern", "required_fields", "rt_acceptance_required_identity_fields", "identity_token_pattern", "identity_list_rule", "verdict_pass_value", "parse_rules"],
+          "properties": {
+            "description": {"type": "string", "minLength": 1},
+            "block_open": {"const": "<!-- cwk-acceptance-v1"},
+            "block_close": {"const": "-->"},
+            "field_line_pattern": {"type": "string", "minLength": 1},
+            "required_fields": {
+              "type": "array",
+              "minItems": 6,
+              "maxItems": 6,
+              "uniqueItems": true,
+              "items": {"enum": ["report_id", "verdict", "open_blocker", "open_major", "subject_commit", "owner_scope_tree_sha256"]}
+            },
+            "rt_acceptance_required_identity_fields": {"const": ["implementer_ids", "reviewer_ids"]},
+            "identity_token_pattern": {"const": "^[a-z0-9][a-z0-9._:@/-]{0,127}$"},
+            "identity_list_rule": {"type": "string", "minLength": 1},
+            "verdict_pass_value": {"const": "PASS"},
+            "parse_rules": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 12,
+              "items": {"type": "string", "minLength": 1}
+            }
+          }
+        },
+        "bootstrap_report_id": {
+          "description": "The report_id the G0 final Wave-0 review report must declare in its marker block.",
+          "const": "G0-FINAL-WAVE0"
+        },
+        "acceptance_marker_styles": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {"enum": ["legacy_frozen_hash", "cwk_acceptance_v1"]}
+        },
+        "legacy_acceptance_grandfather_rule": {"type": "string", "minLength": 1},
+        "legacy_acceptance_drift_rule": {"type": "string", "minLength": 1},
+        "rt_acceptance_reports": {
+          "description": "The canonical acceptance report for each RT. RT-011 deliberately resolves to 独立验收报告-r2.md because the un-suffixed RT-011 report is retained as historical FAILED evidence. RT-012 and RT-013 deliberately resolve to new Stage-09/Stage-10 reports because their original acceptances predate remediated runtime changes. A resolver that guessed filenames by convention would therefore bind failed or stale evidence under a passing id.",
+          "type": "object",
+          "additionalProperties": false,
+          "unevaluatedProperties": false,
+          "minProperties": 16,
+          "maxProperties": 16,
+          "propertyNames": {"pattern": "^RT-0(1[1-9]|2[0-6])$"},
+          "patternProperties": {
+            "^RT-0(1[1-9]|2[0-6])$": {
+              "type": "object",
+              "additionalProperties": false,
+              "unevaluatedProperties": false,
+              "required": ["report_path", "report_id", "marker_style"],
+              "properties": {
+                "report_path": {
+                  "description": "Exact path inside the RT's own package. Acceptance reports never live under a receipt root.",
+                  "type": "string",
+                  "pattern": "^RT/RT-0(1[1-9]|2[0-6])/reports/[^/]+\\.md$"
+                },
+                "report_id": {"type": "string", "pattern": "^RT-0(1[1-9]|2[0-6])$"},
+                "marker_style": {"enum": ["legacy_frozen_hash", "cwk_acceptance_v1"]},
+                "report_sha256": {
+                  "description": "Required for marker_style=legacy_frozen_hash: the raw SHA-256 of the exact historical bytes. The document is bound by this hash and is NEVER parsed, so grandfathered reports need no edit and their prose can never be re-interpreted.",
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "accepted_subject_commit": {
+                  "description": "Required for marker_style=legacy_frozen_hash: the reviewed, immutable transcription of the commit that acceptance actually certified. Carrying it forward requires legacy_acceptance_drift_rule.",
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{40}$"
+                },
+                "historical_verdict": {
+                  "description": "Frozen transcription of the HISTORICAL review outcome for the pinned bytes. Deliberately NOT named `verdict`: forbiddenEntryKeys bans verdict/status/result so that this registry can never record whether a release gate ran or passed, and that guard is not weakened here. This field records an outcome of a FOREIGN, already-closed, hash-pinned artefact - it says nothing about G1..G7 - and it may appear ONLY on a legacy_frozen_hash entry.",
+                  "const": "PASS"
+                },
+                "historical_open_blocker": {"const": 0},
+                "historical_open_major": {"const": 0},
+                "superseded_legacy_report": {
+                  "description": "Closed provenance object for an original report superseded by a declared compatibility stage. Only RT-012/Stage-09 and RT-013/Stage-10 have such an object. It is not a second acceptance candidate and its report_path is forbidden by the rt_acceptance family.",
+                  "type": "object",
+                  "additionalProperties": false,
+                  "unevaluatedProperties": false,
+                  "required": ["report_id", "report_path", "marker_style", "report_sha256", "accepted_subject_commit", "historical_verdict", "historical_open_blocker", "historical_open_major", "superseded_by_stage_index"],
+                  "properties": {
+                    "report_id": {"enum": ["RT-012", "RT-013"]},
+                    "report_path": {"enum": ["RT/RT-012/reports/独立验收报告.md", "RT/RT-013/reports/独立验收报告.md"]},
+                    "marker_style": {"const": "legacy_frozen_hash"},
+                    "report_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                    "accepted_subject_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+                    "historical_verdict": {"const": "PASS"},
+                    "historical_open_blocker": {"const": 0},
+                    "historical_open_major": {"const": 0},
+                    "superseded_by_stage_index": {"enum": [9, 10]}
+                  },
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "report_id": {"const": "RT-012"},
+                        "report_path": {"const": "RT/RT-012/reports/独立验收报告.md"},
+                        "report_sha256": {"const": "bce39f7dfaf1ac92b2f9765bb82622e4e0a5b16be2c48f7ed6cb5c0b822791e2"},
+                        "accepted_subject_commit": {"const": "1894576b20a9e00d396718daeca0c781a7d233a6"},
+                        "superseded_by_stage_index": {"const": 9}
+                      }
+                    },
+                    {
+                      "properties": {
+                        "report_id": {"const": "RT-013"},
+                        "report_path": {"const": "RT/RT-013/reports/独立验收报告.md"},
+                        "report_sha256": {"const": "ece89870ada955d296fe90c8be3a4b4989e97be6b75cf10bf2863736bac6b76b"},
+                        "accepted_subject_commit": {"const": "19f2e37ba8b35b0d98d3e866895d4490747c9e75"},
+                        "superseded_by_stage_index": {"const": 10}
+                      }
+                    }
+                  ]
+                },
+                "note": {"type": "string", "minLength": 1}
+              },
+              "allOf": [
+                {
+                  "if": {"properties": {"marker_style": {"const": "legacy_frozen_hash"}}, "required": ["marker_style"]},
+                  "then": {"required": ["report_sha256", "accepted_subject_commit", "historical_verdict", "historical_open_blocker", "historical_open_major"]}
+                },
+                {
+                  "if": {"properties": {"marker_style": {"const": "cwk_acceptance_v1"}}, "required": ["marker_style"]},
+                  "then": {
+                    "description": "Grandfathering is a CLOSED exception. A cwk_acceptance_v1 entry must NOT carry a frozen transcription, otherwise a future report could be pinned to a hash and a verdict without ever being parsed.",
+                    "not": {"anyOf": [
+                      {"required": ["report_sha256"]},
+                      {"required": ["accepted_subject_commit"]},
+                      {"required": ["historical_verdict"]},
+                      {"required": ["historical_open_blocker"]},
+                      {"required": ["historical_open_major"]}
+                    ]}
+                  }
+                }
+              ]
+            }
+          },
+          "allOf": [
+            {
+              "description": "RT-012 moved to a new Stage-09 acceptance. The old report remains required closed provenance but can never be the canonical path.",
+              "properties": {
+                "RT-012": {
+                  "required": ["superseded_legacy_report"],
+                  "properties": {
+                    "report_path": {"const": "RT/RT-012/reports/独立验收报告-stage09.md"},
+                    "report_id": {"const": "RT-012"},
+                    "marker_style": {"const": "cwk_acceptance_v1"},
+                    "superseded_legacy_report": {
+                      "properties": {
+                        "report_id": {"const": "RT-012"},
+                        "report_path": {"const": "RT/RT-012/reports/独立验收报告.md"},
+                        "marker_style": {"const": "legacy_frozen_hash"},
+                        "report_sha256": {"const": "bce39f7dfaf1ac92b2f9765bb82622e4e0a5b16be2c48f7ed6cb5c0b822791e2"},
+                        "accepted_subject_commit": {"const": "1894576b20a9e00d396718daeca0c781a7d233a6"},
+                        "historical_verdict": {"const": "PASS"},
+                        "historical_open_blocker": {"const": 0},
+                        "historical_open_major": {"const": 0},
+                        "superseded_by_stage_index": {"const": 9}
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "description": "RT-013 moved to a new Stage-10 acceptance. The old report remains required closed provenance but can never be the canonical path.",
+              "properties": {
+                "RT-013": {
+                  "required": ["superseded_legacy_report"],
+                  "properties": {
+                    "report_path": {"const": "RT/RT-013/reports/独立验收报告-stage10.md"},
+                    "report_id": {"const": "RT-013"},
+                    "marker_style": {"const": "cwk_acceptance_v1"},
+                    "superseded_legacy_report": {
+                      "properties": {
+                        "report_id": {"const": "RT-013"},
+                        "report_path": {"const": "RT/RT-013/reports/独立验收报告.md"},
+                        "marker_style": {"const": "legacy_frozen_hash"},
+                        "report_sha256": {"const": "ece89870ada955d296fe90c8be3a4b4989e97be6b75cf10bf2863736bac6b76b"},
+                        "accepted_subject_commit": {"const": "19f2e37ba8b35b0d98d3e866895d4490747c9e75"},
+                        "historical_verdict": {"const": "PASS"},
+                        "historical_open_blocker": {"const": 0},
+                        "historical_open_major": {"const": 0},
+                        "superseded_by_stage_index": {"const": 10}
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "description": "The grandfathered style set is closed and excludes both remediated RTs.",
+              "patternProperties": {
+                "^RT-0(11|14|15|16)$": {
+                  "properties": {"marker_style": {"const": "legacy_frozen_hash"}},
+                  "not": {"required": ["superseded_legacy_report"]}
+                }
+              }
+            },
+            {
+              "description": "All future RT acceptances use cwk_acceptance_v1 and may not carry either remediated RT's superseded provenance object.",
+              "patternProperties": {
+                "^RT-0(1[7-9]|2[0-6])$": {
+                  "properties": {"marker_style": {"const": "cwk_acceptance_v1"}},
+                  "not": {"required": ["superseded_legacy_report"]}
+                }
+              }
+            }
+          ]
+        },
+        "go_no_go_report_path": {
+          "description": "RT-026's machine-readable go/no-go output. It lives in RT-026's own package, OUTSIDE every receipt root: those roots are governed by exact closure rules, so a report inside one is either an undeclared extra file that fails closure or forces a per-file exception, and a closure rule with an exception is not a closure rule.",
+          "type": "string",
+          "const": "RT/RT-026/reports/go-no-go-report.json"
+        },
+        "go_no_go_path_separation_rule": {"type": "string", "minLength": 1},
+        "receipt_roots_that_must_not_contain_evidence_reports": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^PR/PR-001-multitenant-knowledge-spaces/[a-z-]+/$"
+          }
+        },
+        "required_body_checks": {
+          "type": "array",
+          "minItems": 7,
+          "maxItems": 12,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "gates": {
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 7,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "unevaluatedProperties": false,
+        "required": [
+          "gate_id",
+          "title",
+          "gate_kind",
+          "definition_ref",
+          "receipt_path",
+          "archive_dir",
+          "receipt_schema_id",
+          "feeder_rts",
+          "scope_ceiling",
+          "consumes_verification_gates",
+          "direct_rt_consumers",
+          "producer_role",
+          "requires_external_authorization",
+          "required_prerequisite_ids",
+          "static_note"
+        ],
+        "properties": {
+          "gate_id": {"enum": ["G1", "G2", "G3", "G4", "G5", "G6", "G7"]},
+          "title": {"type": "string", "minLength": 1, "maxLength": 128},
+          "gate_kind": {
+            "description": "release_verification for G1..G6; release_authorization for G7 alone.",
+            "enum": ["release_verification", "release_authorization"]
+          },
+          "definition_ref": {
+            "type": "string",
+            "pattern": "^PR/PR-001-multitenant-knowledge-spaces/plans/"
+          },
+          "receipt_path": {
+            "description": "G1..G6 use receipt.json; G7 uses authorization.json so that a directory walk keyed on receipt semantics can never mistake an authorization for a verification pass.",
+            "type": "string",
+            "pattern": "^PR/PR-001-multitenant-knowledge-spaces/release-gate-receipts/G([1-6]/receipt|7/authorization)\\.json$"
+          },
+          "archive_dir": {
+            "type": "string",
+            "pattern": "^PR/PR-001-multitenant-knowledge-spaces/release-gate-receipts/G[1-7]/archive$"
+          },
+          "receipt_schema_id": {
+            "enum": [
+              "cwk.pr001.release_gate_receipt.v1",
+              "cwk.pr001.release_authorization_receipt.v1"
+            ]
+          },
+          "feeder_rts": {
+            "description": "RT packages whose independent PASS this gate certifies. Empty for G7, which certifies nothing.",
+            "type": "array",
+            "maxItems": 8,
+            "uniqueItems": true,
+            "items": {"type": "string", "pattern": "^RT-0(1[1-9]|2[0-6])$"}
+          },
+          "scope_ceiling": {
+            "description": "Static upper bound on what a PASS of this gate may be read to mean. Never a run outcome.",
+            "type": "string",
+            "minLength": 1
+          },
+          "consumes_verification_gates": {
+            "description": "RELEASE-GATE consumer relation. Inverse must be VG-A -> {G3,G6}, VG-B -> {G6}, VG-C -> {G4,G6}, VG-D -> {G5,G6}, VG-E -> {G6}. This is NOT the direct-RT-consumer relation in gate_registry_v1.json.",
+            "type": "array",
+            "maxItems": 5,
+            "uniqueItems": true,
+            "items": {"enum": ["VG-A", "VG-B", "VG-C", "VG-D", "VG-E"]}
+          },
+          "direct_rt_consumers": {
+            "description": "RT packages that read THIS release gate receipt as an input. RT-026 consumes G1..G5 only; nothing consumes G6 or G7, which are strictly downstream of every RT.",
+            "type": "array",
+            "maxItems": 2,
+            "uniqueItems": true,
+            "items": {"enum": ["RT-024", "RT-026"]}
+          },
+          "producer_role": {
+            "description": "wave_release_verifier for G1..G5; fresh_final_independent_verifier for G6; external_authorizing_principal for G7. No project implementation agent appears in this enum at all.",
+            "enum": [
+              "wave_release_verifier",
+              "fresh_final_independent_verifier",
+              "external_authorizing_principal"
+            ]
+          },
+          "requires_external_authorization": {
+            "description": "True only for G7. This is a static policy declaration, not an execution status.",
+            "type": "boolean"
+          },
+          "required_prerequisite_ids": {
+            "description": "EXACT frozen prerequisite set. A receipt's prerequisite_refs[].ref_id set must EQUAL this, not merely be contained in it. The pattern bounds the id space to release gates G0..G6, RT-011..RT-026, VG-A..VG-E, capability activations (CAP:), security gate receipts (SG:) and the RT-026 go/no-go report; G7 is excluded by pattern because nothing may verify against an authorization.",
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 48,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^(G[0-6]|RT-0(1[1-9]|2[0-6])|VG-[A-E]|CAP:(cwork-authority-source|gateway-identity-transport)|SG:RT-0(1[7-9]|2[0-6])|RT-026-GO-NO-GO)$"
+            }
+          },
+          "static_note": {
+            "description": "Static rule/scope statement only. Must never describe a run outcome.",
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  },
+  "forbiddenEntryKeys": [
+    "status",
+    "conclusion",
+    "verdict",
+    "result",
+    "passed",
+    "failed",
+    "state",
+    "last_run_at",
+    "executed",
+    "satisfied",
+    "closed",
+    "authorized",
+    "receipt_sha256",
+    "tests_run"
+  ],
+  "semanticRules": [
+    "The registry is frozen configuration: neither the top level, nor bootstrap_gate, nor any gate entry may carry a mutable execution status (see forbiddenEntryKeys). In particular `authorized` is forbidden, so the registry can declare that G7 REQUIRES authorization without ever recording that it HAS it.",
+    "Runtime status is derived only from receipt_path existence plus the status/conclusion inside that receipt. No release gate receipt exists today, so all seven entries are NOT_RUN and none may be reported otherwise.",
+    "gate_id values are unique and cover exactly {G1, G2, G3, G4, G5, G6, G7}. G0 must NOT appear in `gates`; it exists only inside bootstrap_gate with in_registry=false.",
+    "gate_kind is release_verification for exactly {G1..G6} and release_authorization for exactly {G7}; receipt_schema_id must agree with gate_kind, and requires_external_authorization must be true exactly when gate_kind is release_authorization.",
+    "receipt_path is unique per gate and its G{n} segment matches gate_id; G1..G6 end in /receipt.json and G7 ends in /authorization.json. A receipt.json under G7 or an authorization.json under G1..G6 is invalid.",
+    "receipt_root must be disjoint from the verification gate root gate-receipts/. Merging them would break the existing exact VG closure, which requires every receipt.json under gate-receipts/ to sit at a VG registry path, and would force that check to be weakened. Neither root's closure rule may be relaxed to accommodate the other family.",
+    "Closure is judged over the WHOLE receipt_root subtree: after recursive enumeration every regular file must land exactly on a declared receipt_path or on a declared archive_dir member named <its own recomputed hash>.json. Symlinks at any component or leaf, dotfiles, non-regular files, nested extra receipts and stray JSON beside a declared receipt are hard failures, not bonuses.",
+    "required_prerequisite_ids is EXACT: a receipt's prerequisite_refs[].ref_id set must equal it. A missing id and an extra id are equally invalid, so neither a weakened gate nor a padded one can be presented as compliant.",
+    "No entry's required_prerequisite_ids may contain its own gate_id or any later release gate; the frozen order is G1 < G2 < G3 < G4 < G5 < G6 < G7.",
+    "No entry's required_prerequisite_ids may contain G7 (enforced by pattern). G7 is an authorization, never evidence of verification, so nothing may verify against it.",
+    "G1's required_prerequisite_ids is exactly {G0, RT-011}. G0 resolves only through bootstrap_gate.final_wave0_review_report_path; the historical r4 report is explicitly insufficient because it reviewed a superseded revision of the documents. That path being absent makes G0 unsatisfied and G1 permanently NOT_RUN until an independent reviewer produces it.",
+    "The frozen DAG is exactly: G1={G0,RT-011}; G2={G1,RT-012,RT-013}; G3={G2,RT-014,RT-015,RT-016,VG-A}; G4={G3,RT-019,RT-020,RT-021,VG-C}; G5={G4,RT-022,RT-023,VG-D,CAP:gateway-identity-transport}; G6={G1..G5, RT-017..RT-026, VG-A..VG-E, both CAP activations, all ten SG:RT-0xx receipts, RT-026-GO-NO-GO}; G7={G6}.",
+    "The closed legacy_frozen_hash set is exactly {RT-011, RT-014, RT-015, RT-016}. RT-012 and RT-013 resolve only to RT/RT-012/reports/独立验收报告-stage09.md and RT/RT-013/reports/独立验收报告-stage10.md with marker_style=cwk_acceptance_v1; each original report is retained only in its own exact closed superseded_legacy_report object and is forbidden as a prerequisite path.",
+    "Every RT entry with marker_style=cwk_acceptance_v1 requires both implementer_ids and reviewer_ids. G0 alone uses the six-field cwk marker because it is a document review. RT-012 touch scope alone contains exact path scripts/cwk_instance.py and RT-013 touch scope alone contains exact path scripts/cwk_agent_binding.py; neither selector may appear under another RT.",
+    "legacy_acceptance_drift_rule has no re-run bypass: ancestry and byte-identical owner scope are both mandatory for every legacy_frozen_hash prerequisite. If a legacy RT evolves, its canonical entry must move to cwk_acceptance_v1 rather than accepting a caller-supplied fresh flag.",
+    "G6 cites G1 THROUGH G5 individually rather than relying on G5 transitively, so that a revoked, expired or hash-drifted mid-chain gate cannot survive undetected inside a downstream conclusion.",
+    "G6's producer_role must be fresh_final_independent_verifier and its direct_rt_consumers must be empty. G6 is strictly downstream of RT-026: RT-026 neither reads nor writes it, and any implementation that treats a G6 receipt as an RT-026 input is a self-dependency cycle and a contract violation.",
+    "G7 is a NARROW-AUTHORITY exception: its required_prerequisite_ids is exactly {G6} and it does not re-consume RT, VG or G1..G5 evidence. Separating duties this way means the authorizer can only answer whether an already-verified candidate may be deployed, never whether it was verified.",
+    "consumes_verification_gates is the RELEASE-GATE consumer relation and its inverse must be exactly VG-A -> {G3,G6}, VG-B -> {G6}, VG-C -> {G4,G6}, VG-D -> {G5,G6}, VG-E -> {G6}. It is a SEPARATE relation from `consumers` in gate_registry_v1.json, which lists DIRECT RT consumers and whose value space is exactly {RT-024, RT-026}. A release gate must never be added to `consumers`, and an RT must never be added to consumes_verification_gates.",
+    "Every gate listed in consumes_verification_gates must also appear in that gate's required_prerequisite_ids: consuming a VG without citing its hash would let the VG evidence drift silently.",
+    "A release gate that consumes VG-x must never appear in VG-x's allowed_prerequisite_ids in gate_registry_v1.json, because a gate cannot be upstream of its own input. G3/VG-A, G4/VG-C and G5/VG-D are the three affected pairs and both files must agree.",
+    "G3's scope ceiling is data/migration level only. Its VG-A input is permanently synthetic with a conclusion ceiling of conservative_unknown, so a G3 PASS is contagiously capped: it may never be read as query-level, runtime-level or production-level verification, and never as a substitute for RT-016.",
+    "G5 must cite CAP:gateway-identity-transport. The direction is fixed: that activation receipt is issued by RT-023 AFTER its own independent PASS, so it is a product of RT-023 and a prerequisite of G5, never a prerequisite of RT-023. Reading it the other way creates an RT-023 self-dependency cycle.",
+    "RT-026's terminal conclusion token READY_FOR_G7_REVIEW means exactly READY_FOR_G6_FINAL_ACCEPTANCE. The name is a frozen v1 misnomer retained to avoid an unversioned break of synthetic_closure_map_v1.json; it must always be glossed as 'may be submitted to G6 final acceptance' and never rendered as G7_AUTHORIZED, RELEASE_APPROVED or GA_READY. G6's own conclusion ceiling is READY_FOR_G7_AUTHORIZATION, which is likewise not a deployment authorization.",
+    "Prerequisites being satisfied is a precondition for RUNNING a gate, never a substitute for its receipt. A gate whose inputs are all green and whose receipt is missing is NOT_RUN, and a downstream gate must fail closed rather than infer it."
+  ]
+}

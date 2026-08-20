@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.canonical_version_snapshot.v1",
+  "title": "RT-017 canonical current-version snapshot v1",
+  "description": "Exact, path-free result of a point lookup in one RT-014 per-report catalog. The provider derives the opaque catalog key from report_key, validates catalog.head and catalog.jsonl, verifies the latest object through SharedEvidenceStore.read_version(report_key, canonical_sha256), and returns no object_id, catalog_key, path, body, tenant or credential field.",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": [
+    "schema",
+    "report_key",
+    "canonical_sha256",
+    "catalog_revision",
+    "catalog_head_sha256"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.canonical_version_snapshot.v1"
+    },
+    "report_key": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 193,
+      "pattern": "^[a-z][a-z0-9_]{0,63}:[A-Za-z0-9][A-Za-z0-9_\\-.]{0,127}$"
+    },
+    "canonical_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "catalog_revision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "catalog_head_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "contractVector": {
+    "catalogKeyDomainUtf8WithTerminalNul": "cwk-rt014-report-key-v1\u0000",
+    "reportKey": "cwork:2070001",
+    "catalogKey": "r_tx33a6ug3oomvn2klbxm3p5jhy"
+  },
+  "semanticRules": [
+    "The JSON object contains exactly the five required properties; missing or additional properties are rejected.",
+    "catalog_key is derived locally from the frozen RT-014 formula r_ + lowercase unpadded RFC 4648 base32(SHA-256(domain || UTF-8(report_key))[0:16]); the provider never accepts catalog_key from a caller.",
+    "The provider performs exactly one report-key point lookup. It does not enumerate report catalogs or shared objects and exposes no enumeration, path, object-id, rollback or delete API.",
+    "catalog.head and every catalog.jsonl line must be strict duplicate-key-free UTF-8 JSON whose raw bytes equal RFC 8785 JCS; their exact frozen RT-014 field sets, scalar types, grammars, revision/count, raw-byte hash and latest-entry relationships are revalidated.",
+    "Every opened directory and file is dir-FD anchored, O_NOFOLLOW, exact-case and exact-Unicode named. Files must be single-link regular files and must retain the same device, inode, mode, link count, size, mtime and ctime through the read. Parent reachability is rechecked before return.",
+    "The selected canonical_sha256 is passed with the requested report_key to public SharedEvidenceStore.read_version. Any missing or drifting object fails closed.",
+    "The catalog is read again after object verification. Any head or JSONL byte change fails closed rather than returning an already-stale current snapshot.",
+    "catalog_head_sha256 is lowercase SHA-256 of the exact canonical catalog.head file bytes; catalog_revision equals the validated head_revision and entry_count.",
+    "The null/default provider always returns the stable unavailable failure and never inspects environment variables, the current working directory, catalogs or objects."
+  ]
+}

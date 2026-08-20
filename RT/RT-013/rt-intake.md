@@ -111,6 +111,21 @@ RT-013 只把「一 agent 一 tenant」「credential 只出现在 broker 边界�
 即拒绝」「secret rotation 双写 + 原子 pointer + 墓碑」写死；不承诺 OpenClaw
 Tool / UDS 的运行时通道，也不模拟真实 Gateway 身份。
 
+## Wave-0 Stage-10 并发补救（2026-08-21）
+
+建立可推送 checkpoint 前的高次数复核重现了同一 raw Agent 并行 `bind()` 偶发
+两次成功：晚读取把并发赢家刚写入的 `active` record 当成可重绑前驱。中央
+script-evolution policy 因此新增 Stage-10（owner `RT-013`，target
+`scripts/cwk_agent_binding.py`，ordinal 1）。晚读取现在只允许 `revoked` 前驱；
+`active/suspended` 在 journal 或 mutation 前稳定返回 `BindingConflictError`。
+
+本修订必须由
+`RT/RT-013/receipts/script-evolution/stage-10-cwk-agent-binding-ord1.json` 与迁移
+说明闭包，并接受确定性 barrier 竞态、普通并行、顺序冲突及 revoked-prior rebind
+测试。原 `reports/独立验收报告.md` 保持字节不变，仅作历史溯源；新的权威验收路径
+为 `reports/独立验收报告-stage10.md`，只能在候选 commit 冻结后由独立验收者创建。
+在该报告出现前，RT-013/G2 都不得被表述为本轮重新验收通过。
+
 ## 与后续 RT 的接口
 
 - RT-015：AccessLedger 复核 auth_epoch 时可复用本 RT 的

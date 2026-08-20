@@ -17,18 +17,33 @@ these frozen boundaries fails the test.
 from __future__ import annotations
 
 import hashlib
+import stat
 import sys
 import unittest
 from pathlib import Path
 
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "scripts"))
+sys.path.insert(0, str(PROJECT / "tests"))
 
 import cwk_legacy_raw_import as R16  # noqa: E402
 import cwk_pr001_contracts as C  # noqa: E402
+import pr001_script_evolution_guard as EG  # noqa: E402
 
 
 SCHEMA_ROOT = C.SCHEMA_ROOT / "rt016" / "schemas"
+
+# PR-001 pre-checkpoint Wave-0 re-freeze.  Nine of the 26 RT-011~015 paths
+# pinned below are allowed to evolve during RT-012/013/017~026, but ONLY by
+# appending a receipt predeclared in
+# PR/PR-001-multitenant-knowledge-spaces/contracts/script-evolution/policy_v1.json.
+# The baseline table itself never changes: it stays the genesis of every chain,
+# and the guard recomputes each path's expected SHA by replaying its receipts
+# (with no receipt, the expected SHA is still the genesis SHA).  The guard
+# helper's bytes are pinned here and, independently, in
+# tests/test_pr001_script_evolution_guard.py.  A later RT must never refresh
+# either pin, edit the policy or its schemas, or edit this table.
+_SCRIPT_EVOLUTION_GUARD_SHA256 = "01abe94109d21ffbbfbf84aa8672058455237099d4625ebb5c5577986dabd32a"
 
 
 # ---------------------------------------------------------------------------
@@ -245,11 +260,27 @@ class FrozenFilesZeroDriftTests(unittest.TestCase):
     drift into review.
     """
 
+    def _read_frozen(self, rel: str) -> bytes:
+        """Read a pinned file through the guard's dir-fd reader.
+
+        PR-001 Wave-0: ``Path.exists()`` / ``Path.read_bytes()`` follow
+        symlinks and ignore ``st_nlink``, so a symlink or hard link pointing
+        at identical bytes passed every SHA check below while defeating the
+        "this exact file is frozen" promise.  ``EG.read_checked_bytes``
+        resolves each component through an ``openat`` directory fd, rejects
+        symlinked components and leaves, rejects ``st_nlink != 1``, rejects
+        case/Unicode name aliasing, and re-checks the file's identity across
+        the read window.
+        """
+
+        data = EG.read_checked_bytes(PROJECT, rel, missing_ok=True)
+        self.assertIsNotNone(data, f"{rel} missing in worktree")
+        assert data is not None  # narrows the type for mypy-style readers
+        return data
+
     def _assert_baseline_matches(self, label: str, mapping: dict[str, str]) -> None:
         for rel, expected_sha in mapping.items():
-            path = PROJECT / rel
-            self.assertTrue(path.exists(), f"{rel} missing in worktree")
-            actual_sha = hashlib.sha256(path.read_bytes()).hexdigest()
+            actual_sha = hashlib.sha256(self._read_frozen(rel)).hexdigest()
             self.assertEqual(
                 actual_sha,
                 expected_sha,
@@ -261,9 +292,24 @@ class FrozenFilesZeroDriftTests(unittest.TestCase):
             )
 
     def test_rt011_015_files_match_baseline_sha(self):
-        self._assert_baseline_matches(
-            "RT-011~015", _FROZEN_RT011_015_BASELINE_SHAS
+        # PR-001 Wave-0: byte-identity is now the *floor*, not the rule.  Seven-
+        # teen of these 26 paths must still be byte-identical forever; the other
+        # nine may equal the tip of their policy-declared, append-only receipt
+        # chain instead.  The guard below enforces both, and additionally
+        # rejects an unrecorded edit to any of the nine.
+        guard_sha = hashlib.sha256(
+            self._read_frozen("tests/pr001_script_evolution_guard.py")
+        ).hexdigest()
+        self.assertEqual(
+            guard_sha,
+            _SCRIPT_EVOLUTION_GUARD_SHA256,
+            (
+                "tests/pr001_script_evolution_guard.py drifted: "
+                f"expected {_SCRIPT_EVOLUTION_GUARD_SHA256}, got {guard_sha}.  "
+                "The Wave-0 guard is frozen; a later RT must not refresh this pin."
+            ),
         )
+        EG.assert_frozen_baseline(PROJECT, _FROZEN_RT011_015_BASELINE_SHAS)
 
     def test_pr001_shared_schemas_match_baseline_sha(self):
         self._assert_baseline_matches(
@@ -293,9 +339,7 @@ class FrozenFilesZeroDriftTests(unittest.TestCase):
 
     def test_rt016_v1_schemas_match_pinned_baseline_sha(self):
         for rel, expected_sha in _FROZEN_RT016_V1_SCHEMA_BASELINE_SHAS.items():
-            path = PROJECT / rel
-            self.assertTrue(path.exists(), f"{rel} missing in worktree")
-            actual_sha = hashlib.sha256(path.read_bytes()).hexdigest()
+            actual_sha = hashlib.sha256(self._read_frozen(rel)).hexdigest()
             self.assertEqual(
                 actual_sha,
                 expected_sha,
@@ -330,12 +374,21 @@ class FrozenBaselineExactSetTests(unittest.TestCase):
 
     def test_pinned_directories_have_exact_set(self):
         for rel_dir, mapping in _EXACT_SET_DIRECTORY_MAP:
-            dir_path = PROJECT / rel_dir
-            self.assertTrue(dir_path.is_dir(), f"{rel_dir} is not a directory")
+            # PR-001 Wave-0: listed through the guard's dir-fd walker so that
+            # neither the directory nor its entries can be a symlink, and so
+            # that ``is_file()`` cannot be satisfied by a symlink to a pinned
+            # file elsewhere.  ``_list_dir`` returns lstat results, so
+            # S_ISREG is a genuine regular-file test.
+            entries = EG._list_dir(PROJECT, tuple(rel_dir.split("/")), label=rel_dir)
+            self.assertTrue(entries, f"{rel_dir} is not a directory or is empty")
+            for name, st in entries:
+                self.assertFalse(
+                    stat.S_ISLNK(st.st_mode), f"{rel_dir}/{name} is a symlink"
+                )
             present = {
-                f"{rel_dir}/{p.name}"
-                for p in dir_path.iterdir()
-                if p.is_file() and p.name.endswith(".schema.json")
+                f"{rel_dir}/{name}"
+                for name, st in entries
+                if stat.S_ISREG(st.st_mode) and name.endswith(".schema.json")
             }
             pinned = set(mapping.keys())
             extra = present - pinned
@@ -371,11 +424,12 @@ class FrozenBaselineExactSetTests(unittest.TestCase):
         """
 
         rel_dir = "PR/PR-001-multitenant-knowledge-spaces/contracts/rt015/schemas"
-        dir_path = PROJECT / rel_dir
+        # Listed exactly the way test_pinned_directories_have_exact_set lists
+        # it, so this meta-test validates the detector actually in use.
         present = {
-            f"{rel_dir}/{p.name}"
-            for p in dir_path.iterdir()
-            if p.is_file() and p.name.endswith(".schema.json")
+            f"{rel_dir}/{name}"
+            for name, st in EG._list_dir(PROJECT, tuple(rel_dir.split("/")), label=rel_dir)
+            if stat.S_ISREG(st.st_mode) and name.endswith(".schema.json")
         }
         omitted_key = f"{rel_dir}/access_tombstone.schema.json"
         self.assertIn(

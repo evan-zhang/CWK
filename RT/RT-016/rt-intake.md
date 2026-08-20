@@ -1,9 +1,7 @@
 # RT-016 rt-intake：Legacy Raw 影子迁移与数据级对账
 
-- 状态：remediation_done（RT-016 v1 已由独立 Opus Agent 黑盒验收
-  `Verdict = PASS, Minor=2, Info=2`；本次 remediation 关闭 Minor-1 /
-  Minor-2 / Info-1，Info-2 由 acceptance 报告标注为可保留。等待
-  验收 Agent 复核后再由其决定 completed 状态与 RT/index.yaml 更新）
+- 状态：completed（第三轮独立黑盒验收 PASS；171/171 定向、
+  1063/1063 全量、27/27 独立攻击；closure commit `470daef`）
 - Profile：Spec-Standard
 - 依赖：
   - RT-011：`cwk.canonical_report.v1`、`cwk.tenant_view.v1`、

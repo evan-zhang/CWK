@@ -1,6 +1,24 @@
 # PR-001：CWK 多租户共享证据与专题知识空间需求文档
 
-> 状态：G0 PASS，允许启动 RT-011
+> 状态：RT-011～RT-016 completed；Wave-1 按剩余工作执行冻结进入 **RT-017 与 RT-022
+> 两条并行链**。RT-019 是 RT-017 的下游，必须等 RT-017 的完整 Stage-01
+> AccessLedger compatibility surface（authority injection、cleanup v2、Profile
+> eligibility、CanonicalVersionProvider 与 PilotAdmission）
+> 独立验收 PASS 后才能开工，不是第三条独立分支。
+> 门禁状态以 `contracts/gates/gate_registry_v1.json` 的 `receipt_path` 机读判定：
+> VG-A 已有机器 receipt（synthetic PASS / `conservative_unknown`），VG-B～VG-E 尚无
+> receipt 文件即 NOT RUN。Wave-0 只完成了**只读可行性 receipt**，未证明任何外部能力。
+> VG-A 的 synthetic 结论**永不升级、永不重跑、永不重解释**；它的能力缺口只能由
+> RT-017（`cwork-authority-source`）与 RT-023（`gateway-identity-transport`）两份
+> capability activation receipt 闭合（`contracts/gates/synthetic_closure_map_v1.json`）。
+> 两份 receipt 当前均不存在，故缺口 OPEN、go/no-go 今天为 NO-GO。
+> activation receipt 由 RT-017 的 **A-07** 与 RT-023 的 **T023-13** 在各自 RT 独立验收
+> PASS 之后签发，有冻结的有界 TTL（authority 90 天 / gateway-identity 30 天）并按
+> append-only 归档链续签，绝不原地覆盖。
+> Security Gate SG-00～SG-10 的机器权威在 `contracts/security/`（registry + registry
+> schema + 单一 receipt schema，说明见该目录 README）：十份
+> `security-receipts/RT-0{17..26}/receipt.json` 当前**全部不存在即 NOT RUN**；
+> 中央计划 §5.1 的矩阵是派生文档，冲突以 registry 为准。
 > 版本：0.1.0
 > 日期：2026-08-19
 > Owner：CWK 项目
@@ -206,6 +224,16 @@ offboarded -> (terminal)
 - `suspended`：禁止解析凭据、采集、Scheduler 和查询；只允许管理员诊断、轮换/撤销凭据、复核与状态恢复。
 - `offboarded`：终态；禁止所有数据面操作，只允许按已授权保留/清理策略处理审计和墓碑。
 
+`pilot` 的 allowlist 事实只能来自 Wave-0 冻结的 neutral
+`PilotAdmissionProviderV1`，调用形式固定为
+`snapshot(*, agent_snapshot)`，purpose 在 provider 构造期绑定为
+`collector_run | profile_workflow | query_broker`，调用方不得逐次改 purpose。
+快照恰好九字段，TTL 满足 `0 < expires_at-as_of <= 300s`，并以
+`cwk-pilot-admission-snapshot-v1\0` 绑定完整性。只有 `pilot` 强制
+`admitted=true` 且快照当前有效；`profile_pending/active` 继续遵守本节既有状态语义，
+不得被该 ABI 引入新的准入依赖。缺 provider、deny、过期、错 tenant/purpose、hash
+漂移或 revision 回退一律 fail closed；生产 policy adapter 只属于 RT-026。
+
 ### FR-03：可信 Agent—tenant 绑定
 
 - 一个普通 Agent 在同一时刻只能绑定一个 tenant。
@@ -283,6 +311,10 @@ revoked   -> purge_pending -> purged
 - 只允许读取工作协同，不修改源端状态。
 - 没有公司级变更流时允许每租户发现，但共享正文仍去重。
 - 评论、回复、审批和状态变化可形成 tenant-scoped staged event evidence 与“事件变化”信号；本轮列表中未出现某事件绝不等同于撤权、删除或不可见，事件正文也不得写入 run manifest、日志、错误或 prompt。
+- 对 `pilot` tenant，Collector 与 Scheduler 都必须以构造期绑定
+  `purpose=collector_run` 的 shared PilotAdmission provider 在启动前和发布/提交前
+  各重验一次；任一次 deny/unavailable/expiry/revision 回退或快照漂移都丢弃整次作业，
+  不发布半成品。`profile_pending` 有界样本采集与 `active` 正常采集不新增此准入依赖。
 
 ### FR-10：知识画像生成
 
@@ -290,6 +322,12 @@ revoked   -> purge_pending -> purged
 - AI 草案包含推荐专题、核心实体、别名、合并/拆分、关注类别、冷归档类别、常见查询和路由阈值。
 - 每项建议包含真实样例引用、出现数量、覆盖率和影响范围。
 - AI 输出只能形成 proposal，不能直接激活高影响变更。
+- Profile eligibility 返回的 `canonical_sha256` 必须由 RT-017 注入的
+  `CanonicalVersionProviderV1.resolve_current(*, report_key)` 点查 RT-014 catalog，
+  并经公开 `SharedEvidenceStore.read_version(report_key, canonical_sha256)` 复核；不得从
+  grant、tenant view 或私有 catalog 推断。若 tenant 为 `pilot`，Proposal/manifest/
+  Profile/route/projection 的持久化边界还必须使用 `purpose=profile_workflow` 的
+  PilotAdmission 快照重验；`profile_pending/active` 保持既有语义。
 
 ### FR-11：用户确认和 holdout 预览
 
@@ -353,6 +391,12 @@ revoked   -> purge_pending -> purged
 - 允许限定空间，但请求字段统一为 `space_selector[]`，元素只能是当前 tenant 的 opaque `space_id`；用户可读 slug 不进入 Broker 契约，由 RT-023 提供受身份约束的 `list_spaces`/slug 解析接口。
 - 请求可选字段 `include_dispositions`（默认 `["index"]`）用于显式声明是否召回 `archive_no_index` 或 `review`；每个 disposition 独立设置 `limit`、超时和并发上限，`archive_no_index` 默认 limit 不高于 `index` 的一半，且不得扫描共享 raw。未显式列入的 disposition 不会返回。
 - 不允许请求参数注入 tenant、共享 root、绝对路径、`agent_id`、`credential_ref` 或 profile 版本。
+- Query Broker 对 `active` tenant 不调用 PilotAdmission；对 `pilot` 的成功请求（包括
+  cache hit）必须以 `purpose=query_broker` 恰好调用两次：检索/cache lookup 前一次，
+  fresh context/grant/profile 二次复核之后、EvidenceReader 回读与返回之前一次。
+  deny/unavailable 不缓存；cache key 绑定 tenant status、policy revision 与 admission
+  snapshot SHA，consumer 维护 `(tenant_id,purpose)` revision high-water，回退或两次
+  snapshot 漂移整请求拒绝且无部分 evidence bundle。
 
 ### FR-18：证据型自然语言问答
 
@@ -549,8 +593,21 @@ access_bound -> revoked
 - G3：共享对象和迁移哈希测试通过。
 - G4：profile、路由和多空间测试通过。
 - G5：沙箱查询 ACL、撤权和越权测试通过。
-- G6：完整回归、备份恢复和最终 Claude Code 验收通过。
+- G6：完整回归、备份恢复和最终 Claude Code 验收通过，由**新鲜**最终独立验收者签发。
 - G7：用户另行授权后才能部署、配置真实密钥或切换 cron。
+
+机器权威是 `contracts/gates/release_gate_registry_v1.json` 及其两份 receipt schema；
+上面七行是**派生说明**，冲突以 registry 为准。三点必须在此写清：
+
+- **G0 不是 registry 条目**：它是 RT 之前的文档评审门禁，证据是叙述性 Markdown，
+  只作为 ref_id 出现在 G1 的前置集里。其满足条件被冻结为
+  `reviews/审核报告-wave0-final.md`，**该报告当前不存在，因此 G1 恒为 NOT_RUN**。
+- **G1～G6 是验证，G7 是授权**，两者不同信任根、不同 schema、不同文件名
+  （`receipt.json` vs `authorization.json`）、不同 domain separator。G7 的唯一机器前置
+  恰为 `{G6}`，必须由**外部信任根**与人类授权者签发；任何项目内 agent 或测试签名者
+  签的 G7 一律无效。G7 只授权 M4 受控试点，**绝不授权扩大切换（M5）或 GA**。
+- **所有七个 release gate 当前均为 NOT_RUN**：`release-gate-receipts/` 不存在。
+  缺失不得从下游门禁、叙述文档或"前置全绿"推断。
 
 ## 14. 开放问题
 
@@ -564,7 +621,7 @@ access_bound -> revoked
 6. secret manager 选择和轮换接口。
 7. 目标 Gateway 是否提供不可伪造的 Tool 元数据、可用 peer credential、限流与 SLA；transport 政策已确定为受控 Tool 优先、UDS 后备，不再作为开放选型。
 8. 单 Gateway 租户数、并发和资源配额。
-9. 知识空间数量和是否允许嵌套。
+9. 知识空间首期已冻结为不嵌套、每 tenant 最多 32 个；扩大上限属于后续容量决策。
 10. 用户离职、Agent 删除和 tenant 转移流程。
 
 ## 15. 参考资料

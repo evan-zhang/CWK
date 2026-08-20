@@ -22,6 +22,15 @@ authoritative store and production queries use `--mode local`. DocDB remains
 enabled only for derived Wiki/index/run-receipt backup plus daily Markdown/HTML
 publishing; raw evidence is not published. See [runtime status](docs/RUNTIME_STATUS.md).
 
+**PR-001 multi-tenant milestone (2026-08-20):** RT-011–RT-016 and the
+synthetic VG-A integration gate are accepted. The multi-tenant runtime is not
+deployed or enabled in production; RT-017–RT-026, VG-B–VG-E, trusted Gateway
+identity/transport, clean-room recovery, and release authorization remain.
+Wave-0 has frozen the neutral PilotAdmission and RT-017 CanonicalVersionProvider
+contract artifacts; their presence is a contract baseline, not a completed RT,
+production allowlist, deployment, or authorization.
+See [PR-001 status](PR/PR-001-multitenant-knowledge-spaces/STATUS.md).
+
 Primary documentation:
 
 - [Design specification](docs/DESIGN.md)
@@ -30,6 +39,7 @@ Primary documentation:
 - [Operations guide](docs/OPERATIONS.md)
 - [AI runtime policy](docs/AI-PILOT.md)
 - [Model role matrix](MODEL_ROLES.md)
+- [PR-001 multi-tenant status](PR/PR-001-multitenant-knowledge-spaces/STATUS.md)
 
 ## Quick Start
 

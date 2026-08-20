@@ -1,0 +1,200 @@
+{
+  "schema": "cwk.pr001.script_evolution_policy.v1",
+  "policy_id": "pr001-script-evolution-v1",
+  "policy_version": "v1",
+  "frozen_at": "2026-08-21T00:00:00Z",
+  "genesis_source": "tests/test_rt016_schemas.py::_FROZEN_RT011_015_BASELINE_SHAS",
+  "genesis_entry_count": 26,
+  "genesis_manifest_sha256": "dbcef56c801c39ccb95282edf797fdbc22dbae3fde4b2a4abf08bcf58321dded",
+  "genesis_link_domain": "cwk-pr001-script-evolution-genesis-v1",
+  "receipt_schema_file": "receipt_v1.schema.json",
+  "receipt_root_dir_template": "RT/<owner_rt>/receipts/script-evolution",
+  "evolvable_paths": [
+    {
+      "target_path": "scripts/cwk_instance.py",
+      "genesis_sha256": "418bbdaabb8842b0a20443b42eca661c7be4c87c59e1e49c5d1a973a56bd5ae7",
+      "owner_rts": ["RT-012"],
+      "max_ordinal": 1
+    },
+    {
+      "target_path": "scripts/cwk_agent_binding.py",
+      "genesis_sha256": "9122d1ee6a637e811f6fa03c4eb7cf78960e458f2cd71bce5cdcadc8d426fdcd",
+      "owner_rts": ["RT-013"],
+      "max_ordinal": 1
+    },
+    {
+      "target_path": "scripts/cwk_access_ledger.py",
+      "genesis_sha256": "2d4979803d2cd0a2792278ded324ee13c6597c03ed09d713a5f42f6772967549",
+      "owner_rts": ["RT-017"],
+      "max_ordinal": 1
+    },
+    {
+      "target_path": "scripts/cwk_collect_live.py",
+      "genesis_sha256": "3563da82f1d23954c95d60a29e339dad67662655180328b6f9156c4851c412f7",
+      "owner_rts": ["RT-017"],
+      "max_ordinal": 1
+    },
+    {
+      "target_path": "scripts/cwk_tenant_cli.py",
+      "genesis_sha256": "2e34a56302f916d5e3f76eb2240f5426859dca367857ae526cc8a4708bce03fe",
+      "owner_rts": ["RT-019", "RT-026"],
+      "max_ordinal": 2
+    },
+    {
+      "target_path": "scripts/cwk_entity_catalog.py",
+      "genesis_sha256": "5a5f346eb2369978c0ae2d570f4a120d6066e17fe47337d13b2f31dbf78f2810",
+      "owner_rts": ["RT-021"],
+      "max_ordinal": 1
+    },
+    {
+      "target_path": "scripts/cwk_wiki_search_index.py",
+      "genesis_sha256": "1033f3b080154c90ad30a232ac4bc301d95336b87a89356547c670fac61958cd",
+      "owner_rts": ["RT-021"],
+      "max_ordinal": 1
+    },
+    {
+      "target_path": "scripts/cwk_wiki_query.py",
+      "genesis_sha256": "e7d5ebb178076159c4facc9d3f0fa4e947a807b20ceb5b795de234010bb890a6",
+      "owner_rts": ["RT-022"],
+      "max_ordinal": 1
+    },
+    {
+      "target_path": "scripts/cwk_nightly_pipeline.py",
+      "genesis_sha256": "dacd6f14a52e02271c86daa764ae4e090b0bef1d5140b4291b026d350c69a46b",
+      "owner_rts": ["RT-026"],
+      "max_ordinal": 1
+    }
+  ],
+  "companion_immutable_paths": [
+    {
+      "target_path": "scripts/cwk_tenant_cli_api.py",
+      "sha256": "b2c8d725531ec942f1c7b6938817604a7a3d6f6a25044117a1e51140dafd97a5",
+      "reason": "Holds COMMAND_PROVIDER_API_VERSION and CommandSpec; plan 4.2 freezes the CommandProviderV1 ABI, but this file is not in the RT-016 genesis table."
+    },
+    {
+      "target_path": "scripts/cwk_tenant_cmd_core.py",
+      "sha256": "1af7f90643fba850f13aca39b5474f4874ed1eb582c55c5e346dc2286c2d0870",
+      "reason": "Reference provider for slot 0; a drift here would change dispatcher behaviour without touching any policy-declared evolvable path."
+    }
+  ],
+  "tenant_cli": {
+    "target_path": "scripts/cwk_tenant_cli.py",
+    "slot_symbol": "FROZEN_PROVIDER_SLOTS",
+    "slot_annotation": "tuple[str, ...]",
+    "baseline_slots": ["cwk_tenant_cmd_core", "cwk_tenant_cmd_binding"],
+    "slot_name_pattern": "\\Acwk_tenant_cmd_[a-z][a-z0-9_]{0,47}\\Z",
+    "max_slot_span_lines": 16
+  },
+  "stages": [
+    {
+      "stage_index": 1,
+      "owner_rt": "RT-017",
+      "target_path": "scripts/cwk_access_ledger.py",
+      "ordinal": 1,
+      "adds_provider_slot": null,
+      "requires_stage_index": null,
+      "receipt_path": "RT/RT-017/receipts/script-evolution/stage-01-cwk-access-ledger-ord1.json",
+      "migration_note_path": "RT/RT-017/reports/migrations/stage-01-cwk-access-ledger-ord1.md",
+      "acceptance_test_prefix": "tests/test_rt017_"
+    },
+    {
+      "stage_index": 2,
+      "owner_rt": "RT-017",
+      "target_path": "scripts/cwk_collect_live.py",
+      "ordinal": 1,
+      "adds_provider_slot": null,
+      "requires_stage_index": null,
+      "receipt_path": "RT/RT-017/receipts/script-evolution/stage-02-cwk-collect-live-ord1.json",
+      "migration_note_path": "RT/RT-017/reports/migrations/stage-02-cwk-collect-live-ord1.md",
+      "acceptance_test_prefix": "tests/test_rt017_"
+    },
+    {
+      "stage_index": 3,
+      "owner_rt": "RT-019",
+      "target_path": "scripts/cwk_tenant_cli.py",
+      "ordinal": 1,
+      "adds_provider_slot": "cwk_tenant_cmd_profile",
+      "requires_stage_index": null,
+      "receipt_path": "RT/RT-019/receipts/script-evolution/stage-03-cwk-tenant-cli-ord1.json",
+      "migration_note_path": "RT/RT-019/reports/migrations/stage-03-cwk-tenant-cli-ord1.md",
+      "acceptance_test_prefix": "tests/test_rt019_"
+    },
+    {
+      "stage_index": 4,
+      "owner_rt": "RT-021",
+      "target_path": "scripts/cwk_entity_catalog.py",
+      "ordinal": 1,
+      "adds_provider_slot": null,
+      "requires_stage_index": null,
+      "receipt_path": "RT/RT-021/receipts/script-evolution/stage-04-cwk-entity-catalog-ord1.json",
+      "migration_note_path": "RT/RT-021/reports/migrations/stage-04-cwk-entity-catalog-ord1.md",
+      "acceptance_test_prefix": "tests/test_rt021_"
+    },
+    {
+      "stage_index": 5,
+      "owner_rt": "RT-021",
+      "target_path": "scripts/cwk_wiki_search_index.py",
+      "ordinal": 1,
+      "adds_provider_slot": null,
+      "requires_stage_index": null,
+      "receipt_path": "RT/RT-021/receipts/script-evolution/stage-05-cwk-wiki-search-index-ord1.json",
+      "migration_note_path": "RT/RT-021/reports/migrations/stage-05-cwk-wiki-search-index-ord1.md",
+      "acceptance_test_prefix": "tests/test_rt021_"
+    },
+    {
+      "stage_index": 6,
+      "owner_rt": "RT-022",
+      "target_path": "scripts/cwk_wiki_query.py",
+      "ordinal": 1,
+      "adds_provider_slot": null,
+      "requires_stage_index": null,
+      "receipt_path": "RT/RT-022/receipts/script-evolution/stage-06-cwk-wiki-query-ord1.json",
+      "migration_note_path": "RT/RT-022/reports/migrations/stage-06-cwk-wiki-query-ord1.md",
+      "acceptance_test_prefix": "tests/test_rt022_"
+    },
+    {
+      "stage_index": 7,
+      "owner_rt": "RT-026",
+      "target_path": "scripts/cwk_tenant_cli.py",
+      "ordinal": 2,
+      "adds_provider_slot": "cwk_tenant_cmd_release",
+      "requires_stage_index": 3,
+      "receipt_path": "RT/RT-026/receipts/script-evolution/stage-07-cwk-tenant-cli-ord2.json",
+      "migration_note_path": "RT/RT-026/reports/migrations/stage-07-cwk-tenant-cli-ord2.md",
+      "acceptance_test_prefix": "tests/test_rt026_"
+    },
+    {
+      "stage_index": 8,
+      "owner_rt": "RT-026",
+      "target_path": "scripts/cwk_nightly_pipeline.py",
+      "ordinal": 1,
+      "adds_provider_slot": null,
+      "requires_stage_index": null,
+      "receipt_path": "RT/RT-026/receipts/script-evolution/stage-08-cwk-nightly-pipeline-ord1.json",
+      "migration_note_path": "RT/RT-026/reports/migrations/stage-08-cwk-nightly-pipeline-ord1.md",
+      "acceptance_test_prefix": "tests/test_rt026_"
+    },
+    {
+      "stage_index": 9,
+      "owner_rt": "RT-012",
+      "target_path": "scripts/cwk_instance.py",
+      "ordinal": 1,
+      "adds_provider_slot": null,
+      "requires_stage_index": null,
+      "receipt_path": "RT/RT-012/receipts/script-evolution/stage-09-cwk-instance-ord1.json",
+      "migration_note_path": "RT/RT-012/reports/migrations/stage-09-cwk-instance-ord1.md",
+      "acceptance_test_prefix": "tests/test_rt012_"
+    },
+    {
+      "stage_index": 10,
+      "owner_rt": "RT-013",
+      "target_path": "scripts/cwk_agent_binding.py",
+      "ordinal": 1,
+      "adds_provider_slot": null,
+      "requires_stage_index": null,
+      "receipt_path": "RT/RT-013/receipts/script-evolution/stage-10-cwk-agent-binding-ord1.json",
+      "migration_note_path": "RT/RT-013/reports/migrations/stage-10-cwk-agent-binding-ord1.md",
+      "acceptance_test_prefix": "tests/test_rt013_"
+    }
+  ]
+}

@@ -34,8 +34,10 @@ import errno
 import os
 import re
 import stat as stat_module
+import threading
+import weakref
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Iterator, Sequence
 
 # Reuse the RT-011 frozen tenant/space/object regexes rather than redefining
@@ -203,22 +205,10 @@ def validate_space_id(value: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def resolve_instance_root() -> str:
-    """Return the absolute, symlink-free instance root string.
+def _validate_instance_root_text(raw: object) -> str:
+    """Validate the textual root without resolving or normalising it."""
 
-    Fails closed if the env var is missing, empty, whitespace-only, contains
-    NUL/CR/LF/percent-encoded traversal, is relative, or points to a symlink.
-
-    Note: we return a ``str`` here (not a ``Path``) because everywhere down
-    the stack we open a directory FD immediately and then use ``dir_fd``
-    everywhere.  Passing an unwrapped ``Path`` around would encourage
-    ``pathlib`` joins that skip our containment check.
-    """
-
-    raw = os.environ.get(ENV_VAR)
-    if raw is None:
-        raise InstanceRootError(f"{ENV_VAR} is not set")
-    if not isinstance(raw, str):  # pragma: no cover - env is always str
+    if not isinstance(raw, str):
         raise InstanceRootError(f"{ENV_VAR} is not a string")
     if raw == "":
         raise InstanceRootError(f"{ENV_VAR} must not be empty")
@@ -234,21 +224,128 @@ def resolve_instance_root() -> str:
             raise InstanceRootError(f"{ENV_VAR} contains encoded traversal")
     if not os.path.isabs(raw):
         raise InstanceRootError(f"{ENV_VAR} must be an absolute path")
-    # Reject any UNC-style Windows path or explicit backslash.
+    if raw == "/":
+        raise InstanceRootError(f"{ENV_VAR} may not be the filesystem root")
     if "\\" in raw:
         raise InstanceRootError(f"{ENV_VAR} may not contain backslash separators")
-    # Explicit lstat: the root itself must not be a symlink.
-    try:
-        st = os.lstat(raw)
-    except FileNotFoundError as exc:
-        raise InstanceRootError(f"{ENV_VAR} does not exist") from exc
-    except OSError as exc:
-        raise InstanceRootError(f"{ENV_VAR} cannot be stat'd (errno={exc.errno})") from exc
-    if stat_module.S_ISLNK(st.st_mode):
-        raise InstanceRootError(f"{ENV_VAR} is a symbolic link")
-    if not stat_module.S_ISDIR(st.st_mode):
-        raise InstanceRootError(f"{ENV_VAR} is not a directory")
+    if raw.endswith("/") or "//" in raw:
+        raise InstanceRootError(f"{ENV_VAR} must use a canonical absolute path")
+    components = tuple(raw.split("/")[1:])
+    if any(component in ("", ".", "..") for component in components):
+        raise InstanceRootError(f"{ENV_VAR} must use a canonical absolute path")
     return raw
+
+
+def _directory_open_flags() -> int:
+    if (
+        not hasattr(os, "O_DIRECTORY")
+        or not hasattr(os, "O_NOFOLLOW")
+        or os.open not in os.supports_dir_fd
+        or os.stat not in os.supports_dir_fd
+        or os.stat not in os.supports_follow_symlinks
+    ):
+        raise InstanceRootError("host lacks required nofollow dir-fd support")
+    flags = os.O_RDONLY
+    flags |= os.O_DIRECTORY
+    flags |= os.O_NOFOLLOW
+    if hasattr(os, "O_CLOEXEC"):
+        flags |= os.O_CLOEXEC
+    return flags
+
+
+def _directory_identity(fd: int) -> tuple[int, int]:
+    st = os.fstat(fd)
+    if not stat_module.S_ISDIR(st.st_mode):
+        raise InstanceRootError("instance root component is not a directory")
+    return (st.st_dev, st.st_ino)
+
+
+def _open_absolute_dir_chain(raw: str) -> tuple[int, tuple[tuple[int, int], ...]]:
+    """Open every absolute-path component with ``openat`` and no symlinks.
+
+    The returned FD owns the final component.  Intermediate descriptors are
+    closed as the walk advances, while their device/inode identities are
+    retained so a later walk can prove that the textual path still names the
+    same component chain.
+    """
+
+    flags = _directory_open_flags()
+    try:
+        current_fd = os.open("/", flags)
+    except OSError as exc:  # pragma: no cover - a usable POSIX host has '/'
+        raise InstanceRootError(
+            f"instance root chain cannot be opened safely (errno={exc.errno})"
+        ) from exc
+    identities: list[tuple[int, int]] = []
+    try:
+        identities.append(_directory_identity(current_fd))
+        components = tuple(raw.split("/")[1:])
+        for component in components:
+            try:
+                before = os.stat(
+                    component,
+                    dir_fd=current_fd,
+                    follow_symlinks=False,
+                )
+                if stat_module.S_ISLNK(before.st_mode):
+                    raise InstanceRootError(
+                        "instance root component is a symbolic link"
+                    )
+                if not stat_module.S_ISDIR(before.st_mode):
+                    raise InstanceRootError(
+                        "instance root component is not a directory"
+                    )
+                next_fd = os.open(component, flags, dir_fd=current_fd)
+            except OSError as exc:
+                raise InstanceRootError(
+                    f"instance root component cannot be opened safely (errno={exc.errno})"
+                ) from exc
+            try:
+                after_identity = _directory_identity(next_fd)
+            except BaseException:
+                os.close(next_fd)
+                raise
+            if after_identity != (before.st_dev, before.st_ino):
+                os.close(next_fd)
+                raise InstanceRootError(
+                    "instance root component changed while being opened"
+                )
+            os.close(current_fd)
+            current_fd = next_fd
+            identities.append(after_identity)
+        return current_fd, tuple(identities)
+    except BaseException:
+        os.close(current_fd)
+        raise
+
+
+def _close_fd_quietly(fd: int) -> None:
+    try:
+        os.close(fd)
+    except OSError as exc:  # finalizer must never surface an already-closed FD
+        if exc.errno != errno.EBADF:
+            raise
+
+
+def resolve_instance_root() -> str:
+    """Return the absolute, symlink-free instance root string.
+
+    Fails closed if the env var is missing, empty, whitespace-only, contains
+    NUL/CR/LF/percent-encoded traversal, is relative, or points to a symlink.
+
+    Note: we return a ``str`` here (not a ``Path``) because everywhere down
+    the stack we open a directory FD immediately and then use ``dir_fd``
+    everywhere.  Passing an unwrapped ``Path`` around would encourage
+    ``pathlib`` joins that skip our containment check.
+    """
+
+    raw = os.environ.get(ENV_VAR)
+    if raw is None:
+        raise InstanceRootError(f"{ENV_VAR} is not set")
+    validated = _validate_instance_root_text(raw)
+    fd, _identities = _open_absolute_dir_chain(validated)
+    os.close(fd)
+    return validated
 
 
 # ---------------------------------------------------------------------------
@@ -264,49 +361,111 @@ def _atomic():
     return A
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class InstanceLayout:
     """Handle for the top-level ``CWK_INSTANCE_ROOT``.
 
-    Instances are cheap and safe to short-live: they carry no open file
-    descriptors themselves.  Every method opens its own dir FD via
-    ``open_dir_nofollow`` and either yields it to the caller (as a context
-    manager) or closes it before returning.
+    ``open()`` pins the root inode with a retained descriptor and records the
+    identity of every absolute-path component.  Every later ``root_fd()``
+    re-walks the textual path with ``openat(..., O_NOFOLLOW)`` and rejects any
+    component drift before yielding a descriptor.  This makes one layout
+    incapable of silently switching to a replacement instance tree.
     """
 
     root: str
+    _anchor_fd: int = field(repr=False, compare=False)
+    _component_identities: tuple[tuple[int, int], ...] = field(
+        repr=False,
+        compare=False,
+    )
+    _lock: threading.RLock = field(repr=False, compare=False)
+    _closed: bool = field(repr=False, compare=False)
+    _finalizer: weakref.finalize = field(repr=False, compare=False)
+
+    def __init__(self, *args, **kwargs) -> None:  # pragma: no cover - misuse
+        raise TypeError("InstanceLayout must be created with InstanceLayout.open()")
 
     @classmethod
     def open(cls, root: str | None = None) -> "InstanceLayout":
         """Open the instance root; ``root`` defaults to
         ``resolve_instance_root()``.  Callers MUST NOT bypass this factory."""
 
-        actual = root if root is not None else resolve_instance_root()
-        # Second-round validation for the injected root: same rules apply.
-        # We only allow injection here for tests; production always goes
-        # through the env var.
-        if root is not None:
-            if not isinstance(actual, str):
-                raise InstanceRootError("root must be a str")
-            if not os.path.isabs(actual):
-                raise InstanceRootError("root must be absolute")
-            st = os.lstat(actual)
-            if stat_module.S_ISLNK(st.st_mode):
-                raise InstanceRootError("root is a symbolic link")
-            if not stat_module.S_ISDIR(st.st_mode):
-                raise InstanceRootError("root is not a directory")
-        return cls(root=actual)
+        actual = resolve_instance_root() if root is None else _validate_instance_root_text(root)
+        anchor_fd, identities = _open_absolute_dir_chain(actual)
+        layout = object.__new__(cls)
+        object.__setattr__(layout, "root", actual)
+        object.__setattr__(layout, "_anchor_fd", anchor_fd)
+        object.__setattr__(layout, "_component_identities", identities)
+        object.__setattr__(layout, "_lock", threading.RLock())
+        object.__setattr__(layout, "_closed", False)
+        object.__setattr__(
+            layout,
+            "_finalizer",
+            weakref.finalize(layout, _close_fd_quietly, anchor_fd),
+        )
+        return layout
+
+    def __copy__(self) -> "InstanceLayout":
+        return self
+
+    def __deepcopy__(self, memo: dict) -> "InstanceLayout":
+        del memo
+        return self
+
+    def __reduce__(self):  # pragma: no cover - exercised by pickle machinery
+        raise TypeError("InstanceLayout cannot be pickled; reopen it explicitly")
+
+    def __enter__(self) -> "InstanceLayout":
+        with self._lock:
+            if self._closed:
+                raise InstanceRootError("instance layout is closed")
+        return self
+
+    def __exit__(self, exc_type, exc, traceback) -> None:
+        del exc_type, exc, traceback
+        self.close()
+
+    def close(self) -> None:
+        """Release the root anchor; safe to call more than once."""
+
+        with self._lock:
+            if self._closed:
+                return
+            object.__setattr__(self, "_closed", True)
+            self._finalizer.detach()
+            _close_fd_quietly(self._anchor_fd)
 
     # -- root-level FD ---------------------------------------------------
 
     @contextmanager
     def root_fd(self) -> Iterator[int]:
-        A = _atomic()
-        fd = A.open_dir_nofollow(self.root)
+        # Duplicate the anchor while holding the lifecycle lock, then release
+        # it before the path walk and before yielding to callers.  The dup
+        # keeps the original inode alive if another thread calls close(),
+        # without serialising unrelated dirfd operations across the layout.
+        with self._lock:
+            if self._closed:
+                raise InstanceRootError("instance layout is closed")
+            try:
+                anchor_fd = os.dup(self._anchor_fd)
+            except OSError as exc:
+                raise InstanceRootError(
+                    f"instance root anchor cannot be duplicated (errno={exc.errno})"
+                ) from exc
         try:
-            yield fd
+            fd, identities = _open_absolute_dir_chain(self.root)
+            try:
+                anchor_identity = _directory_identity(anchor_fd)
+                if (
+                    identities != self._component_identities
+                    or identities[-1] != anchor_identity
+                ):
+                    raise InstanceRootError("instance root identity changed")
+                yield fd
+            finally:
+                os.close(fd)
         finally:
-            os.close(fd)
+            os.close(anchor_fd)
 
     @contextmanager
     def child_fd(self, name: str) -> Iterator[int]:
