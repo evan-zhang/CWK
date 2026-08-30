@@ -36,8 +36,8 @@ from cwk_wiki_manifest_reconcile import reconcile_manifest as reconcile_source_m
 
 PROJECT = Path(__file__).resolve().parents[1]
 DEFAULT_MIRROR = PROJECT / "knowledge" / "工作协同镜像"
-DEFAULT_MODEL = os.environ.get("CWK_CLOUD_WIKI_MODEL", "newapi/BD-MiniMax")
-DEFAULT_REPAIR_MODEL = os.environ.get("CWK_CLOUD_WIKI_REPAIR_MODEL", "newapi/BD-glm")
+DEFAULT_MODEL = os.environ.get("CWK_CLOUD_WIKI_MODEL", "evan-openai/glm-5.3-flash")
+DEFAULT_REPAIR_MODEL = os.environ.get("CWK_CLOUD_WIKI_REPAIR_MODEL", "deepseek/deepseek-v4-flash")
 MAX_FAILURE_ATTEMPTS = int(os.environ.get("CWK_WIKI_MAX_FAILURE_ATTEMPTS", "3"))
 SCHEMA = "cwk.cloud_wiki_source.v1"
 FALLBACK_MARKER = "本页为本次重组阶段生成的本地兜底摘要"

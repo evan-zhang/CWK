@@ -15,11 +15,11 @@
 ## 角色分配
 
 ### Role 1 — 云Wiki摘要编译 (cloud-wiki-compile)
-- **模型**: `newapi/BD-MiniMax`
+- **模型**: `evan-openai/glm-5.3-flash`
 - **脚本**: `cwk_cloud_wiki_compile.py`
-- **环境变量**: `CWK_CLOUD_WIKI_MODEL`（默认 `newapi/BD-MiniMax`）
-- **理由**: 大批量文档摘要生成，MiniMax 性价比最高，吞吐量大
-- **格式修复兜底**: `newapi/BD-glm`，仅在 MiniMax 返回不可解析或不合约 JSON 时调用；环境变量 `CWK_CLOUD_WIKI_REPAIR_MODEL`
+- **环境变量**: `CWK_CLOUD_WIKI_MODEL`（默认 `evan-openai/glm-5.3-flash`）
+- **理由**: 大批量文档摘要生成；2026-08-30 实测精编质量达标（quote 忠实度 100%，22-29s/篇），价格 0.8/2.8/0.2 元每百万 tokens，替代 MiniMax（旧模型失败率高，138 篇重试未解决）
+- **格式修复兜底**: `deepseek/deepseek-v4-flash` 官方渠道，仅在主力返回不可解析或不合约 JSON 时调用；环境变量 `CWK_CLOUD_WIKI_REPAIR_MODEL`。理由：内网 BD-glm 出现 billing 失败（2026-08-30），修复通道改走外部官方渠道隔离风险
 
 ### Role 2 — 记录理解 (record-understanding)
 - **模型**: `newapi/BD-MiniMax`

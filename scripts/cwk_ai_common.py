@@ -29,9 +29,14 @@ _SAFE_AGENTS: set[str] = set()
 AI_ENV_ALLOWLIST = {"OPENCLAW_GATEWAY_TOKEN", "OPENCLAW_GATEWAY_PASSWORD"}
 
 # ── Model allowlist ──────────────────────────────────────────────
-# CWK business pipeline permits ONLY these two models.
+# CWK business pipeline permits ONLY these models.
 # See projects/CWK/MODEL_ROLES.md for the full rationale.
-CWK_ALLOWED_MODELS: set[str] = {"newapi/BD-MiniMax", "newapi/BD-glm"}
+CWK_ALLOWED_MODELS: set[str] = {
+    "newapi/BD-MiniMax",
+    "newapi/BD-glm",
+    "evan-openai/glm-5.3-flash",
+    "deepseek/deepseek-v4-flash",
+}
 TEMPORARY_GPT56_BATCH_MODELS = {
     "openai/gpt-5.6-sol",
     "openai/gpt-5.6-terra",

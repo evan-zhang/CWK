@@ -620,12 +620,12 @@ def main() -> None:
         "wiki_mirror_root",
         args.mirror_root,
     )
-    args.wiki_model = config_value(args, config, "wiki_model", os.environ.get("CWK_CLOUD_WIKI_MODEL", "newapi/BD-MiniMax"))
+    args.wiki_model = config_value(args, config, "wiki_model", os.environ.get("CWK_CLOUD_WIKI_MODEL", "evan-openai/glm-5.3-flash"))
     args.wiki_repair_model = config_value(
         args,
         config,
         "wiki_repair_model",
-        os.environ.get("CWK_CLOUD_WIKI_REPAIR_MODEL", "newapi/BD-glm"),
+        os.environ.get("CWK_CLOUD_WIKI_REPAIR_MODEL", "deepseek/deepseek-v4-flash"),
     )
     args.wiki_limit = int(config_value(args, config, "wiki_limit", os.environ.get("CWK_WIKI_LIMIT", 80)))
     args.wiki_max_parallel = int(
