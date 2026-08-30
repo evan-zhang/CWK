@@ -1,8 +1,8 @@
 # CWK Work Agent 备用执行池接入方案
 
-> 状态：设计草案，未批准实施  
-> 记录日期：2026-08-31  
-> 适用对象：`cwk_cloud_wiki_compile.py` 的单篇工作协同汇报精编  
+> 状态：设计草案，未批准实施
+> 记录日期：2026-08-31
+> 适用对象：`cwk_cloud_wiki_compile.py` 的单篇工作协同汇报精编
 > 方法来源：`bd-eval-loop` Work Agent 运行时规范（源提交 `08b0523c9457da9f59235e48e22227f369502ac6`）
 
 ## 1. 结论
