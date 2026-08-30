@@ -1,0 +1,52 @@
+# AODW Manifest
+version: 0.6.1
+last_updated_at: 2026-08-31T00:00:00+08:00
+summary_preferred: true
+
+adoption:
+  source_project: bd-eval-loop
+  source_commit: 08b0523c9457da9f59235e48e22227f369502ac6
+  adopted_at: 2026-08-31
+  project_specific_layer: 06-project
+
+rules:
+  - id: aodw-constitution
+    name: AODW Constitution
+    path: 01-core/aodw-constitution.md
+
+  - id: ai-interaction-rules
+    name: AI Interaction Rules
+    path: 01-core/ai-interaction-rules.md
+
+  - id: git-discipline
+    name: Git Discipline
+    path: 01-core/git-discipline.md
+
+  - id: rt-manager
+    name: RT Manager
+    path: 02-workflow/rt-manager.md
+
+  - id: spec-lite-profile
+    name: Spec-Lite Profile
+    path: 02-workflow/spec-lite-profile.md
+
+  - id: project-ai-overview
+    name: Project AI Overview
+    path: 06-project/ai-overview.md
+
+  - id: project-modules-index
+    name: Project Modules Index
+    path: 06-project/modules-index.yaml
+
+# AODW 自带的 skill。源码随 .aodw-next/ 一起分发；各家 AI 工具从宿主目录
+# （.agent/skills/ 或 .claude/skills/）发现 skill，故需安装一次：
+#     bash .aodw-next/tools/install-skills.sh
+# 安装用符号链接，源码只有一份、改了立刻生效。详见 06-project/ai-init-prompt.md。
+skills:
+  - id: handover-pack
+    name: Handover Pack
+    path: skills/handover-pack/SKILL.md
+    summary: >
+      把当前会话的工作整理成规范交接包（写明当前 RT、与转出台账建立关联、
+      带标准 frontmatter），产出落 docs/handover/。用户说「帮我做好交接工作」时调用。
+    validator: skills/handover-pack/scripts/validate.py

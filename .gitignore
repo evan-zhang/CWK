@@ -11,3 +11,5 @@ cwk-mirror.local.json
 *.log
 /.cwk-ai-runtime/
 /state/
+.cowrite-session.json
+.agent/skills/handover-pack

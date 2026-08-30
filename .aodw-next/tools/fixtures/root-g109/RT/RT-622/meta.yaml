@@ -1,0 +1,5 @@
+rt_id: RT-622
+title: fixture——G109 收紧反例：仅出现在他人 related 列表
+type: Bugfix
+profile: Spec-Lite
+status: in-progress

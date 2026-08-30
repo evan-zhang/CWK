@@ -1,0 +1,227 @@
+# =============================================================================
+# rt-gates.yaml — AODW 0.6.1 RT 门禁判据
+# =============================================================================
+# 消费者：.aodw-next/tools/rt-guard.sh（判据一律外置于此，脚本入口保持稳定）
+# 解析：统一走 python3（禁用 yq，依据 rt-plan.md v5 U1「注意」条 /
+#       resources/scripts/runtime/preflight-config.sh:77 先例）
+#
+# ── Schema（schema_version: 1）──────────────────────────────────────────────
+# 顶层字段：
+#   schema_version : int   本文件 schema 版本，不兼容变更时递增
+#   defaults       : map   判据条目的默认值（条目内同名字段覆盖之）
+#   gates          : list  判据条目列表
+#
+# 判据条目字段：
+#   id       : str   稳定判据编号（G0xx 骨架/结构类；G1xx 对齐任务包判据编号：
+#                    G101-G109=U2a 元数据与文本类、G110=U2b 交叉引用=判据 #10）。
+#                    脚本输出与 fixture 断言均引用此 id。
+#                    （U1 曾预划 G2xx 给 U2b；U2b 任务包冻结为 G110 对齐编号，
+#                    以任务包为准，G2xx 段位弃用。）
+#   name     : str   机器友好短名（kebab-case）
+#   title    : str   人读标题
+#   severity : str   error | warn
+#                    error → 硬失败：CLI 形态计入失败并以 exit 1 收口；
+#                            hook 形态表达 deny（结构化 JSON + exit 0 正路）
+#                    warn  → 告警：报出但不影响退出码/放行
+#   scope    : str   rt | repo
+#                    rt   → 只扫被检 RT 目录内（U2b 裁决的默认范围）
+#                    repo → 全库扫描（默认关闭的独立判据用，enabled: false）
+#   enabled  : bool  false 时加载但跳过执行（列表中标注 disabled）
+#   impl     : str   脚本内检查函数的分派键，格式 <族>.<检查名>。
+#                    placeholder 族=U1；meta/text/index 族=U2a；U2b 按族新增。
+#   param    : str   （可选）判据私有参数，语义由 impl 定义（如取值枚举、
+#                    同义词正则）。必须保持单行标量并加引号（受限子集约束），
+#                    值内不得出现制表符/换行。判据数据写在这里，不硬编码进脚本。
+#
+# 注意：本文件保持在「受限 YAML 子集」内（顶层标量 / 单层 defaults 映射 /
+# gates 扁平条目列表），rt-guard.sh 在无 PyYAML 的环境退回内置子集解析器，
+# 超出子集的写法会在该环境 fail-closed（exit 2）。需要嵌套结构时先升级解析器。
+# =============================================================================
+
+schema_version: 1
+
+defaults:
+  severity: error
+  scope: rt
+  enabled: true
+
+gates:
+  # ── U1 占位判据（骨架自检用；U2a 接手后可保留为最基础的结构判据）──────
+  - id: G000
+    name: rt-dir-exists
+    title: "被检 RT 目录存在于 <root>/RT/ 下"
+    severity: error
+    scope: rt
+    enabled: true
+    impl: placeholder.rt_dir_exists
+
+  # ── U2a 元数据与文本判据（G1xx）────────────────────────────────────────
+  # id 对齐任务包（unit-U2a-input.md §1）的判据编号，缺号即有意映射：
+  #   G101=判据1/2（type 值合法性，剥行内注释后比对六值枚举）
+  #   G103=判据3（type 字段缺失）    G104=判据4/5（变更记录，profile 分层）
+  #   G106=判据6/7（CSF，profile 分层）  G108=判据8（profile 字段缺失）
+  #   G109=判据9（index.yaml 条目；文件不存在按全部条目缺失处理，不崩溃）
+  # profile 分层口径：仅 profile=Spec-Full 走严判据（查独立文件
+  # changelog.md / csf-review.md）；Spec-Lite、缺失或其它值一律按
+  # Spec-Lite 宽判据（正则搜 rt-lite.md / CSF 可选），缺失另由 G108 告警。
+  # type 六值枚举源：rt-manager.md §3.4d（2026-08-14 收敛）。
+
+  - id: G101
+    name: meta-type-valid
+    title: "meta.yaml 的 type 取值在六值枚举内（剥行内注释后比对；字段缺失不在此报，见 G103）"
+    severity: error
+    scope: rt
+    enabled: true
+    impl: meta.type_valid
+    param: "Feature|Bugfix|Refactor|Infrastructure|Design|Experiment"
+
+  - id: G103
+    name: meta-type-present
+    title: "meta.yaml 存在 type 字段（§3.4d 未规定必填，缺失仅告警）"
+    severity: warn
+    scope: rt
+    enabled: true
+    impl: meta.type_present
+
+  - id: G104
+    name: changelog-present
+    title: "变更记录存在——Spec-Full 查独立 changelog.md；Spec-Lite/缺 profile 按同义词正则全文搜 rt-lite.md"
+    severity: warn
+    scope: rt
+    enabled: true
+    impl: text.changelog_present
+    param: "变更记录|Changelog|完成记录|Completion|决策记录"
+
+  - id: G106
+    name: legacy-csf-review-present
+    title: "legacy-only：只为存量 Spec-Full 检查 csf-review.md；现行 Spec-Lite 不要求也不报告"
+    severity: warn
+    scope: rt
+    enabled: true
+    impl: text.csf_review_present
+
+  - id: G108
+    name: meta-profile-present
+    title: "meta.yaml 存在 profile 字段（缺失按 Spec-Lite 宽判据 + 单独告警）"
+    severity: warn
+    scope: rt
+    enabled: true
+    impl: meta.profile_present
+
+  - id: G109
+    name: index-entry-present
+    title: "RT/index.yaml 含本 RT 条目（文件不存在按全部条目缺失处理，不得崩溃）"
+    severity: warn
+    scope: rt
+    enabled: true
+    impl: index.entry_present
+
+  # ── U2b 交叉引用判据（G110 = 任务包判据 #10）──────────────────────────
+  # scope=rt：默认只扫被检 RT 目录内 .md（rt-plan v5 U2b 裁决）。.aodw-next/
+  #   全库扫描是独立开关 `rt-guard.sh --scan-refs --scan-rules`，默认关，
+  #   不属于本条目的执行路径。
+  # severity=warn：告警级，不计入 U3 误报率；升 hard 待观察期数据（同裁决）。
+  # 判定口径：file:line = 目标文件存在且行号 ≤ 总行数（行号存在性是弱判据，
+  #   检不出行内容漂移——已知局限）；短名引用经 basename→全路径索引解析，
+  #   歧义时任一候选命中即 OK；仓库外引用豁免不报；§N 只查同文档内引用，
+  #   疑似跨文档 § 一律 skip。明细输出走 `rt-guard.sh --scan-refs`。
+  # param 语义（impl=xref.doc_refs_resolve）：file:line 抽取的扩展名枚举。
+  - id: G110
+    name: xref-refs-resolve
+    title: "RT 目录内 .md 的 file:line 与同文档 §N 交叉引用可解析（短名走 basename 索引，宽侧判定；行号存在性为弱判据）"
+    severity: warn
+    scope: rt
+    enabled: true
+    impl: xref.doc_refs_resolve
+    param: "md|py|sh|json|yaml|yml|toml|txt"
+
+  # ── U6 载体自检判据（G0xx 骨架/结构类段位）────────────────────────────────
+  # 出口判据（unit-U6-input.md §3-4）：自检
+  # $(git rev-parse --path-format=absolute --git-common-dir)/hooks/pre-commit
+  # 是否已安装——告警级。worktree 的 .git 是文件不是目录，故必须走
+  # --git-common-dir（写死 .git/hooks/... 在 worktree 内恒假，rt-plan v5 U6 ⚠ 行）。
+  # 备注两条：① --root 非 git 仓库顶层（fixture 子目录）时自检不适用、恒 PASS，
+  # 保证 fixture 断言不随宿主机 hook 安装状态漂移；② scope=repo 表示这是仓库级
+  # 属性检查，但执行仍随每次 CLI 调用逐 RT 评估（全库扫描时会重复报出，
+  # 告警级无害；观察期启用 pre-commit 前每次运行报 WARN 属预期）。
+  - id: G001
+    name: pre-commit-hook-installed
+    title: "git 层 pre-commit hook 已安装（防绕底线层生效）——未安装仅告警，观察期启用前属预期状态"
+    severity: warn
+    scope: repo
+    enabled: true
+    impl: repo.pre_commit_hook_installed
+
+  # ── 收口复盘 Gate（AODW 0.6.1 rt-manager.md「关闭」）──────────────────────
+  # 判定链：status!=done → PASS；index 条目带 backfill 键（存量回填）→ 豁免；
+  # status=done 且非存量 → RT 目录须有 retrospective.md，缺 → 硬失败挡关闭/合并。
+  # 存量/新量的机械区分依据正是 U4 回填时给每条打的 backfill: rt125-u4 标记。
+  - id: G111
+    name: retrospective-gate
+    title: "RT 关闭前必须过收口复盘 Gate（retrospective.md 存在；存量回填条目豁免）"
+    severity: error
+    scope: rt
+    enabled: true
+    impl: meta.retrospective_present
+
+  # ── 存量任务包自检判据（G112/G113，legacy-only）───────────────────────────
+  # AODW 0.6.1 不再创建 handoff/。两条保留是为了检查已有历史 RT；新 RT 没有
+  # handoff 时自然通过，不得据此重新引入任务包工作流。
+  # 枚举面（rt-plan v4 U1 步骤 2 裁决）：两判据只扫 RT/<id>/handoff/*-input.md
+  #   （显式 glob），不扫 fixtures/** 与 replay/**——md_files_under() 整树
+  #   os.walk 的 prune 不含这两个目录，会把「G112 必 FAIL」fixture 吃进真实
+  #   扫描面，使 U2 自证判据「无 error」永不可满足（计划审计 001 P0-3）。
+  # msg 形态钉死「扫描 K 份 / 执行 N 条 / skip M 条」——出口判据⑥与 U2 判据⑦
+  #   机械读取（G113 同形态）。
+  # G112 判据行入账口径：§3 内编号项 / 含「→」/ 含 grep 三者其一即入账；零命中
+  #   类 =「`<grep cmd>` → **0**」且模式可提取（spike 方案 A，见
+  #   RT/RT-135/replay/spike-g112/）；非 grep 类、期望非零、模式不可提取/不可
+  #   编译 → 显式 skip 计数。不入账的只有 fenced code block 内的命令行判据
+  #   （RT-135 U1 包即此型；该包入账 0 行时 notes 追加「§3 无可识别判据行」，
+  #   与「无 §3」区分、不静默）；RT-125 U6 的六条散文判据实为编号项、全部入账
+  #   （实测 skip 6；--rt RT-125 全量：扫描 7 份 / 执行 3 条 / skip 30 条）。
+  # 事故原型：RT-125 unit-U5 任务包 §1 目标文案含 §3 零命中判据要 grep 的子串，
+  #   照抄执行则该判据恒不通过（当时靠执行 Agent 识破，unit-U5-receipt.md:89-93）。
+  # 作用域（2026-08-22）：本判据的时机是「冻结任务包**前**」。RT 一旦 status=done，
+  #   任务包即成历史归档——改它是篡改记录，红着也无从修复。故 status=done 时判据
+  #   **仍实跑并如实报出自冲突条数**，只是不判失败（msg 尾部追加豁免说明）。
+  #   只认 done；in-progress/created/缺 status 一律照常硬失败。
+  #   锚点用例：fixtures g112-done-scope-exempt（RT-503，包与 RT-501 逐字相同、
+  #   仅 status 不同）与 g112-u5-selfconflict（RT-501 无 status，必 FAIL）。
+  - id: G112
+    name: legacy-handoff-pack-self-consistent
+    title: "legacy-only：存量 handoff 任务包的 §3 零命中 grep 判据不得与 §1/§2 自冲突"
+    severity: error
+    scope: rt
+    enabled: true
+    impl: handoff.pack_self_consistent
+
+  # G113：只校验任务包自带声明，不反向解析 rt-plan.md（活文档，rt-plan 单元节
+  #   格式 n=1 且内部不自洽）。加减账口径：本包 K = rt-plan M + 新增 a − 合并 b
+  #   − 删除 c；删除 c>0 时须带非空理由（新增/合并不强制理由）。
+  # 事故原型：RT-125 unit-U6 任务包判据③整条消失且无人声明，由执行 Agent 回补
+  #   （unit-U6-receipt.md:59）。severity=warn（rt-lite.md §1.4 假设 3）。
+  # 合并 b 记净减少条数（n 并 1 记 n−1）；b 与 c 算术等价、唯一差别是 c>0 须带
+  #   理由，故凡合并中有内容丢失一律按删除登记；声明行须独立成行、`> 溯源：` 起、
+  #   `）` 收尾，`<理由>` 内不得出现圆括号。
+  - id: G113
+    name: legacy-handoff-criteria-declared
+    title: "legacy-only：存量 handoff 任务包的判据溯源声明须加减账自洽"
+    severity: warn
+    scope: rt
+    enabled: true
+    impl: handoff.criteria_declared
+  - id: G114
+    name: deferred-refs-resolve
+    title: RT 的 meta.yaml 声称转出的 DI 编号必须在 RT/_deferred-items.md 里有真实条目（锚定条目标题行，不全文 grep）；防「宣称已转出、台账一个字没写」
+    severity: error
+    scope: rt
+    enabled: true
+    impl: deferred.refs_resolve
+  - id: G115
+    name: deferred-claims-resolve
+    title: RT 的 meta.yaml 声称认领的 DI 编号必须在台账存在且其「状态」列已标注本 RT-ID（G114 的对偶）；防「声称认领、台账仍写未认领」导致别人重复认领
+    severity: error
+    scope: rt
+    enabled: true
+    impl: deferred.claims_resolve

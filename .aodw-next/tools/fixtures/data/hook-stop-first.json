@@ -1,0 +1,13 @@
+{
+  "session_id": "fixture-session-0001",
+  "transcript_path": "/tmp/fixture-transcript.jsonl",
+  "cwd": "/tmp/fixture-cwd",
+  "prompt_id": "fixture-prompt-0001",
+  "permission_mode": "auto",
+  "effort": { "level": "xhigh" },
+  "hook_event_name": "Stop",
+  "stop_hook_active": false,
+  "last_assistant_message": "fixture: first stop round",
+  "background_tasks": [],
+  "session_crons": []
+}

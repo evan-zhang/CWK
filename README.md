@@ -41,6 +41,14 @@ Primary documentation:
 - [Model role matrix](MODEL_ROLES.md)
 - [PR-001 multi-tenant status](PR/PR-001-multitenant-knowledge-spaces/STATUS.md)
 
+## Development Method
+
+CWK uses AODW v0.6.1 for future engineering work. Start with
+[the AODW overview](.aodw-next/README.md), then follow the repository
+[agent rules](AGENTS.md). The adoption only adds development governance; it
+does not change the Local-First production profile, CWork read-only boundary,
+current AI reviewer, or existing historical RT records.
+
 ## Quick Start
 
 1. Clone the private repository:

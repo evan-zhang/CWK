@@ -1,0 +1,5 @@
+rt_id: RT-303
+title: fixture——只被别人 related 引用、自身无 index 条目
+type: Bugfix
+profile: Spec-Lite
+status: in-progress
