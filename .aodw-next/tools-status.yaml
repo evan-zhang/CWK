@@ -1,0 +1,44 @@
+# AODW Tools Status
+# 此文件记录 CWK 接入 AODW 时实际检查到的本机工具；它不等同于 CI 或生产运行保证。
+
+tools_init:
+  initialized: true
+  initialized_at: "2026-08-31T00:00:00+08:00"
+  last_updated_at: "2026-08-31T00:00:00+08:00"
+  initialized_by: "Codex"
+  project_type: "python-script-pipeline"
+  aodw_source:
+    project: "bd-eval-loop"
+    commit: "08b0523c9457da9f59235e48e22227f369502ac6"
+    version: "0.6.1"
+
+  backend:
+    python:
+      installed: true
+      detected_version: "3.14.5"
+      repository_recommendation: "Python 3.10+; Python 3.11 preferred"
+      configured: false
+      note: "接入 AODW 未改变 CWK 既有 Python 运行时或依赖。"
+    dependency_manager:
+      uv_installed: true
+      pip_tools_installed: true
+      makefile_exists: true
+      configured: false
+    ruff:
+      installed: true
+      configured: false
+      note: "未新增或修改 CWK lint 配置。"
+    black:
+      installed: true
+      configured: false
+      note: "未新增或修改 CWK formatter 配置。"
+    pre_commit:
+      installed: true
+      configured: false
+      hooks_installed: false
+      config_file: null
+      note: "不在接入方法论时修改共享 Git hooks。"
+
+  validation:
+    framework_fixture_suite: "pending"
+    project_rt_guard_baseline: "historical RTs are pre-adoption; only new AODW RTs are gate targets"

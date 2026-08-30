@@ -1,0 +1,69 @@
+# RT 元数据模板（单个 RT 的权威信息）
+# 路径建议：.aodw-next/templates/rt-meta-template.yaml
+
+id: RT-XXX                     # 由 RT-Manager 生成，例如 RT-001
+title: <在此填写简短标题>        # 例如 "修复订单列表加载缓慢的问题"
+
+# RT 类型：只能取以下六值
+# Feature | Bugfix | Refactor | Infrastructure | Design | Experiment
+type: Bugfix
+
+# 现行只有 Spec-Lite。存量 RT 可能仍写着 Spec-Full，不要回改。
+profile: Spec-Lite
+
+# 现行只有 collaborative。存量 RT 可能仍写着 autopilot，不要回改。
+execution_mode: collaborative
+
+# 当前状态
+#
+# 进行中：created | intaking | decided | in-progress | reviewing
+# 终态　：done | abandoned | parked-design-only
+# 暂停　：paused（可重启，见 rt-manager.md「创建」）
+#
+# parked-design-only 是**终态**，不是暂停：本 RT 是设计记录 / 讨论归档 /
+# 方案储备，从未打算进入实现——典型如 RT-071（GNAP 协议吸收方案）、
+# RT-097（章节依赖快照设计）。用 paused 会让它们在每次「还有什么没做完」
+# 的盘点里反复出现，而答案永远是「本来就不会做」。
+#
+# 2026-08-20 补记：本列表此前只有 6 个值，而实际在用的有
+# abandoned / paused / parked-design-only 三个未登记项。模板落后于实际，
+# 会让新建 RT 的人以为只能在 6 个里选。rt-guard 不校验本枚举
+# （只有 G111 按 status==done 判定复盘 Gate），所以是文档问题不是门禁问题。
+status: created
+
+# 涉及的业务/技术模块标识，来自你的模块体系（例如 orders / users / auth 等）
+modules: []
+
+# Git 分支与 worktree。方案批准并创建工作目录后立即回填；这是唯一权威位置。
+# status 为 in-progress/reviewing 时，这两个字段不得为空。
+branch: null                    # 例如 feature/RT-XXX-short-name
+worktree: null                  # 例如 .claude/worktrees/RT-XXX-short-name
+
+# 当前主要执行工具：codex / cursor / claude / mixed / unknown
+tool: unknown
+
+# 负责人（可选，可以是人名、昵称或账号）
+owner: null
+
+# 时间字段（必须使用系统命令或 API 获取真实时间，禁止 AI 自行推断）
+# 获取方法：date -u +"%Y-%m-%dT%H:%M:%SZ" 或 new Date().toISOString()
+# 格式：ISO8601（如 2025-11-28T11:54:45Z 或 2025-11-28T19:54:45+08:00）
+created_at: <to-be-filled>
+updated_at: <to-be-filled>
+closed_at: null
+
+# 与外部系统（JIRA / GitHub Issues 等）的关联 ID
+external_ids:
+  jira: null
+  github: null
+  other: null
+
+# 遗留事项。没转出 / 没认领就不要写这两个字段。
+# 转出：本 RT 发现、写入 RT/_deferred-items.md 的 DI 编号
+# 认领：本 RT 从台账拿走继续做的 DI 编号
+# deferred_items_raised: []
+# deferred_items_claimed: []
+
+# 额外说明（可选，供人和 AI 阅读）
+notes: >
+  在这里简要描述本 RT 的背景、限制或特殊说明。

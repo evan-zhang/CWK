@@ -1,0 +1,6 @@
+# RT 索引（fixture 最小形态）
+rts:
+  - id: RT-301
+    related:
+      - RT-303        # ← G109 回归点：RT-303 只在此被引用，自身无条目
+  - id: RT-302

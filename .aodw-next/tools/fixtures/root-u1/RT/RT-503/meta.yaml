@@ -1,0 +1,5 @@
+rt_id: RT-503
+title: fixture——G112 的 status=done 作用域豁免锚点（自冲突包与 RT-501 逐字相同）
+type: Feature
+profile: Spec-Lite
+status: done

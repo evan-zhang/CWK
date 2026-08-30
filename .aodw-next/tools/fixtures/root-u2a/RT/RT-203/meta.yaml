@@ -1,0 +1,4 @@
+rt_id: RT-203
+title: "fixture: type 合法值带行内注释"
+type: Infrastructure   # 流水线/工具类
+profile: Spec-Lite

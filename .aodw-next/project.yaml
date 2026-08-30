@@ -1,0 +1,6 @@
+project_name: CWK
+
+adoption:
+  source_project: bd-eval-loop
+  source_commit: 08b0523c9457da9f59235e48e22227f369502ac6
+  adopted_at: 2026-08-31

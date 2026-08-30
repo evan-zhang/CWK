@@ -1,0 +1,5 @@
+# RT 索引（fixture 最小形态：只有 RT-621 有条目，其 related 引用 RT-622）
+rts:
+  - id: RT-621
+    related:
+      - RT-622        # ← G109 收紧锚点：RT-622 只在此被引用，自身无条目

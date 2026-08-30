@@ -1,0 +1,4 @@
+rt_id: RT-202
+title: "fixture: type 组合值（Feature + Bugfix）"
+type: Feature + Bugfix
+profile: Spec-Lite

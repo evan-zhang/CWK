@@ -1,0 +1,56 @@
+version: 1
+last_updated: '2026-08-31'
+last_updated_by: aodw-0.6.1-adoption
+modules:
+  - name: skill-entrypoint
+    path: README.md
+    root: skill
+    related_files:
+      - install.sh
+      - skill/templates/CONFIG.example.json
+
+  - name: nightly-mirror-pipeline
+    path: docs/OPERATIONS.md
+    root: scripts
+    related_files:
+      - scripts/cwk_nightly_pipeline.py
+      - scripts/cwk_collect_live.py
+      - scripts/cwk_raw_store.py
+
+  - name: ai-refinement
+    path: docs/AI-PILOT.md
+    root: scripts
+    related_files:
+      - scripts/cwk_cloud_wiki_compile.py
+      - scripts/cwk_wiki_batch_driver.sh
+      - scripts/cwk_cloud_wiki_topics_entities.py
+      - MODEL_ROLES.md
+
+  - name: trusted-wiki-query
+    path: docs/DESIGN.md
+    root: scripts
+    related_files:
+      - scripts/cwk_wiki_query.py
+      - tests/test_wiki_query.py
+
+  - name: runtime-policy
+    path: docs/RUNTIME_STATUS.md
+    root: docs
+    related_files:
+      - docs/AI-PILOT.md
+      - docs/OPERATIONS.md
+      - SECURITY.md
+
+  - name: work-agent-design
+    path: docs/design/cwk-work-agent-runtime-integration.md
+    root: docs/design
+    related_files:
+      - scripts/cwk_cloud_wiki_compile.py
+      - docs/AI-PILOT.md
+
+  - name: research-tracks
+    path: RT/index.yaml
+    root: RT
+    related_files:
+      - RT/_deferred-items.md
+      - .aodw-next/02-workflow/rt-manager.md
