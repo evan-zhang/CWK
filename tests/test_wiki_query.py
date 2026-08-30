@@ -179,6 +179,64 @@ class WikiQueryTests(unittest.TestCase):
         )
         self.assertEqual([item["report_id"] for item in result["results"]], [self.finance_id])
 
+    def test_writer_filter_supports_generic_report_listing(self):
+        result = cwk_wiki_query.query_mirror(
+            self.mirror,
+            "工作汇报",
+            writer="杨晶晶",
+            from_date="2026-07-15",
+            to_date="2026-07-20",
+            top_k=5,
+        )
+        self.assertEqual([item["report_id"] for item in result["results"]], [self.finance_id])
+        self.assertEqual(result["entity_resolution"]["reason"], "filter_listing")
+        self.assertEqual(result["confidence"], "medium")
+
+    def test_listing_verifies_raw_author_metadata_without_a_semantic_quote(self):
+        raw_path = next(self.raw.glob(f"{self.finance_id}-*.md"))
+        raw_path.write_text(
+            raw_page(
+                self.finance_id,
+                "AI财务单据审核token消耗汇报",
+                "杨晶晶",
+                "2026-07-16",
+                "没有与列表标签相匹配的正文。",
+            ).replace(
+                '<content>\n没有与列表标签相匹配的正文。\n</content>',
+                '<meta>\n- **汇报人**: 杨晶晶\n- **时间**: 2026-07-16 10:00:00\n</meta>\n<content>\n没有与列表标签相匹配的正文。\n</content>',
+            ),
+            encoding="utf-8",
+        )
+        result = cwk_wiki_query.query_mirror(
+            self.mirror, "工作汇报", writer="杨晶晶", top_k=1,
+        )
+        self.assertEqual(result["results"][0]["evidence_status"], "verified")
+        self.assertEqual(result["results"][0]["evidence"][0]["kind"], "raw_listing_metadata")
+
+    def test_listing_includes_raw_report_not_yet_in_the_summary_index(self):
+        raw_only_id = "2077999999999999999"
+        raw_only = self.raw / f"{raw_only_id}-原始汇报.md"
+        raw_only.write_text(
+            raw_page(raw_only_id, "原始汇报", "杨晶晶", "2026-07-17", "原始内容").replace(
+                '<content>\n原始内容\n</content>',
+                '<meta>\n- **汇报人**: 杨晶晶\n- **时间**: 2026-07-17 10:00:00\n</meta>\n<content>\n原始内容\n</content>',
+            ),
+            encoding="utf-8",
+        )
+        result = cwk_wiki_query.query_mirror(
+            self.mirror,
+            "工作汇报",
+            writer="杨晶晶",
+            from_date="2026-07-15",
+            to_date="2026-07-20",
+            top_k=5,
+        )
+        self.assertEqual(
+            [item["report_id"] for item in result["results"]],
+            [raw_only_id, self.finance_id],
+        )
+        self.assertEqual(result["indexed"]["raw_listing_fallback_count"], 1)
+
     def test_navigation_page_adds_graph_recall(self):
         result = cwk_wiki_query.query_mirror(self.mirror, "杨晶晶最近参与什么", top_k=2)
         self.assertEqual(result["results"][0]["report_id"], self.finance_id)

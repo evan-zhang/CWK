@@ -42,6 +42,10 @@ STOP_CJK = {
     "目前", "现在", "最近", "情况", "介绍", "分析", "帮我", "给我", "是否", "有没有",
     "中旬", "月底", "月初", "月中", "月末", "月", "到", "至", "底",
 }
+REPORT_LISTING_QUERIES = {
+    "", "汇报", "报告", "工作汇报", "工作报告", "历史汇报", "历史报告",
+    "reports", "report",
+}
 _INDEX_CACHE: dict[tuple[str, int, int, int, int], tuple[Any, ...]] = {}
 
 # ---------------------------------------------------------------------------
@@ -98,6 +102,21 @@ class NavDoc:
 def normalize(value: str) -> str:
     value = unicodedata.normalize("NFKC", value or "").lower()
     return re.sub(r"\s+", " ", value).strip()
+
+
+def is_filter_listing_query(question: str, *, from_date: str, to_date: str, writer: str) -> bool:
+    """Return whether this is a metadata-only report listing request.
+
+    A request such as ``--writer 许敏玲 工作汇报`` is not an entity fact
+    query.  Resolving the generic word ``工作汇报`` against the entity catalog
+    previously produced an unrelated entity scope and then filtered every
+    matching author row out.  Metadata filters are an explicit, bounded
+    retrieval scope, so permit this small set of generic listing labels to
+    bypass entity resolution and rank matching reports by recency.
+    """
+    if not (writer or from_date or to_date):
+        return False
+    return normalize(question) in REPORT_LISTING_QUERIES
 
 
 def compact(value: str, limit: int = 360) -> str:
@@ -416,6 +435,21 @@ def raw_evidence_haystack(raw_text: str) -> str:
     return body.strip()
 
 
+def raw_listing_metadata(raw_text: str) -> tuple[str, str]:
+    """Extract author/date from the human-authored raw envelope.
+
+    This deliberately serves metadata-only listings.  Unlike a semantic fact
+    answer, a listing has no meaningful query phrase to turn into a raw
+    excerpt, so verify the two fields the listing actually claims instead.
+    """
+    author_match = re.search(r"\*\*汇报人\*\*:\s*([^\n<]+)", raw_text)
+    date_match = re.search(r"\*\*时间\*\*:\s*([0-9]{4}-[0-9]{2}-[0-9]{2})", raw_text)
+    return (
+        compact(author_match.group(1), 120) if author_match else "",
+        date_match.group(1) if date_match else "",
+    )
+
+
 def excerpt_candidates(content: str) -> list[str]:
     parts = re.split(r"\n\s*\n|(?<=[。！？；])\s*", content)
     rows: list[str] = []
@@ -538,6 +572,61 @@ def date_ok(value: str, from_date: str, to_date: str) -> bool:
     if not value:
         return not (from_date or to_date)
     return (not from_date or value >= from_date) and (not to_date or value <= to_date)
+
+
+def load_unindexed_raw_listing_docs(
+    mirror: Path,
+    indexed_docs: dict[str, SummaryDoc],
+    *,
+    from_date: str,
+    to_date: str,
+    writer: str,
+) -> list[SummaryDoc]:
+    """Add raw-only rows for a bounded author/date report listing.
+
+    The semantic index intentionally contains source summaries only.  During
+    incremental ingestion, a raw report can briefly precede its summary; an
+    author listing must not silently omit that report.  This fallback is used
+    only for metadata-only listings and reads no raw body into the index.
+    """
+    rows_by_report_id: dict[str, SummaryDoc] = {}
+    raw_root = mirror / "raw"
+    if not raw_root.is_dir():
+        return []
+    for path in sorted(raw_root.rglob("*.md")):
+        try:
+            raw_text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        meta, body = parse_frontmatter(raw_text)
+        report_id = compact(str(meta.get("report_id") or ""), 40)
+        if not report_id:
+            continue
+        raw_writer, raw_date = raw_listing_metadata(raw_text)
+        if not raw_writer or normalize(writer) not in normalize(raw_writer):
+            continue
+        if not date_ok(raw_date, from_date, to_date):
+            continue
+        indexed_doc = indexed_docs.get(report_id)
+        if (
+            indexed_doc is not None
+            and normalize(indexed_doc.writer) == normalize(raw_writer)
+            and (indexed_doc.date or "")[:10] == raw_date
+        ):
+            continue
+        rows_by_report_id[report_id] = SummaryDoc(
+            report_id=report_id,
+            title=compact(str(meta.get("title") or heading_title(body, path.stem)), 240),
+            writer=raw_writer,
+            date=raw_date,
+            source_lane=compact(str(meta.get("source_lane") or ""), 120),
+            summary_path=path.resolve(),
+            raw_path=path.resolve(),
+            body="",
+            evidence_quotes=[],
+            raw_sha256=file_sha256(path),
+        )
+    return [rows_by_report_id[report_id] for report_id in sorted(rows_by_report_id)]
 
 
 def confidence_for(top_score: float, top_coverage: float, evidence_status: str, result_count: int) -> str:
@@ -2219,7 +2308,32 @@ def query_mirror(
             question, resolution, mirror=mirror, catalog_bound=False,
             reason_override="catalog_unavailable_but_required",
         )
-    resolution = resolve_entity(question, catalog if catalog_bound else None)
+    listing_query = is_filter_listing_query(
+        question, from_date=from_date, to_date=to_date, writer=writer,
+    )
+    if listing_query and writer:
+        raw_only_docs = load_unindexed_raw_listing_docs(
+            mirror,
+            {doc.report_id: doc for doc in summaries},
+            from_date=from_date,
+            to_date=to_date,
+            writer=writer,
+        )
+        if raw_only_docs:
+            raw_only_ids = {doc.report_id for doc in raw_only_docs}
+            # A raw row supersedes a stale index row with the same report ID;
+            # never surface both versions in one author listing.
+            summaries = [doc for doc in summaries if doc.report_id not in raw_only_ids]
+            summaries.extend(raw_only_docs)
+            index_info = {
+                **index_info,
+                "raw_listing_fallback_count": len(raw_only_docs),
+            }
+    resolution = (
+        EntityResolution(status="unscoped", reason="filter_listing")
+        if listing_query
+        else resolve_entity(question, catalog if catalog_bound else None)
+    )
 
     if resolution.status in {"ambiguous", "unknown", "resolved_empty", "unsupported_multi_entity"}:
         payload = _safe_empty_payload(
@@ -2233,8 +2347,10 @@ def query_mirror(
         }
         return payload
 
-    query_tokens = tokenize(question)
-    if not query_tokens:
+    # Generic listing labels are controls, not relevance terms. They must not
+    # influence sort order: a date/author listing is newest-first.
+    query_tokens = [] if listing_query else tokenize(question)
+    if not query_tokens and not listing_query:
         return {
             "schema_version": SCHEMA,
             "query": question,
@@ -2295,7 +2411,7 @@ def query_mirror(
                     {"kind": nav.kind, "title": nav.title, "path": str(nav.path), "score": round(score, 4)}
                 )
 
-    normalized_question = normalize(question)
+    normalized_question = "" if listing_query else normalize(question)
     requested_ids = set(REPORT_ID_RE.findall(question))
     ranked: list[tuple[float, float, SummaryDoc]] = []
     total_scanned = 0
@@ -2318,7 +2434,13 @@ def query_mirror(
             # order by date/quality below.
             ranked.append((0.0, 0.0, doc))
             continue
-        score = summary_index.score(query_tokens, i)
+        if listing_query:
+            # Raw-only listing fallbacks are intentionally outside the
+            # semantic BM25 generation. Their metadata scope is sufficient.
+            score = coverage = 0.0
+        else:
+            score = summary_index.score(query_tokens, i)
+            coverage = summary_index.coverage(query_tokens, i)
         title_norm = normalize(doc.title)
         if normalized_question and normalized_question in title_norm:
             score += 18.0
@@ -2328,7 +2450,6 @@ def query_mirror(
             score += 50.0
         if not scope_active:
             score += nav_bonus.get(doc.report_id, 0.0)
-        coverage = summary_index.coverage(query_tokens, i)
         # RT-010 follow-up (independent audit blocker A): scoped
         # queries must not prune in-scope candidates by ``min_score``
         # – a raw-verified intent-supporting report can easily score
@@ -2338,7 +2459,7 @@ def query_mirror(
         # verified intent-supporting rows to the top of the answer.
         # Unscoped queries keep the historical ``min_score`` filter
         # to preserve latency and general-recall behaviour.
-        if scope_active or score >= min_score:
+        if listing_query or scope_active or score >= min_score:
             ranked.append((score, coverage, doc))
 
     if scope_active and residual_query_empty:
@@ -2463,6 +2584,19 @@ def query_mirror(
         else:
             evidence_status, evidence, source_ref = extended
             raw_text = raw_content_str = ""
+        if listing_query and evidence_status == "unverified" and raw_text:
+            raw_writer, raw_date = raw_listing_metadata(raw_text)
+            if (
+                raw_writer
+                and normalize(raw_writer) == normalize(doc.writer)
+                and raw_date == (doc.date or "")[:10]
+            ):
+                evidence_status = "verified"
+                evidence = [{
+                    "kind": "raw_listing_metadata",
+                    "quote": f"汇报人：{raw_writer}；时间：{raw_date}",
+                    "raw_source": "metadata",
+                }]
         scope_support = (
             _scope_support_for(doc, scope_family, raw_text=raw_text)
             if scope_active and scope_family else {}
@@ -2746,6 +2880,14 @@ def query_mirror(
         top_coverage = results[0]["query_coverage"] if results else 0.0
         top_status = results[0]["evidence_status"] if results else "missing"
     base_confidence = confidence_for(top_score, top_coverage, top_status, len(results))
+
+    # A report listing is a metadata retrieval, not a semantic relevance
+    # judgment.  Matching rows are still raw-verified below; avoid dropping a
+    # valid date/author listing merely because its neutral score is zero.
+    if listing_query and results:
+        base_confidence = "medium" if all(
+            row["evidence_status"] == "verified" for row in results
+        ) else "low"
 
     # Entity-only scoped queries rank by date/quality; scores are zero
     # by construction so ``confidence_for`` would clear the result set.
