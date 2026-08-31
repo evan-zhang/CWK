@@ -13,3 +13,4 @@ cwk-mirror.local.json
 /state/
 .cowrite-session.json
 .agent/skills/handover-pack
+/.claude/worktrees/
