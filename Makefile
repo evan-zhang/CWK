@@ -1,6 +1,7 @@
 .PHONY: doctor test smoke smoke-ai smoke-ai-degraded wiki-lint wiki-smoke clean
 
 PYTHON ?= python3
+TEST_TMPDIR ?= $(shell $(PYTHON) -c 'import os,tempfile; print(os.path.realpath(tempfile.gettempdir()))')
 SMOKE_RUN ?= ci-smoke
 SMOKE_DATE ?= 2026-01-01
 SMOKE_AI_RUN ?= ci-smoke-ai
@@ -12,7 +13,7 @@ doctor:
 test:
 	$(MAKE) doctor
 	$(PYTHON) -m py_compile scripts/*.py
-	$(PYTHON) -m unittest discover -s tests -p 'test_*.py'
+	TMPDIR="$(TEST_TMPDIR)" $(PYTHON) -m unittest discover -s tests -p 'test_*.py'
 	$(MAKE) smoke
 	$(MAKE) smoke-ai
 	$(MAKE) smoke-ai-degraded

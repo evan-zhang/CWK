@@ -61,8 +61,12 @@ def _envelope(*, body: str = "canonical body", hour: int = 10) -> dict:
 class _Fixture:
     def __init__(self, *, publish: bool = True) -> None:
         self.temp = tempfile.TemporaryDirectory()
-        self.root = Path(self.temp.name)
-        self.layout = I.InstanceLayout.open(root=self.temp.name)
+        # macOS exposes its default temporary root through /var, which is a
+        # symlink to /private/var.  Production InstanceLayout correctly rejects
+        # user-supplied ancestor symlinks, so the test fixture must pass the
+        # canonical path rather than weakening the runtime check.
+        self.root = Path(self.temp.name).resolve()
+        self.layout = I.InstanceLayout.open(root=str(self.root))
         self.layout.initialize()
         self.store = S.SharedEvidenceStore.open(self.layout)
         self.store.initialize()
