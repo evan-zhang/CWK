@@ -3,18 +3,18 @@ title: CWK AODW 产品基线收敛
 type: Infrastructure
 profile: Spec-Lite
 execution_mode: collaborative
-status: created
+status: in-progress
 modules:
   - repository-baseline
   - aodw-governance
   - test-infrastructure
   - ci
-branch: null
-worktree: null
+branch: feature/RT-029-aodw-baseline-convergence
+worktree: .claude/worktrees/RT-029-aodw-baseline-convergence
 tool: codex
 owner: Codex
 created_at: 2026-08-31T02:47:55Z
-updated_at: 2026-08-31T02:47:55Z
+updated_at: 2026-08-31T02:49:32Z
 closed_at: null
 external_ids:
   jira: null
