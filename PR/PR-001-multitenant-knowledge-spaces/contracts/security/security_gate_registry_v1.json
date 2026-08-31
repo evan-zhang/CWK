@@ -33,7 +33,7 @@
       {
         "path": "scripts/cwk_ai_common.py",
         "mode": "100644",
-        "sha256": "69ecded6ecb96288c2e7ab4bb43ec42bd97ac1889385bb932d00f2460ede95a6"
+        "sha256": "ea33adc54c7829e766b63d76f59937f4ea1803ff44509bc0b87370abf77c3e55"
       },
       {
         "path": "scripts/cwk_ai_enhanced_digest.py",
@@ -98,7 +98,7 @@
       {
         "path": "scripts/cwk_cloud_wiki_compile.py",
         "mode": "100644",
-        "sha256": "51a62dd67863177e068f9961f7f8ca31fcfc4f712af1ba60650318ef9a85daa1"
+        "sha256": "2e0c89e4b0c54259887300efb35f4053f075140be47710e1806a418aba8ab5af"
       },
       {
         "path": "scripts/cwk_cloud_wiki_topics_entities.py",

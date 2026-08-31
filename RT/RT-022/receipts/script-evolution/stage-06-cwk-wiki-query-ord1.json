@@ -1,0 +1,20 @@
+{
+  "acceptance_test_refs": [
+    "tests/test_rt022_wiki_query_evolution.py::AuthorListingEvolutionTests::test_generic_author_listing_is_metadata_scoped_and_raw_verified",
+    "tests/test_rt022_wiki_query_evolution.py::AuthorListingEvolutionTests::test_raw_only_author_listing_preserves_incremental_coverage"
+  ],
+  "adds_provider_slot": null,
+  "from_sha256": "e7d5ebb178076159c4facc9d3f0fa4e947a807b20ceb5b795de234010bb890a6",
+  "migration_note_path": "RT/RT-022/reports/migrations/stage-06-cwk-wiki-query-ord1.md",
+  "migration_note_sha256": "cfad26588e771b24e0c4124ef65aab1717516e9f49a0779e961f4d34b3318565",
+  "ordinal": 1,
+  "owner_rt": "RT-022",
+  "policy_id": "pr001-script-evolution-v1",
+  "policy_sha256": "2089490e45bdd84ba3bac75fe40092f81f40765638b988e17facdc4040d14a6d",
+  "previous_receipt_sha256": "3e72cb7a6d59baf13753cabd73d1ffe5996b0f290e45ffdc339ea852efc51581",
+  "recorded_at": "2026-08-31T00:00:00Z",
+  "schema": "cwk.pr001.script_evolution_receipt.v1",
+  "stage_index": 6,
+  "target_path": "scripts/cwk_wiki_query.py",
+  "to_sha256": "41b936cc515372209ead3513a8d19166ecb8da4696fdbe7000ac9e372217c8f2"
+}

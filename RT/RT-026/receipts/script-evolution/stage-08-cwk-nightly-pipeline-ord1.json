@@ -1,0 +1,22 @@
+{
+  "acceptance_test_refs": [
+    "tests/test_rt026_nightly_pipeline_evolution.py::NightlyPipelineModelEvolutionTests::test_wiki_model_defaults_match_the_documented_roles",
+    "tests/test_rt026_nightly_pipeline_evolution.py::NightlyPipelineModelEvolutionTests::test_wiki_model_defaults_pass_the_production_model_gate",
+    "tests/test_rt026_nightly_pipeline_evolution.py::NightlyPipelineModelEvolutionTests::test_model_roles_documents_the_evolved_defaults",
+    "tests/test_rt026_nightly_pipeline_evolution.py::NightlyPipelineModelEvolutionTests::test_explicit_argument_and_config_still_outrank_the_default"
+  ],
+  "adds_provider_slot": null,
+  "from_sha256": "dacd6f14a52e02271c86daa764ae4e090b0bef1d5140b4291b026d350c69a46b",
+  "migration_note_path": "RT/RT-026/reports/migrations/stage-08-cwk-nightly-pipeline-ord1.md",
+  "migration_note_sha256": "8054b9da73dd40d519dbc836184ff939a80fcfcc71f39c8a5a0793d84c8172d9",
+  "ordinal": 1,
+  "owner_rt": "RT-026",
+  "policy_id": "pr001-script-evolution-v1",
+  "policy_sha256": "2089490e45bdd84ba3bac75fe40092f81f40765638b988e17facdc4040d14a6d",
+  "previous_receipt_sha256": "89b376a48fc74d4f9f588969a900674c4e60bdbda724369a35863f3b8e130d36",
+  "recorded_at": "2026-08-31T00:00:00Z",
+  "schema": "cwk.pr001.script_evolution_receipt.v1",
+  "stage_index": 8,
+  "target_path": "scripts/cwk_nightly_pipeline.py",
+  "to_sha256": "5aed1220599b0bcad11977249f8313cf34d1ecd0c23a1b487c147dfa3a3f706f"
+}
