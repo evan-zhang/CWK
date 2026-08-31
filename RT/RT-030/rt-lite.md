@@ -99,7 +99,7 @@
 | G1 | 建 `code-ownership-manifest.json`（5 域 / 20 条规则 / 6 个 exact_only_zone） | 585 个文件全部命中，孤儿 0 |
 | G2 | 建 `script-evolution-v2.json` 前向叠加层，结清 DI-001 / DI-002 | 未改任何 PR-001 冻结契约；v1→v2 交接点用链尾哈希证明 |
 | G3 | DI-003 转受控例外 EX-001（四要素齐全，三条补偿控制机器验证） | 认领未结清，复查日 2026-11-30，过期即红 |
-| G4 | `make governance-audit` 接入 `make ci`；`ci.yml` 同步；补 `GA-SELF`（门管住自己） | 54 个用例全绿 |
+| G4 | `make governance-audit` 接入 `make ci`；`ci.yml` 同步；补 `GA-SELF`（门管住自己） | 56 个用例全绿 |
 | G5 | 全量 `make ci` + B4 复核 | 见下 |
 
 对照成功标准：

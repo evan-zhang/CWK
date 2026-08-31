@@ -6,7 +6,7 @@
   "baseline_commit_note": "建立于 16b4ee0（= RT-029 收口后的 main，亦即 origin/main）。本清单描述的是**当前代码树**，不是历史。历史 RT 与已签名证据不因本清单改变。",
   "scope_rule": "判据面 = `git ls-files` 的全集。不是「新增文件才受管」，而是「这棵树上每个文件都必须被恰好一条规则认领」。",
   "closure_rule": "每个受跟踪文件必须匹配恰好一条 rules[] 条目。匹配不到 = 孤儿 = 硬失败。匹配到 0 个文件的规则 = 失效规则 = 硬失败（防止例外与规则无声堆积）。",
-  "exact_only_zone_rule": "在 exact_only_zones 列出的目录里**只允许 kind=exact 或 kind=delegated 的规则**，禁止 kind=prefix。含义：往这些目录里新放一个文件，不会被任何宽泛规则吸收，它会直接变成孤儿并让门变红。这是本清单防「管理盲区」的主要机制——RT-030 正是靠它抓到了 scripts/cwk_wiki_batch_driver.sh。",
+  "exact_only_zone_rule": "在 exact_only_zones 列出的目录里只允许 kind=exact / exact_set / delegated 的规则，禁止 kind=prefix——包括从外层目录伸进来的宽前缀（除非该前缀规则用 exclude_prefixes 把整个区显式挖掉，且排除项必须真的覆盖该区，拿无关子目录搪塞不算数）。含义：往这些目录里新放一个文件，不会被任何宽泛规则吸收，它会直接变成孤儿并让门变红。这是本清单防「管理盲区」的主要机制——RT-030 正是靠它抓到了 scripts/cwk_wiki_batch_driver.sh，也靠它抓到了门自己所在目录的同类漏洞。",
   "exact_only_zones": [
     "",
     "scripts/",
@@ -77,8 +77,8 @@
       "authority": "pr001-script-evolution-policy-v1",
       "receipt_root_glob": "RT/*/receipts/script-evolution/*",
       "description": "PR-001 既有机制：owner RT 在预留槽位内提交 from/to 哈希回执，链式校验。",
-      "exhausted": true,
-      "exhausted_note": "9 条 evolvable_paths 的 max_ordinal 均已用满（见 DI-001）。继续演化走 cwk-script-evolution-v2。"
+      "exhausted": "partial",
+      "exhausted_note": "9 条 evolvable_paths 里有 4 条已用满 max_ordinal：cwk_instance.py(RT-012)、cwk_agent_binding.py(RT-013)、cwk_wiki_query.py(RT-022)、cwk_nightly_pipeline.py(RT-026)；后两条正是 DI-001 点名的。其余 5 条仍有余量（cwk_access_ledger.py、cwk_collect_live.py、cwk_tenant_cli.py 余 2、cwk_entity_catalog.py、cwk_wiki_search_index.py），**必须继续走 v1**。cwk-script-evolution-v2 只为已用尽者续命，不是绕开 v1 的旁路；GA-V2-SLOT 会当场数 v1 回执，为尚有余量的路径开 v2 槽位直接判失败。"
     },
     {
       "id": "cwk-script-evolution-v2",
@@ -371,7 +371,7 @@
       "sensitive": true,
       "pin": {
         "mode": "100644",
-        "sha256": "e0ef6d95f1bd0a3baec295e1074981644691c67b355db6eaf27ccf39ba5efcdd"
+        "sha256": "dfe8bed12d5fcda8ad9c9e5a695169fb109f2da40786199f9f6e3c6cba4ff907"
       },
       "owner": "RT-030",
       "management_domain": "cwk-governance-v1",

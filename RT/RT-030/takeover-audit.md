@@ -167,6 +167,26 @@ v2 叠加层自己全躺在「宽前缀 + 无 pin」之下：把 `governance-aud
 v1 stage-06 / stage-08 回执的 `to_sha256`，已验证与当前磁盘哈希逐字相等。
 这不是声称的衔接，是算出来的。
 
+**v2 不是绕开 v1 的旁路**。v1 的 9 条 `evolvable_paths` 里只有 4 条真的用满了：
+
+| target_path | owner | max_ordinal | 已用 | 余量 |
+|---|---|---|---|---|
+| `cwk_instance.py` | RT-012 | 1 | 1 | 0 |
+| `cwk_agent_binding.py` | RT-013 | 1 | 1 | 0 |
+| `cwk_wiki_query.py` | RT-022 | 1 | 1 | **0**（DI-001） |
+| `cwk_nightly_pipeline.py` | RT-026 | 1 | 1 | **0**（DI-001） |
+| `cwk_access_ledger.py` | RT-017 | 1 | 0 | 1 |
+| `cwk_collect_live.py` | RT-017 | 1 | 0 | 1 |
+| `cwk_tenant_cli.py` | RT-019,RT-026 | 2 | 0 | 2 |
+| `cwk_entity_catalog.py` | RT-021 | 1 | 0 | 1 |
+| `cwk_wiki_search_index.py` | RT-021 | 1 | 0 | 1 |
+
+余量未用尽的 5 条**必须继续走 v1**。`GA-V2-SLOT` 当场数 v1 回执来验证这一点：
+给一条还有余量的路径开 v2 续槽 → 直接判失败。否则 v2 就成了绕开 PR-001
+已签名机制的更松通道，那是 DI-001 的反面而不是它的解法。
+（本 RT 初稿曾把 v1 整体标成「已用尽」——那是不实陈述，已按实际数字改正，
+并把这句话变成机器每次都重新验算的判据。）
+
 本 RT **没有修改任何 PR-001 冻结契约**——
 `tests/.../TestRealRepository::test_frozen_upstream_contracts_are_untouched`
 当场验证这一句话。
@@ -245,7 +265,7 @@ CC-1 的实现被自己的测试抓出过一个真漏洞：最初对 `ci.yml` �
 
 ## 8. 门会咬人的证据
 
-`tests/test_governance_audit.py`，54 个用例，全部在合成仓库上做**改坏 → 必须红**
+`tests/test_governance_audit.py`，56 个用例，全部在合成仓库上做**改坏 → 必须红**
 与**合规 → 必须绿**的双向验证。合成仓库先自证基线为绿
 （`TestSyntheticBaselineIsClean`），否则后面所有「改坏就红」的断言都没有意义。
 
@@ -258,7 +278,7 @@ CC-1 的实现被自己的测试抓出过一个真漏洞：最初对 `ci.yml` �
 | 例外有边界 | `TestExceptionBoundaries`：缺 owner / 缺退出标准 / 缺补偿控制 / 已过期 各一例 |
 | 加宽 glob 直接判失败 | `TestExactOnlyZones` 两例 |
 | 冻结契约被动即红 | `TestUpstreamFrozenContracts` 两例 |
-| DI-001 续槽可用且不可越界 | `TestContinuationSlots` |
+| DI-001 续槽可用、不可越界、不可绕开仍有余量的 v1 | `TestContinuationSlots` 七例 |
 | DI-002 双向闭合 | `TestLegacyFamilyEvolution` 五例（含「假回执不能洗白漂移」） |
 | 补偿控制是真的 | `TestCompensatingControlsAreReal` 六例 |
 | 门自己也被管住 | `TestGateGovernsItself` 十例 |

@@ -486,6 +486,29 @@ def _load_v2_receipts(root: Path) -> List[Tuple[str, dict]]:
     return receipts
 
 
+def _count_v1_receipts(root: Path) -> Dict[str, int]:
+    """数一数 v1 各条演化路径实际用掉了几个槽位。
+
+    用来回答「这条路径的 v1 槽位是不是真的用尽了」。不能只看清单里写的一句
+    『已用尽』——那是声称；这里是当场数出来的。
+    """
+    used: Dict[str, int] = {}
+    rt_dir = root / "RT"
+    if not rt_dir.is_dir():
+        return used
+    for owner_dir in sorted(rt_dir.iterdir()):
+        target = owner_dir / "receipts" / "script-evolution"
+        if not target.is_dir():
+            continue
+        for item in sorted(target.iterdir()):
+            if not (item.is_file() and item.suffix == ".json"):
+                continue
+            data = load_json(item)
+            if isinstance(data, dict) and isinstance(data.get("target_path"), str):
+                used[data["target_path"]] = used.get(data["target_path"], 0) + 1
+    return used
+
+
 def check_overlay(root: Path, overlay: dict, result: AuditResult) -> None:
     if overlay.get("schema") != OVERLAY_SCHEMA:
         result.error("GA-V2-SCHEMA", f"叠加层 schema 应为 {OVERLAY_SCHEMA}")
@@ -585,6 +608,7 @@ def check_overlay(root: Path, overlay: dict, result: AuditResult) -> None:
         by_path.setdefault(target, []).append((rel, data))
 
     # CR-3 / CR-4：续演槽位的序号与链尖交接
+    v1_used = _count_v1_receipts(root)
     for slot in overlay.get("continuation_slots", []):
         if not isinstance(slot, dict):
             continue
@@ -593,6 +617,20 @@ def check_overlay(root: Path, overlay: dict, result: AuditResult) -> None:
         if v1_row is None:
             result.error(
                 "GA-V2-SLOT", f"续演槽位 {target} 在 v1 的 evolvable_paths 里不存在"
+            )
+            continue
+        # v2 只为**真的用尽了**的 v1 槽位续命。v1 还有余量时就开 v2，
+        # 等于绕开 PR-001 已签名的既有机制去走一条更松的路——那是 DI-001
+        # 的反面，不是它的解法。这里当场数 v1 回执，不接受「声称已用尽」。
+        used = v1_used.get(target, 0)
+        capacity = v1_row.get("max_ordinal") or 0
+        if used < capacity:
+            result.error(
+                "GA-V2-SLOT",
+                f"{target} 的 v1 槽位尚未用尽（已用 {used} / 上限 {capacity}），"
+                "不得为它开 v2 续演槽位。\n"
+                "      还有余量时必须继续走 v1 的既有回执机制；"
+                "v2 是给用尽者的续命通道，不是绕开 v1 的旁路。",
             )
             continue
         if slot.get("v1_max_ordinal") != v1_row.get("max_ordinal"):

@@ -53,6 +53,12 @@ _COPY_FILES = (
     # copy2 保留权限位，aodw-check.sh 的 100755 才不会被误报成漂移。
     ".aodw-next/06-project/governance-audit.py",
     ".aodw-next/06-project/aodw-check.sh",
+    # v1 演化回执：GA-V2-SLOT 要当场数它们来判断「v1 槽位是否真的用尽」。
+    # 不带过来的话，合成仓库里 v1 用量恒为 0，续演槽位会被判成「绕开 v1」。
+    "RT/RT-012/receipts/script-evolution/stage-09-cwk-instance-ord1.json",
+    "RT/RT-013/receipts/script-evolution/stage-10-cwk-agent-binding-ord1.json",
+    "RT/RT-022/receipts/script-evolution/stage-06-cwk-wiki-query-ord1.json",
+    "RT/RT-026/receipts/script-evolution/stage-08-cwk-nightly-pipeline-ord1.json",
 )
 
 # 每条规则至少要有一个代表文件，否则会触发 GA-STALE-RULE（失效规则）。
@@ -495,6 +501,40 @@ class TestContinuationSlots(GovernanceAuditTestBase):
         data["continuation_slots"][0]["v2_ordinal_start"] = 1  # 复用 v1 已用序号
         self.repo.write_overlay(data)
         self.assertFailsWith(self.repo.audit(), "GA-V2-SLOT")
+
+    def test_slot_for_a_path_with_free_v1_capacity_fails(self) -> None:
+        """v2 是给用尽者的续命通道，不是绕开 v1 的旁路。
+
+        cwk_tenant_cli.py 的 v1 上限是 2、一条回执都没用过。给它开 v2 槽位
+        等于绕开 PR-001 已签名的既有机制去走一条更松的路——必须判失败。
+        判据当场数 v1 回执，不接受「声称已用尽」。
+        """
+        data = self.repo.overlay()
+        fresh = copy.deepcopy(data["continuation_slots"][0])
+        fresh["target_path"] = "scripts/cwk_tenant_cli.py"
+        fresh["owner_rts"] = ["RT-019"]
+        fresh["v1_max_ordinal"] = 2
+        fresh["v2_ordinal_start"] = 3
+        data["continuation_slots"].append(fresh)
+        self.repo.write_overlay(data)
+        self.assertFailsWith(self.repo.audit(), "GA-V2-SLOT")
+
+    def test_declared_slots_match_real_v1_exhaustion(self) -> None:
+        """正向：现有两个槽位对应的 v1 路径确实一条不剩。"""
+        used = ga._count_v1_receipts(self.repo.root)
+        policy = json.loads(
+            (self.repo.root / POLICY_REL).read_text(encoding="utf-8")
+        )
+        capacity = {
+            row["target_path"]: row["max_ordinal"] for row in policy["evolvable_paths"]
+        }
+        for slot in self.repo.overlay()["continuation_slots"]:
+            target = slot["target_path"]
+            self.assertEqual(
+                used.get(target, 0),
+                capacity[target],
+                f"{target} 的 v1 槽位并未用尽，不该有 v2 续演槽位",
+            )
 
     def test_owner_outside_v1_declaration_fails(self) -> None:
         data = self.repo.overlay()
