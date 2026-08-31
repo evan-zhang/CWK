@@ -29,6 +29,26 @@
 
 RT-029 不在该工作树执行写操作，也不使用 stash、reset、checkout 或全量暂存。
 
+### 复检命令（只读）
+
+B0 当时没有把命令写下来，复检的人只能猜口径。补记如下，三条命令都只读，
+不改工作树内容：
+
+```bash
+P=/Users/evan/.openclaw/gateways/life/state/workspace-life/projects/CWK
+git -C "$P" rev-parse HEAD
+git -C "$P" status --porcelain=v2                       | shasum -a 256   # 状态指纹
+git -C "$P" diff --binary                               | shasum -a 256   # 已跟踪改动指纹
+git -C "$P" ls-files --others --exclude-standard        | shasum -a 256   # 未跟踪路径指纹
+git -C "$P" status --porcelain | wc -l                                     # 应为 27
+```
+
+注意第三条不带 `--directory`：带上会把未跟踪目录折叠成 3 条目录名，得到的是另一个
+哈希（`23c429cc…`）。冻结时记的是**逐文件**清单。
+
+复检结果（2026-08-31，B2/B3 完成时）：HEAD、三个 SHA-256 与 27 项计数全部与冻结值
+逐字相同。
+
 ## 当前风险
 
 - RT-028 基于旧产品主线，包含尚未合入的 Work Agent 设计与实验实现；本 RT 不并入它。
