@@ -99,7 +99,7 @@
 | G1 | 建 `code-ownership-manifest.json`（5 域 / 20 条规则 / 6 个 exact_only_zone） | 585 个文件全部命中，孤儿 0 |
 | G2 | 建 `script-evolution-v2.json` 前向叠加层，结清 DI-001 / DI-002 | 未改任何 PR-001 冻结契约；v1→v2 交接点用链尾哈希证明 |
 | G3 | DI-003 转受控例外 EX-001（四要素齐全，三条补偿控制机器验证） | 认领未结清，复查日 2026-11-30，过期即红 |
-| G4 | `make governance-audit` 接入 `make ci`；`ci.yml` 同步 | 44 个用例全绿 |
+| G4 | `make governance-audit` 接入 `make ci`；`ci.yml` 同步；补 `GA-SELF`（门管住自己） | 54 个用例全绿 |
 | G5 | 全量 `make ci` + B4 复核 | 见下 |
 
 对照成功标准：
@@ -116,7 +116,7 @@
   `.aodw-next/06-project/governance*`、`Makefile`、`.github/workflows/ci.yml`、
   `AGENTS.md`、`RT/` 记录与新增测试。`Makefile` 只新增目标，未改既有配方。
 
-实现过程中自己抓到并修掉的两个真问题（都留了注释，防再犯）：
+实现过程中自己抓到并修掉的三个真问题（都留了注释，防再犯）：
 
 1. **delegated 解析过度吸收**：首版把上游 `owner_code_path_prefixes` 里的
    条目全部当作受管代码，误吞 31 个文档（runtime 报 100 而非 69）——
@@ -126,6 +126,20 @@
    「make ci = …」，于是把 `run: make ci` 换成 `run: make test` 后补偿控制依然通过。
    改为只认 `run:` 的执行位置（行内标量或块标量）。由
    `test_comment_mentioning_make_ci_does_not_satisfy_the_control` 锁死。
+3. **门没管住自己**。首版把 `.aodw-next/06-project/` 整个交给一条 `prefix` 规则、
+   落在 `docs_governance` 域——该域不要求演化路径也不要求变更入口。于是检查器、
+   判据清单、v2 叠加层自己全躺在「宽前缀 + 无 pin」下面：把 `governance-audit.py`
+   掏成 `sys.exit(0)`，门照样绿。这是本 RT 要消灭的形态发生在门自己身上，
+   属于最该堵的一类。修法见 `takeover-audit.md` §2.2：该目录列入 exact-only 区，
+   4 个门禁机器进 `build_ci` 并带 pin，新增 `GA-SELF` 判据防止这套管辖被撤销；
+   清单自身的不动点问题用**仅限本文件**的 `self_pin_impossible` 如实声明，
+   其他规则声明即报错，避免它退化成通用免检通道。
+   由 `TestGateGovernsItself` 十个用例锁死。
+
+值得记下的一点：GA-ZONE 在我把 `.aodw-next/06-project/` 设为 exact-only 区之后，
+立刻报出上游 `.aodw-next/` 前缀规则会伸进该区——那是真漏洞（新文件会被静默
+吸收成「上游资产」），不是误报。修法是给它加显式 `exclude_prefixes`，
+而不是放宽判据。门抓到了自己作者的错，这条判据是可信的。
 
 ## 遗留事项
 

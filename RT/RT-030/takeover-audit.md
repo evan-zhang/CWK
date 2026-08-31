@@ -54,8 +54,8 @@ owner / central / legacy 三族，并做闭合性校验。
 |---|---|---|---|---|
 | runtime | 69 | ✔ | ✔ | ✔ |
 | test | 102 | ✔ | — | — |
-| build_ci | 5 | ✔ | ✔ | ✔ |
-| docs_governance | 312 | ✔ | — | — |
+| build_ci | 9 | ✔ | ✔ | ✔ |
+| docs_governance | 308 | ✔ | — | — |
 | vendor_external | 97 | ✔ | — | — |
 | **合计** | **585** | | | |
 
@@ -75,10 +75,40 @@ owner / central / legacy 三族，并做闭合性校验。
 `RT/RT-0NN/specs/*.md` 这类文档选择器，不过滤就会把 31 个文档误吞成 runtime。
 本 RT 实现过程中确实先犯了这个错（runtime 报 100 而非 69），已修正并留了注释。
 
-### 2.2 build_ci（5）
+### 2.2 build_ci（9）
 
-`Makefile`、`.github/workflows/ci.yml`、`.gitignore`、`.env.example`、`VERSION`。
-前两个带 pin：它们定义了门本身，改动必须被看见。
+| 规则 | 文件 | pin |
+|---|---|---|
+| `R-build-makefile` | `Makefile` | ✔ |
+| `R-build-github-ci` | `.github/workflows/ci.yml` | ✔ |
+| `R-buildci-governance-audit-script` | `.aodw-next/06-project/governance-audit.py` | ✔ |
+| `R-buildci-ownership-manifest` | `.aodw-next/06-project/governance/code-ownership-manifest.json` | 不动点，见下 |
+| `R-buildci-evolution-overlay-v2` | `.aodw-next/06-project/governance/script-evolution-v2.json` | ✔ |
+| `R-buildci-aodw-check-script` | `.aodw-next/06-project/aodw-check.sh` | ✔ |
+| `R-build-gitignore` | `.gitignore` | — |
+| `R-build-env-example` | `.env.example` | — |
+| `R-build-version` | `VERSION` | — |
+
+**门自己也被门管住**（`GA-SELF`）。这一条是实做时发现自己犯了同一个错才补上的：
+首版把 `.aodw-next/06-project/` 整个交给一条 `prefix` 规则、落在 `docs_governance`
+域——那个域既不要求演化路径也不要求变更入口。于是检查器自己、判据清单自己、
+v2 叠加层自己全躺在「宽前缀 + 无 pin」之下：把 `governance-audit.py` 掏成
+`sys.exit(0)`，门照样绿。这正是本 RT 要消灭的形态，只不过发生在门自己身上。
+
+修法：`.aodw-next/06-project/` 列入 `exact_only_zones`，8 个文件逐个显式登记，
+4 个门禁机器进 `build_ci` 并带 pin。`GA-SELF` 强制这几点不能被撤销——
+删掉检查器自己的规则、把它降域、或去掉 `sensitive` 标记，都当场判失败。
+
+**清单本身不能 pin 自己**：写入自身哈希会构成不动点。这一点在规则里用
+`self_pin_impossible` + `self_pin_reason` 如实声明，并且**只有清单本文件**
+可以声明它——其他规则声明即报 `GA-SELF`，防止它退化成通用免检通道。
+清单的完整性改由结构判据（`GA-ZONE` / `GA-STALE-RULE` / `GA-ORPHAN`）与
+测试对具名规则的断言兜底。
+
+另外，`.aodw-next/` 的上游前缀规则必须用 `exclude_prefixes` 显式把项目专属区
+挖掉，否则它会够到 exact-only 区、把新文件静默吸收成「上游资产」。
+撤掉这个排除项 → `GA-ZONE` 红；拿个无关子目录搪塞也不算数（排除项必须真的
+覆盖该区）。两条都有测试。
 
 ### 2.3 test（102）/ docs_governance（311）/ vendor_external（97）
 
@@ -92,9 +122,10 @@ owner / central / legacy 三族，并做闭合性校验。
 都是机器强制的：
 
 1. **`exact_only_zones`**：在 `""`（仓库根）、`scripts/`、`config/`、
-   `references/`、`skill/`、`.github/` 这六个区域内，只允许 `exact` /
-   `exact_set` / `delegated` 规则。任何 `prefix` 规则落进这些区域 → `GA-ZONE` 红。
-   后果是：往这些目录里新增文件，必然是孤儿，必须显式登记才能过。
+   `references/`、`skill/`、`.github/`、`.aodw-next/06-project/` 这七个区域内，
+   只允许 `exact` / `exact_set` / `delegated` 规则。任何 `prefix` 规则**够得到**
+   这些区域 → `GA-ZONE` 红（含从外层伸进来的宽前缀，除非用 `exclude_prefixes`
+   显式挖掉整个区）。后果是：往这些目录里新增文件，必然是孤儿，必须显式登记才能过。
 2. **零命中规则即失败**（`GA-STALE-RULE`）：写一条谁也不匹配的规则来「预留空间」
    是不行的，清单不会慢慢偏离现实。
 3. **闭合性**（`GA-ORPHAN`）：`git ls-files` 全集逐个必须命中某条规则，
@@ -214,7 +245,7 @@ CC-1 的实现被自己的测试抓出过一个真漏洞：最初对 `ci.yml` �
 
 ## 8. 门会咬人的证据
 
-`tests/test_governance_audit.py`，44 个用例，全部在合成仓库上做**改坏 → 必须红**
+`tests/test_governance_audit.py`，54 个用例，全部在合成仓库上做**改坏 → 必须红**
 与**合规 → 必须绿**的双向验证。合成仓库先自证基线为绿
 （`TestSyntheticBaselineIsClean`），否则后面所有「改坏就红」的断言都没有意义。
 
@@ -230,10 +261,12 @@ CC-1 的实现被自己的测试抓出过一个真漏洞：最初对 `ci.yml` �
 | DI-001 续槽可用且不可越界 | `TestContinuationSlots` |
 | DI-002 双向闭合 | `TestLegacyFamilyEvolution` 五例（含「假回执不能洗白漂移」） |
 | 补偿控制是真的 | `TestCompensatingControlsAreReal` 六例 |
+| 门自己也被管住 | `TestGateGovernsItself` 十例 |
 | 当前真实树确实全覆盖 | `TestRealRepository` 四例 |
 
 反向作弊路径也被堵住：删断言会被 `TestRealRepository` 抓；放宽 glob 会被
-`GA-ZONE` 抓；写空规则占位会被 `GA-STALE-RULE` 抓；改冻结契约会被 `GA-UPSTREAM` 抓。
+`GA-ZONE` 抓；写空规则占位会被 `GA-STALE-RULE` 抓；改冻结契约会被 `GA-UPSTREAM`
+抓；掏空检查器本身会被 `GA-PIN-DRIFT` 抓；撤销门对自己的管辖会被 `GA-SELF` 抓。
 
 ## 9. 仍需用户决策
 

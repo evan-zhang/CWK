@@ -4,16 +4,19 @@
   "established_by": "RT-030",
   "established_at": "2026-08-31",
   "baseline_commit_note": "建立于 16b4ee0（= RT-029 收口后的 main，亦即 origin/main）。本清单描述的是**当前代码树**，不是历史。历史 RT 与已签名证据不因本清单改变。",
-
   "scope_rule": "判据面 = `git ls-files` 的全集。不是「新增文件才受管」，而是「这棵树上每个文件都必须被恰好一条规则认领」。",
-
   "closure_rule": "每个受跟踪文件必须匹配恰好一条 rules[] 条目。匹配不到 = 孤儿 = 硬失败。匹配到 0 个文件的规则 = 失效规则 = 硬失败（防止例外与规则无声堆积）。",
-
   "exact_only_zone_rule": "在 exact_only_zones 列出的目录里**只允许 kind=exact 或 kind=delegated 的规则**，禁止 kind=prefix。含义：往这些目录里新放一个文件，不会被任何宽泛规则吸收，它会直接变成孤儿并让门变红。这是本清单防「管理盲区」的主要机制——RT-030 正是靠它抓到了 scripts/cwk_wiki_batch_driver.sh。",
-
-  "exact_only_zones": ["", "scripts/", "config/", "references/", "skill/", ".github/"],
+  "exact_only_zones": [
+    "",
+    "scripts/",
+    "config/",
+    "references/",
+    "skill/",
+    ".github/",
+    ".aodw-next/06-project/"
+  ],
   "exact_only_zone_root_note": "空串代表仓库根目录（路径中不含 `/` 的文件）。",
-
   "upstream_authorities": [
     {
       "id": "pr001-security-registry",
@@ -30,7 +33,6 @@
       "mutability": "frozen-upstream。该哈希同时被 pr001-security-registry 的 script_evolution_policy_sha256 固定，两处必须一致——这是 v1 未被改写的交叉证明。"
     }
   ],
-
   "domains": [
     {
       "id": "runtime",
@@ -68,7 +70,6 @@
       "requires_change_entry": false
     }
   ],
-
   "evolution_mechanisms": [
     {
       "id": "pr001-script-evolution-v1",
@@ -86,13 +87,20 @@
       "overlay_file": ".aodw-next/06-project/governance/script-evolution-v2.json",
       "receipt_root_glob": "RT/*/receipts/script-evolution-v2/*",
       "description": "前向叠加层。不修改 policy_v1，按哈希继承它，为已耗尽槽位与 legacy 族提供有主的续演路径。回执根目录与 v1 分离，因此不进入 v1 的闭合集合。",
-      "closes_deferred_items": ["DI-001", "DI-002"]
+      "closes_deferred_items": [
+        "DI-001",
+        "DI-002"
+      ]
     },
     {
       "id": "cwk-governance-repin-v1",
       "kind": "rt-gated-repin",
       "description": "本清单直管的敏感文件的变更入口：开 RT → 在 rt-lite.md 写明变更理由 → 更新本清单的 pin → make governance-audit 复核。pin 只是漂移探测器，不是放行条件；放行条件是 RT 记录 + 门禁复跑。",
-      "requires": ["rt_record", "manifest_pin_update", "governance_audit_pass"]
+      "requires": [
+        "rt_record",
+        "manifest_pin_update",
+        "governance_audit_pass"
+      ]
     },
     {
       "id": "pr001-security-gate",
@@ -110,7 +118,6 @@
       "description": "普通改动：走轻量车道或 RT，由 make ci 全量回归兜底。"
     }
   ],
-
   "rules": [
     {
       "id": "R-runtime-pr001-managed-scripts",
@@ -130,7 +137,10 @@
       "kind": "exact",
       "path": "scripts/cwk_wiki_batch_driver.sh",
       "sensitive": true,
-      "pin": { "mode": "100755", "sha256": "06ff70cbfda02722472e7578f23e67a24e75794889b36ad2917e45c54d3db2be" },
+      "pin": {
+        "mode": "100755",
+        "sha256": "06ff70cbfda02722472e7578f23e67a24e75794889b36ad2917e45c54d3db2be"
+      },
       "owner": "RT-030",
       "management_domain": "cwk-governance-v1",
       "change_entry": "RT → rt-lite.md 记录理由 → 更新 pin → make governance-audit",
@@ -143,7 +153,10 @@
       "kind": "exact",
       "path": "config/entity-family-registry.json",
       "sensitive": true,
-      "pin": { "mode": "100644", "sha256": "a37b2fb02a3a9ff59e4c23a86244e737508cfde1ff708138de0251db734fbde5" },
+      "pin": {
+        "mode": "100644",
+        "sha256": "a37b2fb02a3a9ff59e4c23a86244e737508cfde1ff708138de0251db734fbde5"
+      },
       "owner": "RT-030",
       "management_domain": "cwk-governance-v1",
       "change_entry": "RT → rt-lite.md 记录理由 → 更新 pin → make governance-audit",
@@ -156,7 +169,10 @@
       "kind": "exact",
       "path": "references/relation-gold-v1.json",
       "sensitive": true,
-      "pin": { "mode": "100644", "sha256": "edae0b40176200c9a01a5704eb83df9f1bc2d9120c1be8174106751ca626587d" },
+      "pin": {
+        "mode": "100644",
+        "sha256": "edae0b40176200c9a01a5704eb83df9f1bc2d9120c1be8174106751ca626587d"
+      },
       "owner": "RT-030",
       "management_domain": "cwk-governance-v1",
       "change_entry": "RT → rt-lite.md 记录理由 → 更新 pin → make governance-audit",
@@ -169,21 +185,26 @@
       "kind": "exact",
       "path": "skill/templates/CONFIG.example.json",
       "sensitive": true,
-      "pin": { "mode": "100644", "sha256": "aa547e272a9c6e119667d646631c4a9aa5cf97bcb32284a565382a17152be1a7" },
+      "pin": {
+        "mode": "100644",
+        "sha256": "aa547e272a9c6e119667d646631c4a9aa5cf97bcb32284a565382a17152be1a7"
+      },
       "owner": "RT-030",
       "management_domain": "cwk-governance-v1",
       "change_entry": "RT → rt-lite.md 记录理由 → 更新 pin → make governance-audit",
       "evolution_path": "cwk-governance-repin-v1",
       "rationale": "make doctor、三个 smoke 目标与 install.sh:59 都读它，安装时被复制成用户的 cwk-mirror.local.json。它是真正的安装期运行时产物。"
     },
-
     {
       "id": "R-build-makefile",
       "domain": "build_ci",
       "kind": "exact",
       "path": "Makefile",
       "sensitive": true,
-      "pin": { "mode": "100644", "sha256": "b9939c69850874386570563defea5c264e81013c0a2fbd3eeb10d96bf8e1fa03" },
+      "pin": {
+        "mode": "100644",
+        "sha256": "b9939c69850874386570563defea5c264e81013c0a2fbd3eeb10d96bf8e1fa03"
+      },
       "owner": "RT-030",
       "management_domain": "cwk-governance-v1",
       "change_entry": "RT 或轻量车道 → 更新 pin → make governance-audit",
@@ -196,7 +217,10 @@
       "kind": "exact",
       "path": ".github/workflows/ci.yml",
       "sensitive": true,
-      "pin": { "mode": "100644", "sha256": "2a81038e465adfbb805385f3571b9a5b77f0371df4ba49661224808fcce9784a" },
+      "pin": {
+        "mode": "100644",
+        "sha256": "2a81038e465adfbb805385f3571b9a5b77f0371df4ba49661224808fcce9784a"
+      },
       "owner": "RT-030",
       "management_domain": "cwk-governance-v1",
       "change_entry": "RT 或轻量车道 → 更新 pin → make governance-audit",
@@ -236,7 +260,6 @@
       "evolution_path": "repo-standard-change",
       "rationale": "版本号。"
     },
-
     {
       "id": "R-test-suite",
       "domain": "test",
@@ -247,7 +270,6 @@
       "evolution_path": "repo-standard-change",
       "rationale": "测试与脱敏 fixture。tests/ 不是 exact-only 区：新增测试是被鼓励的行为，且 PR-001 已按 owner_test_file_prefixes 对安全测试命名空间做了逐 RT 闭合。"
     },
-
     {
       "id": "R-docs-root",
       "domain": "docs_governance",
@@ -341,16 +363,82 @@
       "evolution_path": "pr001-security-gate",
       "rationale": "产品级合同、冻结契约与已签名证据。由 PR-001 自身的 SG 门禁、schema 校验与回执链管辖；本清单只声明归属并按哈希锚定两份权威文件，不重复管辖、更不改写。"
     },
-
     {
-      "id": "R-governance-project-slot",
+      "id": "R-buildci-governance-audit-script",
+      "domain": "build_ci",
+      "kind": "exact",
+      "path": ".aodw-next/06-project/governance-audit.py",
+      "sensitive": true,
+      "pin": {
+        "mode": "100644",
+        "sha256": "e0ef6d95f1bd0a3baec295e1074981644691c67b355db6eaf27ccf39ba5efcdd"
+      },
+      "owner": "RT-030",
+      "management_domain": "cwk-governance-v1",
+      "change_entry": "RT → 在 rt-lite.md 写明判据变化 → 更新 pin → make governance-audit + tests/test_governance_audit.py",
+      "evolution_path": "cwk-governance-repin-v1",
+      "rationale": "检查器本体。它是这套管辖的执行者——若它自己落在无 pin 的宽前缀规则下，任何人都可以把判据掏空而门不吭声。"
+    },
+    {
+      "id": "R-buildci-ownership-manifest",
+      "domain": "build_ci",
+      "kind": "exact",
+      "path": ".aodw-next/06-project/governance/code-ownership-manifest.json",
+      "sensitive": false,
+      "self_pin_impossible": true,
+      "self_pin_reason": "本文件若要固定自身哈希会构成不动点：写入 pin 就改变了被 pin 的内容。因此本条规则不带 pin，改由 GA-SELF 判据强制它必须存在、必须落在 build_ci、必须有 owner 与演化路径；内容完整性由结构判据（GA-ZONE / GA-STALE-RULE / GA-ORPHAN）与 tests/test_governance_audit.py 对具名规则的断言共同兜底。只有本文件可声明该字段，其他规则声明即报错。",
+      "owner": "RT-030",
+      "management_domain": "cwk-governance-v1",
+      "change_entry": "RT → 在 rt-lite.md 写明归属或例外变化 → make governance-audit + tests/test_governance_audit.py",
+      "evolution_path": "cwk-governance-repin-v1",
+      "rationale": "判据本体。归属清单自己也必须有主、有变更入口，否则「谁改了管辖范围」无人负责。"
+    },
+    {
+      "id": "R-buildci-evolution-overlay-v2",
+      "domain": "build_ci",
+      "kind": "exact",
+      "path": ".aodw-next/06-project/governance/script-evolution-v2.json",
+      "sensitive": true,
+      "pin": {
+        "mode": "100644",
+        "sha256": "4eb02189a3e308ad5b4e088558a9b1129e7464f9f6b57411a90042fdbf29afdf"
+      },
+      "owner": "RT-030",
+      "management_domain": "cwk-governance-v1",
+      "change_entry": "RT → 写 v2 回执与 migration note → 更新 pin → make governance-audit",
+      "evolution_path": "cwk-governance-repin-v1",
+      "rationale": "DI-001/DI-002 的授权路径定义。改它等于改「怎样算被授权地改冻结族」，必须留痕。"
+    },
+    {
+      "id": "R-buildci-aodw-check-script",
+      "domain": "build_ci",
+      "kind": "exact",
+      "path": ".aodw-next/06-project/aodw-check.sh",
+      "sensitive": true,
+      "pin": {
+        "mode": "100755",
+        "sha256": "ff9e61c1893750b85fb75cde60d6b9a1c3cb2d486db0bc030edd5a48c623917f"
+      },
+      "owner": "RT-030",
+      "management_domain": "cwk-governance-v1",
+      "change_entry": "RT 或轻量车道 → 更新 pin → make aodw-check + make governance-audit",
+      "evolution_path": "cwk-governance-repin-v1",
+      "rationale": "方法层门禁入口。与 governance-audit.py 同理：门自己必须被看见。"
+    },
+    {
+      "id": "R-docs-project-slot",
       "domain": "docs_governance",
-      "kind": "prefix",
-      "prefix": ".aodw-next/06-project/",
+      "kind": "exact_set",
+      "paths": [
+        ".aodw-next/06-project/ai-init-prompt.md",
+        ".aodw-next/06-project/ai-overview.md",
+        ".aodw-next/06-project/audit-latest.md",
+        ".aodw-next/06-project/modules-index.yaml"
+      ],
       "owner": "RT-030",
       "management_domain": "cwk-governance-v1",
       "evolution_path": "aodw-constitution-direct",
-      "rationale": "AODW 的项目专属区，本仓库自有内容（含本清单与检查器）。放在框架升级不冲突的位置。"
+      "rationale": "项目专属区里的说明性内容，逐个登记。该区已列入 exact_only_zones——往这里新增文件必须显式登记，不会被前缀规则自动吸收。"
     },
     {
       "id": "R-vendor-aodw-framework",
@@ -360,10 +448,12 @@
       "owner": "AODW 上游（bd-eval-loop @ 08b0523c）",
       "management_domain": "aodw-framework",
       "evolution_path": "aodw-constitution-direct",
-      "rationale": "整体引入的方法论框架，随上游演进；本仓库不单独维护其内部实现。排在项目专属区规则之后，先匹配更具体的那条。"
+      "rationale": "整体引入的方法论框架，随上游演进；本仓库不单独维护其内部实现。显式排除 .aodw-next/06-project/——那是本仓库自己的项目专属区，已列为 exact-only 区，逐个文件登记；不排除的话，往那里新增文件会被这条宽前缀静默吸收成「上游资产」，等于给门自己留了盲区。",
+      "exclude_prefixes": [
+        ".aodw-next/06-project/"
+      ]
     }
   ],
-
   "exceptions": [
     {
       "id": "EX-001",

@@ -49,6 +49,10 @@ _COPY_FILES = (
     ".github/workflows/ci.yml",
     REGISTRY_REL,
     POLICY_REL,
+    # 门自身的机器：判据会核对它们的指纹（GA-SELF / GA-PIN），必须真实存在。
+    # copy2 保留权限位，aodw-check.sh 的 100755 才不会被误报成漂移。
+    ".aodw-next/06-project/governance-audit.py",
+    ".aodw-next/06-project/aodw-check.sh",
 )
 
 # 每条规则至少要有一个代表文件，否则会触发 GA-STALE-RULE（失效规则）。
@@ -75,6 +79,10 @@ _REPRESENTATIVE_TRACKED = (
     "RT/index.yaml",
     REGISTRY_REL,
     ".aodw-next/06-project/governance/code-ownership-manifest.json",
+    ".aodw-next/06-project/governance/script-evolution-v2.json",
+    ".aodw-next/06-project/governance-audit.py",
+    ".aodw-next/06-project/aodw-check.sh",
+    ".aodw-next/06-project/ai-overview.md",
     ".aodw-next/01-core/aodw-constitution.md",
 )
 
@@ -642,6 +650,96 @@ class TestCompensatingControlsAreReal(GovernanceAuditTestBase):
         self.assertIn("governance-audit", targets)
         self.assertIn("ci", targets)
         self.assertIn("governance-audit", " ".join(targets["ci"]))
+
+
+class TestGateGovernsItself(GovernanceAuditTestBase):
+    """门必须管住自己。
+
+    RT-030 实做时踩到的真问题：首版把 `.aodw-next/06-project/` 整个交给一条
+    prefix 规则、落在 docs_governance 域——那个域既不要求演化路径也不要求变更入口。
+    于是检查器自己、判据清单自己、v2 叠加层自己全躺在「宽前缀 + 无 pin」下面，
+    把 governance-audit.py 掏成 `sys.exit(0)` 门照样绿。这正是本 RT 要消灭的形态，
+    只不过发生在门自己身上。
+    """
+
+    def test_gutting_the_checker_is_detected(self) -> None:
+        """把检查器掏空必须留下痕迹——这是整套管辖最脆弱的一点。"""
+        self.repo.write_file(
+            ".aodw-next/06-project/governance-audit.py",
+            "import sys\nsys.exit(0)\n",
+        )
+        self.assertFailsWith(self.repo.audit(), "GA-PIN-DRIFT")
+
+    def test_editing_the_overlay_is_detected(self) -> None:
+        data = self.repo.overlay()
+        data["legacy_evolution"]["default_steward"] = "nobody"
+        self.repo.write_overlay(data)
+        self.assertFailsWith(self.repo.audit(), "GA-PIN-DRIFT")
+
+    def test_removing_the_checkers_own_rule_fails(self) -> None:
+        data = self.repo.manifest()
+        data["rules"] = [
+            r for r in data["rules"] if r["id"] != "R-buildci-governance-audit-script"
+        ]
+        self.repo.write_manifest(data)
+        self.assertFailsWith(self.repo.audit(), "GA-SELF")
+
+    def test_demoting_gate_machinery_out_of_build_ci_fails(self) -> None:
+        """降域是最省事的绕法：docs_governance 不要求演化路径和变更入口。"""
+        data = self.repo.manifest()
+        self.repo.rule(data, "R-buildci-governance-audit-script")["domain"] = (
+            "docs_governance"
+        )
+        self.repo.write_manifest(data)
+        self.assertFailsWith(self.repo.audit(), "GA-SELF")
+
+    def test_unmarking_gate_machinery_as_sensitive_fails(self) -> None:
+        """去掉 sensitive 就不做指纹比对了，等于把 pin 悄悄关掉。"""
+        data = self.repo.manifest()
+        self.repo.rule(data, "R-buildci-evolution-overlay-v2")["sensitive"] = False
+        self.repo.write_manifest(data)
+        self.assertFailsWith(self.repo.audit(), "GA-SELF")
+
+    def test_self_pin_exemption_cannot_spread_to_other_files(self) -> None:
+        """不动点豁免只属于清单本文件；别的规则声明它就是自开免检通道。"""
+        data = self.repo.manifest()
+        rule = self.repo.rule(data, "R-buildci-governance-audit-script")
+        rule["self_pin_impossible"] = True
+        rule["self_pin_reason"] = "看起来很正当的理由"
+        rule.pop("pin", None)
+        rule["sensitive"] = False
+        self.repo.write_manifest(data)
+        self.assertFailsWith(self.repo.audit(), "GA-SELF")
+
+    def test_manifest_self_pin_exemption_needs_a_written_reason(self) -> None:
+        data = self.repo.manifest()
+        self.repo.rule(data, "R-buildci-ownership-manifest").pop("self_pin_reason")
+        self.repo.write_manifest(data)
+        self.assertFailsWith(self.repo.audit(), "GA-SELF")
+
+    def test_project_slot_is_an_exact_only_zone(self) -> None:
+        """往门自己的目录里新增文件必须显式登记，不能被任何前缀规则吸收。"""
+        self.repo.write_file(
+            ".aodw-next/06-project/sneaky-helper.py", "print('hi')\n"
+        )
+        self.repo.tracked.append(".aodw-next/06-project/sneaky-helper.py")
+        self.assertFailsWith(self.repo.audit(), "GA-ORPHAN")
+
+    def test_widening_the_vendor_rule_to_cover_the_slot_fails(self) -> None:
+        """撤掉 exclude_prefixes，宽前缀立刻够到 exact-only 区——必须当场判失败。"""
+        data = self.repo.manifest()
+        self.repo.rule(data, "R-vendor-aodw-framework").pop("exclude_prefixes")
+        self.repo.write_manifest(data)
+        self.assertFailsWith(self.repo.audit(), "GA-ZONE")
+
+    def test_excluding_an_unrelated_subtree_does_not_grant_zone_immunity(self) -> None:
+        """排除项必须真的覆盖该区；拿个无关子目录搪塞不算数。"""
+        data = self.repo.manifest()
+        self.repo.rule(data, "R-vendor-aodw-framework")["exclude_prefixes"] = [
+            ".aodw-next/99-nowhere/"
+        ]
+        self.repo.write_manifest(data)
+        self.assertFailsWith(self.repo.audit(), "GA-ZONE")
 
 
 class TestRealRepository(unittest.TestCase):

@@ -228,7 +228,15 @@ def rule_matches(rule: dict, path: str, delegated: Set[str]) -> bool:
         return path in set(rule.get("paths") or [])
     if kind == "prefix":
         prefix = rule.get("prefix") or ""
-        return bool(prefix) and path.startswith(prefix)
+        if not prefix or not path.startswith(prefix):
+            return False
+        # 显式挖洞：被排除的子树不归本规则管，必须另有规则接住它，
+        # 否则闭合性检查会把那里的文件报成孤儿。这正是想要的效果——
+        # 用它把 exact-only 区从一条宽前缀规则的覆盖面里摘出来。
+        for excluded in rule.get("exclude_prefixes") or []:
+            if isinstance(excluded, str) and excluded and path.startswith(excluded):
+                return False
+        return True
     if kind == "delegated":
         return path in delegated
     return False
@@ -347,16 +355,25 @@ def check_exact_only_zones(
                 "GA-ZONE", f"规则 {rule.get('id')} 使用了会吞掉整棵树的前缀 {prefix!r}"
             )
             continue
+        excluded = [
+            e for e in (rule.get("exclude_prefixes") or []) if isinstance(e, str) and e
+        ]
         for zone in zones:
             if zone == "":
                 continue
-            if prefix.startswith(zone) or zone.startswith(prefix):
-                result.error(
-                    "GA-ZONE",
-                    f"规则 {rule.get('id')} 在 exact-only 区 {zone!r} 内使用了前缀规则"
-                    f" {prefix!r}。该区只允许精确路径或委派规则，否则新放进去的文件会被"
-                    "静默吸收，正是 RT-030 要消除的盲区。",
-                )
+            if not (prefix.startswith(zone) or zone.startswith(prefix)):
+                continue
+            # 宽前缀显式把整个区挖掉之后，它就够不着区内任何路径，不再是盲区来源。
+            # 只有「排除项恰好覆盖该区」才算数——排除一个子目录不能豁免整个区。
+            if any(zone.startswith(e) for e in excluded):
+                continue
+            result.error(
+                "GA-ZONE",
+                f"规则 {rule.get('id')} 在 exact-only 区 {zone!r} 内使用了前缀规则"
+                f" {prefix!r}。该区只允许精确路径或委派规则，否则新放进去的文件会被"
+                "静默吸收，正是 RT-030 要消除的盲区。\n"
+                f"      若该规则确实不该管这个区，用 exclude_prefixes 显式挖掉它。",
+            )
 
     # 正向确认：区内每个文件确实由精确/委派规则认领。
     for path, rule in assignment.items():
@@ -830,6 +847,82 @@ def verify_compensating_controls(
             )
 
 
+# ── 门自身的管辖（GA-SELF） ─────────────────────────────────────────────────
+
+
+#: 门自身的机器：检查器、判据清单、前向叠加层、方法层门禁入口。
+#: 这几个文件必须以 exact 规则落在 build_ci 域里——它们决定了「什么算合规」，
+#: 若靠宽前缀规则兜底，掏空判据就不会留下任何痕迹。
+GATE_MACHINERY = (
+    ".aodw-next/06-project/governance-audit.py",
+    MANIFEST_REL,
+    OVERLAY_REL,
+    ".aodw-next/06-project/aodw-check.sh",
+)
+
+
+def check_self_governance(manifest: dict, result: AuditResult) -> None:
+    """门必须管住自己。
+
+    缘由（RT-030 实做时发现）：首版把 `.aodw-next/06-project/` 整个交给一条
+    `prefix` 规则，域是 docs_governance——那个域既不要求演化路径也不要求变更
+    入口。于是检查器自己、判据清单自己、v2 叠加层自己全都躺在「宽前缀 + 无 pin」
+    之下：把 governance-audit.py 掏成 `sys.exit(0)`，门照样绿。
+    这正是本 RT 要消灭的形态，只不过发生在门自己身上。
+    """
+    by_path: Dict[str, dict] = {}
+    for rule in manifest.get("rules", []):
+        if rule.get("kind") == "exact" and isinstance(rule.get("path"), str):
+            by_path[rule["path"]] = rule
+
+    for target in GATE_MACHINERY:
+        rule = by_path.get(target)
+        if rule is None:
+            result.error(
+                "GA-SELF",
+                f"门自身的机器 {target} 没有 exact 规则管辖。\n"
+                "      判据、检查器与门禁入口必须逐个显式登记——"
+                "让它们落回宽前缀规则，等于给『掏空判据』留了无声通道。",
+            )
+            continue
+        if rule.get("domain") != "build_ci":
+            result.error(
+                "GA-SELF",
+                f"{target} 的规则 {rule.get('id')} 不在 build_ci 域"
+                f"（当前 {rule.get('domain')!r}）。"
+                "只有 build_ci 同时强制 owner、变更入口与演化路径。",
+            )
+        # 不动点例外：清单无法固定自身哈希（写入 pin 就改变了被 pin 的内容）。
+        # 因此**只有**清单本文件可以声明 self_pin_impossible，且必须写明理由。
+        # 其他任何规则声明这个字段，都是在给自己开免检通道 —— 直接判失败。
+        if rule.get("self_pin_impossible"):
+            if target != MANIFEST_REL:
+                result.error(
+                    "GA-SELF",
+                    f"规则 {rule.get('id')} 声明了 self_pin_impossible，"
+                    f"但该字段只允许 {MANIFEST_REL} 使用。"
+                    "别的文件都能被固定指纹，声明它就是在自开免检通道。",
+                )
+            elif not rule.get("self_pin_reason"):
+                result.error(
+                    "GA-SELF", f"{target} 声明了 self_pin_impossible 但没有写明理由"
+                )
+        elif not rule.get("sensitive"):
+            result.error(
+                "GA-SELF",
+                f"{target} 的规则 {rule.get('id')} 没有标 sensitive，"
+                "因而不会做指纹漂移检查。门自身的机器必须被指纹盯住。",
+            )
+
+    for rule in manifest.get("rules", []):
+        if rule.get("self_pin_impossible") and rule.get("path") != MANIFEST_REL:
+            result.error(
+                "GA-SELF",
+                f"规则 {rule.get('id')}（path={rule.get('path')!r}）"
+                f"越权声明 self_pin_impossible；该字段仅限 {MANIFEST_REL}。",
+            )
+
+
 # ── 编排 ────────────────────────────────────────────────────────────────────
 
 
@@ -861,6 +954,7 @@ def audit(
     check_exact_only_zones(manifest, assignment, result)
     check_domain_requirements(manifest, result)
     check_sensitive_pins(root, manifest, result)
+    check_self_governance(manifest, result)
     check_exceptions(root, manifest, result, today)
 
     overlay = load_json(root / OVERLAY_REL)
