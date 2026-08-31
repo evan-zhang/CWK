@@ -37,8 +37,29 @@ tools_init:
       configured: false
       hooks_installed: false
       config_file: null
-      note: "不在接入方法论时修改共享 Git hooks。"
+      note: >
+        不在接入方法论时修改共享 Git hooks。RT-029 复核后仍然不装，且给出了硬理由：
+        本仓库的 main 检出、RT worktree 与原 PR-001 工作树共用同一个 git common dir，
+        hook 装一次对所有 worktree 生效，会写到用户要求保持原样的工作树的提交路径上。
+        AODW 的 G001 是告警级，`make aodw-check` 会照实报出。见 RT/_deferred-items.md DI-003。
+
+  # AODW 自带 skill 的宿主入口（.agent/skills/）是本机状态，源在 .aodw-next/skills/ 里
+  # 随仓库走，宿主入口已在 .gitignore。装没装由 `make aodw-check` 第 4 项当场测量，
+  # 不在本文件里断言——写死在这里的状态会立刻过期，接入报告就栽在这上面。
+  skills:
+    source_of_truth: ".aodw-next/skills/"
+    host_entry_dir: ".agent/skills/"
+    host_entry_tracked: false
+    install_command: "bash .aodw-next/tools/install-skills.sh"
+    checked_by: "make aodw-check"
 
   validation:
-    framework_fixture_suite: "pending"
+    # RT-029 起，下面三项都由 `make aodw-check` 一条命令复检，CI 跑的是同一条
+    # （`make ci` = `make test` + `make aodw-check`）。
+    entry_point: "make aodw-check"
+    framework_fixture_suite: "79/79 pass (verified 2026-08-31, RT-029)"
     project_rt_guard_baseline: "historical RTs are pre-adoption; only new AODW RTs are gate targets"
+    # 上面那句从散文变成了配置：作用域读 .aodw-next/project.yaml 的 rt_gate_scope，
+    # 存量 RT 在 RT/index.yaml 里带 backfill 标记（AODW 自带的存量豁免机制）。
+    rt_gate_scope_source: ".aodw-next/project.yaml#rt_gate_scope"
+    rt_roster_consistency: "RT/ 目录与 RT/index.yaml 一一对应，27/27（verified 2026-08-31, RT-029）"

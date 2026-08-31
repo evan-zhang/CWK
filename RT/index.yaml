@@ -1,26 +1,187 @@
 # RT Index — CWK
+#
+# RT 花名册。两个消费者：
+#   1. 编号（`.aodw-next/02-workflow/rt-manager.md`「编号」）：新 RT 取本文件与
+#      `RT/` 目录条目的并集，最大序号 +1。只扫目录会撞号，所以本文件必须齐全。
+#   2. AODW 门禁 `.aodw-next/tools/rt-guard.sh`：G109 按 `- id: RT-XXX` 行认条目；
+#      G111 收口复盘 Gate 按条目内的 `backfill` 键判存量。
+#
+# 格式（RT-029 收敛）：本文件此前扩展名是 .yaml、内容却是 Markdown 表格，rt-guard
+# 解析不了，结果仓库里每个 RT 都恒报一条 G109 告警，G111 的存量豁免也无从生效。
+# 本次改成真正的 YAML，字段与原表格一一对应，没有改动任何 RT 自己的文档。
+#
+# backfill: aodw-adoption
+#   该 RT 在 AODW 接入（2026-08-31）之前就存在，只作历史证据，不是门禁对象。
+#   这是 AODW 自带的存量标记机制（G111 据此豁免），不是为放行而开的例外。
+#   接入后新建的 RT 一律不带此键，必须走完整门禁。
 
-| RT-ID | Title | Status | Profile | Created |
-|-------|-------|--------|---------|---------|
-| RT-001 | AI 增强理解与质量复核 Pipeline | completed | Spec-Lite | 2026-07-15 |
-| RT-002 | 交互式工作协同办理中心 | in_progress | Spec-Lite | 2026-07-18 |
-| RT-003 | 云端优先 LLM Wiki 知识层 | in_progress | Spec-Lite | 2026-07-23 |
-| RT-004 | 工作协同 Wiki 可信问答入口 | completed | Spec-Lite | 2026-08-04 |
-| RT-005 | 工作协同 Wiki 精编闭环与稳定运行 | completed | Spec-Lite | 2026-08-04 |
-| RT-006 | Cloud-First v2 P0/P1 可信迁移底座 | completed | Spec-Lite | 2026-08-04 |
-| RT-011 | PR-001 外部契约探针与安全基线 (G1) | completed | Spec-Standard | 2026-08-19 |
-| RT-012 | PR-001 Instance Layout 与 Tenant Registry (G2) | completed | Spec-Standard | 2026-08-19 |
-| RT-013 | PR-001 可信 Agent 绑定与凭据边界 (G2) | completed | Spec-Standard | 2026-08-19 |
-| RT-014 | PR-001 共享不可变 Canonical Evidence Store (G3) | completed | Spec-Standard | 2026-08-19 |
-| RT-015 | PR-001 Access Ledger、Tenant View 与撤权核心 | completed | Spec-Standard | 2026-08-19 |
-| RT-016 | PR-001 Legacy Raw 影子迁移与数据级对账 (G3 M2/M3 数据侧) | completed | Spec-Standard | 2026-08-19 |
-| RT-017 | PR-001 Per-tenant Collector Worker | planned | Spec-Standard | 2026-08-20 |
-| RT-018 | PR-001 宿主机 Tenant Scheduler | planned | Spec-Standard | 2026-08-20 |
-| RT-019 | PR-001 Knowledge Profile 提案、确认与版本生命周期 | planned | Spec-Standard | 2026-08-20 |
-| RT-020 | PR-001 Holdout 预览、路由器与决策日志 | planned | Spec-Standard | 2026-08-20 |
-| RT-021 | PR-001 多知识空间 Projector 与索引 | planned | Spec-Standard | 2026-08-20 |
-| RT-022 | PR-001 Query Broker 授权核心 | planned | Spec-Standard | 2026-08-20 |
-| RT-023 | PR-001 沙箱传输、客户端与真实空间集成 | planned | Spec-Standard | 2026-08-20 |
-| RT-024 | PR-001 安全审计、可观测性与容量基准 | planned | Spec-Standard | 2026-08-20 |
-| RT-025 | PR-001 加密备份与 Clean-room 恢复 | planned | Spec-Standard | 2026-08-20 |
-| RT-026 | PR-001 试点准备、影子切换与回滚工具 | planned | Spec-Standard | 2026-08-20 |
+entries:
+- id: RT-001
+  title: AI 增强理解与质量复核 Pipeline
+  status: completed
+  profile: Spec-Lite
+  created: 2026-07-15
+  backfill: aodw-adoption
+- id: RT-002
+  title: 交互式工作协同办理中心
+  status: in_progress
+  profile: Spec-Lite
+  created: 2026-07-18
+  backfill: aodw-adoption
+- id: RT-003
+  title: 云端优先 LLM Wiki 知识层
+  status: in_progress
+  profile: Spec-Lite
+  created: 2026-07-23
+  backfill: aodw-adoption
+- id: RT-004
+  title: 工作协同 Wiki 可信问答入口
+  status: completed
+  profile: Spec-Lite
+  created: 2026-08-04
+  backfill: aodw-adoption
+- id: RT-005
+  title: 工作协同 Wiki 精编闭环与稳定运行
+  status: completed
+  profile: Spec-Lite
+  created: 2026-08-04
+  backfill: aodw-adoption
+- id: RT-006
+  title: Cloud-First v2 P0/P1 可信迁移底座
+  status: completed
+  profile: Spec-Lite
+  created: 2026-08-04
+  backfill: aodw-adoption
+# RT-007 / RT-008 / RT-010 此前根本不在索引里（RT-029 发现），但 RT/ 目录下有目录。
+# 它们是接入前存量，没有 meta.yaml，状态无从考证——按实情写 unknown，不臆造。
+# 补进来的唯一目的是让「目录 ∪ 索引」这条编号规则不再漏号。
+- id: RT-007
+  title: 工作协同动态事项时间线与决策链可信同步
+  status: unknown
+  profile: unknown
+  created: 2026-08-18
+  backfill: aodw-adoption
+  note: 接入前存量，无 meta.yaml；状态以 RT/RT-007/ 内的报告为准
+- id: RT-008
+  title: 后台权威汇报关系接口
+  status: unknown
+  profile: unknown
+  created: 2026-08-18
+  backfill: aodw-adoption
+  note: 接入前存量，无 meta.yaml；状态以 RT/RT-008/ 内的报告为准
+- id: RT-010
+  title: 本地检索实体域约束加固
+  status: unknown
+  profile: unknown
+  created: 2026-08-18
+  backfill: aodw-adoption
+  note: 接入前存量，无 meta.yaml；状态以 RT/RT-010/ 内的报告为准
+- id: RT-011
+  title: PR-001 外部契约探针与安全基线 (G1)
+  status: completed
+  profile: Spec-Standard
+  created: 2026-08-19
+  backfill: aodw-adoption
+- id: RT-012
+  title: PR-001 Instance Layout 与 Tenant Registry (G2)
+  status: completed
+  profile: Spec-Standard
+  created: 2026-08-19
+  backfill: aodw-adoption
+- id: RT-013
+  title: PR-001 可信 Agent 绑定与凭据边界 (G2)
+  status: completed
+  profile: Spec-Standard
+  created: 2026-08-19
+  backfill: aodw-adoption
+- id: RT-014
+  title: PR-001 共享不可变 Canonical Evidence Store (G3)
+  status: completed
+  profile: Spec-Standard
+  created: 2026-08-19
+  backfill: aodw-adoption
+- id: RT-015
+  title: PR-001 Access Ledger、Tenant View 与撤权核心
+  status: completed
+  profile: Spec-Standard
+  created: 2026-08-19
+  backfill: aodw-adoption
+- id: RT-016
+  title: PR-001 Legacy Raw 影子迁移与数据级对账 (G3 M2/M3 数据侧)
+  status: completed
+  profile: Spec-Standard
+  created: 2026-08-19
+  backfill: aodw-adoption
+- id: RT-017
+  title: PR-001 Per-tenant Collector Worker
+  status: planned
+  profile: Spec-Standard
+  created: 2026-08-20
+  backfill: aodw-adoption
+- id: RT-018
+  title: PR-001 宿主机 Tenant Scheduler
+  status: planned
+  profile: Spec-Standard
+  created: 2026-08-20
+  backfill: aodw-adoption
+- id: RT-019
+  title: PR-001 Knowledge Profile 提案、确认与版本生命周期
+  status: planned
+  profile: Spec-Standard
+  created: 2026-08-20
+  backfill: aodw-adoption
+- id: RT-020
+  title: PR-001 Holdout 预览、路由器与决策日志
+  status: planned
+  profile: Spec-Standard
+  created: 2026-08-20
+  backfill: aodw-adoption
+- id: RT-021
+  title: PR-001 多知识空间 Projector 与索引
+  status: planned
+  profile: Spec-Standard
+  created: 2026-08-20
+  backfill: aodw-adoption
+- id: RT-022
+  title: PR-001 Query Broker 授权核心
+  status: planned
+  profile: Spec-Standard
+  created: 2026-08-20
+  backfill: aodw-adoption
+  note: 脚本演化 stage-06 槽位已被 RT-029 用于登记存量改动，见 DI-001
+- id: RT-023
+  title: PR-001 沙箱传输、客户端与真实空间集成
+  status: planned
+  profile: Spec-Standard
+  created: 2026-08-20
+  backfill: aodw-adoption
+- id: RT-024
+  title: PR-001 安全审计、可观测性与容量基准
+  status: planned
+  profile: Spec-Standard
+  created: 2026-08-20
+  backfill: aodw-adoption
+- id: RT-025
+  title: PR-001 加密备份与 Clean-room 恢复
+  status: planned
+  profile: Spec-Standard
+  created: 2026-08-20
+  backfill: aodw-adoption
+- id: RT-026
+  title: PR-001 试点准备、影子切换与回滚工具
+  status: planned
+  profile: Spec-Standard
+  created: 2026-08-20
+  backfill: aodw-adoption
+  note: 脚本演化 stage-08 槽位已被 RT-029 用于登记存量改动，见 DI-001
+# ── 以下为 AODW 接入后新建的 RT：不带 backfill，走完整门禁 ──────────────────
+- id: RT-028
+  title: CWK Codex Work Agent 隔离 PoC
+  status: created
+  profile: Spec-Lite
+  created: 2026-08-31
+- id: RT-029
+  title: CWK AODW 产品基线收敛
+  status: in-progress
+  profile: Spec-Lite
+  created: 2026-08-31

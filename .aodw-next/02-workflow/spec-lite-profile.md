@@ -8,16 +8,27 @@
 
 ## 阶段
 
-**1. 在 main 上写 `rt-lite.md` 并提交**
+**1. 在 `main` 上占号，随即建 worktree**
+
+`main` 上只提交 `meta.yaml`（编号、标题、状态），几秒钟的事，目的是让编号对并发会话
+可见。提交完立刻建 worktree：
+
+```bash
+git worktree add -b feature/RT-XXX-short-name .claude/worktrees/RT-XXX-short-name main
+```
+
+**2. 在 worktree 里写 `rt-lite.md`**
 
 先写给人看的判断：做什么、为什么、代价、不做什么、用户怎样算成功、关键假设。
-实现备注放后面。不要先切 feature 分支。
+实现备注放后面。
 
-**2. 方案门**
+`rt-lite.md`、方案讨论、调查记录、评审往返和实现**全部在 worktree 里做**，不写在
+`main` 上——理由见宪法「交付形态」：并发会话共用 `main` 的暂存区，方案阶段改动最密，
+最容易把别人的文件卷进自己的提交。落点表以 `git-discipline.md`「在哪改」为准。
+
+**3. 方案门**
 
 用人话展示建议和成功标准，问做不做。没批准不改业务文件。
-
-**3. 方案批准后建 worktree**（细节见 `git-discipline.md`）
 
 **4. 实现**
 

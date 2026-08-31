@@ -4,3 +4,18 @@ adoption:
   source_project: bd-eval-loop
   source_commit: 08b0523c9457da9f59235e48e22227f369502ac6
   adopted_at: 2026-08-31
+
+# 门禁作用域（RT-029 收敛）。
+# 问题：`rt-guard.sh --root .` 不带 --rt 时会扫全部 27 个 RT，其中 25 个建于 AODW
+# 接入之前、用的是另一套文档形态，扫出来的一百多条告警全是「历史不是新格式」，
+# 把真正的新问题淹掉。宪章的态度很明确：历史内容只作证据，不能倒改。
+# 做法：默认门禁面只包含接入后新建的 RT；存量 RT 仍然可以扫，但要显式要求。
+rt_gate_scope:
+  # 第一个在 AODW 下建立的 RT。序号 >= 它的即为受管 RT。
+  managed_from: RT-028
+  # 受管面之外的 RT 怎么处置：不回填、不改写，只在 RT/index.yaml 里打
+  # `backfill: aodw-adoption` 标记，AODW 自带的 G111 据此豁免。
+  legacy_policy: evidence-only
+  # 全量人工体检入口（默认不跑；输出里绝大多数是存量告警，不适合当门禁）：
+  #   bash .aodw-next/tools/rt-guard.sh --root .
+  full_scan_is_opt_in: true

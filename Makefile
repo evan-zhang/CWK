@@ -1,4 +1,4 @@
-.PHONY: doctor test smoke smoke-ai smoke-ai-degraded wiki-lint wiki-smoke clean
+.PHONY: doctor test aodw-check smoke smoke-ai smoke-ai-degraded wiki-lint wiki-smoke clean
 
 PYTHON ?= python3
 TEST_TMPDIR ?= $(shell $(PYTHON) -c 'import os,tempfile; print(os.path.realpath(tempfile.gettempdir()))')
@@ -17,6 +17,11 @@ test:
 	$(MAKE) smoke
 	$(MAKE) smoke-ai
 	$(MAKE) smoke-ai-degraded
+
+# 方法层自检：AODW 框架 fixture + 受管 RT 门禁 + RT 花名册一致性。
+# 判据和作用域都写在 .aodw-next/ 里，这里只留一个稳定入口。
+aodw-check:
+	bash .aodw-next/06-project/aodw-check.sh --root .
 
 wiki-lint:
 	$(PYTHON) scripts/cwk_wiki_query.py --lint
