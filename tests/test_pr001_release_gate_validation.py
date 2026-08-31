@@ -1054,6 +1054,31 @@ class _RealAuthorizationFixtureBase(_SecurityOwnerFixture, unittest.TestCase):
             self._write_owner_code(entry)
             self._write_evidence_modules(entry)
         self._write_shared_abi_dependencies()
+
+        # G2 binds ``self.remediation_subject`` and its touch proof must
+        # witness RT-012/RT-013's two runtime selectors — scripts/cwk_instance.py
+        # and scripts/cwk_agent_binding.py — because those are what Stages 09/10
+        # changed.  The clone already carries the accepted Stage-09/10 bytes, and
+        # `_prepare_evolution_baseline` only rewrites them with identical
+        # content, so the remediation commit would otherwise contain no change
+        # to either file and G2 would fail `subject_commit_did_not_touch_owner_code`.
+        # Materialize a genuine prior state of exactly those two files in an
+        # earlier commit, then restore the receipt-bound bytes inside the
+        # remediation subject.  Final bytes stay byte-identical to the accepted
+        # Stage-09/10 output — this makes the Git-derived touch proof real
+        # instead of relying on an unrelated package/document edit.
+        remediation_paths = (
+            "scripts/cwk_instance.py",
+            "scripts/cwk_agent_binding.py",
+        )
+        remediation_bytes = {
+            rel: (self.root / rel).read_bytes() for rel in remediation_paths
+        }
+        for rel, raw in remediation_bytes.items():
+            self.write_bytes(rel, raw + b"\n# pre-remediation fixture state\n")
+        _real_binding.commit_all(self.git, "fixture pre-Stage-09/10 remediation state")
+        for rel, raw in remediation_bytes.items():
+            self.write_bytes(rel, raw)
         self.remediation_subject = _real_binding.commit_all(
             self.git, "security owner-scope and Stage-09/10 remediation baseline"
         )
@@ -1111,9 +1136,9 @@ class _RealAuthorizationFixtureBase(_SecurityOwnerFixture, unittest.TestCase):
             "G1": self.registry["prerequisite_resolution"]["rt_acceptance_reports"]["RT-011"]["accepted_subject_commit"],
             # RT-012/RT-013 left the legacy set after Stages 09/10 changed
             # cwk_instance.py/cwk_agent_binding.py. G2 binds the exact commit
-            # that introduced both remediated script bytes and their receipts,
-            # so the Git-derived touch proof exercises those two new selectors
-            # rather than succeeding on an unrelated package/document edit.
+            # that restores both receipt-bound remediated script bytes, so the
+            # Git-derived touch proof exercises those two new selectors rather
+            # than succeeding on an unrelated package/document edit.
             "G2": self.remediation_subject,
             "G3": self.registry["prerequisite_resolution"]["rt_acceptance_reports"]["RT-016"]["accepted_subject_commit"],
             "G4": self.future_subject,
