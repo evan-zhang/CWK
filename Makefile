@@ -1,4 +1,4 @@
-.PHONY: doctor test aodw-check smoke smoke-ai smoke-ai-degraded wiki-lint wiki-smoke clean
+.PHONY: doctor test aodw-check ci smoke smoke-ai smoke-ai-degraded wiki-lint wiki-smoke clean
 
 PYTHON ?= python3
 TEST_TMPDIR ?= $(shell $(PYTHON) -c 'import os,tempfile; print(os.path.realpath(tempfile.gettempdir()))')
@@ -22,6 +22,12 @@ test:
 # 判据和作用域都写在 .aodw-next/ 里，这里只留一个稳定入口。
 aodw-check:
 	bash .aodw-next/06-project/aodw-check.sh --root .
+
+# CI 与本地共用的唯一入口。CI 跑什么本地就跑什么，反过来也一样——
+# 两边命令一旦不同，「CI 是绿的」这句话就不再是本地可复现的证据。
+ci:
+	$(MAKE) test
+	$(MAKE) aodw-check
 
 wiki-lint:
 	$(PYTHON) scripts/cwk_wiki_query.py --lint

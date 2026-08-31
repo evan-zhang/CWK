@@ -7,12 +7,23 @@ on:
     branches: [main]
 
 jobs:
+  # job id 保持 `smoke` 不变：分支保护里的 required status check 认的是这个 id，
+  # 改名会让保护规则指向一个不存在的检查。内容已不止 smoke，见下面的 step 说明。
   smoke:
     runs-on: ubuntu-latest
+    # PR-001 的证据链测试大量做 KDF，全量单测本身就要一个多小时。给足额度，
+    # 但不要给到 GitHub 默认的 6 小时——真挂住时应该在两个多小时内被看见。
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
+          # 仓库的 Python 版本闸在 scripts/cwk_doctor.py（MIN_PYTHON = 3.10），
+          # 实际开发与验收基线是 3.11。
           python-version: "3.11"
-      - name: Compile and smoke test
-        run: make test
+      - name: Repo checks (same entry point as local `make ci`)
+        # 和本地同一条命令：make ci = make test + make aodw-check。
+        # 覆盖 doctor、py_compile、全量单测、三个脱敏 smoke、AODW 框架 fixture、
+        # 受管 RT 门禁、RT 花名册一致性。两边命令必须一致——命令不同的话，
+        # 「CI 是绿的」在本地就不可复现，也就不能当验收证据。
+        run: make ci

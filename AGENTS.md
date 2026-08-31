@@ -44,10 +44,17 @@ MCP、文件写入、subagent 或运行时调度权限。Work Agent 设计仍是
 
 ## 常用检查
 
-- `make doctor`：检查可移植安装条件；
+- `make ci`：**CI 跑的就是这一条**，等于 `make test` + `make aodw-check`。判断
+  「现在是不是绿的」以它为准；本地和 CI 命令不同的时候，CI 的绿灯不算本地证据；
+- `make doctor`：检查可移植安装条件（含 Python 版本闸，低于 3.10 会直接失败）；
 - `make test`：编译、单元测试和脱敏 smoke；
+- `make aodw-check`：AODW 方法层自检——框架 fixture、受管 RT 门禁、RT 花名册一致性；
+  门禁面只含接入后新建的 RT，作用域配置在 `.aodw-next/project.yaml` 的 `rt_gate_scope`；
 - `python3 scripts/cwk_wiki_query.py --lint`：检查本地 Wiki 证据完整性；
 - `python3 scripts/cwk_cloud_wiki_compile.py --help`：确认精编命令合同。
+
+`make test` 的单元测试跑满需要一个多小时（PR-001 的证据链测试大量做 KDF）。
+不要因为「跑得慢」就以为卡住了，也不要用只跑几个文件的结果代替全量结论。
 
 真实 CWork 采集、DocDB 同步或真实模型调用可能涉及受保护数据与费用；没有明确授权时，
 优先运行本地、脱敏和 dry-run 检查。
