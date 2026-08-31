@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.rt015.revoke_intent.v1",
+  "title": "AccessLedger revocation intent journal v1 (RT-015)",
+  "description": "Written before any mutation. Its presence means: query eligibility MUST fail closed regardless of the on-disk grant status. Recovery uses this record to complete or reconcile a partially-applied revocation.",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": [
+    "schema",
+    "txn_id",
+    "grant_key",
+    "tenant_id",
+    "source_namespace",
+    "report_id",
+    "prior_status",
+    "prior_record_revision",
+    "tenant_auth_epoch_before",
+    "actor",
+    "reason",
+    "authority_receipt_id",
+    "intended_at"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.rt015.revoke_intent.v1"},
+    "txn_id": {"type": "string", "pattern": "^rv_[a-z2-7]{26}$"},
+    "grant_key": {"type": "string", "pattern": "^g_[a-z2-7]{26}$"},
+    "tenant_id": {"type": "string", "pattern": "^t_[a-z0-9]{26}$"},
+    "source_namespace": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"},
+    "report_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_\\-.]{0,127}$"},
+    "prior_status": {"type": "string", "enum": ["discovered", "granted", "active", "revalidation_due"]},
+    "prior_record_revision": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+    "tenant_auth_epoch_before": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+    "actor": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "\\A[\\x20-\\x7e]+\\Z"},
+    "reason": {"type": "string", "minLength": 1, "maxLength": 256, "pattern": "\\A[\\x20-\\x7e]+\\Z"},
+    "authority_receipt_id": {"type": ["string", "null"], "maxLength": 128},
+    "intended_at": {"type": "string", "format": "date-time"}
+  },
+  "customKeywords": {
+    "deepForbiddenProperties": [
+      "agent_id", "agent_id_hash", "credential_ref", "credentials", "app_key", "app_secret",
+      "body", "body_text", "content", "reply", "replies", "node", "nodes",
+      "attachment", "attachments", "attachment_url", "temporary_url",
+      "preview_url", "short_url", "presign_url", "download_url",
+      "path", "absolute_path", "mirror_root",
+      "cookie", "session_token", "authorization"
+    ]
+  }
+}

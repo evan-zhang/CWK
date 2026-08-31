@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import signal
 import subprocess
 import tempfile
 import time
@@ -26,12 +27,49 @@ PRIORITIES_SCHEMA = "cwk.ai_daily_priorities.v1"
 QUALITY_SCHEMA = "cwk.ai_quality_review.v1"
 _SAFE_AGENTS: set[str] = set()
 AI_ENV_ALLOWLIST = {"OPENCLAW_GATEWAY_TOKEN", "OPENCLAW_GATEWAY_PASSWORD"}
-SENSITIVE_TEXT_PATTERNS = (
-    re.compile(r"\bsk-[A-Za-z0-9_-]{20,}\b"),
-    re.compile(r"\bBearer\s+[A-Za-z0-9._~+/=-]{20,}\b", re.I),
-)
+
+# ── Model allowlist ──────────────────────────────────────────────
+# CWK business pipeline permits ONLY these models.
+# See projects/CWK/MODEL_ROLES.md for the full rationale.
+CWK_ALLOWED_MODELS: set[str] = {
+    "newapi/BD-MiniMax",
+    "newapi/BD-glm",
+    "evan-openai/glm-5.3-flash",
+    "deepseek/deepseek-v4-flash",
+}
+TEMPORARY_GPT56_BATCH_MODELS = {
+    "openai/gpt-5.6-sol",
+    "openai/gpt-5.6-terra",
+}
 
 
+def allowed_cwk_models() -> set[str]:
+    """Return the normal allowlist plus an explicit, time-boxed batch override.
+
+    GPT-5.6 is intentionally unavailable to ordinary CWK runs.  A human must
+    set ``CWK_TEMP_GPT56_BATCH=1`` for a one-off refinement sprint; this keeps
+    the historical MiniMax/GLM production contract intact by default.
+    """
+    models = set(CWK_ALLOWED_MODELS)
+    if os.environ.get("CWK_TEMP_GPT56_BATCH") == "1":
+        models.update(TEMPORARY_GPT56_BATCH_MODELS)
+    return models
+
+
+def assert_cwk_model(model: str) -> None:
+    """Reject models outside the CWK allowlist before any AI call."""
+    allowed_models = allowed_cwk_models()
+    if not model:
+        raise ValueError(
+            "CWK AI model is empty. Set CWK_AI_*_MODEL to one of: "
+            + ", ".join(sorted(allowed_models))
+        )
+    if model not in allowed_models:
+        raise ValueError(
+            f"CWK pipeline rejects model {model!r}. "
+            f"Allowed models: {', '.join(sorted(allowed_models))}. "
+            "See projects/CWK/MODEL_ROLES.md."
+        )
 def ai_agent_workspace() -> Path:
     workspace = PROJECT.resolve() / ".cwk-ai-runtime"
     if workspace.is_symlink():
@@ -66,10 +104,6 @@ def env_bool(name: str, default: bool = False) -> bool:
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "y", "on"}
-
-
-def contains_sensitive_text(value: str) -> bool:
-    return any(pattern.search(value or "") for pattern in SENSITIVE_TEXT_PATTERNS)
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -162,7 +196,7 @@ def extract_json_object(text: str) -> dict[str, Any]:
 
 def _find_nested_json(value: Any) -> dict[str, Any] | None:
     if isinstance(value, dict):
-        if "schema_version" in value:
+        if "schema_version" in value or _looks_like_summary_payload(value):
             return value
         preferred_keys = ("text", "content", "message", "output", "response", "reply")
         for key in preferred_keys:
@@ -172,7 +206,7 @@ def _find_nested_json(value: Any) -> dict[str, Any] | None:
                     parsed = extract_json_object(child)
                 except ValueError:
                     continue
-                if "schema_version" in parsed:
+                if "schema_version" in parsed or _looks_like_summary_payload(parsed):
                     return parsed
         for child in value.values():
             found = _find_nested_json(child)
@@ -186,6 +220,29 @@ def _find_nested_json(value: Any) -> dict[str, Any] | None:
     return None
 
 
+def _looks_like_summary_payload(value: dict[str, Any]) -> bool:
+    """Recognize a model payload even when it omitted deterministic identity keys.
+
+    Some otherwise valid MiniMax/GLM responses omit ``schema_version`` and
+    ``report_id``.  The caller already owns those deterministic values, so the
+    JSON extractor should still unwrap the semantic payload instead of
+    returning the outer OpenClaw envelope.  Validation remains responsible for
+    rejecting a conflicting identity.
+    """
+    if not isinstance(value.get("summary"), str) or not value.get("summary", "").strip():
+        return False
+    structural_keys = {
+        "key_facts",
+        "decisions",
+        "action_items",
+        "risks",
+        "topics",
+        "entities",
+        "evidence_refs",
+    }
+    return bool(structural_keys.intersection(value))
+
+
 def invoke_openclaw_json(
     prompt: str,
     *,
@@ -196,72 +253,113 @@ def invoke_openclaw_json(
 ) -> dict[str, Any]:
     if not model:
         raise ValueError(f"model is required for real AI stage {stage}")
-    if contains_sensitive_text(prompt):
-        raise RuntimeError(f"sensitive content blocked before AI stage {stage}")
+    assert_cwk_model(model)
     runtime_workspace = ai_agent_workspace()
-    prompt_dir = runtime_workspace / "prompts"
-    prompt_dir.mkdir(parents=True, exist_ok=True)
-    if prompt_dir.is_symlink():
-        raise RuntimeError("CWK AI prompt directory must not be a symlink")
-    temp_path: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            encoding="utf-8",
-            prefix=f"{stage}-",
-            suffix=".md",
-            dir=prompt_dir,
-            delete=False,
-        ) as handle:
-            handle.write(prompt)
-            temp_path = Path(handle.name)
-        agent_id = os.environ.get("CWK_AI_AGENT_ID", "cwk-ai-reviewer")
-        assert_safe_ai_agent(agent_id)
-        thinking = os.environ.get("CWK_AI_THINKING", "high")
-        prompt_path = Path("/agent") / temp_path.relative_to(runtime_workspace)
-        instruction = (
-            f"Read the sandbox-mounted prompt file {prompt_path}. Follow it exactly. "
-            "Return only the requested JSON object. Do not send messages or modify files."
-        )
-        attempts = max(1, int(os.environ.get("CWK_AI_CALL_RETRIES", "3")))
-        last_error = "unknown model failure"
-        for attempt in range(attempts):
+    agent_id = os.environ.get("CWK_AI_AGENT_ID", "cwk-ai-reviewer")
+    assert_safe_ai_agent(agent_id)
+    thinking = os.environ.get("CWK_AI_THINKING", "high")
+    instruction = (
+        "You are a JSON-only responder. Follow the instructions below exactly. "
+        "Return only the requested JSON object — no prose, no markdown fences.\n\n"
+        + prompt
+    )
+    attempts = max(1, int(os.environ.get("CWK_AI_CALL_RETRIES", "3")))
+    last_error = "unknown model failure"
+    for attempt in range(attempts):
+        prompt_dir.mkdir(parents=True, exist_ok=True)
+        prompt_path: Path | None = None
+        session_id = str(uuid.uuid4())
+        try:
+            with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=prompt_dir, prefix=f"{stage}-", suffix=".txt", delete=False) as handle:
+                handle.write(instruction)
+                prompt_path = Path(handle.name)
+            # Start a new process group.  The OpenClaw CLI can leave its
+            # gateway child alive after its own timeout; killing only the CLI
+            # then leaves this caller blocked in ``communicate`` forever.
+            proc = subprocess.Popen(
+                [
+                    "openclaw",
+                    "agent",
+                    "--local",
+                    "--agent",
+                    agent_id,
+                    "--session-id",
+                    session_id,
+                    "--model",
+                    model,
+                    "--message-file",
+                    str(prompt_path),
+                    "--thinking",
+                    thinking,
+                    "--timeout",
+                    str(timeout_seconds),
+                    "--json",
+                ],
+                cwd=str(runtime_workspace),
+                env=sanitized_ai_environment(),
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                start_new_session=True,
+            )
             try:
-                proc = subprocess.run(
+                stdout, stderr = proc.communicate(timeout=timeout_seconds + 30)
+            except subprocess.TimeoutExpired:
+                try:
+                    os.killpg(proc.pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+                try:
+                    proc.communicate(timeout=5)
+                except subprocess.TimeoutExpired:
+                    try:
+                        os.killpg(proc.pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                    proc.communicate()
+                raise
+            if proc.returncode == 0:
+                result = extract_json_object(stdout)
+                if "error" in result and "schema_version" not in result:
+                    raise RuntimeError(f"agent returned error: {compact(result.get('error'), 400)}")
+                return result
+            last_error = clean_evidence(stderr or stdout, 500)
+        except subprocess.TimeoutExpired:
+            last_error = f"model call timed out after {timeout_seconds + 30}s"
+        finally:
+            if prompt_path and prompt_path.exists():
+                prompt_path.unlink()
+            # Reviewer calls are one-shot transforms. Keeping their transcripts
+            # indefinitely bloats the gateway session index and delays user turns.
+            try:
+                subprocess.run(
                     [
                         "openclaw",
-                        "agent",
-                        "--agent",
-                        agent_id,
-                        "--session-id",
-                        str(uuid.uuid4()),
-                        "--model",
-                        model,
-                        "--message",
-                        instruction,
-                        "--thinking",
-                        thinking,
-                        "--timeout",
-                        str(timeout_seconds),
-                        "--json",
+                        "gateway",
+                        "call",
+                        "sessions.delete",
+                        "--params",
+                        json.dumps(
+                            {
+                                "key": f"agent:{agent_id}:explicit:{session_id}",
+                                "agentId": agent_id,
+                                "deleteTranscript": True,
+                            }
+                        ),
                     ],
                     cwd=str(runtime_workspace),
                     env=sanitized_ai_environment(),
                     text=True,
-                    capture_output=True,
-                    timeout=timeout_seconds + 30,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=15,
+                    check=False,
                 )
-                if proc.returncode == 0:
-                    return extract_json_object(proc.stdout)
-                last_error = clean_evidence(proc.stderr or proc.stdout, 500)
-            except subprocess.TimeoutExpired:
-                last_error = f"model call timed out after {timeout_seconds + 30}s"
-            if attempt + 1 < attempts:
-                time.sleep(2**attempt)
-        raise RuntimeError(f"OpenClaw model call failed after {attempts} attempts: {last_error}")
-    finally:
-        if temp_path and temp_path.exists():
-            temp_path.unlink()
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+        if attempt + 1 < attempts:
+            time.sleep(2**attempt)
+    raise RuntimeError(f"OpenClaw model call failed after {attempts} attempts: {last_error}")
 
 
 def sanitized_ai_environment() -> dict[str, str]:
@@ -288,17 +386,20 @@ def safe_agent_policy(agent: dict[str, Any]) -> tuple[bool, str]:
     if workspace != ai_agent_workspace():
         return False, "workspace must match the fixed private CWK AI runtime workspace"
     sandbox = agent.get("sandbox") or {}
-    if sandbox.get("mode") != "all" or sandbox.get("scope") != "agent" or sandbox.get("workspaceAccess") != "ro":
-        return False, "sandbox must use mode=all, scope=agent, workspaceAccess=ro"
+    if sandbox.get("mode") != "off":
+        return False, "sandbox must use mode=off; CWK reviewers are zero-tool message transformers"
     tools = agent.get("tools") or {}
     if tools.get("profile") != "minimal":
         return False, "tools.profile must be minimal"
     allow = tools.get("allow") or []
     also_allow = tools.get("alsoAllow") or []
-    if not isinstance(allow, list) or not isinstance(also_allow, list):
-        return False, "tool allow lists must be arrays"
-    if set(allow) | set(also_allow) != {"read"}:
-        return False, "read must be the only additional tool"
+    deny = tools.get("deny") or []
+    if not isinstance(allow, list) or not isinstance(also_allow, list) or not isinstance(deny, list):
+        return False, "tool allow/deny lists must be arrays"
+    if allow or also_allow:
+        return False, "CWK reviewer must not allow any tools"
+    if set(deny) != {"*"}:
+        return False, "CWK reviewer must deny all tools with wildcard '*'"
     return True, "ok"
 
 

@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.rt014.publish_receipt.v1",
+  "title": "SharedEvidenceStore.publish() receipt v1 (RT-014)",
+  "description": "Return value of SharedEvidenceStore.publish serialised as JSON for auditing/testing. Never contains tenant/lane/reply/credential/path fields.",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": [
+    "schema",
+    "report_key",
+    "canonical_sha256",
+    "object_id",
+    "catalog_key",
+    "is_new_version",
+    "is_new_report",
+    "catalog_revision",
+    "catalog_head_sha256"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.rt014.publish_receipt.v1"},
+    "report_key": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{0,63}:[A-Za-z0-9][A-Za-z0-9_\\-.]{0,127}$"
+    },
+    "canonical_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "object_id": {"type": "string", "pattern": "^o_[a-z2-7]{26}$"},
+    "catalog_key": {"type": "string", "pattern": "^r_[a-z2-7]{26}$"},
+    "is_new_version": {"type": "boolean"},
+    "is_new_report": {"type": "boolean"},
+    "catalog_revision": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+    "catalog_head_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "customKeywords": {
+    "deepForbiddenProperties": [
+      "tenant_id", "agent_id", "credential_ref", "app_key",
+      "path", "absolute_path", "mirror_root",
+      "reply", "node", "attachment", "temporary_url",
+      "auth_epoch", "binding_epoch", "cookie", "session_token", "authorization"
+    ]
+  }
+}

@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from contextlib import redirect_stdout
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 
 PROJECT = Path(__file__).resolve().parents[1]
@@ -24,9 +24,70 @@ import cwk_collect_live  # noqa: E402
 import cwk_materialize_safe  # noqa: E402
 import cwk_sync_mirror_to_docdb  # noqa: E402
 import cwk_sample_pilot  # noqa: E402
+import cwk_nightly_pipeline  # noqa: E402
 
 
 class IncrementalCollectionTests(unittest.TestCase):
+    def test_default_runtime_profile_is_local_and_cloud_paused(self):
+        profile = cwk_nightly_pipeline.build_runtime_profile(
+            cloud_first=False,
+            publish_cloud_query_catalog=False,
+            sync_docdb=True,
+            wiki_sync=True,
+        )
+        self.assertEqual(profile["production_mode"], "local")
+        self.assertEqual(profile["run_mode"], "local")
+        self.assertEqual(profile["cloud_first_status"], "paused")
+        self.assertEqual(profile["cloud_query_status"], "paused")
+        self.assertFalse(profile["raw_cloud_sync"])
+        self.assertEqual(profile["docdb_role"], "derived_backup_and_html_publishing")
+
+    def test_runtime_profile_does_not_claim_unpublished_catalog(self):
+        profile = cwk_nightly_pipeline.build_runtime_profile(
+            cloud_first=False,
+            publish_cloud_query_catalog=True,
+            sync_docdb=True,
+            wiki_sync=True,
+            object_catalog={"returncode": 1},
+        )
+        self.assertEqual(profile["cloud_query_status"], "experimental_catalog_not_published")
+
+    def test_cloud_first_is_paused_without_second_opt_in(self):
+        with self.assertRaisesRegex(SystemExit, "Cloud-First is paused"):
+            cwk_nightly_pipeline.enforce_cloud_pause(
+                cloud_first=True,
+                experimental_cloud_first=False,
+                publish_cloud_query_catalog=False,
+                experimental_cloud_query_catalog=False,
+            )
+
+    def test_cloud_query_catalog_is_paused_without_second_opt_in(self):
+        with self.assertRaisesRegex(SystemExit, "catalog publishing is paused"):
+            cwk_nightly_pipeline.enforce_cloud_pause(
+                cloud_first=False,
+                experimental_cloud_first=False,
+                publish_cloud_query_catalog=True,
+                experimental_cloud_query_catalog=False,
+            )
+
+    def test_paused_cloud_paths_allow_controlled_double_opt_in(self):
+        cwk_nightly_pipeline.enforce_cloud_pause(
+            cloud_first=True,
+            experimental_cloud_first=True,
+            publish_cloud_query_catalog=True,
+            experimental_cloud_query_catalog=True,
+        )
+
+    def test_source_completeness_window_includes_prior_business_dates(self):
+        self.assertEqual(
+            cwk_nightly_pipeline.source_completeness_start_date("2026-08-11", 2),
+            "2026-08-09",
+        )
+
+    def test_source_completeness_window_rejects_negative_lookback(self):
+        with self.assertRaises(ValueError):
+            cwk_nightly_pipeline.source_completeness_start_date("2026-08-11", -1)
+
     def test_fingerprint_tracks_change_fields_but_ignores_share_link(self):
         original = {"reportId": "1", "main": "标题", "replyCount": 0, "content": "正文一", "shareLink": "old"}
         same = {**original, "shareLink": "new"}
@@ -166,7 +227,7 @@ class IncrementalCollectionTests(unittest.TestCase):
             self.assertEqual(second["selected_change_counts"], {})
             self.assertEqual(second["written_count"], 0)
 
-    def test_safe_materializer_builds_history_without_raw_or_secrets(self):
+    def test_safe_materializer_builds_history_and_preserves_cwork_content(self):
         with tempfile.TemporaryDirectory() as directory:
             project = Path(directory)
             run = project / "runs" / "test-run"
@@ -188,7 +249,15 @@ class IncrementalCollectionTests(unittest.TestCase):
             (run / "events" / "e.json").write_text(json.dumps({"event": "历史项目", "related_raw_ids": ["1"], "current_state": "已归档", "open_loops": [], "decisions_and_opinions": []}, ensure_ascii=False), encoding="utf-8")
             (run / "entities" / "e.json").write_text(json.dumps({"entity_name": "历史系统", "entity_type": "systems", "recent_activity": [{"source_id": "1", "title": "历史汇报"}]}, ensure_ascii=False), encoding="utf-8")
             mirror = project / "knowledge" / "工作协同镜像"
-            with patch.object(cwk_materialize_safe, "PROJECT", project), patch.object(cwk_materialize_safe, "MIRROR", mirror):
+            runtime_key = "runtime-app-key-value"
+            with (
+                patch.object(cwk_materialize_safe, "PROJECT", project),
+                patch.object(cwk_materialize_safe, "MIRROR", mirror),
+                patch.dict("os.environ", {"CWORK_APP_KEY": runtime_key}, clear=False),
+            ):
+                extracted = json.loads((run / "extracted" / "1.json").read_text(encoding="utf-8"))
+                extracted["actions"].append(f"核对 {runtime_key}")
+                (run / "extracted" / "1.json").write_text(json.dumps(extracted, ensure_ascii=False), encoding="utf-8")
                 first = cwk_materialize_safe.materialize(run)
                 second = cwk_materialize_safe.materialize(run)
 
@@ -196,8 +265,10 @@ class IncrementalCollectionTests(unittest.TestCase):
             self.assertEqual(first["counts"]["history_pages"], 1)
             self.assertEqual(second["counts"]["history_pages"], 0)
             self.assertEqual(len(history_files), 1)
-            self.assertIn("<redacted>", history_files[0].read_text())
-            self.assertNotIn("sk-example", history_files[0].read_text())
+            history_text = history_files[0].read_text()
+            self.assertNotIn("<redacted>", history_text)
+            self.assertIn("sk-example_12345678901234567890", history_text)
+            self.assertIn(runtime_key, history_text)
             self.assertFalse((mirror / "raw").exists())
 
     def test_docdb_sync_filters_to_materializer_changed_paths(self):
@@ -216,6 +287,18 @@ class IncrementalCollectionTests(unittest.TestCase):
                 events = cwk_sync_mirror_to_docdb.iter_items(None, "events/", str(manifest))
             self.assertEqual([item.rel.as_posix() for item in history], ["history/changed.md"])
             self.assertEqual([item.rel.as_posix() for item in events], ["events/changed.md"])
+
+    def test_docdb_sync_uses_unique_cloud_name_for_wiki_manifest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            mirror = Path(directory) / "工作协同镜像"
+            target = mirror / "wiki" / "_system" / "manifest.json"
+            target.parent.mkdir(parents=True)
+            target.write_text("{}", encoding="utf-8")
+            with patch.object(cwk_sync_mirror_to_docdb, "MIRROR", mirror):
+                items = cwk_sync_mirror_to_docdb.iter_items(None, "wiki/", None)
+            self.assertEqual(len(items), 1)
+            self.assertEqual(items[0].rel.as_posix(), "wiki/_system/manifest.json")
+        self.assertEqual(items[0].file_name, "cwk-wiki-manifest-v2.json")
 
     def test_incremental_a4_low_volume_is_warning_not_failure(self):
         item = cwk_sample_pilot.Item("1", "事项", "甲", "2026-07-17", "reply_chain", "incremental", "updated", "inbox", "x.md", "正文")
@@ -242,6 +325,122 @@ class IncrementalCollectionTests(unittest.TestCase):
             self.assertEqual(
                 cwk_sync_mirror_to_docdb.load_retry_paths(queue),
                 {"runs/a.md", "history/b.md"},
+            )
+
+    def test_docdb_sync_state_bootstraps_latest_non_dry_run_receipt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            older = {
+                "generated_at": "2026-08-01T01:00:00", "dry_run": False,
+                "results": [{"relative_path": "daily/a.md", "action": "update_version", "file_id": "1", "content_sha256": "old"}],
+            }
+            newer = {
+                "generated_at": "2026-08-02T01:00:00", "dry_run": False,
+                "results": [{"relative_path": "daily/a.md", "action": "update_version", "file_id": "1", "content_sha256": "new"}],
+            }
+            dry_run = {
+                "generated_at": "2026-08-03T01:00:00", "dry_run": True,
+                "results": [{"relative_path": "daily/a.md", "action": "update_version", "file_id": "1", "content_sha256": "fake"}],
+            }
+            for name, payload in (("docdb-z.json", older), ("docdb-a.json", newer), ("docdb-dry.json", dry_run)):
+                root.joinpath(name).write_text(json.dumps(payload), encoding="utf-8")
+            state = cwk_sync_mirror_to_docdb.bootstrap_sync_state(root / "state.json", root)
+            self.assertEqual(state["objects"]["daily/a.md"]["content_sha256"], "new")
+
+    def test_docdb_retry_partition_removes_only_missing_paths_in_scope(self):
+        active, stale = cwk_sync_mirror_to_docdb.partition_retry_paths(
+            {"wiki/a.md", "wiki/gone.md", "daily/keep.md"}, "wiki/", {"wiki/a.md"},
+        )
+        self.assertEqual(active, {"wiki/a.md"})
+        self.assertEqual(stale, {"wiki/gone.md"})
+
+    def test_docdb_commit_pointer_is_partitioned_last(self):
+        root = Path("/tmp")
+        data = cwk_sync_mirror_to_docdb.SyncItem(root / "a", Path("wiki/a.md"), "f", "a.md", "f")
+        pointer = cwk_sync_mirror_to_docdb.SyncItem(root / "m", Path("wiki/_system/manifest.json"), "f", "m.json", "f")
+        regular, commits = cwk_sync_mirror_to_docdb.partition_commit_items([pointer, data])
+        self.assertEqual([item.rel.as_posix() for item in regular], ["wiki/a.md"])
+        self.assertEqual([item.rel.as_posix() for item in commits], ["wiki/_system/manifest.json"])
+
+    def test_docdb_commit_pointer_rechecks_exact_remote_path_instead_of_cached_id(self):
+        item = cwk_sync_mirror_to_docdb.SyncItem(
+            Path("/tmp/manifest.json"), Path("wiki/_system/manifest.json"),
+            "工作协同镜像/wiki/_system", "cwk-wiki-manifest-v2.json",
+            "工作协同镜像/wiki/_system",
+        )
+        with patch.object(cwk_sync_mirror_to_docdb, "find_existing", return_value={"id": "live-id"}) as search:
+            existing = cwk_sync_mirror_to_docdb.resolve_existing_for_publish(
+                item, {"file_id": "stale-id"}, "project", "root", {}, False,
+            )
+        self.assertEqual(existing, {"id": "live-id"})
+        search.assert_called_once()
+
+    def test_docdb_text_upload_retries_transient_service_busy(self):
+        module = Mock()
+        module.call_api.side_effect = [
+            {"resultCode": 0, "resultMsg": "服务器繁忙，请稍后再试！"},
+            {"resultCode": 1, "resultMsg": None, "data": {"fileId": "ok"}},
+        ]
+        module.process_result.side_effect = lambda payload: payload
+        with (
+            patch.object(cwk_sync_mirror_to_docdb, "_UPLOAD_CONTENT_MODULE", module),
+            patch.object(cwk_sync_mirror_to_docdb.time, "sleep") as sleep,
+        ):
+            result = cwk_sync_mirror_to_docdb.upload_text_api(content="x")
+        self.assertEqual(result["resultCode"], 1)
+        self.assertEqual(module.call_api.call_count, 2)
+        sleep.assert_called_once_with(1)
+
+    def test_docdb_stale_id_heal_name_is_stable_and_path_specific(self):
+        root = Path("/tmp")
+        first = cwk_sync_mirror_to_docdb.SyncItem(root / "a", Path("events/a.md"), "f", "a.md", "f")
+        same = cwk_sync_mirror_to_docdb.SyncItem(root / "b", Path("events/a.md"), "f", "a.md", "f")
+        other = cwk_sync_mirror_to_docdb.SyncItem(root / "c", Path("daily/a.md"), "f", "a.md", "f")
+        self.assertEqual(
+            cwk_sync_mirror_to_docdb.healed_cloud_name(first),
+            cwk_sync_mirror_to_docdb.healed_cloud_name(same),
+        )
+        self.assertNotEqual(
+            cwk_sync_mirror_to_docdb.healed_cloud_name(first),
+            cwk_sync_mirror_to_docdb.healed_cloud_name(other),
+        )
+        self.assertRegex(cwk_sync_mirror_to_docdb.healed_cloud_name(first), r"^a\.cwk-heal-[0-9a-f]{10}\.md$")
+
+    def test_docdb_publish_recovers_from_unreadable_cached_file_id(self):
+        item = cwk_sync_mirror_to_docdb.SyncItem(
+            Path("/tmp/a.md"), Path("events/a.md"), "工作协同镜像/events", "a.md", "工作协同镜像/events",
+        )
+        healed_result = {
+            "relative_path": "events/a.md", "action": "create", "file_id": "new-id",
+            "folder_name": "工作协同镜像/events", "content_sha256": "abc",
+        }
+        with (
+            patch.object(cwk_sync_mirror_to_docdb, "upload_or_update", side_effect=[RuntimeError("文件信息查询失败"), healed_result]) as upload,
+            patch.object(cwk_sync_mirror_to_docdb, "find_existing", return_value=None) as search,
+        ):
+            result = cwk_sync_mirror_to_docdb.publish_with_stale_id_recovery(
+                item, {"id": "stale-id"}, "project", "root", {}, False, False, [], None,
+            )
+        self.assertEqual(upload.call_count, 2)
+        self.assertEqual(search.call_count, 1)
+        self.assertTrue(result["self_healed"])
+        self.assertEqual(result["stale_file_id"], "stale-id")
+        self.assertRegex(result["file_name"], r"^a\.cwk-heal-[0-9a-f]{10}\.md$")
+
+    def test_nightly_sync_manifest_contains_only_current_mirror_outputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            mirror = root / "mirror"
+            current = mirror / "daily" / "2026-08" / "2026-08-08.md"
+            current.parent.mkdir(parents=True)
+            current.write_text("today", encoding="utf-8")
+            output = root / "changed.json"
+            cwk_nightly_pipeline.write_mirror_outputs_manifest(
+                output, mirror, {"daily_md": str(current), "outside": str(root / "outside.md")},
+            )
+            self.assertEqual(
+                json.loads(output.read_text())["changed_relative_paths"],
+                ["daily/2026-08/2026-08-08.md"],
             )
 
 

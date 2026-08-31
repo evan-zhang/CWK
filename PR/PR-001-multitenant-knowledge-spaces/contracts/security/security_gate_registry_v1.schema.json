@@ -1,0 +1,696 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.security_gate_registry.v1",
+  "title": "PR-001 security gate registry v1 (SG-00~SG-10 ownership, claims and filesystem policy)",
+  "description": "Schema for security_gate_registry_v1.json. That file is CONFIGURATION, not state: it freezes which RT owns which SG, the exact single receipt path per RT, the exact frozen claim_id requirement set each receipt must reproduce, the filesystem_policy governing the six SG-03 attack classes, and the producer/consumer phases that make the dependency graph acyclic. This schema therefore deliberately admits NO status, conclusion, verdict, result or pass/fail field anywhere: those live only inside receipts, and a registry that could record them would be state masquerading as config. Exactly ten entries, one per RT-017..RT-026, no more and no fewer.",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": [
+    "schema",
+    "description",
+    "receipt_schema_ref",
+    "receipt_schema_id",
+    "receipt_root",
+    "owner_scope_hash_model",
+    "managed_script_inventory",
+    "script_evolution_policy_ref",
+    "script_evolution_policy_sha256",
+    "shared_evolution_paths",
+    "shared_abi_dependencies",
+    "plan_matrix_ref",
+    "sg_ids",
+    "filesystem_attack_classes",
+    "filesystem_attack_class_note",
+    "status_resolution_rule",
+    "phase_order",
+    "write_phase_allowlist",
+    "go_no_go_evaluator_identity",
+    "evaluator_identity_rule",
+    "anti_cycle_rule",
+    "evidence_freshness_rule",
+    "owner_scope_rule",
+    "executable_ref_rule",
+    "receipt_closure_rule",
+    "coverage_rule",
+    "claim_rule",
+    "path_attack_rule",
+    "entries"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.pr001.security_gate_registry.v1"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "receipt_schema_ref": {
+      "const": "PR/PR-001-multitenant-knowledge-spaces/contracts/security/security_gate_receipt_v1.schema.json"
+    },
+    "receipt_schema_id": {
+      "const": "cwk.pr001.security_gate_receipt.v1"
+    },
+    "receipt_root": {
+      "description": "The single directory under which every declared receipt_path must live. Any file found under this root that is not at a declared receipt_path is an undeclared receipt and fails closed.",
+      "const": "PR/PR-001-multitenant-knowledge-spaces/security-receipts"
+    },
+    "owner_scope_hash_model": {
+      "const": "cwk-owner-scope-tree-v2"
+    },
+    "managed_script_inventory": {
+      "description": "Closed ownership inventory for every managed CWK Python script plus explicitly named non-namespace entry points. A path is declared exactly once as RT-owned, central shared ABI, or immutable legacy. The sole two-RT owner path is separately governed by shared_evolution_paths. Candidate commits may not add an undeclared scripts/cwk_*.py path.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "namespace_pattern",
+        "explicit_managed_paths",
+        "owner_map_source",
+        "central_shared_abi_source",
+        "shared_evolution_source",
+        "legacy_frozen_files"
+      ],
+      "properties": {
+        "schema": {
+          "const": "cwk.pr001.managed_script_inventory.v1"
+        },
+        "namespace_pattern": {
+          "const": "^scripts/cwk_[a-z0-9_]+\\.py$"
+        },
+        "explicit_managed_paths": {
+          "const": ["install.sh"]
+        },
+        "owner_map_source": {
+          "const": "entries[].owner_code_path_prefixes"
+        },
+        "central_shared_abi_source": {
+          "const": "shared_abi_dependencies"
+        },
+        "shared_evolution_source": {
+          "const": "shared_evolution_paths"
+        },
+        "legacy_frozen_files": {
+          "type": "array",
+          "minItems": 53,
+          "maxItems": 53,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "mode", "sha256"],
+            "properties": {
+              "path": {
+                "type": "string",
+                "pattern": "^scripts/cwk_[a-z0-9_]+\\.py$"
+              },
+              "mode": {
+                "enum": ["100644", "100755"]
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "script_evolution_policy_ref": {
+      "const": "PR/PR-001-multitenant-knowledge-spaces/contracts/script-evolution/policy_v1.json"
+    },
+    "script_evolution_policy_sha256": {
+      "const": "2089490e45bdd84ba3bac75fe40092f81f40765638b988e17facdc4040d14a6d"
+    },
+    "shared_evolution_paths": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "owner_stage_indices"],
+        "properties": {
+          "path": {"const": "scripts/cwk_tenant_cli.py"},
+          "owner_stage_indices": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["RT-019", "RT-026"],
+            "properties": {
+              "RT-019": {"const": [3]},
+              "RT-026": {"const": [7]}
+            }
+          }
+        }
+      }
+    },
+    "shared_abi_dependencies": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["dependency_id", "exact_paths", "consumer_rts"],
+        "properties": {
+          "dependency_id": {"const": "pilot-admission-v1"},
+          "exact_paths": {
+            "const": [
+              {
+                "path": "scripts/cwk_pilot_admission_api.py",
+                "sha256": "2bc26ff3b2b71bcfc1d3a5d7fba4a0cca99392a63837a62186086c9f6e817900"
+              },
+              {
+                "path": "PR/PR-001-multitenant-knowledge-spaces/contracts/cross_rt/schemas/pilot_admission_snapshot_v1.schema.json",
+                "sha256": "af003563cff163350e2b0ef458a9c5029b0d4330a559779ec0464055aebcc6a6"
+              }
+            ]
+          },
+          "consumer_rts": {
+            "const": ["RT-017", "RT-018", "RT-019", "RT-020", "RT-021", "RT-022", "RT-023", "RT-026"]
+          }
+        }
+      }
+    },
+    "plan_matrix_ref": {
+      "description": "Pointer to the DERIVED Markdown matrix. Documentation only: never consulted to decide ownership, coverage or status.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "sg_ids": {
+      "description": "The closed set of eleven security gates. Frozen order and membership.",
+      "type": "array",
+      "minItems": 11,
+      "maxItems": 11,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "SG-00",
+          "SG-01",
+          "SG-02",
+          "SG-03",
+          "SG-04",
+          "SG-05",
+          "SG-06",
+          "SG-07",
+          "SG-08",
+          "SG-09",
+          "SG-10"
+        ]
+      }
+    },
+    "filesystem_attack_classes": {
+      "description": "The six SG-03 attack classes, frozen. Exactly the required key set of a receipt's filesystem_coverage object.",
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "path_traversal",
+          "symlink_component",
+          "symlink_leaf",
+          "hardlink",
+          "toctou",
+          "special_file"
+        ]
+      }
+    },
+    "filesystem_attack_class_note": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048
+    },
+    "status_resolution_rule": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048
+    },
+    "phase_order": {
+      "description": "Total order of lifecycle phases. Acyclicity is decided by index comparison in this array, so its order is frozen.",
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "rt_implementation",
+          "rt_independent_acceptance",
+          "preflight_after_candidate_freeze",
+          "go_no_go_evaluation",
+          "rt026_independent_acceptance",
+          "final_acceptance"
+        ]
+      }
+    },
+    "write_phase_allowlist": {
+      "description": "The only phases in which a security receipt may be written. go_no_go_evaluation is deliberately excluded, so the evaluator is not an authorized declared writer of the receipts it consumes, and identity exclusion is recomputed against the injected go_no_go_evaluator_identity rather than self-declared. SCOPE HONESTY: this is INTERFACE-LEVEL authorship/phase exclusion enforced by this contract, NOT OS-level write denial. It shows the evaluator is not the authorized declared writer of what it consumes; it does NOT show the kernel refused the evaluation process write access. OS-level read-only execution requires RT-026 AC-026-11: a trusted launcher that imposes the write denial, a launcher-signed run attestation (never self-issued by the evaluator), pre/post exact manifests over the receipt trees that must be item-for-item equal, and real write-denial evidence in which create, rewrite, rename and delete are each actually attempted and rejected (EROFS/EPERM or equivalent) -- 'no write was observed' is not evidence. No Wave-0 artifact may claim OS-level read-only execution.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 2,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "rt_independent_acceptance",
+          "preflight_after_candidate_freeze"
+        ]
+      }
+    },
+    "go_no_go_evaluator_identity": {
+      "description": "Frozen opaque identity of the read-only go/no-go evaluator. Injected into preflight validation and compared against producer/verifier; the receipt's own evaluator_identity_excluded boolean is a declaration, not the proof.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,63}$"
+    },
+    "evaluator_identity_rule": {
+      "type": "string",
+      "minLength": 40
+    },
+    "anti_cycle_rule": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "evidence_freshness_rule": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "owner_scope_rule": {
+      "type": "string",
+      "minLength": 40
+    },
+    "executable_ref_rule": {
+      "type": "string",
+      "minLength": 40
+    },
+    "receipt_closure_rule": {
+      "type": "string",
+      "minLength": 40
+    },
+    "coverage_rule": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048
+    },
+    "claim_rule": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "path_attack_rule": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "entries": {
+      "description": "Exactly ten entries, one per RT-017..RT-026, each appearing exactly once.",
+      "type": "array",
+      "minItems": 10,
+      "maxItems": 10,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/entry"
+      }
+    }
+  },
+  "$defs": {
+    "sgId": {
+      "enum": [
+        "SG-00",
+        "SG-01",
+        "SG-02",
+        "SG-03",
+        "SG-04",
+        "SG-05",
+        "SG-06",
+        "SG-07",
+        "SG-08",
+        "SG-09",
+        "SG-10"
+      ]
+    },
+    "reasonCode": {
+      "enum": [
+        "no_filesystem_write_surface",
+        "read_only_injected_provider",
+        "in_memory_only",
+        "external_api_semantics_only",
+        "owned_by_other_rt_by_design"
+      ]
+    },
+    "claimId": {
+      "type": "string",
+      "pattern": "^SGC-0(1[7-9]|2[0-6])-[0-9]{2}$"
+    },
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "required": [
+        "producer_rt",
+        "title",
+        "receipt_path",
+        "owner_evidence_path_prefixes",
+        "owner_test_file_prefixes",
+        "required_security_test_files",
+        "owner_evolution_stage_indices",
+        "required_shared_abi_ids",
+        "unresolved_owner_surface_requirements",
+        "receipt_kind",
+        "producer_task_id",
+        "producer_task_ref",
+        "producer_role",
+        "producer_phase",
+        "owned_sg_ids",
+        "claims",
+        "na_permitted_claim_ids",
+        "permitted_reason_codes",
+        "path_attack_applicability",
+        "filesystem_policy",
+        "path_attack_note",
+        "consumers",
+        "static_note",
+        "owner_code_path_prefixes"
+      ],
+      "properties": {
+        "producer_rt": {
+          "enum": [
+            "RT-017",
+            "RT-018",
+            "RT-019",
+            "RT-020",
+            "RT-021",
+            "RT-022",
+            "RT-023",
+            "RT-024",
+            "RT-025",
+            "RT-026"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "receipt_path": {
+          "description": "The single exact path of this RT's security receipt. Always <receipt_root>/RT-0NN/receipt.json; the NN must equal producer_rt's ordinal.",
+          "type": "string",
+          "pattern": "^PR/PR-001-multitenant-knowledge-spaces/security-receipts/RT-0(1[7-9]|2[0-6])/receipt\\.json$"
+        },
+        "owner_evidence_path_prefixes": {
+          "description": "Repo-relative prefixes of this entry's EVIDENCE OUTPUT. A path under one of these is explicitly disqualified from counting as owner code scope.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^(?!/)(?!.*\\.\\.)[A-Za-z0-9_./\\-]{1,200}/$"
+          }
+        },
+        "owner_test_file_prefixes": {
+          "description": "Root-level Python test namespace owned by this RT. This is a basename prefix, not a recursive path selector.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^tests/test_rt0(1[7-9]|2[0-6])_$"
+          }
+        },
+        "required_security_test_files": {
+          "description": "Mandatory security/path test files that must exist as regular tracked blobs at tested_subject_commit and match owner_test_file_prefixes.",
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^tests/test_rt0(1[7-9]|2[0-6])_[a-z0-9_]+\\.py$"
+          }
+        },
+        "owner_evolution_stage_indices": {
+          "description": "Exact script-evolution stages owned by this RT. Shared tenant_cli ownership is legal only through stages 3 and 7.",
+          "type": "array",
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {"type": "integer", "minimum": 1, "maximum": 8}
+        },
+        "required_shared_abi_ids": {
+          "description": "Central ABI dependencies bound into subject/evaluation equality but forbidden from satisfying owner touch.",
+          "type": "array",
+          "maxItems": 1,
+          "uniqueItems": true,
+          "items": {"const": "pilot-admission-v1"}
+        },
+        "unresolved_owner_surface_requirements": {
+          "description": "Contract-required code surfaces whose exact paths are not yet frozen. Empty for a signable receipt; any non-empty value makes receipt validation fail closed.",
+          "type": "array",
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 32, "maxLength": 1024}
+        },
+        "receipt_kind": {
+          "description": "Must equal the receipt_kind inside the receipt. preflight-security is permitted only for RT-026.",
+          "enum": [
+            "rt-security",
+            "preflight-security"
+          ]
+        },
+        "producer_task_id": {
+          "description": "The task in this RT's own task list that produces the receipt. Must exist in producer_task_ref.",
+          "type": "string",
+          "pattern": "^([A-E]-[0-9]{2}[a-z]?|T0[0-9]{2}-[0-9]{2}[a-z]?)$"
+        },
+        "producer_task_ref": {
+          "type": "string",
+          "pattern": "^RT/RT-0(1[1-9]|2[0-6])/tasks/[^/]+\\.md$"
+        },
+        "producer_role": {
+          "description": "Who signs. Never the RT's own implementer acting alone, and never a downstream consumer.",
+          "enum": [
+            "independent_acceptance_verifier",
+            "independent_preflight_verifier"
+          ]
+        },
+        "producer_phase": {
+          "description": "Must be a member of write_phase_allowlist; go_no_go_evaluation is structurally excluded.",
+          "enum": [
+            "rt_independent_acceptance",
+            "preflight_after_candidate_freeze"
+          ]
+        },
+        "owned_sg_ids": {
+          "description": "The SGs this RT evidences. Non-empty; the union across all ten entries must equal sg_ids exactly.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 11,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/sgId"
+          }
+        },
+        "claims": {
+          "description": "The frozen requirement set. Each claim_id is globally unique across the whole registry and permanently bound to one sg_id. A receipt's claims[].claim_id set must equal this set exactly.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "claim_id",
+              "sg_id",
+              "requirement"
+            ],
+            "properties": {
+              "claim_id": {
+                "$ref": "#/$defs/claimId"
+              },
+              "sg_id": {
+                "$ref": "#/$defs/sgId"
+              },
+              "requirement": {
+                "description": "What must be true. A requirement, not a status: no pass/fail language belongs here.",
+                "type": "string",
+                "minLength": 16,
+                "maxLength": 1024
+              }
+            }
+          }
+        },
+        "na_permitted_claim_ids": {
+          "description": "The only claim_ids this entry may answer not_applicable. Normally empty. A receipt answering not_applicable for any claim_id outside this list fails closed.",
+          "type": "array",
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/claimId"
+          }
+        },
+        "permitted_reason_codes": {
+          "description": "The reason codes admissible for this entry's N/A answers. Must be empty when na_permitted_claim_ids is empty.",
+          "type": "array",
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/reasonCode"
+          }
+        },
+        "path_attack_applicability": {
+          "description": "Frozen answer to whether the SG-03 filesystem family applies. Must agree with filesystem_policy.mode.",
+          "enum": [
+            "applicable",
+            "not_applicable"
+          ]
+        },
+        "filesystem_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "required_classes",
+            "permitted_reason_codes"
+          ],
+          "properties": {
+            "mode": {
+              "description": "applicable = all six classes must be applicable with tests_run>0, runtime_surfaces and executable_refs. not_applicable_permitted = all six must be not_applicable with reason_code + reason + static_evidence_refs. Mixing is rejected.",
+              "enum": [
+                "applicable",
+                "not_applicable_permitted"
+              ]
+            },
+            "required_classes": {
+              "type": "array",
+              "minItems": 6,
+              "maxItems": 6,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "path_traversal",
+                  "symlink_component",
+                  "symlink_leaf",
+                  "hardlink",
+                  "toctou",
+                  "special_file"
+                ]
+              }
+            },
+            "permitted_reason_codes": {
+              "description": "Must be empty when mode=applicable and non-empty when mode=not_applicable_permitted.",
+              "type": "array",
+              "maxItems": 5,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "#/$defs/reasonCode"
+              }
+            }
+          }
+        },
+        "path_attack_note": {
+          "description": "Why the family applies, or the concrete reason it cannot. Required in both directions: silence is not an option.",
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 2048
+        },
+        "consumers": {
+          "description": "Who reads this receipt and in which phase. Every consumer_phase must be strictly later than producer_phase in phase_order.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "consumer_id",
+              "consumer_phase"
+            ],
+            "properties": {
+              "consumer_id": {
+                "enum": [
+                  "RT-026",
+                  "G6",
+                  "G7"
+                ]
+              },
+              "consumer_phase": {
+                "enum": [
+                  "go_no_go_evaluation",
+                  "rt026_independent_acceptance",
+                  "final_acceptance"
+                ]
+              }
+            }
+          }
+        },
+        "static_note": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        },
+        "owner_code_path_prefixes": {
+          "description": "Security owner selectors. A trailing slash means a recursive directory that must be non-empty at tested_subject_commit. Without a trailing slash the value is one exact regular tracked file, never a string prefix. Selectors are part of the v2 digest manifest.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^(?!/)(?!.*\\.\\.)(?!.*//)[^\\\\\\s:]{1,240}/?$"
+          }
+        }
+      }
+    }
+  },
+  "forbiddenKeys": [
+    "status",
+    "conclusion",
+    "verdict",
+    "result",
+    "passed",
+    "pass",
+    "failed",
+    "state",
+    "current_status",
+    "last_run",
+    "run_at",
+    "executed",
+    "satisfied",
+    "closed"
+  ],
+  "semanticRules": [
+    "this registry is configuration, not state. No key anywhere in the document may be one of forbiddenKeys, at any depth: a registry that can record a verdict would let ownership config be edited into a PASS.",
+    "entries must contain exactly the ten producer_rt values RT-017..RT-026, each exactly once, in ascending order.",
+    "each entry's receipt_path must be <receipt_root>/<producer_rt>/receipt.json, so path and producer_rt can never disagree.",
+    "receipt_kind=preflight-security is permitted only for RT-026; every other entry must be rt-security.",
+    "producer_phase must be a member of write_phase_allowlist. go_no_go_evaluation is excluded by enum as well as by allowlist, so the evaluator cannot be declared a producer.",
+    "for every entry and every consumer, phase_order.index(producer_phase) < phase_order.index(consumer_phase). This single index comparison is the machine-checkable anti-cycle rule and it is what permits RT-026 to consume its own preflight receipt without a self-dependency.",
+    "the union of owned_sg_ids across all ten entries must equal sg_ids exactly: no uncovered SG, no SG outside the closed set.",
+    "SG-03 must be owned by all ten entries, so filesystem coverage is provable package by package and no package can be silently skipped.",
+    "every claim_id in the document must be globally unique, and its numeric RT segment must match the entry's producer_rt (SGC-022-xx may only appear under RT-022).",
+    "the sg_ids referenced by an entry's claims must be exactly that entry's owned_sg_ids as a set: every owned SG needs at least one claim, and no claim may cite an SG the entry does not own.",
+    "na_permitted_claim_ids must be a subset of this entry's own claims[].claim_id.",
+    "permitted_reason_codes must be empty when na_permitted_claim_ids is empty, and non-empty otherwise.",
+    "path_attack_applicability=applicable requires filesystem_policy.mode=applicable with empty permitted_reason_codes; path_attack_applicability=not_applicable requires mode=not_applicable_permitted with non-empty permitted_reason_codes. The two fields may never disagree.",
+    "filesystem_policy.required_classes must equal filesystem_attack_classes exactly for every entry: no entry may narrow the six classes.",
+    "RT-022 is the only entry permitted to declare path_attack_applicability=not_applicable, and only because the Broker core has no filesystem write surface; its N/A must still be backed by static evidence refs in the receipt.",
+    "a receipt's producer_rt, receipt_kind, producer_phase and consumers must equal the values frozen here; a receipt may never widen its own consumer set or relabel its own phase.",
+    "status is never stored here. An SG entry is NOT_RUN iff receipt_path does not exist, and otherwise takes the status and conclusion recorded inside that receipt. Absence fails closed to NO_GO.",
+    "any file present under receipt_root that is not at a declared receipt_path is an undeclared receipt and is a hard failure, not a bonus."
+    ,"owner_code_path_prefixes, owner_test_file_prefixes, required_security_test_files and owner_evolution_stage_indices must match the executable exact-scope map for each producer_rt. Exact-file selectors and directory selectors use different semantics; lookalike string prefixes never match. Directory selectors and test prefixes must be non-empty at tested_subject_commit, and every required test must exist there as a regular blob.",
+    "owner selectors may name planned paths before a receipt exists, but a present receipt is invalid when any exact file is absent, any directory selector is empty, any required test is absent, or unresolved_owner_surface_requirements is non-empty.",
+    "cross-entry selector overlap is forbidden except for the single exact shared_evolution_paths path scripts/cwk_tenant_cli.py. That file is owned by RT-019 stage 3 and RT-026 stage 7 only and must be validated through the pinned append-only script-evolution chain.",
+    "owner_code_path_prefixes may never select a reports, receipts, security-receipts, capability-receipts, gate-receipts or release-gate-receipts path component. Such outputs belong only in owner_evidence_path_prefixes and never count as code.",
+    "owner_scope_tree_sha256 is the domain-separated v2 digest of the canonical selector manifest plus all selected regular Git blob records at tested_subject_commit. Every immutable selected record must be byte-identical at the explicit evaluation candidate; only the declared shared evolution file may advance through its later declared stage.",
+    "all executable and static refs must be root-level files in the producer RT's owner_test_file_prefixes namespace and must bind the same bytes at tested_subject_commit, evaluation commit and fail-closed current read. Executable refs must pass the canonical acceptance-test validator: direct unittest.TestCase, one unique direct test_ method, no decorators, aliases, inherited/class-level skips, delete/rebind/overwrite, and a real self.assert*/self.fail call.",
+    "shared_abi_dependencies is a separate neutral dependency family, never an RT owner selector. Each entry's required_shared_abi_ids must exactly agree with the dependency consumer_rts set. Its exact blobs enter the v2 subject/evaluation digest and equality check but can never satisfy owner touch. Planned absence is allowed only while no security receipt exists.",
+    "managed_script_inventory is an exact global partition of every scripts/cwk_[a-z0-9_]+.py path plus install.sh into RT-owned, central shared ABI, or immutable legacy path+mode+SHA. The only two-owner path is scripts/cwk_tenant_cli.py under stages 3 then 7. An undeclared managed path, category collision, legacy drift, selected symlink/gitlink, extra specs/tasks member, or test-namespace lookalike is invalid.",
+    "the v2 manifest binds script_evolution_policy_ref, script_evolution_policy_sha256 and each owner stage's exact stage_index, owner_rt, target_path, receipt_path and ordinal derived from the pinned policy. Verification replays the chain, checks companion immutable pins and calls the canonical tenant-CLI verifier for actual slots plus frozen AST/comment fingerprints.",
+    "the complete pinned evolution policy is replayed for every security receipt, including completed RT-012 stage 9 and RT-013 stage 10 even though both owners are outside the RT-017..026 security producer set. scripts/cwk_instance.py and scripts/cwk_agent_binding.py must equal their final tips and managed-inventory path/mode/SHA pins; neither bootstrap stage ever counts as a future SG entry's owner touch.",
+    "receipt validation fails closed when the worktree is dirty, the index has assume-unchanged or skip-worktree bits, selected disk bytes differ from the explicit evaluation commit, or a selected directory/test namespace contains an untracked, ignored, symlinked, hardlinked or special entry."
+  ]
+}

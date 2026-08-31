@@ -1,0 +1,78 @@
+{
+  "artifacts": [
+    {
+      "path": "PR/PR-001-multitenant-knowledge-spaces/gate-receipts/VG-A-集成验证.md",
+      "sha256": "2ebfa7539389ff60d16abb350d3557bf6c801a0f7a11e19ea3b7e8e564d7ea7b"
+    },
+    {
+      "path": "PR/PR-001-multitenant-knowledge-spaces/gate-receipts/VG-A-独立验收.md",
+      "sha256": "b2f4424889acbde88df5558422e1308fb73b6185f98809fb6f8a4e4fc51bd01a"
+    },
+    {
+      "path": "tests/_vga_helpers.py",
+      "sha256": "dd43921eb65878fe09e0c876a3f7fbbef18e376bfe65ebbc58bd49f6eccb6ce1"
+    },
+    {
+      "path": "tests/test_vga_active_only_and_unified_deny.py",
+      "sha256": "3d47c01e5edae447ed0a99776a66ab1e84b00f91292b97b8c8b95e96a5f69006"
+    },
+    {
+      "path": "tests/test_vga_authority_fail_closed.py",
+      "sha256": "e4224a45e4274d17c228f8ef6ec59cd4744ed132cf6a842cf5feb2cdf83a8056"
+    },
+    {
+      "path": "tests/test_vga_crash_and_concurrency.py",
+      "sha256": "98137fd2ccc9ddb1f45c3f55a181a33959f259d6cff0e966b77a41d3b04013d9"
+    },
+    {
+      "path": "tests/test_vga_identity_and_existence.py",
+      "sha256": "e0c7cf59016e65ac10064d73b364bb6d80f8898325ca9fd6b4f240ec3efd9953"
+    },
+    {
+      "path": "tests/test_vga_revocation_isolation.py",
+      "sha256": "ed9b23d088dc4a7e6d50daa511a42a4c7ea46b5654ce071d8b2cd4156824ccaa"
+    },
+    {
+      "path": "tests/test_vga_shared_canonical.py",
+      "sha256": "4286e9e350759d4b7fa839d219fac853836f9cb631aa79bdf9aeef748fd41d8b"
+    },
+    {
+      "path": "tests/test_vga_view_overlay_only.py",
+      "sha256": "042fddc5ed72ab5b962d08155d05fdd723824bac5a2ca2b5de9577800039a2db"
+    },
+    {
+      "path": "tests/test_vga_zero_drift_and_hygiene.py",
+      "sha256": "8a5ca839a4ab86a1be971bb43285b6c10388a53fa3655d9d510d610e2eb26448"
+    }
+  ],
+  "conclusion": "conservative_unknown",
+  "consumers": [
+    "RT-024",
+    "RT-026"
+  ],
+  "created_at": "2026-08-20T00:00:00Z",
+  "evidence": {
+    "narrative_ref": "PR/PR-001-multitenant-knowledge-spaces/gate-receipts/VG-A-独立验收.md",
+    "python_version": "3.11.14",
+    "test_command": "python3.11 -m unittest discover -s tests -p 'test_vga_*.py'",
+    "tests_failed": 0,
+    "tests_run": 75,
+    "tests_skipped": 0
+  },
+  "feeder_rt": "RT-015",
+  "feeder_rt_independent_pass": true,
+  "gate_id": "VG-A",
+  "prerequisite_refs": [
+    {
+      "ref_id": "RT-015",
+      "ref_sha256": "75a789cd0a54c541eb9127055d549278bd1bbfcde14f33241d183bef7cf89188"
+    }
+  ],
+  "producer": "agent-vga-impl-opus",
+  "receipt_sha256": "7058a91a1a5d48a8daca2967b77e7cb64cea578fb66ee3b69f3c12ff3e918657",
+  "schema": "cwk.pr001.verification_gate_receipt.v1",
+  "status": "pass",
+  "synthetic": true,
+  "synthetic_reason": "synthetic_authority_fake_signer",
+  "verifier": "agent-vga-verify-opus"
+}

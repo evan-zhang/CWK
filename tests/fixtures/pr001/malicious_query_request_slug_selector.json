@@ -1,0 +1,8 @@
+{
+  "__fixture_note": "MALICIOUS: sandbox tries slugs instead of opaque space_id. Must be rejected.",
+  "schema": "cwk.query_request.v1",
+  "query": "SFE 冷归档能看到吗",
+  "space_selector": ["tbs", "sfe"],
+  "include_dispositions": ["index", "archive_no_index"],
+  "limit": 4
+}

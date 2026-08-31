@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.rt016.reconciliation_report.v2",
+  "title": "RT-016 MigrationReconciler report v2 (anchor-bound, re-decompose-verified)",
+  "description": "Deterministic classification report produced by MigrationReconciler.v2. Compared to v1: (a) mandatory reconciliation_anchor block (tenant_id / source_namespace / source_kind / decomposer_version / normalizer_version) supplied by the caller; (b) each v2 crosswalk is re-decomposed from LegacySource bytes (located by legacy_path_hash) with the anchor and the result is compared bit-for-bit against the crosswalk's canonical_sha256 / object_bytes_sha256 / report_key / view_key; (c) the report_key + canonical_sha256 recomputed from the fresh decomposition are then passed to SharedEvidenceStore.read_version() and its returned canonical JCS bytes must match; (d) v1 crosswalks (or any record that fails anchor binding) are counted separately as unanchored_v1_count and never contribute to both_equal. Any single failure causes fail-closed classification into failure_samples. All opaque_keys are hashed or opaque; no absolute paths, credentials or legacy body bytes leak.",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": [
+    "schema",
+    "reconciler_version",
+    "reconciliation_anchor",
+    "run_id",
+    "generated_at",
+    "legacy_tree_root_hash",
+    "legacy_side_count",
+    "new_side_count",
+    "both_equal_count",
+    "both_diff_count",
+    "only_legacy_count",
+    "only_new_count",
+    "new_undecomposable_count",
+    "review_count",
+    "unanchored_v1_count",
+    "legacy_source_hash_verify_rate",
+    "canonical_hash_verify_rate",
+    "crosswalk_coverage_rate",
+    "zero_drift_verified",
+    "failure_samples"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.rt016.reconciliation_report.v2"},
+    "reconciler_version": {"type": "string", "pattern": "^v[0-9]{1,4}$"},
+    "reconciliation_anchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "required": [
+        "tenant_id",
+        "source_namespace",
+        "source_kind",
+        "decomposer_version",
+        "normalizer_version"
+      ],
+      "properties": {
+        "tenant_id": {"type": "string", "pattern": "^t_[a-z0-9]{26}$"},
+        "source_namespace": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"},
+        "source_kind": {"type": "string", "enum": ["current_raw", "timeline_snapshot"]},
+        "decomposer_version": {"type": "string", "pattern": "^v[0-9]{1,4}$"},
+        "normalizer_version": {"type": "string", "pattern": "^v[0-9]{1,4}$"}
+      }
+    },
+    "run_id": {"type": "string", "pattern": "^run_[a-z2-7]{26}$"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "legacy_tree_root_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "legacy_side_count": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "new_side_count": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "both_equal_count": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "both_diff_count": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "only_legacy_count": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "only_new_count": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "new_undecomposable_count": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "review_count": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "unanchored_v1_count": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "legacy_source_hash_verify_rate": {"type": "number", "minimum": 0, "maximum": 1},
+    "canonical_hash_verify_rate": {"type": "number", "minimum": 0, "maximum": 1},
+    "crosswalk_coverage_rate": {"type": "number", "minimum": 0, "maximum": 1},
+    "zero_drift_verified": {"type": "boolean"},
+    "failure_samples": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "unevaluatedProperties": false,
+        "required": ["classification", "opaque_key"],
+        "properties": {
+          "classification": {
+            "type": "string",
+            "enum": [
+              "both_diff",
+              "only_legacy",
+              "only_new",
+              "new_undecomposable",
+              "canonical_missing",
+              "object_bytes_sha_mismatch",
+              "canonical_sha_mismatch",
+              "legacy_source_sha_drift",
+              "crosswalk_corrupt",
+              "anchor_mismatch",
+              "re_decompose_mismatch",
+              "unanchored_v1",
+              "legacy_bytes_missing",
+              "read_version_bytes_mismatch",
+              "review_source_sha_drift"
+            ]
+          },
+          "opaque_key": {"type": "string", "maxLength": 64, "pattern": "^[a-z0-9_.:/\\-]+$"}
+        }
+      },
+      "maxItems": 128
+    }
+  },
+  "customKeywords": {
+    "deepForbiddenProperties": [
+      "agent_id", "agent_id_hash", "credential_ref", "credentials", "app_key", "app_secret",
+      "body", "canonical_body", "body_text", "content", "html",
+      "reply", "replies", "node", "nodes", "attachment", "attachments",
+      "absolute_path", "mirror_root", "cwork_root", "instance_root", "path",
+      "attachment_url", "preview_url", "short_url", "presign_url", "download_url", "temporary_url",
+      "cookie", "session_token", "authorization", "prompt_template",
+      "auth_epoch", "binding_epoch"
+    ]
+  }
+}

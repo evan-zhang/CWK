@@ -1,0 +1,9 @@
+rt_id: RT-005
+title: 工作协同 Wiki 精编闭环与稳定运行
+status: completed
+profile: Spec-Lite
+created: 2026-08-04
+assignee: Codex
+priority: high
+depends_on: [RT-003, RT-004]
+labels: [wiki-quality, ai-refinement, nightly, reliability]

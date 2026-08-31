@@ -1,10 +1,12 @@
 import json
+import signal
+import subprocess
 import sys
 import tempfile
 import unittest
 from types import SimpleNamespace
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 
 PROJECT = Path(__file__).resolve().parents[1]
@@ -15,8 +17,8 @@ from cwk_ai_common import (  # noqa: E402
     PRIORITIES_SCHEMA,
     RECORD_SCHEMA,
     ai_agent_workspace,
+    assert_cwk_model,
     ai_runtime_guard,
-    contains_sensitive_text,
     extract_json_object,
     fallback_record,
     invoke_openclaw_json,
@@ -29,35 +31,77 @@ from cwk_ai_common import (  # noqa: E402
     validate_record,
 )
 from cwk_ai_event_clustering import merge_event_batches, normalize_bundle, prompt_for as cluster_prompt_for, recover_cluster_batch, validate_cluster_evidence, validate_event_coverage  # noqa: E402
-from cwk_nightly_pipeline import copy_to_mirror, redact_cmd, redact_text, require_publish_safe, write_manifest  # noqa: E402
+from cwk_nightly_pipeline import copy_to_mirror, merge_changed_paths_manifest, redact_cmd, redact_text, run_docdb_sync_with_retry, write_manifest  # noqa: E402
 from cwk_ai_quality_review import prompt_for as quality_prompt_for  # noqa: E402
-from cwk_ai_record_understanding import process_one as process_ai_record  # noqa: E402
+from cwk_ai_record_understanding import prompt_for as record_prompt_for  # noqa: E402
 from cwk_sample_pilot import build_relations, event_family, load_items, title_anchor, unique_relation_pairs  # noqa: E402
 from cwk_relation_eval import evaluate as evaluate_relations  # noqa: E402
 
 
 class AIContractTests(unittest.TestCase):
+    def test_gpt56_requires_explicit_temporary_batch_switch(self):
+        with patch.dict("os.environ", {"CWK_TEMP_GPT56_BATCH": ""}, clear=False):
+            with self.assertRaises(ValueError):
+                assert_cwk_model("openai/gpt-5.6-terra")
+        with patch.dict("os.environ", {"CWK_TEMP_GPT56_BATCH": "1"}, clear=False):
+            assert_cwk_model("openai/gpt-5.6-terra")
+            assert_cwk_model("openai/gpt-5.6-sol")
+
     def test_extracts_schema_payload_from_openclaw_envelope(self):
         payload = {"schema_version": RECORD_SCHEMA, "report_id": "1"}
         envelope = {"result": {"payloads": [{"text": json.dumps(payload)}]}}
         self.assertEqual(extract_json_object(json.dumps(envelope)), payload)
 
+    def test_extracts_summary_payload_missing_deterministic_identity(self):
+        payload = {"summary": "有效摘要", "key_facts": []}
+        envelope = {"result": {"payloads": [{"text": json.dumps(payload, ensure_ascii=False)}]}}
+        self.assertEqual(extract_json_object(json.dumps(envelope, ensure_ascii=False)), payload)
+
     def test_model_call_retries_transient_failure(self):
         payload = {"schema_version": RECORD_SCHEMA, "report_id": "1"}
-        fail = SimpleNamespace(returncode=1, stdout="", stderr="temporary unavailable")
-        success = SimpleNamespace(returncode=0, stdout=json.dumps(payload), stderr="")
+        fail = SimpleNamespace(returncode=1, communicate=lambda timeout: ("", "temporary unavailable"))
+        success = SimpleNamespace(returncode=0, communicate=lambda timeout: (json.dumps(payload), ""))
         with tempfile.TemporaryDirectory() as directory:
             project = Path(directory)
             with (
                 patch("cwk_ai_common.PROJECT", project),
                 patch("cwk_ai_common.assert_safe_ai_agent"),
-                patch("cwk_ai_common.subprocess.run", side_effect=[fail, success]) as run,
+                patch("cwk_ai_common.subprocess.Popen", side_effect=[fail, success]) as popen,
+                patch("cwk_ai_common.subprocess.run") as cleanup,
                 patch("cwk_ai_common.time.sleep"),
                 patch.dict("os.environ", {"CWK_AI_CALL_RETRIES": "2"}, clear=False),
             ):
-                result = invoke_openclaw_json("safe prompt", model="model", stage="test", timeout_seconds=1, prompt_dir=project)
+                result = invoke_openclaw_json("safe prompt", model="newapi/BD-MiniMax", stage="test", timeout_seconds=1, prompt_dir=project)
         self.assertEqual(result, payload)
-        self.assertEqual(run.call_count, 2)
+        self.assertEqual(popen.call_count, 2)
+        self.assertTrue(popen.call_args.kwargs["start_new_session"])
+        self.assertEqual(popen.call_args.kwargs["stdout"], subprocess.PIPE)
+        self.assertEqual(popen.call_args.kwargs["stderr"], subprocess.PIPE)
+        self.assertEqual(cleanup.call_count, 2)
+        for call in cleanup.call_args_list:
+            self.assertIn("agent:cwk-ai-reviewer:explicit:", call.args[0][-1])
+            self.assertIn('"deleteTranscript": true', call.args[0][-1])
+
+    def test_model_timeout_terminates_the_entire_process_group(self):
+        proc = Mock(pid=12345)
+        proc.communicate.side_effect = [
+            subprocess.TimeoutExpired(cmd="openclaw", timeout=31),
+            ("", ""),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory)
+            with (
+                patch("cwk_ai_common.PROJECT", project),
+                patch("cwk_ai_common.assert_safe_ai_agent"),
+                patch("cwk_ai_common.subprocess.Popen", return_value=proc),
+                patch("cwk_ai_common.subprocess.run") as cleanup,
+                patch("cwk_ai_common.os.killpg") as killpg,
+                patch.dict("os.environ", {"CWK_AI_CALL_RETRIES": "1"}, clear=False),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "timed out"):
+                    invoke_openclaw_json("safe prompt", model="newapi/BD-MiniMax", stage="test", timeout_seconds=1, prompt_dir=project)
+        killpg.assert_called_once_with(12345, signal.SIGTERM)
+        cleanup.assert_called_once()
 
     def test_fallback_record_has_traceable_evidence(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -122,25 +166,63 @@ class AIContractTests(unittest.TestCase):
         self.assertEqual(sanitized["evidence_refs"], fallback["evidence_refs"])
         self.assertIn("untraceable_evidence_pruned", sanitized["normalization_flags"])
 
-    def test_sensitive_source_pattern_is_detected(self):
-        self.assertTrue(contains_sensitive_text("credential sk-example_12345678901234567890"))
-        self.assertFalse(contains_sensitive_text("ordinary work report"))
 
-    def test_sensitive_source_is_skipped_before_model_call(self):
+    def test_copy_to_mirror_supports_external_root(self):
         with tempfile.TemporaryDirectory() as directory:
-            raw = Path(directory) / "1-sensitive.md"
-            raw.write_text('---\nreport_id: "1"\ntitle: "敏感材料"\n---\n\ncredential sk-example_12345678901234567890', encoding="utf-8")
-            payload, error, _ = process_ai_record(
-                raw,
-                {"source_ids": ["1"], "title": "敏感材料", "event_anchor": "敏感材料"},
-                dry_run=False,
-                model="unused",
-                timeout_seconds=1,
-                prompt_dir=Path(directory),
-            )
-            self.assertEqual(payload["ai_status"], "skipped_sensitive")
-            self.assertIsNone(error)
-            self.assertEqual(payload["evidence_refs"], [])
+            project = Path(directory) / "project"
+            run = project / "runs" / "nightly-test"
+            external_mirror = Path(directory) / "external-mirror"
+            run.mkdir(parents=True)
+            (run / "digest-human-v4.md").write_text("# digest\n", encoding="utf-8")
+            (run / "digest-human-v4.html").write_text("<p>digest</p>\n", encoding="utf-8")
+            (run / "ACCEPTANCE-RESULT.md").write_text("ok\n", encoding="utf-8")
+            (run / "incremental-link-preview-v1.md").write_text("ok\n", encoding="utf-8")
+            with patch("cwk_nightly_pipeline.PROJECT", project):
+                outputs = copy_to_mirror(run, "2026-08-02", external_mirror)
+            self.assertTrue(outputs["daily_md"].startswith(str(external_mirror.resolve())))
+            self.assertTrue((external_mirror / "daily" / "2026-08" / "2026-08-02.md").exists())
+
+    def test_merge_changed_paths_manifest_combines_inputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            compile_manifest = root / "compile.json"
+            topics_manifest = root / "topics.json"
+            output = root / "merged.json"
+            compile_manifest.write_text(json.dumps({"changed_relative_paths": ["wiki/summaries/1.md", "wiki/_system/manifest.json"]}), encoding="utf-8")
+            topics_manifest.write_text(json.dumps({"changed_relative_paths": ["wiki/topics/a.md", "wiki/_system/manifest.json"]}), encoding="utf-8")
+            merged = merge_changed_paths_manifest(output, compile_manifest, topics_manifest)
+            self.assertEqual(merged, output)
+            payload = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(payload["changed_relative_paths"], ["wiki/_system/manifest.json", "wiki/summaries/1.md", "wiki/topics/a.md"])
+
+    def test_docdb_sync_retry_uses_final_attempt_for_status(self):
+        first = {"returncode": 2, "stdout": "failed", "stderr": ""}
+        second = {"returncode": 0, "stdout": "ok", "stderr": ""}
+        steps = []
+        with tempfile.TemporaryDirectory() as directory:
+            manifest = Path(directory) / "sync.json"
+            with patch("cwk_nightly_pipeline.run_cmd", side_effect=[first, second]) as runner:
+                result, retry_manifest = run_docdb_sync_with_retry(
+                    "wiki_sync_docdb",
+                    ["python3", "sync.py", "--manifest", str(manifest)],
+                    manifest,
+                    steps,
+                )
+        self.assertEqual(result["returncode"], 0)
+        self.assertEqual(retry_manifest.name, "sync-retry.json")
+        self.assertEqual([step["step"] for step in steps], ["wiki_sync_docdb", "wiki_sync_docdb_retry"])
+        self.assertIn("--retry-only", runner.call_args_list[1].args[0])
+        retry_cmd = runner.call_args_list[1].args[0]
+        self.assertEqual(retry_cmd[retry_cmd.index("--manifest") + 1], str(retry_manifest))
+
+    def test_cwork_key_like_source_is_preserved_in_model_prompt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            raw = Path(directory) / "1-source.md"
+            source_value = "sk-example_12345678901234567890"
+            raw.write_text(f'---\nreport_id: "1"\ntitle: "技术材料"\n---\n\ncredential {source_value}', encoding="utf-8")
+            prompt = record_prompt_for(raw, {"source_ids": ["1"], "title": "技术材料", "event_anchor": "技术材料"})
+            self.assertIn(source_value, prompt)
+            self.assertNotIn("Sensitive source withheld", prompt)
 
     def test_cluster_priority_cannot_exceed_deterministic_hint(self):
         bundle = {
@@ -167,29 +249,40 @@ class AIContractTests(unittest.TestCase):
         self.assertEqual(events["events"][0]["priority"], "P2")
         self.assertEqual(priorities["priorities"][0]["priority"], "P2")
 
-    def test_ai_agent_policy_allows_read_only_minimal_agent(self):
+    def test_ai_agent_policy_allows_unsandboxed_zero_tool_agent(self):
         base = {
             "skills": [],
             "workspace": str(ai_agent_workspace()),
-            "sandbox": {"mode": "all", "scope": "agent", "workspaceAccess": "ro"},
+            "sandbox": {"mode": "off"},
         }
-        safe, _ = safe_agent_policy({**base, "tools": {"profile": "minimal", "alsoAllow": ["read"]}})
+        safe, _ = safe_agent_policy(
+            {**base, "tools": {"profile": "minimal", "allow": [], "alsoAllow": [], "deny": ["*"]}}
+        )
         self.assertTrue(safe)
         unsafe, _ = safe_agent_policy({**base, "tools": {"profile": "coding", "deny": ["message"]}})
         self.assertFalse(unsafe)
-        unsafe, _ = safe_agent_policy({**base, "tools": {"profile": "minimal", "alsoAllow": ["read", "exec"]}})
+        unsafe, _ = safe_agent_policy({**base, "tools": {"profile": "minimal", "alsoAllow": ["read"], "deny": ["*"]}})
         self.assertFalse(unsafe)
-        unsafe, _ = safe_agent_policy({**base, "tools": {"profile": "minimal", "alsoAllow": ["read", "session_status"]}})
+        unsafe, _ = safe_agent_policy({**base, "tools": {"profile": "minimal", "alsoAllow": [], "deny": ["exec"]}})
         self.assertFalse(unsafe)
-        unsafe, _ = safe_agent_policy({"tools": {"profile": "minimal", "alsoAllow": ["read"]}})
+        unsafe, _ = safe_agent_policy({"tools": {"profile": "minimal", "alsoAllow": [], "deny": ["*"]}})
         self.assertFalse(unsafe)
+
+        sandboxed, _ = safe_agent_policy(
+            {
+                **base,
+                "sandbox": {"mode": "all", "scope": "agent", "workspaceAccess": "ro"},
+                "tools": {"profile": "minimal", "allow": [], "alsoAllow": [], "deny": ["*"]},
+            }
+        )
+        self.assertFalse(sandboxed)
 
     def test_ai_agent_policy_rejects_workspace_outside_project(self):
         agent = {
             "skills": [],
             "workspace": "/tmp/cwk-untrusted-workspace",
-            "sandbox": {"mode": "all", "scope": "agent", "workspaceAccess": "ro"},
-            "tools": {"profile": "minimal", "alsoAllow": ["read"]},
+            "sandbox": {"mode": "off"},
+            "tools": {"profile": "minimal", "allow": [], "alsoAllow": [], "deny": ["*"]},
         }
         safe, reason = safe_agent_policy(agent)
         self.assertFalse(safe)
@@ -218,8 +311,8 @@ class AIContractTests(unittest.TestCase):
             agent = {
                 "skills": [],
                 "workspace": str(external_link),
-                "sandbox": {"mode": "all", "scope": "agent", "workspaceAccess": "ro"},
-                "tools": {"profile": "minimal", "alsoAllow": ["read"]},
+                "sandbox": {"mode": "off"},
+                "tools": {"profile": "minimal", "allow": [], "alsoAllow": [], "deny": ["*"]},
             }
             with patch("cwk_ai_common.PROJECT", project):
                 safe, reason = safe_agent_policy(agent)
@@ -339,12 +432,19 @@ class AIContractTests(unittest.TestCase):
             path = write_manifest(run_dir, {"stdout": "secret-value"}, ("secret-value",))
             self.assertNotIn("secret-value", path.read_text(encoding="utf-8"))
 
-    def test_publish_gate_rejects_secret_shaped_content(self):
+    def test_publish_preserves_cwork_key_like_content(self):
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "digest.md"
-            path.write_text("credential sk-example_12345678901234567890", encoding="utf-8")
-            with self.assertRaisesRegex(RuntimeError, "secret gate blocked"):
-                require_publish_safe([path])
+            project = Path(directory) / "project"
+            run = project / "runs" / "nightly-test"
+            mirror = Path(directory) / "mirror"
+            run.mkdir(parents=True)
+            source_value = "sk-example_12345678901234567890"
+            (run / "digest-human-v4.md").write_text(f"credential {source_value}", encoding="utf-8")
+            with patch("cwk_nightly_pipeline.PROJECT", project):
+                copy_to_mirror(run, "2026-08-05", mirror)
+            published = (mirror / "daily" / "2026-08" / "2026-08-05.md").read_text(encoding="utf-8")
+            self.assertIn(source_value, published)
+            self.assertNotIn("<redacted>", published)
 
     def test_rule_anchor_rejects_dates_and_connectors(self):
         empty = {key: [] for key in ("projects", "systems", "products", "customers", "contracts")}

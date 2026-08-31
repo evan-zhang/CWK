@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.query_request.v1",
+  "title": "QueryRequest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": ["schema", "query"],
+  "properties": {
+    "schema": {"const": "cwk.query_request.v1"},
+    "query": {"type": "string", "minLength": 1, "maxLength": 4000},
+    "space_selector": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^sp_[a-z0-9]{10,32}$"},
+      "uniqueItems": true
+    },
+    "include_dispositions": {
+      "type": "array",
+      "items": {"type": "string", "enum": ["index", "archive_no_index", "review"]},
+      "uniqueItems": true
+    },
+    "time_filter": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "properties": {
+        "from": {"type": ["string", "null"], "format": "date-time"},
+        "to": {"type": ["string", "null"], "format": "date-time"}
+      }
+    },
+    "limit": {"type": "integer", "minimum": 1, "maximum": 64}
+  },
+  "customKeywords": {
+    "deepForbiddenProperties": [
+      "tenant_id", "agent_id", "agent_id_hash", "binding_epoch", "auth_epoch",
+      "credential_ref", "credentials", "app_key",
+      "mirror_root", "root", "path", "absolute_path",
+      "profile_version", "profile_sha256", "authorization", "cookie"
+    ]
+  }
+}

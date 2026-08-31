@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.rt012.command_spec.v1",
+  "title": "Tenant CLI Command Spec v1 (RT-012)",
+  "description": "Frozen ABI of a single command registered by a CommandProviderV1 module. RT-012 owns this schema; downstream RTs may add commands via new provider modules but MUST NOT change any field here.",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": ["schema", "name", "summary", "provider", "provider_version"],
+  "properties": {
+    "schema": {"const": "cwk.rt012.command_spec.v1"},
+    "name": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,31}(:[a-z][a-z0-9-]{0,31})?$"},
+    "summary": {"type": "string", "minLength": 1, "maxLength": 200},
+    "provider": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"},
+    "provider_version": {"type": "string", "pattern": "^v[0-9]{1,4}$"}
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "__fixture_note": "MALICIOUS: attempts to promote attachment temporary_url to canonical. forbidden_field_paths + custom handler must reject.",
+  "schema": "cwk.verified_shared_extensions.v1",
+  "version": "v2",
+  "manifest_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+  "compared_sample_size": 200,
+  "min_field_match_rate": 0.995,
+  "approved_by": "attacker",
+  "approved_at": "2026-08-01T10:00:00Z",
+  "entries": [
+    {
+      "field_path": "attachments[*].temporary_url",
+      "match_rate": 0.995,
+      "sample_ids": ["cwork:2070001", "cwork:2070002", "cwork:2070003", "cwork:2070004", "cwork:2070005", "cwork:2070006", "cwork:2070007", "cwork:2070008", "cwork:2070009", "cwork:2070010", "cwork:2070011", "cwork:2070012", "cwork:2070013", "cwork:2070014", "cwork:2070015", "cwork:2070016", "cwork:2070017", "cwork:2070018", "cwork:2070019", "cwork:2070020", "cwork:2070021", "cwork:2070022", "cwork:2070023", "cwork:2070024", "cwork:2070025", "cwork:2070026", "cwork:2070027", "cwork:2070028", "cwork:2070029", "cwork:2070030", "cwork:2070031", "cwork:2070032", "cwork:2070033", "cwork:2070034", "cwork:2070035", "cwork:2070036", "cwork:2070037", "cwork:2070038", "cwork:2070039", "cwork:2070040", "cwork:2070041", "cwork:2070042", "cwork:2070043", "cwork:2070044", "cwork:2070045", "cwork:2070046", "cwork:2070047", "cwork:2070048", "cwork:2070049", "cwork:2070050"]
+    }
+  ]
+}

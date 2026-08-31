@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.rt012.provision_receipt.v1",
+  "title": "Tenant Provisioning Commit Receipt v1 (RT-012)",
+  "description": "Append-only commit receipt written after the tenant provisioning transaction has fsync'd every artefact. Journal entries in staging are only reclaimable if they match an unused txn_id whose committed receipt is absent.",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": [
+    "schema",
+    "txn_id",
+    "tenant_id",
+    "action",
+    "committed_at",
+    "record_revision_after",
+    "auth_epoch_after",
+    "tenant_status_after",
+    "artefacts",
+    "receipt_sha256"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.rt012.provision_receipt.v1"},
+    "txn_id": {"type": "string", "pattern": "^txn_[a-z0-9]{26}$"},
+    "tenant_id": {"type": "string", "pattern": "^t_[a-z0-9]{26}$"},
+    "action": {"type": "string", "enum": ["tenant_init", "record_revision_bump", "auth_epoch_bump"]},
+    "committed_at": {"type": "string", "format": "date-time"},
+    "record_revision_after": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+    "auth_epoch_after": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+    "tenant_status_after": {
+      "type": "string",
+      "enum": ["draft", "profile_pending", "pilot", "active", "suspended", "offboarded"]
+    },
+    "artefacts": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["relative_path", "kind", "mode", "sha256"],
+        "properties": {
+          "relative_path": {"type": "string", "minLength": 1, "maxLength": 512, "pattern": "^[a-z0-9._/-]+$"},
+          "kind": {"type": "string", "enum": ["directory", "file"]},
+          "mode": {"type": "integer", "minimum": 0, "maximum": 511},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    "receipt_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

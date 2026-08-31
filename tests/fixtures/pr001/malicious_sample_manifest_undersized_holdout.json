@@ -1,0 +1,823 @@
+{
+  "schema": "cwk.sample_manifest.v1",
+  "tenant_id": "t_aaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "random_seed": "deadbeefdeadbeef",
+  "target_sample_size": 150,
+  "actual_sample_size": 150,
+  "strata": [
+    {
+      "dimension": "time",
+      "bucket": "2026-07",
+      "picked": 150
+    }
+  ],
+  "chunk_size": 25,
+  "chunk_layout": [
+    {
+      "chunk_id": "c0",
+      "report_keys": [
+        "cwork:2070000",
+        "cwork:2070001",
+        "cwork:2070002",
+        "cwork:2070003",
+        "cwork:2070004",
+        "cwork:2070005",
+        "cwork:2070006",
+        "cwork:2070007",
+        "cwork:2070008",
+        "cwork:2070009",
+        "cwork:2070010",
+        "cwork:2070011",
+        "cwork:2070012",
+        "cwork:2070013",
+        "cwork:2070014",
+        "cwork:2070015",
+        "cwork:2070016",
+        "cwork:2070017",
+        "cwork:2070018",
+        "cwork:2070019",
+        "cwork:2070020",
+        "cwork:2070021",
+        "cwork:2070022",
+        "cwork:2070023",
+        "cwork:2070024"
+      ]
+    },
+    {
+      "chunk_id": "c1",
+      "report_keys": [
+        "cwork:2070025",
+        "cwork:2070026",
+        "cwork:2070027",
+        "cwork:2070028",
+        "cwork:2070029",
+        "cwork:2070030",
+        "cwork:2070031",
+        "cwork:2070032",
+        "cwork:2070033",
+        "cwork:2070034",
+        "cwork:2070035",
+        "cwork:2070036",
+        "cwork:2070037",
+        "cwork:2070038",
+        "cwork:2070039",
+        "cwork:2070040",
+        "cwork:2070041",
+        "cwork:2070042",
+        "cwork:2070043",
+        "cwork:2070044",
+        "cwork:2070045",
+        "cwork:2070046",
+        "cwork:2070047",
+        "cwork:2070048",
+        "cwork:2070049"
+      ]
+    },
+    {
+      "chunk_id": "c2",
+      "report_keys": [
+        "cwork:2070050",
+        "cwork:2070051",
+        "cwork:2070052",
+        "cwork:2070053",
+        "cwork:2070054",
+        "cwork:2070055",
+        "cwork:2070056",
+        "cwork:2070057",
+        "cwork:2070058",
+        "cwork:2070059",
+        "cwork:2070060",
+        "cwork:2070061",
+        "cwork:2070062",
+        "cwork:2070063",
+        "cwork:2070064",
+        "cwork:2070065",
+        "cwork:2070066",
+        "cwork:2070067",
+        "cwork:2070068",
+        "cwork:2070069",
+        "cwork:2070070",
+        "cwork:2070071",
+        "cwork:2070072",
+        "cwork:2070073",
+        "cwork:2070074"
+      ]
+    },
+    {
+      "chunk_id": "c3",
+      "report_keys": [
+        "cwork:2070075",
+        "cwork:2070076",
+        "cwork:2070077",
+        "cwork:2070078",
+        "cwork:2070079",
+        "cwork:2070080",
+        "cwork:2070081",
+        "cwork:2070082",
+        "cwork:2070083",
+        "cwork:2070084",
+        "cwork:2070085",
+        "cwork:2070086",
+        "cwork:2070087",
+        "cwork:2070088",
+        "cwork:2070089",
+        "cwork:2070090",
+        "cwork:2070091",
+        "cwork:2070092",
+        "cwork:2070093",
+        "cwork:2070094",
+        "cwork:2070095",
+        "cwork:2070096",
+        "cwork:2070097",
+        "cwork:2070098",
+        "cwork:2070099"
+      ]
+    },
+    {
+      "chunk_id": "c4",
+      "report_keys": [
+        "cwork:2070100",
+        "cwork:2070101",
+        "cwork:2070102",
+        "cwork:2070103",
+        "cwork:2070104",
+        "cwork:2070105",
+        "cwork:2070106",
+        "cwork:2070107",
+        "cwork:2070108",
+        "cwork:2070109",
+        "cwork:2070110",
+        "cwork:2070111",
+        "cwork:2070112",
+        "cwork:2070113",
+        "cwork:2070114",
+        "cwork:2070115",
+        "cwork:2070116",
+        "cwork:2070117",
+        "cwork:2070118",
+        "cwork:2070119",
+        "cwork:2070120",
+        "cwork:2070121",
+        "cwork:2070122",
+        "cwork:2070123",
+        "cwork:2070124"
+      ]
+    },
+    {
+      "chunk_id": "c5",
+      "report_keys": [
+        "cwork:2070125",
+        "cwork:2070126",
+        "cwork:2070127",
+        "cwork:2070128",
+        "cwork:2070129",
+        "cwork:2070130",
+        "cwork:2070131",
+        "cwork:2070132",
+        "cwork:2070133",
+        "cwork:2070134",
+        "cwork:2070135",
+        "cwork:2070136",
+        "cwork:2070137",
+        "cwork:2070138",
+        "cwork:2070139",
+        "cwork:2070140",
+        "cwork:2070141",
+        "cwork:2070142",
+        "cwork:2070143",
+        "cwork:2070144",
+        "cwork:2070145",
+        "cwork:2070146",
+        "cwork:2070147",
+        "cwork:2070148",
+        "cwork:2070149"
+      ]
+    }
+  ],
+  "samples": [
+    {
+      "report_key": "cwork:2070000",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0"
+    },
+    {
+      "report_key": "cwork:2070001",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
+    },
+    {
+      "report_key": "cwork:2070002",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa2"
+    },
+    {
+      "report_key": "cwork:2070003",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa3"
+    },
+    {
+      "report_key": "cwork:2070004",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa4"
+    },
+    {
+      "report_key": "cwork:2070005",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa5"
+    },
+    {
+      "report_key": "cwork:2070006",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa6"
+    },
+    {
+      "report_key": "cwork:2070007",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa7"
+    },
+    {
+      "report_key": "cwork:2070008",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa8"
+    },
+    {
+      "report_key": "cwork:2070009",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa9"
+    },
+    {
+      "report_key": "cwork:2070010",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "report_key": "cwork:2070011",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"
+    },
+    {
+      "report_key": "cwork:2070012",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac"
+    },
+    {
+      "report_key": "cwork:2070013",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad"
+    },
+    {
+      "report_key": "cwork:2070014",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaae"
+    },
+    {
+      "report_key": "cwork:2070015",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaf"
+    },
+    {
+      "report_key": "cwork:2070016",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0"
+    },
+    {
+      "report_key": "cwork:2070017",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
+    },
+    {
+      "report_key": "cwork:2070018",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa2"
+    },
+    {
+      "report_key": "cwork:2070019",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa3"
+    },
+    {
+      "report_key": "cwork:2070020",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa4"
+    },
+    {
+      "report_key": "cwork:2070021",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa5"
+    },
+    {
+      "report_key": "cwork:2070022",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa6"
+    },
+    {
+      "report_key": "cwork:2070023",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa7"
+    },
+    {
+      "report_key": "cwork:2070024",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa8"
+    },
+    {
+      "report_key": "cwork:2070025",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa9"
+    },
+    {
+      "report_key": "cwork:2070026",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "report_key": "cwork:2070027",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"
+    },
+    {
+      "report_key": "cwork:2070028",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac"
+    },
+    {
+      "report_key": "cwork:2070029",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad"
+    },
+    {
+      "report_key": "cwork:2070030",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaae"
+    },
+    {
+      "report_key": "cwork:2070031",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaf"
+    },
+    {
+      "report_key": "cwork:2070032",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0"
+    },
+    {
+      "report_key": "cwork:2070033",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
+    },
+    {
+      "report_key": "cwork:2070034",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa2"
+    },
+    {
+      "report_key": "cwork:2070035",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa3"
+    },
+    {
+      "report_key": "cwork:2070036",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa4"
+    },
+    {
+      "report_key": "cwork:2070037",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa5"
+    },
+    {
+      "report_key": "cwork:2070038",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa6"
+    },
+    {
+      "report_key": "cwork:2070039",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa7"
+    },
+    {
+      "report_key": "cwork:2070040",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa8"
+    },
+    {
+      "report_key": "cwork:2070041",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa9"
+    },
+    {
+      "report_key": "cwork:2070042",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "report_key": "cwork:2070043",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"
+    },
+    {
+      "report_key": "cwork:2070044",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac"
+    },
+    {
+      "report_key": "cwork:2070045",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad"
+    },
+    {
+      "report_key": "cwork:2070046",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaae"
+    },
+    {
+      "report_key": "cwork:2070047",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaf"
+    },
+    {
+      "report_key": "cwork:2070048",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0"
+    },
+    {
+      "report_key": "cwork:2070049",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
+    },
+    {
+      "report_key": "cwork:2070050",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa2"
+    },
+    {
+      "report_key": "cwork:2070051",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa3"
+    },
+    {
+      "report_key": "cwork:2070052",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa4"
+    },
+    {
+      "report_key": "cwork:2070053",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa5"
+    },
+    {
+      "report_key": "cwork:2070054",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa6"
+    },
+    {
+      "report_key": "cwork:2070055",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa7"
+    },
+    {
+      "report_key": "cwork:2070056",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa8"
+    },
+    {
+      "report_key": "cwork:2070057",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa9"
+    },
+    {
+      "report_key": "cwork:2070058",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "report_key": "cwork:2070059",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"
+    },
+    {
+      "report_key": "cwork:2070060",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac"
+    },
+    {
+      "report_key": "cwork:2070061",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad"
+    },
+    {
+      "report_key": "cwork:2070062",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaae"
+    },
+    {
+      "report_key": "cwork:2070063",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaf"
+    },
+    {
+      "report_key": "cwork:2070064",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0"
+    },
+    {
+      "report_key": "cwork:2070065",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
+    },
+    {
+      "report_key": "cwork:2070066",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa2"
+    },
+    {
+      "report_key": "cwork:2070067",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa3"
+    },
+    {
+      "report_key": "cwork:2070068",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa4"
+    },
+    {
+      "report_key": "cwork:2070069",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa5"
+    },
+    {
+      "report_key": "cwork:2070070",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa6"
+    },
+    {
+      "report_key": "cwork:2070071",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa7"
+    },
+    {
+      "report_key": "cwork:2070072",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa8"
+    },
+    {
+      "report_key": "cwork:2070073",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa9"
+    },
+    {
+      "report_key": "cwork:2070074",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "report_key": "cwork:2070075",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"
+    },
+    {
+      "report_key": "cwork:2070076",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac"
+    },
+    {
+      "report_key": "cwork:2070077",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad"
+    },
+    {
+      "report_key": "cwork:2070078",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaae"
+    },
+    {
+      "report_key": "cwork:2070079",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaf"
+    },
+    {
+      "report_key": "cwork:2070080",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0"
+    },
+    {
+      "report_key": "cwork:2070081",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
+    },
+    {
+      "report_key": "cwork:2070082",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa2"
+    },
+    {
+      "report_key": "cwork:2070083",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa3"
+    },
+    {
+      "report_key": "cwork:2070084",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa4"
+    },
+    {
+      "report_key": "cwork:2070085",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa5"
+    },
+    {
+      "report_key": "cwork:2070086",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa6"
+    },
+    {
+      "report_key": "cwork:2070087",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa7"
+    },
+    {
+      "report_key": "cwork:2070088",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa8"
+    },
+    {
+      "report_key": "cwork:2070089",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa9"
+    },
+    {
+      "report_key": "cwork:2070090",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "report_key": "cwork:2070091",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"
+    },
+    {
+      "report_key": "cwork:2070092",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac"
+    },
+    {
+      "report_key": "cwork:2070093",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad"
+    },
+    {
+      "report_key": "cwork:2070094",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaae"
+    },
+    {
+      "report_key": "cwork:2070095",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaf"
+    },
+    {
+      "report_key": "cwork:2070096",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0"
+    },
+    {
+      "report_key": "cwork:2070097",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
+    },
+    {
+      "report_key": "cwork:2070098",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa2"
+    },
+    {
+      "report_key": "cwork:2070099",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa3"
+    },
+    {
+      "report_key": "cwork:2070100",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa4"
+    },
+    {
+      "report_key": "cwork:2070101",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa5"
+    },
+    {
+      "report_key": "cwork:2070102",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa6"
+    },
+    {
+      "report_key": "cwork:2070103",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa7"
+    },
+    {
+      "report_key": "cwork:2070104",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa8"
+    },
+    {
+      "report_key": "cwork:2070105",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa9"
+    },
+    {
+      "report_key": "cwork:2070106",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "report_key": "cwork:2070107",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"
+    },
+    {
+      "report_key": "cwork:2070108",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac"
+    },
+    {
+      "report_key": "cwork:2070109",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad"
+    },
+    {
+      "report_key": "cwork:2070110",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaae"
+    },
+    {
+      "report_key": "cwork:2070111",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaf"
+    },
+    {
+      "report_key": "cwork:2070112",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0"
+    },
+    {
+      "report_key": "cwork:2070113",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
+    },
+    {
+      "report_key": "cwork:2070114",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa2"
+    },
+    {
+      "report_key": "cwork:2070115",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa3"
+    },
+    {
+      "report_key": "cwork:2070116",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa4"
+    },
+    {
+      "report_key": "cwork:2070117",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa5"
+    },
+    {
+      "report_key": "cwork:2070118",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa6"
+    },
+    {
+      "report_key": "cwork:2070119",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa7"
+    },
+    {
+      "report_key": "cwork:2070120",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa8"
+    },
+    {
+      "report_key": "cwork:2070121",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa9"
+    },
+    {
+      "report_key": "cwork:2070122",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "report_key": "cwork:2070123",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"
+    },
+    {
+      "report_key": "cwork:2070124",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac"
+    },
+    {
+      "report_key": "cwork:2070125",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad"
+    },
+    {
+      "report_key": "cwork:2070126",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaae"
+    },
+    {
+      "report_key": "cwork:2070127",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaf"
+    },
+    {
+      "report_key": "cwork:2070128",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0"
+    },
+    {
+      "report_key": "cwork:2070129",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
+    },
+    {
+      "report_key": "cwork:2070130",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa2"
+    },
+    {
+      "report_key": "cwork:2070131",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa3"
+    },
+    {
+      "report_key": "cwork:2070132",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa4"
+    },
+    {
+      "report_key": "cwork:2070133",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa5"
+    },
+    {
+      "report_key": "cwork:2070134",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa6"
+    },
+    {
+      "report_key": "cwork:2070135",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa7"
+    },
+    {
+      "report_key": "cwork:2070136",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa8"
+    },
+    {
+      "report_key": "cwork:2070137",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa9"
+    },
+    {
+      "report_key": "cwork:2070138",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "report_key": "cwork:2070139",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"
+    },
+    {
+      "report_key": "cwork:2070140",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaac"
+    },
+    {
+      "report_key": "cwork:2070141",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaad"
+    },
+    {
+      "report_key": "cwork:2070142",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaae"
+    },
+    {
+      "report_key": "cwork:2070143",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaf"
+    },
+    {
+      "report_key": "cwork:2070144",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0"
+    },
+    {
+      "report_key": "cwork:2070145",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
+    },
+    {
+      "report_key": "cwork:2070146",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa2"
+    },
+    {
+      "report_key": "cwork:2070147",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa3"
+    },
+    {
+      "report_key": "cwork:2070148",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa4"
+    },
+    {
+      "report_key": "cwork:2070149",
+      "canonical_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa5"
+    }
+  ],
+  "holdout": [
+    {
+      "report_key": "cwork:2071000",
+      "canonical_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb0"
+    },
+    {
+      "report_key": "cwork:2071001",
+      "canonical_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb1"
+    },
+    {
+      "report_key": "cwork:2071002",
+      "canonical_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb2"
+    },
+    {
+      "report_key": "cwork:2071003",
+      "canonical_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb3"
+    },
+    {
+      "report_key": "cwork:2071004",
+      "canonical_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb4"
+    }
+  ],
+  "created_at": "2026-08-01T10:00:00Z",
+  "__fixture_note": "MALICIOUS: holdout has only 5 entries; PRD requires 20..30."
+}

@@ -1,0 +1,1213 @@
+{
+  "schema": "cwk.pr001.security_gate_registry.v1",
+  "description": "Frozen registry of the PR-001 Security Gates SG-00..SG-10 and the ten RT packages RT-017..RT-026 that evidence them. This file, security_gate_registry_v1.schema.json and security_gate_receipt_v1.schema.json are the MACHINE AUTHORITY for SG-00..SG-10; the §5.1 Markdown matrix in the central plan is derived documentation only and never a source of truth. Like gate_registry_v1.json this file is CONFIGURATION, not state: it declares each producing RT's single exact receipt path, receipt_kind, the exact SGs that RT owns, the exact frozen claim_id set that RT's receipt must reproduce, the filesystem_policy governing the six SG-03 attack classes, the producing task in that RT's own task list, and the producer/consumer PHASES that keep the dependency graph acyclic. It never records execution status. Status is derived solely from whether receipt_path exists and, if so, from the status/conclusion inside that receipt.",
+  "receipt_schema_ref": "PR/PR-001-multitenant-knowledge-spaces/contracts/security/security_gate_receipt_v1.schema.json",
+  "receipt_schema_id": "cwk.pr001.security_gate_receipt.v1",
+  "receipt_root": "PR/PR-001-multitenant-knowledge-spaces/security-receipts",
+  "owner_scope_hash_model": "cwk-owner-scope-tree-v2",
+  "managed_script_inventory": {
+    "schema": "cwk.pr001.managed_script_inventory.v1",
+    "namespace_pattern": "^scripts/cwk_[a-z0-9_]+\\.py$",
+    "explicit_managed_paths": [
+      "install.sh"
+    ],
+    "owner_map_source": "entries[].owner_code_path_prefixes",
+    "central_shared_abi_source": "shared_abi_dependencies",
+    "shared_evolution_source": "shared_evolution_paths",
+    "legacy_frozen_files": [
+      {
+        "path": "scripts/cwk_action_center.py",
+        "mode": "100644",
+        "sha256": "8c8fc91bf473f51e13047bebd04eadfa9a226d5d95cf2430cb7f27c2f3dc2fda"
+      },
+      {
+        "path": "scripts/cwk_agent_binding.py",
+        "mode": "100644",
+        "sha256": "2d390d6fa1a5b84e1dcc137e64c642f3a1a9cb010e009fa5c7a6e00e076030c4"
+      },
+      {
+        "path": "scripts/cwk_agent_context.py",
+        "mode": "100644",
+        "sha256": "10d15cf23ab8f89c5479867bea39a320778ff104bf7c26320f70f8ed854915ac"
+      },
+      {
+        "path": "scripts/cwk_ai_common.py",
+        "mode": "100644",
+        "sha256": "69ecded6ecb96288c2e7ab4bb43ec42bd97ac1889385bb932d00f2460ede95a6"
+      },
+      {
+        "path": "scripts/cwk_ai_enhanced_digest.py",
+        "mode": "100644",
+        "sha256": "df40061f416c8c706998fbeb47fb5d908739e3e061a332aa90d91520c6c12ac7"
+      },
+      {
+        "path": "scripts/cwk_ai_event_clustering.py",
+        "mode": "100644",
+        "sha256": "b75497e4d551a2d39c70f48ac87a3dbbb1e838b01c51ea8b7203d139c9b4ed63"
+      },
+      {
+        "path": "scripts/cwk_ai_quality_review.py",
+        "mode": "100644",
+        "sha256": "a3e756b1743c59052e38ffdb89ab87c5d052cec344dd4c9fefecdbadb4a67b08"
+      },
+      {
+        "path": "scripts/cwk_ai_record_understanding.py",
+        "mode": "100644",
+        "sha256": "29d7095f73c12d797fd9de51c28e2e86527642cf1cc0d9e3b5f8c18c7dfaf4ea"
+      },
+      {
+        "path": "scripts/cwk_atomic_file.py",
+        "mode": "100644",
+        "sha256": "a8a75a2cc98dac1277d5634759f5468e5b9eda627f2094b4b56de5ce8204f978"
+      },
+      {
+        "path": "scripts/cwk_backfill_range.py",
+        "mode": "100644",
+        "sha256": "b859f456ce1beaab60c581df86c97830c99082535f8c0c7930593dd5e71519ce"
+      },
+      {
+        "path": "scripts/cwk_benchmark.py",
+        "mode": "100644",
+        "sha256": "fb4d85fa1cf0477ee327cca6f25d9010852b8d4a86fd691e3a1e409a3e98b747"
+      },
+      {
+        "path": "scripts/cwk_changed_paths_manifest.py",
+        "mode": "100644",
+        "sha256": "1a6d05dd15a7551046fdccc88081be8c588e568cd1322e72129d237b193fc1df"
+      },
+      {
+        "path": "scripts/cwk_cloud_content_reconcile.py",
+        "mode": "100644",
+        "sha256": "e275bc7ec46fec870244e1aec8563eed3e2582e5cb3b880a3d52ae6027453178"
+      },
+      {
+        "path": "scripts/cwk_cloud_coverage_audit.py",
+        "mode": "100644",
+        "sha256": "f26b69b93a39ad014b88c830f7417d67d5c794395848fced430205ca1d546d0d"
+      },
+      {
+        "path": "scripts/cwk_cloud_objects.py",
+        "mode": "100644",
+        "sha256": "f65e89d6e7f1157f51be31203d0505de5e186e31c9be09e5e30e0e9a38c08cac"
+      },
+      {
+        "path": "scripts/cwk_cloud_wiki.py",
+        "mode": "100644",
+        "sha256": "bfc41b0317d329cd654887e1ad62748489c4918896644c4ad9d6ddd742d69610"
+      },
+      {
+        "path": "scripts/cwk_cloud_wiki_compile.py",
+        "mode": "100644",
+        "sha256": "51a62dd67863177e068f9961f7f8ca31fcfc4f712af1ba60650318ef9a85daa1"
+      },
+      {
+        "path": "scripts/cwk_cloud_wiki_topics_entities.py",
+        "mode": "100644",
+        "sha256": "fb8034a3dc624fb365de32b608a96e9d394f45532ebfd19774df5583eb9fae2c"
+      },
+      {
+        "path": "scripts/cwk_credential_broker.py",
+        "mode": "100644",
+        "sha256": "2a0dcff324e6f63efd576dc0bf17ba0e3538c8f02412445967604c9fdc674150"
+      },
+      {
+        "path": "scripts/cwk_daily_html.py",
+        "mode": "100644",
+        "sha256": "8431a31ec453e4196957566c0dba82be582032c88543366ef28024f2023823bd"
+      },
+      {
+        "path": "scripts/cwk_docdb_cloud.py",
+        "mode": "100644",
+        "sha256": "20fe2dda32dbb03687183d9c06a8bce3abe592970c4c9dab2473be38c2ea8232"
+      },
+      {
+        "path": "scripts/cwk_human_digest.py",
+        "mode": "100644",
+        "sha256": "5c8bbbdea70a91be42a332a760b560494d39b3e93e318e3c65f8716b23958046"
+      },
+      {
+        "path": "scripts/cwk_incremental_link_preview.py",
+        "mode": "100644",
+        "sha256": "bad20c6f42ca1dcf4de2b0162c58e6862092419dbcc91d068104ee5c45998de5"
+      },
+      {
+        "path": "scripts/cwk_instance.py",
+        "mode": "100644",
+        "sha256": "827a3dacafd746ab760360c7a872362fb9c9327a2622c13dccb95c1bdec59d4f"
+      },
+      {
+        "path": "scripts/cwk_legacy_raw_import.py",
+        "mode": "100644",
+        "sha256": "3fbb4ad6addb8735ea6d465addf277a8f3af09f48e645589853ce276dc3401eb"
+      },
+      {
+        "path": "scripts/cwk_materialize_safe.py",
+        "mode": "100644",
+        "sha256": "ff4a0fe3ebb0ec1d262959d0deb938fb486251b7a7727f48f2d7e89ea3f927e3"
+      },
+      {
+        "path": "scripts/cwk_migration_reconciler.py",
+        "mode": "100644",
+        "sha256": "9d1ec0b930c05e5a9914ccf2db2a8f20209496d9cf7659b6eaada1b2da2e58a4"
+      },
+      {
+        "path": "scripts/cwk_person_relation.py",
+        "mode": "100644",
+        "sha256": "edf77e102c97702b960bd80a16b57854846236160f80362a303b1c2d226f73bb"
+      },
+      {
+        "path": "scripts/cwk_pr001_cli.py",
+        "mode": "100644",
+        "sha256": "2173d0f7eb198a0702d65f6c1d732b4cf350001ff37a46f95655b8bf09304ba3"
+      },
+      {
+        "path": "scripts/cwk_pr001_contracts.py",
+        "mode": "100644",
+        "sha256": "39a71bea37a68fad3e9d8cc859d5e90f5180279ff124e9885cdbdf7e0ba86cc2"
+      },
+      {
+        "path": "scripts/cwk_pr001_probes.py",
+        "mode": "100644",
+        "sha256": "4f43d8c0d10c6c704cf70b8158c7b70f85b52049f5299c40b9b3ed32f3fd4942"
+      },
+      {
+        "path": "scripts/cwk_pr001_view_compare.py",
+        "mode": "100644",
+        "sha256": "0ac6af2b13725098bb2e9788a042ed32fb0f3d42e6a981f7978b9c1ef906dfaa"
+      },
+      {
+        "path": "scripts/cwk_raw_store.py",
+        "mode": "100644",
+        "sha256": "78d466ae2565c7139ab0d30b8f64a6b4d7007bf8cb3847304a685656cae42473"
+      },
+      {
+        "path": "scripts/cwk_relation_eval.py",
+        "mode": "100644",
+        "sha256": "a04d1a8c2ca5985eb4a98b0e003ed7e15fd2ba4e7248abb1536173bcf330fa61"
+      },
+      {
+        "path": "scripts/cwk_report_relation.py",
+        "mode": "100644",
+        "sha256": "9fea8fe5d58b94a333503a0cf6c4fb8c571143a818bb023eb9eb978ba94f048f"
+      },
+      {
+        "path": "scripts/cwk_restore_from_docdb.py",
+        "mode": "100644",
+        "sha256": "641800edc6b18c9a9921c29cbb2c8883d650c8b667a5b7529af3068f21cad7f7"
+      },
+      {
+        "path": "scripts/cwk_sample_pilot.py",
+        "mode": "100644",
+        "sha256": "52f0077c58f5d5bc933bf0b79ceefa190b3089ed70d1fff3f74bbff26cfb79af"
+      },
+      {
+        "path": "scripts/cwk_select_priority_batch.py",
+        "mode": "100644",
+        "sha256": "471321450add49aa33ef3f6f2fb5a41acc95ed633eb5b45753f3df9e49fc1c65"
+      },
+      {
+        "path": "scripts/cwk_shadow_consistency.py",
+        "mode": "100644",
+        "sha256": "d19ac0aa57cc75860bfcf042a22dc0039d75e3abf0b704b15703e21f8e7016c7"
+      },
+      {
+        "path": "scripts/cwk_shared_evidence.py",
+        "mode": "100644",
+        "sha256": "678386c91d4c402514cce12dca8b2b808bedaa621c66f8a8f05fa3a877906fd8"
+      },
+      {
+        "path": "scripts/cwk_source_coverage_audit.py",
+        "mode": "100644",
+        "sha256": "020d5f0e38d444a03023b9a6fd9adc5f220ab67d2697134ea27ecb11b5e98276"
+      },
+      {
+        "path": "scripts/cwk_summary_source_refs.py",
+        "mode": "100644",
+        "sha256": "61c1826206b49444524a4788ee83084a576ff004586382688c9c151c763c14fe"
+      },
+      {
+        "path": "scripts/cwk_sync_mirror_to_docdb.py",
+        "mode": "100644",
+        "sha256": "a0df03e5dc1bb512e8ab2928496ce7dde7bb8a4258f60756823ebf0aa1f4af55"
+      },
+      {
+        "path": "scripts/cwk_tenant_cli_api.py",
+        "mode": "100644",
+        "sha256": "b2c8d725531ec942f1c7b6938817604a7a3d6f6a25044117a1e51140dafd97a5"
+      },
+      {
+        "path": "scripts/cwk_tenant_cmd_binding.py",
+        "mode": "100644",
+        "sha256": "73545b0c52677807967d3a2506569e5fb4cf83925fc8d2b7e2ffd41a7e55ed78"
+      },
+      {
+        "path": "scripts/cwk_tenant_cmd_core.py",
+        "mode": "100644",
+        "sha256": "1af7f90643fba850f13aca39b5474f4874ed1eb582c55c5e346dc2286c2d0870"
+      },
+      {
+        "path": "scripts/cwk_tenant_registry.py",
+        "mode": "100644",
+        "sha256": "ad3a0d36bb226c05708784523c961ae2a93f54e00796bc8a1b81e36277abe774"
+      },
+      {
+        "path": "scripts/cwk_tenant_view.py",
+        "mode": "100644",
+        "sha256": "baa903306a2b82795ee0c4e58319ed1d6ddcff7fe1fc7cf86521d61c65beec3a"
+      },
+      {
+        "path": "scripts/cwk_thread_timeline.py",
+        "mode": "100644",
+        "sha256": "198c87293844085e424399b7145abdef94e21812db50758846ea5ea5e27b8e16"
+      },
+      {
+        "path": "scripts/cwk_thread_timeline_audit.py",
+        "mode": "100644",
+        "sha256": "b2cb661fff5b463fcd353540880914eb4a6b68d52e2781826998f8671b4e2cd4"
+      },
+      {
+        "path": "scripts/cwk_thread_watch.py",
+        "mode": "100644",
+        "sha256": "cd56f9fa56b4ae1cdb29e50d30460c843d1448d61a4d83dc8849a1f472a9266b"
+      },
+      {
+        "path": "scripts/cwk_wiki_manifest_reconcile.py",
+        "mode": "100644",
+        "sha256": "5720daa3f28a126dfbb64a05bd95f4604597dc6efeb4fb943883e32aa31b092c"
+      },
+      {
+        "path": "scripts/cwk_wiki_smoke_test.py",
+        "mode": "100644",
+        "sha256": "6bd8e9fc0b52405f8913d5bc09041da8c369ccf2b7321455adc11717b73eb55f"
+      }
+    ]
+  },
+  "script_evolution_policy_ref": "PR/PR-001-multitenant-knowledge-spaces/contracts/script-evolution/policy_v1.json",
+  "script_evolution_policy_sha256": "2089490e45bdd84ba3bac75fe40092f81f40765638b988e17facdc4040d14a6d",
+  "shared_evolution_paths": [
+    {
+      "path": "scripts/cwk_tenant_cli.py",
+      "owner_stage_indices": {
+        "RT-019": [3],
+        "RT-026": [7]
+      }
+    }
+  ],
+  "shared_abi_dependencies": [
+    {
+      "dependency_id": "pilot-admission-v1",
+      "exact_paths": [
+        {
+          "path": "scripts/cwk_pilot_admission_api.py",
+          "sha256": "2bc26ff3b2b71bcfc1d3a5d7fba4a0cca99392a63837a62186086c9f6e817900"
+        },
+        {
+          "path": "PR/PR-001-multitenant-knowledge-spaces/contracts/cross_rt/schemas/pilot_admission_snapshot_v1.schema.json",
+          "sha256": "af003563cff163350e2b0ef458a9c5029b0d4330a559779ec0464055aebcc6a6"
+        }
+      ],
+      "consumer_rts": [
+        "RT-017", "RT-018", "RT-019", "RT-020", "RT-021", "RT-022", "RT-023", "RT-026"
+      ]
+    }
+  ],
+  "plan_matrix_ref": "PR/PR-001-multitenant-knowledge-spaces/plans/剩余工作执行计划-2026-08-20.md#51-security-gatesg-00sg-10所有权与-rt-026-crosswalk-矩阵",
+  "sg_ids": [
+    "SG-00",
+    "SG-01",
+    "SG-02",
+    "SG-03",
+    "SG-04",
+    "SG-05",
+    "SG-06",
+    "SG-07",
+    "SG-08",
+    "SG-09",
+    "SG-10"
+  ],
+  "filesystem_attack_classes": [
+    "path_traversal",
+    "symlink_component",
+    "symlink_leaf",
+    "hardlink",
+    "toctou",
+    "special_file"
+  ],
+  "filesystem_attack_class_note": "Six classes, not four. symlink is deliberately split into symlink_component (an intermediate directory in the path is a symlink) and symlink_leaf (the final path element is a symlink) because O_NOFOLLOW alone only defends the leaf; special_file (FIFO, device node, socket) is separated from hardlink because O_NOFOLLOW does not reject a FIFO. A receipt that collapses these into one generic 'path attacks covered' assertion fails closed.",
+  "status_resolution_rule": "An SG entry is NOT RUN iff receipt_path does not exist. Otherwise its status and conclusion are exactly the status and conclusion fields of the receipt at receipt_path. Consumers must not infer status from this registry, from any Markdown narrative, or from a sibling RT's receipt. A missing receipt is never satisfied by another RT having covered the same SG. Conversely any file present under receipt_root must sit at a registry-declared receipt_path and be fully valid: an undeclared or extra receipt is a hard failure, not a bonus.",
+  "phase_order": [
+    "rt_implementation",
+    "rt_independent_acceptance",
+    "preflight_after_candidate_freeze",
+    "go_no_go_evaluation",
+    "rt026_independent_acceptance",
+    "final_acceptance"
+  ],
+  "write_phase_allowlist": [
+    "rt_independent_acceptance",
+    "preflight_after_candidate_freeze"
+  ],
+  "go_no_go_evaluator_identity": "cwk-pr001-go-no-go-evaluator",
+  "evaluator_identity_rule": "the read-only go/no-go evaluator runs under the frozen opaque identity go_no_go_evaluator_identity. A preflight-security receipt must have BOTH producer and verifier different from that identity, and the evaluator injects its own identity into the check rather than reading it from the receipt. The receipt's evaluator_identity_excluded boolean remains REQUIRED as a declaration, but it is no longer TRUSTED: a reviewer showed that producer='go-no-go-evaluator' with evaluator_identity_excluded=true was accepted, because the exclusion was self-declared and only the phase was checked. Identity exclusion is now decided by comparing against the injected evaluator identity; the boolean must agree with that computation or the receipt is invalid. SCOPE HONESTY: this is INTERFACE-LEVEL read-only enforcement. Comparing opaque identity strings and refusing evaluator-authored receipts prevents the evaluator from being the declared author of evidence it consumes; it does NOT prove at the OS level that the evaluation process cannot write. No Wave-0 artifact may claim otherwise. A trusted launcher, run attestation and a pre/post filesystem snapshot with write-denial evidence would be required for that claim, and it is deferred to RT-026 implementation.",
+  "anti_cycle_rule": "Every entry declares one producer_phase and one or more consumers, each with its own consumer_phase. The graph is acyclic iff phase_order.index(producer_phase) < phase_order.index(consumer_phase) for every consumer of every entry. RT-017..RT-025 produce in rt_independent_acceptance, strictly before go_no_go_evaluation. RT-026's own SG-03/SG-10 receipt is the only preflight entry: an INDEPENDENT PREFLIGHT VERIFIER writes it in preflight_after_candidate_freeze, after the implementation candidate commit is frozen and before the read-only go/no-go evaluator runs. The evaluator in go_no_go_evaluation then CONSUMES it and is not its declared author — go_no_go_evaluation is deliberately absent from write_phase_allowlist, and identity exclusion is recomputed against the injected evaluator identity. Per the SCOPE HONESTY clause in evaluator_identity_rule, that is INTERFACE-LEVEL authorship exclusion only; it does NOT prove at the OS level that the evaluation process cannot write. Final RT-026 independent acceptance and G6 follow in still later phases. Therefore RT-026 never depends on its own output and all ten RT-017..RT-026 receipts remain exactly declared.",
+  "evidence_freshness_rule": "Every security receipt binds tested_subject_commit: the exact 40-hex implementation candidate commit its evidence was produced against, frozen BEFORE the receipt exists. The receipt file is then created in a later evidence-only commit, and reports reference the receipt later still — so no two artifacts ever hash each other and there is no self-referential cycle. The machine-checkable freshness rule is an ANCESTRY rule, not an equality rule: tested_subject_commit must be an ancestor of the commit that introduces the receipt file, and it must be the commit the receipt's own evidence and artifacts were produced against. It is explicitly NOT required to equal the final RT-026 HEAD, because downstream merges legitimately advance HEAD after the evidence was produced. A consumer rejects a receipt whose tested_subject_commit is not an ancestor of the candidate under review, or whose environment_fingerprint does not match the certified environment. No consumer may claim a receipt is fresh, unexpired or build-matched unless it actually validated that mechanically.",
+  "owner_scope_rule": "Security owner scope uses cwk-owner-scope-tree-v2. managed_script_inventory closes every scripts/cwk_[a-z0-9_]+.py path plus install.sh into an exact RT-owner map, the central shared ABI family, or immutable legacy path+mode+SHA pins; an undeclared managed path at the candidate commit is invalid. Each selector is part of the hashed manifest. A selector ending in / is a non-empty recursive directory selector; every other owner_code_path_prefixes item is one exact regular tracked file, never a string prefix. Each RT specs directory is exactly 需求契约.md plus 技术方案.md and each tasks directory is exactly 开发任务.md. owner_test_file_prefixes are exact-closure root-level tests/test_rt0NN_ namespaces with required_security_test_files as a mandatory subset. All exact files, directories and required tests may be planned while no receipt exists, but once receipt_path exists they must be real regular Git blobs at tested_subject_commit; selected symlinks, gitlinks and other modes are invalid. tested_subject_commit must strictly precede the derived evidence commit, must touch owner code rather than reports/receipts, and its immutable selector records must equal the same records at the explicit evaluation candidate. The worktree/index must be clean, free of assume-unchanged/skip-worktree entries, and byte/closure-identical to that candidate. The sole shared exact file scripts/cwk_tenant_cli.py is exempt from byte equality only for RT-019 stage 3 to RT-026 stage 7 progression, verified through the pinned script-evolution receipt chain including companion pins, actual slots, AST and comments. The complete policy is replayed for every receipt: completed RT-012 stage 9 and RT-013 stage 10 must be present and must terminate at the managed-inventory SHA pins for scripts/cwk_instance.py and scripts/cwk_agent_binding.py, but neither bootstrap stage is owned by any RT-017..026 SG entry or ever satisfies owner touch. owner_evidence_path_prefixes are excluded outputs and may never satisfy owner touch or enter the digest. environment_fingerprint is recomputed.",
+  "executable_ref_rule": "Every executable_ref and static_evidence_ref must belong to that entry's owner_test_file_prefixes namespace. The referenced root-level .py file must be a regular tracked blob at tested_subject_commit, the same blob at the explicit evaluation candidate, and byte-identical to the fail-closed current read. Executable refs use the canonical script-evolution acceptance validator: one direct top-level class with exactly one proven unittest.TestCase base, one unique direct test_ method, no decorators, skip flags, deletion, rebinding or duplicate overwrite, and at least one direct self.assert*/self.fail call. Cross-RT refs, non-test helpers, inherited/aliased/class-level skips, post-freeze test creation, lookalike prefixes, subdirectories and .py.bak files are rejected.",
+  "receipt_closure_rule": "the aggregate verdict is closed over the receipt ROOT, not only over the registry entries. Every *.json file anywhere under receipt_root must sit at a registry-declared receipt_path; an undeclared or extra receipt is a hard NO_GO. A reviewer showed SG_SATISFIED being returned while an undeclared security-receipts/RT-999/receipt.json sat on disk, because the verdict only iterated registry entries and never scanned the tree.",
+  "coverage_rule": "SG-00..SG-10 is a closed set of eleven gates. The union of owned_sg_ids across all entries must equal that set exactly. Every one of the ten RT packages RT-017..RT-026 must appear exactly once with a non-empty owned_sg_ids, so SG-03 coverage can be proven package by package. An SG owned by several RTs needs every one of those RTs' receipts; one RT's receipt never discharges another's.",
+  "claim_rule": "claims[] here is the FROZEN requirement set. Every claim_id is globally unique, is permanently bound to exactly one sg_id, and belongs to exactly one producing RT. A receipt's claims[].claim_id set must equal its entry's claim_id set EXACTLY — an extra claim is an unowned assertion, a missing claim is an omission, and both fail closed. A claim may be answered not_applicable only if its claim_id is listed in that entry's na_permitted_claim_ids, and then the receipt must supply a reason_code drawn from permitted_reason_codes, a reason, and non-empty static_evidence_refs. Otherwise the claim requires non-empty executable_refs.",
+  "path_attack_rule": "path_attack_applicability is declared per RT and is the frozen answer to 'does the SG-03 filesystem attack family apply to this package?'. 'applicable' obliges that RT's receipt to carry all SIX attack classes as applicable, each with tests_run>0, non-empty runtime_surfaces naming actual runtime surfaces, and non-empty executable_refs. 'not_applicable' obliges it to carry all six as not_applicable with reason_code + reason + static_evidence_refs, and the registry must itself state path_attack_note explaining why. Mixing applicable and not_applicable classes within one receipt is rejected. Silence is not an option: an entry with neither is invalid, and an omitted class in a receipt fails closed.",
+  "entries": [
+    {
+      "producer_rt": "RT-017",
+      "title": "Per-tenant Collector Worker",
+      "receipt_path": "PR/PR-001-multitenant-knowledge-spaces/security-receipts/RT-017/receipt.json",
+      "owner_evidence_path_prefixes": [
+        "PR/PR-001-multitenant-knowledge-spaces/security-receipts/RT-017/",
+        "PR/PR-001-multitenant-knowledge-spaces/capability-receipts/cwork-authority-source/",
+        "RT/RT-017/reports/",
+        "RT/RT-017/receipts/"
+      ],
+      "owner_code_path_prefixes": [
+        "scripts/cwk_access_ledger.py",
+        "scripts/cwk_collect_live.py",
+        "scripts/cwk_collection_state.py",
+        "scripts/cwk_tenant_collector.py",
+        "scripts/cwk_cwork_source.py",
+        "scripts/cwk_tenant_event_evidence.py",
+        "scripts/cwk_cwork_authority.py",
+        "scripts/cwk_canonical_version_provider.py",
+        "PR/PR-001-multitenant-knowledge-spaces/contracts/rt017/schemas/",
+        "RT/RT-017/specs/需求契约.md",
+        "RT/RT-017/specs/技术方案.md",
+        "RT/RT-017/tasks/开发任务.md"
+      ],
+      "owner_test_file_prefixes": ["tests/test_rt017_"],
+      "required_security_test_files": [
+        "tests/test_rt017_paths.py",
+        "tests/test_rt017_security.py"
+      ],
+      "owner_evolution_stage_indices": [1, 2],
+      "required_shared_abi_ids": ["pilot-admission-v1"],
+      "unresolved_owner_surface_requirements": [],
+      "receipt_kind": "rt-security",
+      "producer_task_id": "D-07",
+      "producer_task_ref": "RT/RT-017/tasks/开发任务.md",
+      "producer_role": "independent_acceptance_verifier",
+      "producer_phase": "rt_independent_acceptance",
+      "owned_sg_ids": [
+        "SG-00",
+        "SG-01",
+        "SG-03",
+        "SG-05",
+        "SG-06",
+        "SG-08"
+      ],
+      "claims": [
+        {
+          "claim_id": "SGC-017-01",
+          "sg_id": "SG-00",
+          "requirement": "CWork authority probe is real, fail-closed on error/timeout, and never widens visibility on an unknown authority answer."
+        },
+        {
+          "claim_id": "SGC-017-02",
+          "sg_id": "SG-01",
+          "requirement": "Per-tenant collector isolation: one tenant's worker cannot read, write or enumerate another tenant's staging, run or state subtree."
+        },
+        {
+          "claim_id": "SGC-017-03",
+          "sg_id": "SG-03",
+          "requirement": "All per-tenant staging/run/state/retry/lock writes use dirfd + O_NOFOLLOW + atomic rename and survive the six filesystem attack classes."
+        },
+        {
+          "claim_id": "SGC-017-04",
+          "sg_id": "SG-05",
+          "requirement": "No credential, app_key or raw tenant body is ever persisted to disk or emitted in logs by the collector."
+        },
+        {
+          "claim_id": "SGC-017-05",
+          "sg_id": "SG-06",
+          "requirement": "Revocation of tenant visibility takes effect within the declared bound and leaves no readable residue in collector state."
+        },
+        {
+          "claim_id": "SGC-017-06",
+          "sg_id": "SG-08",
+          "requirement": "Collector failure, retry and backoff paths are fault-isolated: a poisoned tenant cannot stall or crash other tenants' collection."
+        }
+      ],
+      "na_permitted_claim_ids": [],
+      "permitted_reason_codes": [],
+      "path_attack_applicability": "applicable",
+      "filesystem_policy": {
+        "mode": "applicable",
+        "required_classes": [
+          "path_traversal",
+          "symlink_component",
+          "symlink_leaf",
+          "hardlink",
+          "toctou",
+          "special_file"
+        ],
+        "permitted_reason_codes": []
+      },
+      "path_attack_note": "RT-017 creates per-tenant staging, run, state, retry and lock files under the instance layout, so all six classes must be exercised with dirfd + O_NOFOLLOW and atomic rename.",
+      "consumers": [
+        {
+          "consumer_id": "RT-026",
+          "consumer_phase": "go_no_go_evaluation"
+        },
+        {
+          "consumer_id": "G6",
+          "consumer_phase": "final_acceptance"
+        }
+      ],
+      "static_note": "SG-00 here is the CWork authority probe and fail-closed behaviour. It is evidence about external API semantics and is distinct from the cwork-authority-source capability activation receipt, which lives under capability-receipts/ and closes the VG-A gap."
+    },
+    {
+      "producer_rt": "RT-018",
+      "title": "宿主机 Tenant Scheduler",
+      "receipt_path": "PR/PR-001-multitenant-knowledge-spaces/security-receipts/RT-018/receipt.json",
+      "owner_evidence_path_prefixes": [
+        "PR/PR-001-multitenant-knowledge-spaces/security-receipts/RT-018/",
+        "RT/RT-018/reports/",
+        "RT/RT-018/receipts/"
+      ],
+      "owner_code_path_prefixes": [
+        "scripts/cwk_job_provider.py",
+        "scripts/cwk_collector_job_provider.py",
+        "scripts/cwk_tenant_scheduler.py",
+        "PR/PR-001-multitenant-knowledge-spaces/contracts/rt018/schemas/",
+        "RT/RT-018/specs/需求契约.md",
+        "RT/RT-018/specs/技术方案.md",
+        "RT/RT-018/tasks/开发任务.md"
+      ],
+      "owner_test_file_prefixes": ["tests/test_rt018_"],
+      "required_security_test_files": [
+        "tests/test_rt018_paths.py",
+        "tests/test_rt018_security.py"
+      ],
+      "owner_evolution_stage_indices": [],
+      "required_shared_abi_ids": ["pilot-admission-v1"],
+      "unresolved_owner_surface_requirements": [],
+      "receipt_kind": "rt-security",
+      "producer_task_id": "D-05",
+      "producer_task_ref": "RT/RT-018/tasks/开发任务.md",
+      "producer_role": "independent_acceptance_verifier",
+      "producer_phase": "rt_independent_acceptance",
+      "owned_sg_ids": [
+        "SG-03",
+        "SG-05",
+        "SG-08"
+      ],
+      "claims": [
+        {
+          "claim_id": "SGC-018-01",
+          "sg_id": "SG-03",
+          "requirement": "Scheduler cursor, queue, lease and lock files are created and replaced safely under the six filesystem attack classes."
+        },
+        {
+          "claim_id": "SGC-018-02",
+          "sg_id": "SG-05",
+          "requirement": "Scheduler state and logs carry no credential, no app_key and no raw tenant content."
+        },
+        {
+          "claim_id": "SGC-018-03",
+          "sg_id": "SG-08",
+          "requirement": "Single-writer lease is preserved under crash, restart and concurrent-scheduler conditions; a stuck tenant is isolated rather than blocking the queue."
+        }
+      ],
+      "na_permitted_claim_ids": [],
+      "permitted_reason_codes": [],
+      "path_attack_applicability": "applicable",
+      "filesystem_policy": {
+        "mode": "applicable",
+        "required_classes": [
+          "path_traversal",
+          "symlink_component",
+          "symlink_leaf",
+          "hardlink",
+          "toctou",
+          "special_file"
+        ],
+        "permitted_reason_codes": []
+      },
+      "path_attack_note": "Scheduler cursor, queue, lease and single-writer lock files land on disk; a replaced lock path or a TOCTOU race would break the single-writer guarantee.",
+      "consumers": [
+        {
+          "consumer_id": "RT-026",
+          "consumer_phase": "go_no_go_evaluation"
+        },
+        {
+          "consumer_id": "G6",
+          "consumer_phase": "final_acceptance"
+        }
+      ],
+      "static_note": "Fault isolation and single-writer evidence here is a sibling input to VG-B, not a substitute for it."
+    },
+    {
+      "producer_rt": "RT-019",
+      "title": "Knowledge Profile 提案与版本生命周期",
+      "receipt_path": "PR/PR-001-multitenant-knowledge-spaces/security-receipts/RT-019/receipt.json",
+      "owner_evidence_path_prefixes": [
+        "PR/PR-001-multitenant-knowledge-spaces/security-receipts/RT-019/",
+        "RT/RT-019/reports/",
+        "RT/RT-019/receipts/"
+      ],
+      "owner_code_path_prefixes": [
+        "scripts/cwk_profile_sampler.py",
+        "scripts/cwk_profile_proposal.py",
+        "scripts/cwk_knowledge_profile.py",
+        "scripts/cwk_space_id.py",
+        "scripts/cwk_tenant_cmd_profile.py",
+        "scripts/cwk_tenant_cli.py",
+        "PR/PR-001-multitenant-knowledge-spaces/contracts/rt019/schemas/",
+        "RT/RT-019/specs/需求契约.md",
+        "RT/RT-019/specs/技术方案.md",
+        "RT/RT-019/tasks/开发任务.md"
+      ],
+      "owner_test_file_prefixes": ["tests/test_rt019_"],
+      "required_security_test_files": [
+        "tests/test_rt019_paths.py",
+        "tests/test_rt019_security.py"
+      ],
+      "owner_evolution_stage_indices": [3],
+      "required_shared_abi_ids": ["pilot-admission-v1"],
+      "unresolved_owner_surface_requirements": [],
+      "receipt_kind": "rt-security",
+      "producer_task_id": "D-07",
+      "producer_task_ref": "RT/RT-019/tasks/开发任务.md",
+      "producer_role": "independent_acceptance_verifier",
+      "producer_phase": "rt_independent_acceptance",
+      "owned_sg_ids": [
+        "SG-03",
+        "SG-07"
+      ],
+      "claims": [
+        {
+          "claim_id": "SGC-019-01",
+          "sg_id": "SG-03",
+          "requirement": "Sample manifests, proposals and profile version files are written per tenant safely under the six filesystem attack classes."
+        },
+        {
+          "claim_id": "SGC-019-02",
+          "sg_id": "SG-07",
+          "requirement": "The profile proposal runner executes with zero tools and no network, and cannot escalate to a tool-enabled or outbound-capable context."
+        }
+      ],
+      "na_permitted_claim_ids": [],
+      "permitted_reason_codes": [],
+      "path_attack_applicability": "applicable",
+      "filesystem_policy": {
+        "mode": "applicable",
+        "required_classes": [
+          "path_traversal",
+          "symlink_component",
+          "symlink_leaf",
+          "hardlink",
+          "toctou",
+          "special_file"
+        ],
+        "permitted_reason_codes": []
+      },
+      "path_attack_note": "Sample manifests, proposals and profile versions are written per tenant, so all six classes apply to that write path.",
+      "consumers": [
+        {
+          "consumer_id": "RT-026",
+          "consumer_phase": "go_no_go_evaluation"
+        },
+        {
+          "consumer_id": "G6",
+          "consumer_phase": "final_acceptance"
+        }
+      ],
+      "static_note": "SG-07 here is the zero-tool proposal runner only; real sandbox isolation is RT-023's half of SG-07."
+    },
+    {
+      "producer_rt": "RT-020",
+      "title": "Holdout 预览、Router 与决策日志",
+      "receipt_path": "PR/PR-001-multitenant-knowledge-spaces/security-receipts/RT-020/receipt.json",
+      "owner_evidence_path_prefixes": [
+        "PR/PR-001-multitenant-knowledge-spaces/security-receipts/RT-020/",
+        "RT/RT-020/reports/",
+        "RT/RT-020/receipts/"
+      ],
+      "owner_code_path_prefixes": [
+        "scripts/cwk_profile_preview.py",
+        "scripts/cwk_router.py",
+        "scripts/cwk_route_log.py",
+        "PR/PR-001-multitenant-knowledge-spaces/contracts/rt020/schemas/",
+        "RT/RT-020/specs/需求契约.md",
+        "RT/RT-020/specs/技术方案.md",
+        "RT/RT-020/tasks/开发任务.md"
+      ],
+      "owner_test_file_prefixes": ["tests/test_rt020_"],
+      "required_security_test_files": [
+        "tests/test_rt020_paths.py",
+        "tests/test_rt020_security.py"
+      ],
+      "owner_evolution_stage_indices": [],
+      "required_shared_abi_ids": ["pilot-admission-v1"],
+      "unresolved_owner_surface_requirements": [],
+      "receipt_kind": "rt-security",
+      "producer_task_id": "D-06",
+      "producer_task_ref": "RT/RT-020/tasks/开发任务.md",
+      "producer_role": "independent_acceptance_verifier",
+      "producer_phase": "rt_independent_acceptance",
+      "owned_sg_ids": [
+        "SG-03"
+      ],
+      "claims": [
+        {
+          "claim_id": "SGC-020-01",
+          "sg_id": "SG-03",
+          "requirement": "Route decision logs and replay history are appended per tenant safely under the six filesystem attack classes, so an audit trail cannot be redirected or forged."
+        }
+      ],
+      "na_permitted_claim_ids": [],
+      "permitted_reason_codes": [],
+      "path_attack_applicability": "applicable",
+      "filesystem_policy": {
+        "mode": "applicable",
+        "required_classes": [
+          "path_traversal",
+          "symlink_component",
+          "symlink_leaf",
+          "hardlink",
+          "toctou",
+          "special_file"
+        ],
+        "permitted_reason_codes": []
+      },
+      "path_attack_note": "Route decision logs and replay history are append-only per-tenant files; a symlinked or raced decision log would forge an audit trail.",
+      "consumers": [
+        {
+          "consumer_id": "RT-026",
+          "consumer_phase": "go_no_go_evaluation"
+        },
+        {
+          "consumer_id": "G6",
+          "consumer_phase": "final_acceptance"
+        }
+      ],
+      "static_note": "RT-020 owns no other SG; it must still produce its own receipt so SG-03 coverage is provable package by package."
+    },
+    {
+      "producer_rt": "RT-021",
+      "title": "多知识空间 Projector 与索引",
+      "receipt_path": "PR/PR-001-multitenant-knowledge-spaces/security-receipts/RT-021/receipt.json",
+      "owner_evidence_path_prefixes": [
+        "PR/PR-001-multitenant-knowledge-spaces/security-receipts/RT-021/",
+        "RT/RT-021/reports/",
+        "RT/RT-021/receipts/"
+      ],
+      "owner_code_path_prefixes": [
+        "scripts/cwk_space_registry.py",
+        "scripts/cwk_space_projector.py",
+        "scripts/cwk_projector_job_provider.py",
+        "scripts/cwk_space_snapshot_adapter.py",
+        "scripts/cwk_entity_catalog.py",
+        "scripts/cwk_wiki_search_index.py",
+        "PR/PR-001-multitenant-knowledge-spaces/contracts/rt021/schemas/",
+        "RT/RT-021/specs/需求契约.md",
+        "RT/RT-021/specs/技术方案.md",
+        "RT/RT-021/tasks/开发任务.md"
+      ],
+      "owner_test_file_prefixes": ["tests/test_rt021_"],
+      "required_security_test_files": [
+        "tests/test_rt021_paths.py",
+        "tests/test_rt021_security.py"
+      ],
+      "owner_evolution_stage_indices": [4, 5],
+      "required_shared_abi_ids": ["pilot-admission-v1"],
+      "unresolved_owner_surface_requirements": [],
+      "receipt_kind": "rt-security",
+      "producer_task_id": "D-06",
+      "producer_task_ref": "RT/RT-021/tasks/开发任务.md",
+      "producer_role": "independent_acceptance_verifier",
+      "producer_phase": "rt_independent_acceptance",
+      "owned_sg_ids": [
+        "SG-03",
+        "SG-06"
+      ],
+      "claims": [
+        {
+          "claim_id": "SGC-021-01",
+          "sg_id": "SG-03",
+          "requirement": "knowledge-spaces/<space_id>/ creation, rebuild and cleanup stay inside the space root under all six filesystem attack classes."
+        },
+        {
+          "claim_id": "SGC-021-02",
+          "sg_id": "SG-06",
+          "requirement": "Derived index cleanup after revocation removes every readable residue within the declared bound and is verified by re-reading, not by assuming deletion succeeded."
+        }
+      ],
+      "na_permitted_claim_ids": [],
+      "permitted_reason_codes": [],
+      "path_attack_applicability": "applicable",
+      "filesystem_policy": {
+        "mode": "applicable",
+        "required_classes": [
+          "path_traversal",
+          "symlink_component",
+          "symlink_leaf",
+          "hardlink",
+          "toctou",
+          "special_file"
+        ],
+        "permitted_reason_codes": []
+      },
+      "path_attack_note": "knowledge-spaces/<space_id>/ derived directories are created, rebuilt and cleaned; escape via a symlinked component or a TOCTOU race during cleanup is the primary risk.",
+      "consumers": [
+        {
+          "consumer_id": "RT-026",
+          "consumer_phase": "go_no_go_evaluation"
+        },
+        {
+          "consumer_id": "G6",
+          "consumer_phase": "final_acceptance"
+        }
+      ],
+      "static_note": "Derived-index cleanup evidence here is a sibling input to VG-C, not a substitute for it."
+    },
+    {
+      "producer_rt": "RT-022",
+      "title": "Query Broker 授权核心",
+      "receipt_path": "PR/PR-001-multitenant-knowledge-spaces/security-receipts/RT-022/receipt.json",
+      "owner_evidence_path_prefixes": [
+        "PR/PR-001-multitenant-knowledge-spaces/security-receipts/RT-022/",
+        "RT/RT-022/reports/",
+        "RT/RT-022/receipts/"
+      ],
+      "owner_code_path_prefixes": [
+        "scripts/cwk_query_contracts.py",
+        "scripts/cwk_query_broker.py",
+        "scripts/cwk_wiki_query.py",
+        "PR/PR-001-multitenant-knowledge-spaces/contracts/rt022/schemas/",
+        "RT/RT-022/specs/需求契约.md",
+        "RT/RT-022/specs/技术方案.md",
+        "RT/RT-022/tasks/开发任务.md"
+      ],
+      "owner_test_file_prefixes": ["tests/test_rt022_"],
+      "required_security_test_files": [
+        "tests/test_rt022_no_fs_surface.py",
+        "tests/test_rt022_paths.py",
+        "tests/test_rt022_security.py"
+      ],
+      "owner_evolution_stage_indices": [6],
+      "required_shared_abi_ids": ["pilot-admission-v1"],
+      "unresolved_owner_surface_requirements": [],
+      "receipt_kind": "rt-security",
+      "producer_task_id": "T022-14",
+      "producer_task_ref": "RT/RT-022/tasks/开发任务.md",
+      "producer_role": "independent_acceptance_verifier",
+      "producer_phase": "rt_independent_acceptance",
+      "owned_sg_ids": [
+        "SG-02",
+        "SG-03",
+        "SG-04",
+        "SG-06"
+      ],
+      "claims": [
+        {
+          "claim_id": "SGC-022-01",
+          "sg_id": "SG-02",
+          "requirement": "Every query is authorised against the caller's own grant set; a cross-space or cross-tenant query is denied by default rather than filtered after retrieval."
+        },
+        {
+          "claim_id": "SGC-022-02",
+          "sg_id": "SG-03",
+          "requirement": "The Broker core performs no filesystem open, create or rename of its own, so the six filesystem attack classes have no surface to attack here."
+        },
+        {
+          "claim_id": "SGC-022-03",
+          "sg_id": "SG-04",
+          "requirement": "The authorisation cache is keyed so that a revoked grant cannot be served from cache; every hit rechecks revocation within the declared bound."
+        },
+        {
+          "claim_id": "SGC-022-04",
+          "sg_id": "SG-06",
+          "requirement": "After revocation the Broker returns no content and no metadata leakage for the revoked space, including through error shapes and result counts."
+        }
+      ],
+      "na_permitted_claim_ids": [
+        "SGC-022-02"
+      ],
+      "permitted_reason_codes": [
+        "no_filesystem_write_surface",
+        "read_only_injected_provider",
+        "in_memory_only",
+        "owned_by_other_rt_by_design"
+      ],
+      "path_attack_applicability": "not_applicable",
+      "filesystem_policy": {
+        "mode": "not_applicable_permitted",
+        "required_classes": [
+          "path_traversal",
+          "symlink_component",
+          "symlink_leaf",
+          "hardlink",
+          "toctou",
+          "special_file"
+        ],
+        "permitted_reason_codes": [
+          "no_filesystem_write_surface",
+          "read_only_injected_provider",
+          "in_memory_only",
+          "owned_by_other_rt_by_design"
+        ]
+      },
+      "path_attack_note": "N/A with reason: the Broker core creates no filesystem path. It reads an already-resolved read-only index through an injected provider and caches in memory only, so there is no open/create/rename it could be tricked into. Any path handling in this area belongs to RT-021 (projection) and RT-023 (transport), which both declare the family applicable. This N/A must be restated with the same reason_code and reason inside RT-022's receipt, backed by static evidence refs proving the surface does not exist — an unsupported N/A is rejected.",
+      "consumers": [
+        {
+          "consumer_id": "RT-026",
+          "consumer_phase": "go_no_go_evaluation"
+        },
+        {
+          "consumer_id": "G6",
+          "consumer_phase": "final_acceptance"
+        }
+      ],
+      "static_note": "SG-04 here is the secure cache and revocation recheck; the on-disk audit half of SG-04 belongs to RT-024. RT-022 is the only entry permitted to answer the SG-03 family not_applicable, and only for claim SGC-022-02."
+    },
+    {
+      "producer_rt": "RT-023",
+      "title": "可信沙箱传输、客户端与真实空间集成",
+      "receipt_path": "PR/PR-001-multitenant-knowledge-spaces/security-receipts/RT-023/receipt.json",
+      "owner_evidence_path_prefixes": [
+        "PR/PR-001-multitenant-knowledge-spaces/security-receipts/RT-023/",
+        "PR/PR-001-multitenant-knowledge-spaces/capability-receipts/gateway-identity-transport/",
+        "RT/RT-023/reports/",
+        "RT/RT-023/receipts/"
+      ],
+      "owner_code_path_prefixes": [
+        "scripts/cwk_gateway_tool_adapter.py",
+        "scripts/cwk_query_uds.py",
+        "scripts/cwk_capability_trust.py",
+        "scripts/cwk_space_index_provider.py",
+        "scripts/cwk_sandbox_query_client.py",
+        "PR/PR-001-multitenant-knowledge-spaces/contracts/rt023/schemas/",
+        "RT/RT-023/specs/需求契约.md",
+        "RT/RT-023/specs/技术方案.md",
+        "RT/RT-023/tasks/开发任务.md"
+      ],
+      "owner_test_file_prefixes": ["tests/test_rt023_"],
+      "required_security_test_files": [
+        "tests/test_rt023_paths.py",
+        "tests/test_rt023_security.py"
+      ],
+      "owner_evolution_stage_indices": [],
+      "required_shared_abi_ids": ["pilot-admission-v1"],
+      "unresolved_owner_surface_requirements": [],
+      "receipt_kind": "rt-security",
+      "producer_task_id": "T023-14",
+      "producer_task_ref": "RT/RT-023/tasks/开发任务.md",
+      "producer_role": "independent_acceptance_verifier",
+      "producer_phase": "rt_independent_acceptance",
+      "owned_sg_ids": [
+        "SG-00",
+        "SG-02",
+        "SG-03",
+        "SG-07"
+      ],
+      "claims": [
+        {
+          "claim_id": "SGC-023-01",
+          "sg_id": "SG-00",
+          "requirement": "Gateway identity and transport probing is real and fail-closed: an unverifiable identity or an untrusted transport is refused, never downgraded."
+        },
+        {
+          "claim_id": "SGC-023-02",
+          "sg_id": "SG-02",
+          "requirement": "A sandbox Agent cannot obtain a knowledge space it was not granted, including by forging or replaying an identity assertion."
+        },
+        {
+          "claim_id": "SGC-023-03",
+          "sg_id": "SG-03",
+          "requirement": "The UDS socket and the trust-store load path resist all six filesystem attack classes and the socket is created 0600 through a safe dirfd."
+        },
+        {
+          "claim_id": "SGC-023-04",
+          "sg_id": "SG-07",
+          "requirement": "Sandbox isolation holds against a hostile pilot Agent: no escape to the host filesystem, no unmediated outbound network and no access to another sandbox's transport endpoint."
+        }
+      ],
+      "na_permitted_claim_ids": [],
+      "permitted_reason_codes": [],
+      "path_attack_applicability": "applicable",
+      "filesystem_policy": {
+        "mode": "applicable",
+        "required_classes": [
+          "path_traversal",
+          "symlink_component",
+          "symlink_leaf",
+          "hardlink",
+          "toctou",
+          "special_file"
+        ],
+        "permitted_reason_codes": []
+      },
+      "path_attack_note": "The UDS socket is created inside the instance runtime subtree at mode 0600 via a safe dirfd, and the trust store is loaded from a fixed root-owned path; both are classic symlink/hardlink/TOCTOU targets, and a FIFO planted at the socket path is exactly the special_file case.",
+      "consumers": [
+        {
+          "consumer_id": "RT-026",
+          "consumer_phase": "go_no_go_evaluation"
+        },
+        {
+          "consumer_id": "G6",
+          "consumer_phase": "final_acceptance"
+        }
+      ],
+      "static_note": "SG-00 here is the Gateway identity/transport probe and fail-closed behaviour. It is distinct from the gateway-identity-transport capability activation receipt under capability-receipts/, and distinct again from cwk.rt023.capability_receipt.v1, which is a per-call runtime credential and never a repository file."
+    },
+    {
+      "producer_rt": "RT-024",
+      "title": "安全审计、可观测性与容量基准",
+      "receipt_path": "PR/PR-001-multitenant-knowledge-spaces/security-receipts/RT-024/receipt.json",
+      "owner_evidence_path_prefixes": [
+        "PR/PR-001-multitenant-knowledge-spaces/security-receipts/RT-024/",
+        "RT/RT-024/reports/",
+        "RT/RT-024/receipts/"
+      ],
+      "owner_code_path_prefixes": [
+        "scripts/cwk_audit.py",
+        "scripts/cwk_metrics.py",
+        "scripts/cwk_pr001_benchmark.py",
+        "PR/PR-001-multitenant-knowledge-spaces/contracts/rt024/schemas/",
+        "RT/RT-024/specs/需求契约.md",
+        "RT/RT-024/specs/技术方案.md",
+        "RT/RT-024/tasks/开发任务.md"
+      ],
+      "owner_test_file_prefixes": ["tests/test_rt024_"],
+      "required_security_test_files": [
+        "tests/test_rt024_paths.py",
+        "tests/test_rt024_security.py"
+      ],
+      "owner_evolution_stage_indices": [],
+      "required_shared_abi_ids": [],
+      "unresolved_owner_surface_requirements": [],
+      "receipt_kind": "rt-security",
+      "producer_task_id": "T024-13",
+      "producer_task_ref": "RT/RT-024/tasks/开发任务.md",
+      "producer_role": "independent_acceptance_verifier",
+      "producer_phase": "rt_independent_acceptance",
+      "owned_sg_ids": [
+        "SG-03",
+        "SG-04",
+        "SG-06",
+        "SG-08"
+      ],
+      "claims": [
+        {
+          "claim_id": "SGC-024-01",
+          "sg_id": "SG-03",
+          "requirement": "Audit segments, integrity checkpoints and metrics spool files are written 0600 with dirfd + O_NOFOLLOW + fsync and resist all six filesystem attack classes."
+        },
+        {
+          "claim_id": "SGC-024-02",
+          "sg_id": "SG-04",
+          "requirement": "The audit chain is tamper-evident on disk: truncation, reordering or in-place edit of any segment is detected by checkpoint verification."
+        },
+        {
+          "claim_id": "SGC-024-03",
+          "sg_id": "SG-06",
+          "requirement": "Revocation latency and cleanup latency are measured and reported as two separate figures and never merged into a single number."
+        },
+        {
+          "claim_id": "SGC-024-04",
+          "sg_id": "SG-08",
+          "requirement": "Audit and metrics writers degrade safely: a full disk or an unwritable spool never silently drops audit records without a recorded, detectable gap."
+        }
+      ],
+      "na_permitted_claim_ids": [],
+      "permitted_reason_codes": [],
+      "path_attack_applicability": "applicable",
+      "filesystem_policy": {
+        "mode": "applicable",
+        "required_classes": [
+          "path_traversal",
+          "symlink_component",
+          "symlink_leaf",
+          "hardlink",
+          "toctou",
+          "special_file"
+        ],
+        "permitted_reason_codes": []
+      },
+      "path_attack_note": "Audit segments, integrity checkpoints and metrics spool files are written continuously and must be 0600 with dirfd + O_NOFOLLOW + fsync; a redirected audit segment would silently destroy tamper evidence.",
+      "consumers": [
+        {
+          "consumer_id": "RT-026",
+          "consumer_phase": "go_no_go_evaluation"
+        },
+        {
+          "consumer_id": "G6",
+          "consumer_phase": "final_acceptance"
+        }
+      ],
+      "static_note": "RT-024 measures revocation and cleanup times separately and never merges them into one figure."
+    },
+    {
+      "producer_rt": "RT-025",
+      "title": "加密备份与 Clean-room 恢复",
+      "receipt_path": "PR/PR-001-multitenant-knowledge-spaces/security-receipts/RT-025/receipt.json",
+      "owner_evidence_path_prefixes": [
+        "PR/PR-001-multitenant-knowledge-spaces/security-receipts/RT-025/",
+        "RT/RT-025/reports/",
+        "RT/RT-025/receipts/"
+      ],
+      "owner_code_path_prefixes": [
+        "scripts/cwk_backup_crypto.py",
+        "scripts/cwk_backup.py",
+        "scripts/cwk_restore.py",
+        "PR/PR-001-multitenant-knowledge-spaces/contracts/rt025/schemas/",
+        "tests/fixtures/rt025/",
+        "RT/RT-025/specs/需求契约.md",
+        "RT/RT-025/specs/技术方案.md",
+        "RT/RT-025/tasks/开发任务.md"
+      ],
+      "owner_test_file_prefixes": ["tests/test_rt025_"],
+      "required_security_test_files": [
+        "tests/test_rt025_paths.py",
+        "tests/test_rt025_security.py"
+      ],
+      "owner_evolution_stage_indices": [],
+      "required_shared_abi_ids": [],
+      "unresolved_owner_surface_requirements": [],
+      "receipt_kind": "rt-security",
+      "producer_task_id": "T025-14",
+      "producer_task_ref": "RT/RT-025/tasks/开发任务.md",
+      "producer_role": "independent_acceptance_verifier",
+      "producer_phase": "rt_independent_acceptance",
+      "owned_sg_ids": [
+        "SG-03",
+        "SG-05",
+        "SG-09"
+      ],
+      "claims": [
+        {
+          "claim_id": "SGC-025-01",
+          "sg_id": "SG-03",
+          "requirement": "Restore unpacking confines every entry to the restore root under all six filesystem attack classes, including archive entries that are themselves symlinks, hardlinks or device nodes."
+        },
+        {
+          "claim_id": "SGC-025-02",
+          "sg_id": "SG-05",
+          "requirement": "Backups are encrypted at rest and neither the archive nor the restore log ever contains a plaintext credential or key material."
+        },
+        {
+          "claim_id": "SGC-025-03",
+          "sg_id": "SG-09",
+          "requirement": "Clean-room restore succeeds on a machine that never held the original data and depends on no absolute path from the source host."
+        }
+      ],
+      "na_permitted_claim_ids": [],
+      "permitted_reason_codes": [],
+      "path_attack_applicability": "applicable",
+      "filesystem_policy": {
+        "mode": "applicable",
+        "required_classes": [
+          "path_traversal",
+          "symlink_component",
+          "symlink_leaf",
+          "hardlink",
+          "toctou",
+          "special_file"
+        ],
+        "permitted_reason_codes": []
+      },
+      "path_attack_note": "Highest intensity: restore unpacking is the principal path-traversal, symlink, hardlink and special-file attack surface, and the restore must be proven not to depend on the original machine's absolute paths.",
+      "consumers": [
+        {
+          "consumer_id": "RT-026",
+          "consumer_phase": "go_no_go_evaluation"
+        },
+        {
+          "consumer_id": "G6",
+          "consumer_phase": "final_acceptance"
+        }
+      ],
+      "static_note": "Clean-room restore evidence here is a sibling input to VG-E, not a substitute for it."
+    },
+    {
+      "producer_rt": "RT-026",
+      "title": "试点准备、影子切换与回滚工具",
+      "receipt_path": "PR/PR-001-multitenant-knowledge-spaces/security-receipts/RT-026/receipt.json",
+      "owner_evidence_path_prefixes": [
+        "PR/PR-001-multitenant-knowledge-spaces/security-receipts/RT-026/",
+        "RT/RT-026/reports/",
+        "RT/RT-026/receipts/"
+      ],
+      "owner_code_path_prefixes": [
+        "scripts/cwk_release_switch.py",
+        "scripts/cwk_shadow_query_diff.py",
+        "scripts/cwk_go_no_go.py",
+        "scripts/cwk_tenant_cmd_release.py",
+        "scripts/cwk_tenant_cli.py",
+        "scripts/cwk_nightly_pipeline.py",
+        "install.sh",
+        "scripts/cwk_doctor.py",
+        "scripts/cwk_go_no_go_launcher.py",
+        "PR/PR-001-multitenant-knowledge-spaces/contracts/rt026/schemas/",
+        "RT/RT-026/specs/需求契约.md",
+        "RT/RT-026/specs/技术方案.md",
+        "RT/RT-026/tasks/开发任务.md"
+      ],
+      "owner_test_file_prefixes": ["tests/test_rt026_"],
+      "required_security_test_files": [
+        "tests/test_rt026_paths.py",
+        "tests/test_rt026_security.py"
+      ],
+      "owner_evolution_stage_indices": [7, 8],
+      "required_shared_abi_ids": ["pilot-admission-v1"],
+      "unresolved_owner_surface_requirements": [],
+      "receipt_kind": "preflight-security",
+      "producer_task_id": "T026-14",
+      "producer_task_ref": "RT/RT-026/tasks/开发任务.md",
+      "producer_role": "independent_preflight_verifier",
+      "producer_phase": "preflight_after_candidate_freeze",
+      "owned_sg_ids": [
+        "SG-03",
+        "SG-10"
+      ],
+      "claims": [
+        {
+          "claim_id": "SGC-026-01",
+          "sg_id": "SG-03",
+          "requirement": "Switch state, shadow diff output and rollback snapshot files are crash-safe and resist all six filesystem attack classes, so the default-off guarantee cannot be defeated by replacing a state file."
+        },
+        {
+          "claim_id": "SGC-026-02",
+          "sg_id": "SG-10",
+          "requirement": "Pilot tooling is default-off and release-gated: no code path enables a real pilot without an explicit release decision, and rollback restores the pre-switch state exactly."
+        }
+      ],
+      "na_permitted_claim_ids": [],
+      "permitted_reason_codes": [],
+      "path_attack_applicability": "applicable",
+      "filesystem_policy": {
+        "mode": "applicable",
+        "required_classes": [
+          "path_traversal",
+          "symlink_component",
+          "symlink_leaf",
+          "hardlink",
+          "toctou",
+          "special_file"
+        ],
+        "permitted_reason_codes": []
+      },
+      "path_attack_note": "Switch state, shadow diff output and rollback snapshots land on disk and must be crash-safe with O_NOFOLLOW; a replaced switch-state file would defeat the default-off guarantee.",
+      "consumers": [
+        {
+          "consumer_id": "RT-026",
+          "consumer_phase": "go_no_go_evaluation"
+        },
+        {
+          "consumer_id": "G6",
+          "consumer_phase": "final_acceptance"
+        }
+      ],
+      "static_note": "The only preflight entry, and the reason there is no self-dependency. An INDEPENDENT PREFLIGHT VERIFIER writes this receipt after the RT-026 implementation candidate commit is frozen and before the read-only go/no-go evaluator runs; the evaluator then consumes it in the strictly later go_no_go_evaluation phase and is not its declared author, so it may not write, backfill or amend it. Per the SCOPE HONESTY clause in evaluator_identity_rule, that is INTERFACE-LEVEL authorship exclusion only, not OS-level write denial. Its independent_security_verification_pass field asserts only that the frozen candidate commit passed independent security preflight — never that RT-026 final acceptance, G6 or G7 has occurred, all of which are strictly later phases. Final RT-026 independent acceptance (T026-12) and G6 (T026-13) follow. SG-10 stays release-only: this receipt covers the default-off pilot tooling, never a real pilot."
+    }
+  ]
+}

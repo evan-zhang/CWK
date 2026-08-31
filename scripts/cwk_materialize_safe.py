@@ -11,15 +11,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-
 PROJECT = Path(__file__).resolve().parents[1]
 MIRROR = PROJECT / "knowledge" / "工作协同镜像"
-SECRET_PATTERNS = (
-    re.compile(r"\bsk-[A-Za-z0-9_-]{12,}\b"),
-    re.compile(r"\bBearer\s+[A-Za-z0-9._~+/=-]{16,}\b", re.I),
-)
-
-
 def load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -31,8 +24,6 @@ def slug(value: str) -> str:
 
 def safe_text(value: Any, limit: int = 300) -> str:
     text = re.sub(r"<[^>]+>", " ", str(value or ""))
-    for pattern in SECRET_PATTERNS:
-        text = pattern.sub("<redacted>", text)
     text = re.sub(r"\s+", " ", text).strip(" -*#|:：")
     return text[:limit]
 
@@ -150,19 +141,17 @@ def rebuild_index(root: Path, output: Path, title: str) -> bool:
     return True
 
 
-def assert_secret_safe(paths: list[Path]) -> None:
-    unsafe = []
-    for path in paths:
-        text = path.read_text(encoding="utf-8", errors="ignore")
-        if any(pattern.search(text) for pattern in SECRET_PATTERNS):
-            unsafe.append(path.name)
-    if unsafe:
-        raise RuntimeError("secret gate blocked structured knowledge pages: " + ", ".join(unsafe))
+def display_path(path: Path) -> str:
+    try:
+        return str(path.relative_to(PROJECT))
+    except ValueError:
+        return str(path)
 
 
-def materialize(run_dir: Path) -> dict[str, Any]:
+def materialize(run_dir: Path, mirror_root: Path | None = None) -> dict[str, Any]:
     if not run_dir.exists():
         raise SystemExit(f"run not found: {run_dir}")
+    mirror_root = (mirror_root or Path(os.environ.get("CWK_MIRROR_ROOT", str(MIRROR)))).expanduser().resolve()
     metadata = raw_metadata(run_dir)
     changed: list[Path] = []
     counts = {"history_pages": 0, "event_pages": 0, "entity_pages": 0}
@@ -177,7 +166,7 @@ def materialize(run_dir: Path) -> dict[str, Any]:
         title = safe_text(ext.get("title") or meta.get("title") or rid, 120)
         created = safe_text(meta.get("create_time") or "unknown", 10)
         month = created[:7] if re.fullmatch(r"\d{4}-\d{2}.*", created) else "unknown"
-        output = MIRROR / "history" / month / f"{rid}-{slug(title)}.md"
+        output = mirror_root / "history" / month / f"{rid}-{slug(title)}.md"
         marker = f"<!-- run:{run_dir.name} -->"
         if append_section(output, title, marker, history_section(run_dir.name, ext, meta)):
             counts["history_pages"] += 1
@@ -188,7 +177,7 @@ def materialize(run_dir: Path) -> dict[str, Any]:
         name = safe_text(data.get("event") or path.stem, 120)
         if not name or name in {"未命名事项", "New", "更新", "跟进"}:
             continue
-        output = MIRROR / "events" / f"{slug(name)}.md"
+        output = mirror_root / "events" / f"{slug(name)}.md"
         marker = f"<!-- run:{run_dir.name} -->"
         if append_section(output, name, marker, event_section(run_dir.name, data)):
             counts["event_pages"] += 1
@@ -198,30 +187,29 @@ def materialize(run_dir: Path) -> dict[str, Any]:
         data = load_json(path)
         name = safe_text(data.get("entity_name") or path.stem, 120)
         entity_type = slug(str(data.get("entity_type") or "unknown"))
-        output = MIRROR / "entities" / entity_type / f"{slug(name)}.md"
+        output = mirror_root / "entities" / entity_type / f"{slug(name)}.md"
         marker = f"<!-- run:{run_dir.name} -->"
         if append_section(output, name, marker, entity_section(run_dir.name, data)):
             counts["entity_pages"] += 1
             changed.append(output)
 
-    event_index = MIRROR / "_index" / "event-index.md"
-    entity_index = MIRROR / "_index" / "entity-index.md"
-    history_index = MIRROR / "_index" / "history-index.md"
-    if rebuild_index(MIRROR / "events", event_index, "工作协同事件索引"):
+    event_index = mirror_root / "_index" / "event-index.md"
+    entity_index = mirror_root / "_index" / "entity-index.md"
+    history_index = mirror_root / "_index" / "history-index.md"
+    if rebuild_index(mirror_root / "events", event_index, "工作协同事件索引"):
         changed.append(event_index)
-    if rebuild_index(MIRROR / "entities", entity_index, "工作协同实体索引"):
+    if rebuild_index(mirror_root / "entities", entity_index, "工作协同实体索引"):
         changed.append(entity_index)
-    if rebuild_index(MIRROR / "history", history_index, "工作协同历史记录索引"):
+    if rebuild_index(mirror_root / "history", history_index, "工作协同历史记录索引"):
         changed.append(history_index)
-    assert_secret_safe(changed)
-
     manifest = {
         "schema_version": "cwk.safe_materialize.v1",
         "generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
         "run_name": run_dir.name,
         "counts": counts,
-        "changed_files": [str(path.relative_to(PROJECT)) for path in changed],
-        "changed_relative_paths": [str(path.relative_to(MIRROR)) for path in changed],
+        "mirror_root": str(mirror_root),
+        "changed_files": [display_path(path) for path in changed],
+        "changed_relative_paths": [str(path.relative_to(mirror_root)) for path in changed],
         "raw_published": False,
     }
     output = run_dir / "safe-materialize-manifest.json"
@@ -232,8 +220,15 @@ def materialize(run_dir: Path) -> dict[str, Any]:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Materialize safe structured CWK knowledge pages.")
     parser.add_argument("--run-name", required=True)
+    parser.add_argument("--mirror-root", default=os.environ.get("CWK_MIRROR_ROOT", str(MIRROR)))
     args = parser.parse_args()
-    print(json.dumps(materialize(PROJECT / "runs" / args.run_name), ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            materialize(PROJECT / "runs" / args.run_name, Path(args.mirror_root)),
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":

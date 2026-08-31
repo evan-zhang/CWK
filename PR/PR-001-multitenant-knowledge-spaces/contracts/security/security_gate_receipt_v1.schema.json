@@ -1,0 +1,493 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.security_gate_receipt.v1",
+  "title": "PR-001 per-RT security gate receipt v1 (SG-00~SG-10)",
+  "description": "The single machine-readable format in which one RT package evidences the Security Gate claims it owns. This schema plus security_gate_registry_v1.json and security_gate_registry_v1.schema.json are the MACHINE AUTHORITY for SG-00..SG-10; the §5.1 Markdown matrix in the central plan is derived documentation only and never a source of truth. Exactly one receipt per producing RT, at the exact receipt_path declared in the registry. Produced by an independent verifier in the producing phase declared by that registry entry; never by a downstream consumer and never by the RT's implementer alone. A receipt's claims must equal its registry entry's claim_id set exactly. Absence of the file is NOT_RUN and fails closed; a receipt at an undeclared path, or an extra receipt, is a hard failure rather than a bonus. Every receipt binds the exact candidate commit it was tested against, so evidence can never silently go stale: the receipt file is written in a later evidence-only commit that binds the earlier frozen candidate commit, and reports reference the receipt later still — no two artifacts ever hash each other. Deep-forbidden fields reject tenant bodies, credentials, absolute host paths and raw model output.",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": [
+    "schema",
+    "receipt_kind",
+    "producer_rt",
+    "independent_security_verification_pass",
+    "producer_phase",
+    "status",
+    "conclusion",
+    "synthetic",
+    "producer",
+    "consumers",
+    "claims",
+    "filesystem_coverage",
+    "tested_subject_commit",
+    "owner_scope_tree_sha256",
+    "environment_fingerprint",
+    "evidence",
+    "artifacts",
+    "created_at",
+    "receipt_sha256"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.pr001.security_gate_receipt.v1"
+    },
+    "receipt_kind": {
+      "description": "rt-security = produced after the owning RT's own independent acceptance PASS (RT-017..RT-025). preflight-security = RT-026 only: produced by an independent preflight verifier after the implementation candidate commit is frozen and BEFORE the read-only go/no-go evaluator runs. A preflight-security receipt must never depend on RT-026's final PASS, on G6 or on G7, all of which are strictly later.",
+      "enum": [
+        "rt-security",
+        "preflight-security"
+      ]
+    },
+    "producer_rt": {
+      "description": "The RT package that owns this receipt. Frozen to the ten PR-001 delivery RTs; must equal the producer_rt of the registry entry whose receipt_path this file sits at.",
+      "enum": [
+        "RT-017",
+        "RT-018",
+        "RT-019",
+        "RT-020",
+        "RT-021",
+        "RT-022",
+        "RT-023",
+        "RT-024",
+        "RT-025",
+        "RT-026"
+      ]
+    },
+    "independent_security_verification_pass": {
+      "description": "For receipt_kind=rt-security: true only when the producing RT already has its own independent acceptance PASS. For receipt_kind=preflight-security: true only when the implementation candidate commit is frozen and independently reviewed — explicitly NOT a claim that RT-026's final acceptance, G6 or G7 has happened. status=pass requires this to be true.",
+      "type": "boolean"
+    },
+    "producer_phase": {
+      "description": "The lifecycle phase in which this receipt was written. Must equal the producer_phase of its registry entry. Phases are totally ordered in the registry and every consumer must sit in a strictly later phase, which is what makes the graph acyclic.",
+      "enum": [
+        "rt_implementation",
+        "rt_independent_acceptance",
+        "preflight_after_candidate_freeze",
+        "go_no_go_evaluation",
+        "rt026_independent_acceptance",
+        "final_acceptance"
+      ]
+    },
+    "status": {
+      "description": "not_run = planned placeholder; implementation_done = the RT self-recorded, NOT a PASS; pass/fail = signed by an independent verifier distinct from the producer.",
+      "enum": [
+        "not_run",
+        "implementation_done",
+        "pass",
+        "fail"
+      ]
+    },
+    "conclusion": {
+      "description": "security_verified is the only conclusion that counts as SG evidence. conservative_unknown / blocked record real but insufficient progress.",
+      "enum": [
+        "not_run",
+        "security_verified",
+        "conservative_unknown",
+        "blocked",
+        "failed"
+      ]
+    },
+    "synthetic": {
+      "description": "True when any fake authority, fake signer, fake identity, mock transport or test-only registration hook was used. A synthetic security receipt can never carry conclusion=security_verified.",
+      "type": "boolean"
+    },
+    "synthetic_reason": {
+      "description": "Required when synthetic=true. Stable opaque reason code, no host paths or credentials.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{2,63}$"
+    },
+    "producer": {
+      "description": "Opaque agent identifier of the implementer that generated the evidence.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,63}$"
+    },
+    "verifier": {
+      "description": "Opaque agent identifier of the independent verifier that signed this receipt. Required when status is pass or fail; must differ from producer. For a preflight-security receipt this is the independent preflight verifier, which must also differ from the go/no-go evaluator identity.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,63}$"
+    },
+    "evaluator_identity_excluded": {
+      "description": "Required true on a preflight-security receipt, forbidden on rt-security receipts. CONTRACT REVISION v1.1: this is now a DECLARATION that must agree with a recomputation, not the proof itself. A reviewer showed that producer='go-no-go-evaluator' with producer_phase='preflight_after_candidate_freeze' and this flag set to true was accepted, because exclusion was self-declared and only the phase was checked. The evaluator now INJECTS its own identity and the validator requires both producer and verifier to differ from go_no_go_evaluator_identity in security_gate_registry_v1.json. If the recomputed exclusion disagrees with this boolean, the receipt is invalid. SCOPE HONESTY: even so, this is INTERFACE-LEVEL read-only enforcement only. It proves the evaluator is not the declared author of the evidence it consumes; it does NOT prove at the OS level that the evaluation process cannot write to the repository. OS-level proof requires a trusted launcher, a run attestation and a pre/post filesystem snapshot with write-denial evidence, and is deferred to RT-026 implementation. No artifact may claim the stronger property.",
+      "type": "boolean"
+    },
+    "consumers": {
+      "description": "Frozen consumer allowlist, which must equal the registry entry's consumer_id list exactly. RT-026 appears here for receipts it aggregates — including its own preflight receipt, whose producing phase is strictly earlier than the go/no-go evaluation phase that reads it, so no self-dependency exists.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "RT-026",
+          "G6",
+          "G7"
+        ]
+      }
+    },
+    "claims": {
+      "description": "One entry per frozen claim this RT owns. The set of claim_id values must equal the registry entry's claim_id set EXACTLY: an extra claim is an unowned assertion, a missing claim is an omission, and both fail closed. Each claim_id also pins the sg_id it belongs to, which must match the registry.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "claim_id",
+          "sg_id",
+          "applicability",
+          "summary"
+        ],
+        "properties": {
+          "claim_id": {
+            "type": "string",
+            "pattern": "^SGC-0(1[7-9]|2[0-6])-[0-9]{2}$"
+          },
+          "sg_id": {
+            "enum": [
+              "SG-00",
+              "SG-01",
+              "SG-02",
+              "SG-03",
+              "SG-04",
+              "SG-05",
+              "SG-06",
+              "SG-07",
+              "SG-08",
+              "SG-09",
+              "SG-10"
+            ]
+          },
+          "applicability": {
+            "description": "applicable = this RT produced positive evidence for the claim. not_applicable = out of this RT's scope, permitted only when the registry entry lists this claim_id in na_permitted_claim_ids, and then it requires reason_code + reason.",
+            "enum": [
+              "applicable",
+              "not_applicable"
+            ]
+          },
+          "reason_code": {
+            "description": "Required when applicability=not_applicable, forbidden otherwise. Must be a member of the registry entry's permitted_reason_codes.",
+            "enum": [
+              "no_filesystem_write_surface",
+              "read_only_injected_provider",
+              "in_memory_only",
+              "external_api_semantics_only",
+              "owned_by_other_rt_by_design"
+            ]
+          },
+          "reason": {
+            "description": "Required when applicability=not_applicable, forbidden otherwise. Must state WHY the claim cannot apply to this RT, not merely that it was not done.",
+            "type": "string",
+            "minLength": 16,
+            "maxLength": 1024
+          },
+          "static_evidence_refs": {
+            "description": "Required and non-empty when applicability=not_applicable: the static proof (source or test refs) that the surface genuinely does not exist. An N/A backed by nothing is rejected.",
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 16,
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/$defs/evidenceRef"
+            }
+          },
+          "executable_refs": {
+            "description": "Required and non-empty when applicability=applicable: executable test node identifiers that actually assert this claim.",
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 32,
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/$defs/evidenceRef"
+            }
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          }
+        }
+      }
+    },
+    "filesystem_coverage": {
+      "description": "The SG-03 filesystem attack family, evidenced separately for each of six distinct classes rather than as one generic 'path attacks covered' sentence. symlink is deliberately split into component (an intermediate directory in the path is a symlink) and leaf (the final path element is a symlink), because O_NOFOLLOW alone only defends the leaf. The registry's filesystem_policy decides whether each class must be applicable, and N/A is only ever available where the registry explicitly permits it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path_traversal",
+        "symlink_component",
+        "symlink_leaf",
+        "hardlink",
+        "toctou",
+        "special_file"
+      ],
+      "properties": {
+        "path_traversal": {
+          "$ref": "#/$defs/attackClass"
+        },
+        "symlink_component": {
+          "$ref": "#/$defs/attackClass"
+        },
+        "symlink_leaf": {
+          "$ref": "#/$defs/attackClass"
+        },
+        "hardlink": {
+          "$ref": "#/$defs/attackClass"
+        },
+        "toctou": {
+          "$ref": "#/$defs/attackClass"
+        },
+        "special_file": {
+          "$ref": "#/$defs/attackClass"
+        }
+      }
+    },
+    "tested_subject_commit": {
+      "description": "The exact 40-hex git commit of the implementation candidate this evidence was produced against. Frozen BEFORE this receipt is written; the receipt file itself lands in a later evidence-only commit. This is what makes staleness machine-detectable: an evaluator recomputes this value against the candidate commit under review and rejects a mismatch instead of trusting prose.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "owner_scope_tree_sha256": {
+      "description": "CONTRACT ADDITION v1.3. sha256(b\"cwk-owner-scope-tree-v2\\0\" + JCS(selector manifest) + NUL + sorted NUL-terminated Git records selected at tested_subject_commit). The manifest binds the managed-script inventory, exact owner/file/directory/test selectors, pinned evolution policy path+SHA and each owner stage's stage_index/owner_rt/target_path/receipt_path/ordinal. Full Git mode/kind is retained so selected symlinks and gitlinks fail rather than disappear. The evaluator compares every immutable selected record with the explicit evaluation candidate, requires clean index/worktree and exact disk closure, and permits only the registry-declared tenant_cli stages after full companion/slot/AST/comment replay.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "environment_fingerprint": {
+      "description": "Exact environment/build identity the evidence was produced in, so 'it passed somewhere' can never stand in for 'it passed here'.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "python_version",
+        "platform",
+        "toolchain_build"
+      ],
+      "properties": {
+        "python_version": {
+          "type": "string",
+          "pattern": "^3\\.[0-9]{1,2}\\.[0-9]{1,2}$"
+        },
+        "platform": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "toolchain_build": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "sandbox_profile": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "test_command",
+        "tests_run",
+        "tests_failed",
+        "python_version"
+      ],
+      "properties": {
+        "test_command": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "tests_run": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tests_failed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tests_skipped": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "python_version": {
+          "type": "string",
+          "pattern": "^3\\.[0-9]{1,2}\\.[0-9]{1,2}$"
+        },
+        "narrative_ref": {
+          "description": "Optional repo-relative path to the human-readable narrative, which is never authoritative on its own.",
+          "type": "string",
+          "pattern": "^(PR/PR-001-multitenant-knowledge-spaces/security-receipts/[^/]+/[^/]+\\.md|RT/RT-0[0-9]{2}/reports/[^/]+\\.md)$"
+        }
+      }
+    },
+    "artifacts": {
+      "description": "Repo-relative artifact paths with content hashes. Must be non-empty. Absolute paths, '..' and '//' are rejected by pattern; symlinks, hardlinked files and non-regular files are rejected by the validator.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "sha256"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "pattern": "^(?!/)(?!.*\\.\\.)(?!.*//)[A-Za-z0-9_./\\-\\u4e00-\\u9fff]{1,255}$"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      }
+    },
+    "created_at": {
+      "description": "Strict RFC3339 UTC timestamp, second precision, trailing Z.",
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+    },
+    "receipt_sha256": {
+      "description": "sha256(b\"cwk-security-gate-receipt-v1\\0\" + JCS_UTF8(NFC(record_without_receipt_sha256))). A third, deliberately distinct domain separator, so a security receipt can never be swapped for a VG receipt or a capability activation receipt.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "$defs": {
+    "evidenceRef": {
+      "description": "An executable or static evidence reference: a repo-relative test/source path, optionally with a ::-qualified node id. Prose is not an evidence ref.",
+      "type": "string",
+      "pattern": "^(?!/)(?!.*\\.\\.)(?!.*//)[A-Za-z0-9_./\\-]{1,200}(::[A-Za-z0-9_.]{1,120})?$"
+    },
+    "attackClass": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "applicability"
+      ],
+      "properties": {
+        "applicability": {
+          "enum": [
+            "applicable",
+            "not_applicable"
+          ]
+        },
+        "reason_code": {
+          "description": "Required when applicability=not_applicable, forbidden otherwise. Must be permitted by the registry entry's filesystem_policy.",
+          "enum": [
+            "no_filesystem_write_surface",
+            "read_only_injected_provider",
+            "in_memory_only",
+            "external_api_semantics_only",
+            "owned_by_other_rt_by_design"
+          ]
+        },
+        "reason": {
+          "description": "Required when applicability=not_applicable, forbidden otherwise.",
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 1024
+        },
+        "static_evidence_refs": {
+          "description": "Required and non-empty when applicability=not_applicable: static proof that the surface does not exist.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/evidenceRef"
+          }
+        },
+        "runtime_surfaces": {
+          "description": "Required and non-empty when applicability=applicable: the ACTUAL runtime surfaces attacked, as stable opaque surface identifiers (for example tenant_staging_dir, scheduler_lock_file, restore_unpack_root). Generic prose is not a surface.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{2,63}$"
+          }
+        },
+        "executable_refs": {
+          "description": "Required and non-empty when applicability=applicable: executable test node identifiers that actually perform the attack.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/evidenceRef"
+          }
+        },
+        "tests_run": {
+          "description": "Required and > 0 when applicability=applicable, forbidden otherwise.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        }
+      }
+    }
+  },
+  "deepForbiddenKeys": [
+    "tenant_id",
+    "agent_id",
+    "app_key",
+    "appkey",
+    "credential",
+    "credential_ref",
+    "token",
+    "authorization",
+    "cookie",
+    "secret",
+    "body",
+    "raw",
+    "raw_body",
+    "instance_root",
+    "mirror_root",
+    "abs_path",
+    "absolute_path",
+    "prompt",
+    "model_output"
+  ],
+  "semanticRules": [
+    "this schema plus security_gate_registry_v1.json and its schema are the machine authority for SG-00..SG-10; the §5.1 Markdown matrix is derived documentation and is never consulted to decide status, ownership or coverage.",
+    "status=pass requires independent_security_verification_pass=true and a verifier distinct from producer.",
+    "status in {pass, fail} requires the verifier field to be present.",
+    "status=not_run requires conclusion=not_run and evidence.tests_run=0.",
+    "conclusion=security_verified requires synthetic=false and status=pass.",
+    "synthetic=true requires synthetic_reason and forbids conclusion=security_verified.",
+    "evidence.tests_failed>0 forbids status=pass.",
+    "a passing receipt requires evidence.tests_run>0 and 0<=evidence.tests_skipped<=evidence.tests_run.",
+    "producer_rt must equal the producer_rt of the registry entry whose receipt_path this file occupies; a receipt cannot claim an RT it does not sit under.",
+    "producer_phase and receipt_kind must equal the registry entry's producer_phase and receipt_kind, and every consumer's phase in the registry must be strictly later in the frozen phase order. This is the machine-checkable anti-cycle rule.",
+    "receipt_kind=preflight-security exists only for RT-026. It is written by an independent preflight verifier after the implementation candidate commit is frozen and before the read-only go/no-go evaluator runs. It must never assert, require or depend on RT-026's final independent PASS, on G6 or on G7. The evaluator in go_no_go_evaluation only CONSUMES it; go_no_go_evaluation is deliberately excluded from the registry write_phase_allowlist, so the evaluator is not an authorized declared writer of any security receipt and may not write, backfill or amend one. SCOPE HONESTY: this is INTERFACE-LEVEL authorship/phase exclusion enforced by this contract, NOT OS-level write denial. It shows the evaluator is not the authorized declared writer of what it consumes; it does NOT show the kernel refused the evaluation process write access. OS-level read-only execution requires RT-026 AC-026-11: a trusted launcher that imposes the write denial, a launcher-signed run attestation (never self-issued by the evaluator), pre/post exact manifests over the receipt trees that must be item-for-item equal, and real write-denial evidence in which create, rewrite, rename and delete are each actually attempted and rejected (EROFS/EPERM or equivalent) -- 'no write was observed' is not evidence. No Wave-0 artifact may claim OS-level read-only execution.",
+    "evaluator_identity_excluded=true is required on a preflight-security receipt and forbidden on an rt-security receipt, but it is never trusted on its own: the evaluator injects go_no_go_evaluator_identity from the registry and requires producer != that identity AND verifier != that identity. A receipt produced or verified by the evaluator is rejected however it labels itself.",
+    "claims[].applicability and filesystem_coverage[].applicability must be exactly 'applicable' or 'not_applicable'. Any other value — including a plausible-looking string — is rejected rather than falling through to the applicable branch, which a reviewer exploited with applicability='banana'.",
+    "an applicable claim's or attack class's executable_refs must resolve to test nodes that exist and assert. The .py file must be readable through the fail-closed openat chain; a ::-qualified class and test must be present in that file's AST; the test must not be skip-decorated or expectedFailure; and its body must contain at least one assertion call. A ref pointing at a nonexistent file, a missing test, a skipped test or an assertion-free body is not evidence.",
+    "the aggregate verdict is closed over receipt_root: every .json file under it must sit at a registry-declared receipt_path. An undeclared receipt such as security-receipts/RT-999/receipt.json forces NO_GO instead of being invisible to an entry-by-entry walk.",
+    "the receipt file, and every artifact and evidence ref it names, are read through a fail-closed openat/O_NOFOLLOW/dirfd chain with post-read identity re-verification. This covers the receipt ITSELF: a security receipt that is a symlink, is hardlinked, sits behind a swapped parent directory or is rewritten mid-read is INVALID, not merely unparsable.",
+    "the set of claims[].claim_id must equal the registry entry's claim_id set EXACTLY, and each claim's sg_id must equal the sg_id the registry froze for that claim_id.",
+    "a claim may only be not_applicable if its claim_id appears in the registry entry's na_permitted_claim_ids; then reason_code (from permitted_reason_codes), reason and non-empty static_evidence_refs are all required. An applicable claim requires non-empty executable_refs and forbids reason/reason_code/static_evidence_refs.",
+    "filesystem_coverage must carry all six classes: path_traversal, symlink_component, symlink_leaf, hardlink, toctou, special_file. symlink is split into component and leaf on purpose, because O_NOFOLLOW defends only the leaf.",
+    "when the registry entry's filesystem_policy.mode is 'applicable', every one of the six classes must be applicable with tests_run>0, non-empty runtime_surfaces bound to actual runtime surfaces, and non-empty executable_refs. Generic prose alone is not coverage.",
+    "when filesystem_policy.mode is 'not_applicable_permitted', every one of the six classes must be not_applicable with a reason_code drawn from that entry's permitted_reason_codes, a reason, and non-empty static_evidence_refs. Mixing applicable and not_applicable classes is rejected.",
+    "SG-03 is owned by exactly RT-017..RT-026, all ten packages, so filesystem coverage is provable package by package and no package can be silently skipped.",
+    "tested_subject_commit must be the exact 40-hex candidate commit the evidence was produced against, and it must be an ANCESTOR of the commit that introduces this receipt file: evidence binds a frozen earlier subject, the receipt lands later, and reports reference the receipt later still. Two artifacts must never hash each other.",
+    "a consumer must reject a receipt whose tested_subject_commit is not a strict ancestor of the evidence commit, is not an ancestor of the explicit evaluation candidate, or whose immutable owner scope differs at that evaluation candidate. The sole declared shared-evolution path may advance only through its pinned append-only stages. environment_fingerprint must match the environment being certified. None of these claims may be stated in prose unless it was actually recomputed.",
+    "every artifacts[].path must resolve inside the repository to an existing REGULAR file with matching sha256; symlinks, hardlinked files with link count > 1, directories and device nodes are rejected.",
+    "artifacts must not reference this receipt's own path or any other RT's security receipt, so a receipt's hash is never an input to itself.",
+    "absence of the file at receipt_path is NOT_RUN and fails closed, which forces NO_GO; it is never inferred from a Markdown narrative, from the registry, or from a sibling RT's receipt. Conversely any receipt file that IS present under security-receipts/ must sit at a registry-declared path and be fully valid: an undeclared or extra receipt is a hard failure, not a bonus.",
+    "owner_scope_tree_sha256 must recompute with the security-only cwk-owner-scope-tree-v2 selector-manifest algorithm at tested_subject_commit. Every exact file, non-empty directory, root-level test namespace and required test is Git-derived; reports/receipts are excluded. The ancestry check runs against a DERIVED evidence commit (unique latest blob-changing commit reachable from the injected evaluation_commit, exactly one parent, blob equal to both the blob at evaluation_commit and the bytes read from disk). Immutable subject records must equal the same records at the explicit evaluation candidate; the sole tenant_cli exception is proven through the pinned script-evolution chain. Every receipt also replays completed bootstrap stages 9 and 10 and requires scripts/cwk_instance.py plus scripts/cwk_agent_binding.py to equal their final managed-inventory tips, without treating RT-012 or RT-013 as a future SG owner.",
+    "read-only enforcement claimed anywhere in this contract is INTERFACE-LEVEL: identity separation plus refusal of evaluator-authored receipts. It is not an OS-level guarantee that the evaluation process cannot write, and no receipt, report or document may state that it is. OS-level proof is deferred to RT-026 implementation."
+  ]
+}

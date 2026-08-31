@@ -9,23 +9,29 @@ CWK real AI calls must target a dedicated OpenClaw Agent. The Agent policy must 
   "id": "cwk-ai-reviewer",
   "workspace": "/absolute/path/to/CWK/.cwk-ai-runtime",
   "sandbox": {
-    "mode": "all",
-    "scope": "agent",
-    "workspaceAccess": "ro"
+    "mode": "off"
   },
   "tools": {
     "profile": "minimal",
-    "alsoAllow": ["read"]
+    "allow": [],
+    "alsoAllow": [],
+    "deny": ["*"]
   },
   "skills": []
 }
 ```
 
-This exposes only local file `read`. A private `.cwk-ai-runtime` workspace containing only short-lived prompt files is mounted read-only at `/agent` inside an Agent-scoped sandbox. The runtime preflight requires the Agent workspace to match this fixed project-local directory; the path cannot be overridden by an environment variable, and neither it nor `prompts/` may be a symbolic link. The Agent cannot read CWK code, `.env`, run history, other projects, or host files. It does not expose runtime commands, filesystem mutation, CWork/DocDB plugins, messaging, cron, web, sessions, or Agent delegation.
+This is a zero-tool message transformer. The OpenClaw CLI reads the short-lived
+`--message-file` and sends its content as the user message; the model worker does
+not need filesystem `read` or any other tool. Sandbox mode is deliberately off,
+so Docker is not a runtime dependency. Safety comes from the stricter tool policy:
+`deny: ["*"]`, empty allow lists, no skills, no delivery, and a code-level preflight
+that rejects policy drift. The fixed `.cwk-ai-runtime` workspace remains a local
+staging directory for temporary prompts and cannot be overridden or symlinked.
 
 Do not point `CWK_AI_AGENT_ID` at `chat-main-agent`, an operations Agent, or any Agent with `coding`, `messaging`, or `full` tools.
 
-Agent creation and OpenClaw configuration are deployment operations and are intentionally not performed by `install.sh`. Add the dedicated Agent through your normal OpenClaw configuration process, validate the config, and have an external operator restart/reload the Gateway if the local installation requires it.
+Agent creation and OpenClaw configuration are deployment operations and are intentionally not performed by `install.sh`. Add the dedicated Agent through your normal OpenClaw configuration process and validate the config. Current OpenClaw releases hot-reload this agent policy; if a particular installation requires a Gateway restart, run it externally rather than from a Life-triggered turn.
 
 ## Configuration
 
@@ -51,14 +57,13 @@ CWK_AI_THINKING=high
 
 Only after three reviewed pilots may an operator propose changing the scheduled job. That change is outside RT-001 implementation and requires explicit authorization.
 
-## Sensitive-source quarantine
+## CWork source-content policy
 
-Before creating a prompt, the runner scans the complete source record for
-secret-shaped values. Matching records are marked `skipped_sensitive`, withheld
-from the model and AI clustering, and retained only in the deterministic rules
-path. A runtime lock prevents concurrent pilots and clears prompt remnants from
-an interrupted prior run. Any real credential found in a source must be rotated
-at its issuing system; local redaction does not revoke a credential.
+Every record returned by the read-only CWork source is authorized knowledge
+material. The AI stages receive that content unchanged, including technical
+identifiers or strings that resemble keys or tokens. Such text must not trigger
+redaction, quarantine, model skipping, or pipeline failure. A runtime lock still
+prevents concurrent pilots and clears prompt remnants from an interrupted run.
 
 Historical records retain `collection_mode: historical-backfill` and
 `change_type: historical_backfill`. The human digest separates them from

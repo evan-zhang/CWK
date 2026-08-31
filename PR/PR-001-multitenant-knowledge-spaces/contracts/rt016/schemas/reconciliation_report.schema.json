@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.rt016.reconciliation_report.v1",
+  "title": "RT-016 MigrationReconciler report v1",
+  "description": "Deterministic classification report produced by MigrationReconciler after: (1) verifying zero drift on the legacy tree between pre-scan and post-run; (2) enumerating durable RT-016 crosswalks; (3) confirming each crosswalk's canonical envelope resolves via SharedEvidenceStore.read_version() with matching canonical_sha256 and object_bytes_sha256; (4) enumerating legacy raw files and matching them by legacy_source_sha256. This report never inspects RT-014 catalogs by enumeration and never issues its own writes to shared/, access-ledger/, or views/. All failure_samples entries are opaque tokens; no absolute paths or bodies leak.",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": [
+    "schema",
+    "tenant_id",
+    "run_id",
+    "generated_at",
+    "legacy_tree_root_hash",
+    "legacy_side_count",
+    "new_side_count",
+    "both_equal_count",
+    "both_diff_count",
+    "only_legacy_count",
+    "only_new_count",
+    "new_undecomposable_count",
+    "review_count",
+    "legacy_source_hash_verify_rate",
+    "canonical_hash_verify_rate",
+    "crosswalk_coverage_rate",
+    "zero_drift_verified",
+    "failure_samples",
+    "reconciler_version"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.rt016.reconciliation_report.v1"},
+    "tenant_id": {"type": "string", "pattern": "^t_[a-z0-9]{26}$"},
+    "run_id": {"type": "string", "pattern": "^run_[a-z2-7]{26}$"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "legacy_tree_root_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "legacy_side_count": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "new_side_count": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "both_equal_count": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "both_diff_count": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "only_legacy_count": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "only_new_count": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "new_undecomposable_count": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "review_count": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "legacy_source_hash_verify_rate": {"type": "number", "minimum": 0, "maximum": 1},
+    "canonical_hash_verify_rate": {"type": "number", "minimum": 0, "maximum": 1},
+    "crosswalk_coverage_rate": {"type": "number", "minimum": 0, "maximum": 1},
+    "zero_drift_verified": {"type": "boolean"},
+    "failure_samples": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "unevaluatedProperties": false,
+        "required": ["classification", "opaque_key"],
+        "properties": {
+          "classification": {
+            "type": "string",
+            "enum": [
+              "both_diff",
+              "only_legacy",
+              "only_new",
+              "new_undecomposable",
+              "canonical_missing",
+              "object_bytes_sha_mismatch",
+              "canonical_sha_mismatch",
+              "legacy_source_sha_drift",
+              "crosswalk_corrupt"
+            ]
+          },
+          "opaque_key": {"type": "string", "maxLength": 64, "pattern": "^[a-z0-9_.:/\\-]+$"}
+        }
+      },
+      "maxItems": 128
+    },
+    "reconciler_version": {"type": "string", "pattern": "^v[0-9]{1,4}$"}
+  },
+  "customKeywords": {
+    "deepForbiddenProperties": [
+      "agent_id", "agent_id_hash", "credential_ref", "credentials", "app_key", "app_secret",
+      "body", "canonical_body", "body_text", "content", "html",
+      "reply", "replies", "node", "nodes", "attachment", "attachments",
+      "absolute_path", "mirror_root", "cwork_root", "instance_root", "path",
+      "attachment_url", "preview_url", "short_url", "presign_url", "download_url", "temporary_url",
+      "cookie", "session_token", "authorization", "prompt_template",
+      "auth_epoch", "binding_epoch"
+    ]
+  }
+}

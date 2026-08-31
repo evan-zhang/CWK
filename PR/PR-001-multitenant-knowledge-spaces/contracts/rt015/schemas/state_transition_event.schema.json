@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.rt015.state_transition_event.v1",
+  "title": "AccessLedger append-only state transition event v1 (RT-015)",
+  "description": "One JSONL line per grant-state transition. actor/reason must be printable ASCII (no NUL/CR/LF/control) to prevent log injection. epoch_before/epoch_after are the tenant auth_epoch snapshot before and after the transition. evidence_refs holds opaque references (authority_receipt id, revoke_intent txn id, canonical_sha256, etc.); it never carries raw bodies, temp URLs, or credentials.",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": [
+    "schema",
+    "event_id",
+    "grant_key",
+    "tenant_id",
+    "from_status",
+    "to_status",
+    "tenant_auth_epoch_before",
+    "tenant_auth_epoch_after",
+    "record_revision_before",
+    "record_revision_after",
+    "actor",
+    "reason",
+    "evidence_refs",
+    "happened_at"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.rt015.state_transition_event.v1"},
+    "event_id": {"type": "string", "pattern": "^ev_[a-z2-7]{26}$"},
+    "grant_key": {"type": "string", "pattern": "^g_[a-z2-7]{26}$"},
+    "tenant_id": {"type": "string", "pattern": "^t_[a-z0-9]{26}$"},
+    "from_status": {"type": "string", "enum": ["_initial_", "discovered", "granted", "active", "revalidation_due", "revoked", "purge_pending", "purged"]},
+    "to_status": {"type": "string", "enum": ["discovered", "granted", "active", "revalidation_due", "revoked", "purge_pending", "purged"]},
+    "tenant_auth_epoch_before": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+    "tenant_auth_epoch_after": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+    "record_revision_before": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "record_revision_after": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+    "actor": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "\\A[\\x20-\\x7e]+\\Z"},
+    "reason": {"type": "string", "minLength": 1, "maxLength": 256, "pattern": "\\A[\\x20-\\x7e]+\\Z"},
+    "evidence_refs": {"type": "array", "items": {"type": "string", "maxLength": 256}, "uniqueItems": true, "maxItems": 32},
+    "happened_at": {"type": "string", "format": "date-time"}
+  },
+  "customKeywords": {
+    "deepForbiddenProperties": [
+      "agent_id", "agent_id_hash", "credential_ref", "credentials", "app_key", "app_secret",
+      "body", "body_text", "content", "reply", "replies", "node", "nodes",
+      "attachment", "attachments", "attachment_url", "temporary_url",
+      "preview_url", "short_url", "presign_url", "download_url",
+      "path", "absolute_path", "mirror_root",
+      "cookie", "session_token", "authorization"
+    ]
+  }
+}

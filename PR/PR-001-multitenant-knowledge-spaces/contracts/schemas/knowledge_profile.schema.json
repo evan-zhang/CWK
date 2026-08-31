@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.knowledge_profile.v1",
+  "title": "KnowledgeProfile v1 (six-state)",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": [
+    "schema",
+    "version",
+    "status",
+    "spaces",
+    "entity_policy",
+    "attention",
+    "routing_rules",
+    "archive_rules",
+    "review_threshold",
+    "sample_manifest_ref",
+    "sample_manifest_sha256",
+    "holdout_manifest_ref",
+    "prompt_template_sha256",
+    "model_id",
+    "confirmed_by",
+    "confirmed_at",
+    "profile_sha256"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.knowledge_profile.v1"},
+    "version": {"type": "string", "pattern": "^v[0-9]{1,4}$"},
+    "status": {"type": "string", "enum": ["draft", "proposed", "preview", "confirmed", "active", "superseded"]},
+    "spaces": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "unevaluatedProperties": false,
+        "required": ["space_id"],
+        "properties": {
+          "space_id": {"type": "string", "pattern": "^sp_[a-z0-9]{10,32}$"},
+          "slug": {"type": ["string", "null"], "maxLength": 64},
+          "purpose": {"type": ["string", "null"], "maxLength": 256}
+        }
+      }
+    },
+    "entity_policy": {"type": "object"},
+    "attention": {"type": "object"},
+    "routing_rules": {"type": "array"},
+    "archive_rules": {"type": "array"},
+    "query_preferences": {"type": "object"},
+    "model_policy": {"type": "object"},
+    "review_threshold": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+    "sample_manifest_ref": {"type": "string", "minLength": 1, "maxLength": 256},
+    "sample_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "holdout_manifest_ref": {"type": "string", "minLength": 1, "maxLength": 256},
+    "prompt_template_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "model_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "confirmed_by": {"type": ["string", "null"], "maxLength": 128},
+    "confirmed_at": {"type": ["string", "null"], "format": "date-time"},
+    "profile_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "customKeywords": {
+    "deepForbiddenProperties": [
+      "tenant_id", "agent_id", "agent_id_hash", "agent_binding",
+      "credential_ref", "credentials", "app_key",
+      "path", "mirror_root", "grant", "grants",
+      "shell", "command", "tool",
+      "auth_epoch", "binding_epoch"
+    ],
+    "allowedTransitions": {
+      "draft": ["proposed"],
+      "proposed": ["preview", "draft"],
+      "preview": ["confirmed", "proposed"],
+      "confirmed": ["active"],
+      "active": ["superseded"],
+      "superseded": ["active"]
+    },
+    "recomputeProfileSha256": true
+  }
+}

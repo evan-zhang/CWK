@@ -1,0 +1,12 @@
+{
+  "schema": "cwk.verified_shared_extensions.v1",
+  "version": "v1",
+  "manifest_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "compared_sample_size": 50,
+  "min_field_match_rate": 0.99,
+  "approved_by": "conservative_bootstrap",
+  "approved_at": "2026-08-19T00:00:00Z",
+  "decision_ref": "PR-001 RT-011 (bootstrap)",
+  "entries": [],
+  "notes": "Bootstrap manifest with zero verified extensions. Any promotion of a tenant-overlay field to canonical must add a new versioned manifest with real evidence, and MUST NOT touch temporary URLs. `manifest_sha256` is the placeholder zeroes to signal 'no upgrades applied'; a real vN with entries MUST supply the actual sha256 of its canonical form (JCS/NFC/UTF-8 sha256 of this document minus the manifest_sha256 field itself)."
+}

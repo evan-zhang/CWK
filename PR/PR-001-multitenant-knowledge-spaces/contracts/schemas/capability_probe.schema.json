@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.capability_probe.v1",
+  "title": "capability_probe v1",
+  "description": "Machine-readable probe result. `verified` is only accepted when a well-formed receipt envelope is present, signed by a signer on the frozen trusted allowlist, targeting this probe_id. Free-form notes and evidence_refs are NOT in the schema; the CLI redacts them at output time.",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": [
+    "schema",
+    "probe_id",
+    "run_at",
+    "result",
+    "conservative_default",
+    "receipt"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.capability_probe.v1"},
+    "probe_id": {
+      "type": "string",
+      "enum": [
+        "report_id_global_uniqueness",
+        "permission_authoritative_events",
+        "permission_authoritative_api",
+        "trusted_agent_identity_openclaw_tool",
+        "trusted_agent_identity_uds_peercred",
+        "sandbox_transport_openclaw_tool",
+        "sandbox_transport_uds",
+        "sandbox_transport_loopback_http_self_reported",
+        "verified_shared_extensions_dual_user_sample"
+      ]
+    },
+    "run_at": {"type": "string", "format": "date-time"},
+    "result": {"type": "string", "enum": ["verified", "conservative_unknown"]},
+    "conservative_default": {"type": "string", "minLength": 1, "maxLength": 256},
+    "receipt": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "required": ["envelope_sha256", "signer", "signature", "target", "environment", "not_before", "not_after"],
+      "properties": {
+        "envelope_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "signer": {"type": "string", "minLength": 1, "maxLength": 128},
+        "signature": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "target": {"type": "string", "minLength": 1, "maxLength": 128},
+        "environment": {"type": "string", "enum": ["gateway_production", "gateway_control"]},
+        "not_before": {"type": "string", "format": "date-time"},
+        "not_after": {"type": "string", "format": "date-time"}
+      }
+    }
+  },
+  "customKeywords": {
+    "policy": {
+      "sandbox_transport_loopback_http_self_reported": {"result_must_be": "conservative_unknown"}
+    }
+  }
+}

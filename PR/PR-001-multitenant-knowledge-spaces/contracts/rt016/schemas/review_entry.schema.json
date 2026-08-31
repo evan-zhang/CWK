@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.rt016.review_entry.v1",
+  "title": "RT-016 legacy-undecomposable review entry v1 (audit-only)",
+  "description": "One durable review entry written by pre-v2 RT-016 runs. AUDIT-ONLY as of v2: v2 (anchor-bound) records are the only source of truth for new writes and reconciler PASS. This schema deliberately keeps 'source_namespace' OPTIONAL so that truly-old v1 records emitted before RT-016 Minor-2 remediation (which had no 'source_namespace' at all) remain loadable through 'iter_reviews' / audit read paths; such records never satisfy v2 idempotency and are never counted for reconciler PASS coverage regardless of whether 'source_namespace' is present. Never leaks legacy body bytes, temporary URLs, credentials or host paths.",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": [
+    "schema",
+    "review_id",
+    "tenant_id",
+    "legacy_source_sha256",
+    "legacy_path_hash",
+    "source_kind",
+    "decomposer_version",
+    "normalizer_version",
+    "decompose_report",
+    "migration_status",
+    "quarantine_reasons",
+    "run_id",
+    "run_started_at",
+    "created_at",
+    "record_revision"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.rt016.review_entry.v1"},
+    "review_id": {"type": "string", "pattern": "^qe_[a-z2-7]{26}$"},
+    "tenant_id": {"type": "string", "pattern": "^t_[a-z0-9]{26}$"},
+    "source_namespace": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"},
+    "legacy_source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "legacy_path_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "source_kind": {"type": "string", "enum": ["current_raw", "timeline_snapshot"]},
+    "decomposer_version": {"type": "string", "pattern": "^v[0-9]{1,4}$"},
+    "normalizer_version": {"type": "string", "pattern": "^v[0-9]{1,4}$"},
+    "decompose_report": {"type": "object"},
+    "migration_status": {"type": "string", "enum": ["review", "undecomposable"]},
+    "quarantine_reasons": {
+      "type": "array",
+      "items": {"type": "string", "maxLength": 64, "pattern": "^[a-z][a-z0-9_]{0,63}$"},
+      "uniqueItems": true,
+      "minItems": 1,
+      "maxItems": 32
+    },
+    "run_id": {"type": "string", "pattern": "^run_[a-z2-7]{26}$"},
+    "run_started_at": {"type": "string", "format": "date-time"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "record_revision": {"type": "integer", "minimum": 1, "maximum": 9007199254740991}
+  },
+  "customKeywords": {
+    "deepForbiddenProperties": [
+      "agent_id", "agent_id_hash", "credential_ref", "credentials", "app_key", "app_secret",
+      "body", "canonical_body", "body_text", "content", "html",
+      "reply", "replies", "node", "nodes", "attachment", "attachments",
+      "absolute_path", "mirror_root", "cwork_root", "instance_root", "path",
+      "attachment_url", "preview_url", "short_url", "presign_url", "download_url", "temporary_url",
+      "cookie", "session_token", "authorization", "prompt_template",
+      "auth_epoch", "binding_epoch"
+    ]
+  }
+}

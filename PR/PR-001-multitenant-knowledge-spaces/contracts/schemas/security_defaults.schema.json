@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.security_defaults.v1",
+  "title": "security_defaults v1",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": [
+    "schema",
+    "version",
+    "report_key_composition",
+    "canonical_json",
+    "object_id",
+    "profile_sha256_recipe",
+    "transport_and_identity",
+    "access_grant",
+    "profile_lifecycle",
+    "cold_archive",
+    "cache_key",
+    "logging",
+    "break_glass"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.security_defaults.v1"},
+    "version": {"type": "string", "pattern": "^v[0-9]{1,4}$"},
+    "frozen_by": {"type": "string", "maxLength": 64},
+    "frozen_at": {"type": "string", "maxLength": 64},
+    "note": {"type": "string", "maxLength": 512},
+    "report_key_composition": {
+      "type": "object",
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "required": ["form", "encoding", "reason", "downgrade_forbidden"],
+      "properties": {
+        "form": {"type": "string"},
+        "encoding": {"type": "string"},
+        "reason": {"type": "string"},
+        "downgrade_forbidden": {"const": true}
+      }
+    },
+    "canonical_json": {
+      "type": "object",
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "required": ["unicode_normalization", "canonicalization", "encoding"],
+      "properties": {
+        "unicode_normalization": {"const": "NFC"},
+        "canonicalization": {"const": "RFC 8785 JCS"},
+        "encoding": {"const": "utf-8"},
+        "note": {"type": "string"}
+      }
+    },
+    "object_id": {
+      "type": "object",
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "required": ["form", "entropy_bits", "alphabet", "regex"],
+      "properties": {
+        "form": {"type": "string"},
+        "entropy_bits": {"const": 128},
+        "alphabet": {"type": "string"},
+        "regex": {"type": "string"},
+        "note": {"type": "string"}
+      }
+    },
+    "profile_sha256_recipe": {
+      "type": "object",
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "required": ["domain_separator_ascii", "byte_formula", "required_inputs", "component_separator", "no_concatenation_without_separator", "reject_missing_inputs"],
+      "properties": {
+        "domain_separator_ascii": {"const": "cwk-profile-v1"},
+        "byte_formula": {"type": "string"},
+        "required_inputs": {"type": "array", "items": {"type": "string"}},
+        "component_separator": {"const": "0x00"},
+        "no_concatenation_without_separator": {"const": true},
+        "reject_missing_inputs": {"const": true}
+      }
+    },
+    "transport_and_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "required": ["preferred_transport", "fallback_transport", "forbidden_transport", "identity_source", "request_body_identity_fields_permitted"],
+      "properties": {
+        "preferred_transport": {"const": "openclaw_controlled_tool"},
+        "fallback_transport": {"const": "unix_domain_socket_peercred"},
+        "forbidden_transport": {"const": "loopback_http_self_reported_agent_id"},
+        "identity_source": {"const": "gateway_authenticated_context"},
+        "request_body_identity_fields_permitted": {"const": false},
+        "note": {"type": "string"}
+      }
+    },
+    "access_grant": {
+      "type": "object",
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "required": ["states", "query_eligible_states", "fail_closed_states", "grace_read_forbidden", "revalidation_due_interval_max_seconds", "revocation_ack_target_seconds", "derived_cleanup_target_seconds", "sla_measurement_owner", "sla_confirmation_owner"],
+      "properties": {
+        "states": {"type": "array", "items": {"type": "string"}},
+        "query_eligible_states": {"type": "array", "items": {"const": "active"}},
+        "fail_closed_states": {"type": "array", "items": {"type": "string"}},
+        "grace_read_forbidden": {"const": true},
+        "revalidation_due_interval_max_seconds": {"type": "integer", "minimum": 60, "maximum": 900},
+        "revocation_ack_target_seconds": {"type": "null"},
+        "derived_cleanup_target_seconds": {"type": "null"},
+        "sla_measurement_owner": {"type": "string"},
+        "sla_confirmation_owner": {"type": "string"}
+      }
+    },
+    "profile_lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "required": ["version_states", "rolled_back_state_forbidden", "rollback_mechanism", "rollback_target"],
+      "properties": {
+        "version_states": {"type": "array", "items": {"type": "string"}},
+        "rolled_back_state_forbidden": {"const": true},
+        "rollback_mechanism": {"const": "profile_pointer_rollback event"},
+        "rollback_target": {"const": "most_recent_superseded_only"}
+      }
+    },
+    "cold_archive": {
+      "type": "object",
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "required": ["physical_delete_default", "included_dispositions_default", "opt_in_dispositions", "archive_no_index_limit_ratio_max", "archive_no_index_scan_raw_forbidden"],
+      "properties": {
+        "physical_delete_default": {"const": false},
+        "included_dispositions_default": {"type": "array", "items": {"type": "string"}},
+        "opt_in_dispositions": {"type": "array", "items": {"type": "string"}},
+        "archive_no_index_limit_ratio_max": {"type": "number", "minimum": 0.0, "maximum": 0.5},
+        "archive_no_index_scan_raw_forbidden": {"const": true}
+      }
+    },
+    "cache_key": {
+      "type": "object",
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "required": ["required_components", "cross_tenant_share_forbidden"],
+      "properties": {
+        "required_components": {"type": "array", "items": {"type": "string"}},
+        "cross_tenant_share_forbidden": {"const": true}
+      }
+    },
+    "logging": {
+      "type": "object",
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "required": ["forbidden_content", "audit_append_only"],
+      "properties": {
+        "forbidden_content": {"type": "array", "items": {"type": "string"}},
+        "audit_append_only": {"const": true}
+      }
+    },
+    "break_glass": {
+      "type": "object",
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "required": ["enabled"],
+      "properties": {
+        "enabled": {"const": false},
+        "note": {"type": "string"}
+      }
+    }
+  }
+}

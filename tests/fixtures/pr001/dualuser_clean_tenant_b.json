@@ -1,0 +1,2798 @@
+{
+  "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "observations": [
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070000",
+      "canonical_sha256": "6aa5abdff9adc91bce3fe4227c8de1f1367b575eac53dfd08ba5c6858f1a2fae",
+      "canonical_fields": {
+        "title": "合规审计-0",
+        "body": "正文-0: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "unread",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070000_1"
+          },
+          {
+            "reply_id": "rp_2070000_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070000_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070000_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070001",
+      "canonical_sha256": "e6cb044b7c634f58427175df49f6b4cadc194695d40ab949b36be5f17e91c24b",
+      "canonical_fields": {
+        "title": "合规审计-1",
+        "body": "正文-1: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "read",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070001_1"
+          },
+          {
+            "reply_id": "rp_2070001_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070001_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070001_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070002",
+      "canonical_sha256": "cada9af9ac467f0cb90ea95faa2ee9d35fad0f7e4454ee9d4ad1654eae004bf0",
+      "canonical_fields": {
+        "title": "合规审计-2",
+        "body": "正文-2: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "unread",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070002_1"
+          },
+          {
+            "reply_id": "rp_2070002_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070002_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070002_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070003",
+      "canonical_sha256": "1d385eac5c0cdae84265319cefe9540d512c9fbbefdd20b0d814f586026c4201",
+      "canonical_fields": {
+        "title": "合规审计-3",
+        "body": "正文-3: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "read",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070003_1"
+          },
+          {
+            "reply_id": "rp_2070003_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070003_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070003_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070004",
+      "canonical_sha256": "994402111f39f7ca9b4dc4ccae216f2c81fd4ec48b48dd198602302dcf64f7bb",
+      "canonical_fields": {
+        "title": "合规审计-4",
+        "body": "正文-4: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "unread",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070004_1"
+          },
+          {
+            "reply_id": "rp_2070004_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070004_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070004_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070005",
+      "canonical_sha256": "fd4874e7e77c0be2f8f0b5d4213e741123e1c87090f7434a87e658bd880cb7c1",
+      "canonical_fields": {
+        "title": "合规审计-5",
+        "body": "正文-5: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "read",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070005_1"
+          },
+          {
+            "reply_id": "rp_2070005_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070005_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070005_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070006",
+      "canonical_sha256": "6c5fee1d191e88253eab6ced3b1b6e14091ade03a280945de6f40b3b0d8a55c0",
+      "canonical_fields": {
+        "title": "合规审计-6",
+        "body": "正文-6: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "unread",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070006_1"
+          },
+          {
+            "reply_id": "rp_2070006_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070006_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070006_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070007",
+      "canonical_sha256": "0ed288475ba4678be8d964551d368d8e66bc67921a26a94a25d219a60befd261",
+      "canonical_fields": {
+        "title": "合规审计-7",
+        "body": "正文-7: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "read",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070007_1"
+          },
+          {
+            "reply_id": "rp_2070007_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070007_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070007_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070008",
+      "canonical_sha256": "a2eea4df7ea286aa9095e2791e2167021120699b91051d43c29c879fe2688989",
+      "canonical_fields": {
+        "title": "合规审计-8",
+        "body": "正文-8: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "unread",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070008_1"
+          },
+          {
+            "reply_id": "rp_2070008_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070008_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070008_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070009",
+      "canonical_sha256": "2e8a2009e1dcdbf9dcb5d18a3265f8693af8b07ec6228fde019feecd363a345a",
+      "canonical_fields": {
+        "title": "合规审计-9",
+        "body": "正文-9: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "read",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070009_1"
+          },
+          {
+            "reply_id": "rp_2070009_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070009_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070009_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070010",
+      "canonical_sha256": "fc1edb3bc8692f1d0769652b2af94562778a0974fbc5375733849803548ed3b5",
+      "canonical_fields": {
+        "title": "合规审计-10",
+        "body": "正文-10: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "unread",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070010_1"
+          },
+          {
+            "reply_id": "rp_2070010_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070010_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070010_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070011",
+      "canonical_sha256": "ae120969f66fc1d3e699db5cfced828f43c3a786251129598b60f666c0424d30",
+      "canonical_fields": {
+        "title": "合规审计-11",
+        "body": "正文-11: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "read",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070011_1"
+          },
+          {
+            "reply_id": "rp_2070011_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070011_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070011_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070012",
+      "canonical_sha256": "340e751c4c26b5b2d7745451c9cfa155991093b4ac55193112f0081ad7a767f3",
+      "canonical_fields": {
+        "title": "合规审计-12",
+        "body": "正文-12: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "unread",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070012_1"
+          },
+          {
+            "reply_id": "rp_2070012_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070012_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070012_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070013",
+      "canonical_sha256": "8b21464fb0690fbfd32b33b7a6d525d1ca867211478ce46bca2448339ca2fb86",
+      "canonical_fields": {
+        "title": "合规审计-13",
+        "body": "正文-13: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "read",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070013_1"
+          },
+          {
+            "reply_id": "rp_2070013_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070013_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070013_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070014",
+      "canonical_sha256": "f8bda6d338f272709f720d8c87e3f0e6c1854eb090594178edfaca25b14eefe8",
+      "canonical_fields": {
+        "title": "合规审计-14",
+        "body": "正文-14: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "unread",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070014_1"
+          },
+          {
+            "reply_id": "rp_2070014_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070014_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070014_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070015",
+      "canonical_sha256": "40a1c03a32b65214ac09ba76792652f0c09f968bec948c45ff24ea5fb170d925",
+      "canonical_fields": {
+        "title": "合规审计-15",
+        "body": "正文-15: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "read",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070015_1"
+          },
+          {
+            "reply_id": "rp_2070015_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070015_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070015_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070016",
+      "canonical_sha256": "dae661e110d8658c7a3146b42d33c7f4ddebf3f9e6b138bc5ab7aa009675af91",
+      "canonical_fields": {
+        "title": "合规审计-16",
+        "body": "正文-16: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "unread",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070016_1"
+          },
+          {
+            "reply_id": "rp_2070016_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070016_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070016_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070017",
+      "canonical_sha256": "1cb85bf2664f078a0bf6644f068d02a55d4cb050a89a183c7befa616c5345da3",
+      "canonical_fields": {
+        "title": "合规审计-17",
+        "body": "正文-17: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "read",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070017_1"
+          },
+          {
+            "reply_id": "rp_2070017_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070017_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070017_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070018",
+      "canonical_sha256": "626292d39e1ce1268e4cbd86f69758912b81b9048f5f42f6231d840fe791f572",
+      "canonical_fields": {
+        "title": "合规审计-18",
+        "body": "正文-18: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "unread",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070018_1"
+          },
+          {
+            "reply_id": "rp_2070018_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070018_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070018_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070019",
+      "canonical_sha256": "ef2a64713bfc5e1ce2d06a8ec4cc9259a09c3f0ca4db2d205a1179fb7b515569",
+      "canonical_fields": {
+        "title": "合规审计-19",
+        "body": "正文-19: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "read",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070019_1"
+          },
+          {
+            "reply_id": "rp_2070019_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070019_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070019_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070020",
+      "canonical_sha256": "b4c2539575488f6e37e9b6df1d0d03df6287ff7f09cfdfe7c0f4692da01f855a",
+      "canonical_fields": {
+        "title": "合规审计-20",
+        "body": "正文-20: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "unread",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070020_1"
+          },
+          {
+            "reply_id": "rp_2070020_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070020_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070020_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070021",
+      "canonical_sha256": "86a4f20927c81610425d353aaf4015d1ab6962d9ae1770aefabfcb57a5251e8a",
+      "canonical_fields": {
+        "title": "合规审计-21",
+        "body": "正文-21: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "read",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070021_1"
+          },
+          {
+            "reply_id": "rp_2070021_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070021_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070021_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070022",
+      "canonical_sha256": "9929a7595af83c0a8802ad489c3589082d155674d0a546655ff654bc5139e1f6",
+      "canonical_fields": {
+        "title": "合规审计-22",
+        "body": "正文-22: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "unread",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070022_1"
+          },
+          {
+            "reply_id": "rp_2070022_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070022_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070022_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070023",
+      "canonical_sha256": "72682b7dae85ff414d5c9c2b129c1593c83f1a2daf93fc5312015465b9abe93f",
+      "canonical_fields": {
+        "title": "合规审计-23",
+        "body": "正文-23: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "read",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070023_1"
+          },
+          {
+            "reply_id": "rp_2070023_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070023_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070023_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070024",
+      "canonical_sha256": "659fba68ee15c22d8bff90faee70d47c61f259c35f9b4f374a4ef1bce4d7146d",
+      "canonical_fields": {
+        "title": "合规审计-24",
+        "body": "正文-24: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "unread",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070024_1"
+          },
+          {
+            "reply_id": "rp_2070024_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070024_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070024_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070025",
+      "canonical_sha256": "3698b6b9e39fa63b8fdb731cf0469edb2b956b038c179c598abc6eda6f1b3513",
+      "canonical_fields": {
+        "title": "合规审计-25",
+        "body": "正文-25: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "read",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070025_1"
+          },
+          {
+            "reply_id": "rp_2070025_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070025_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070025_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070026",
+      "canonical_sha256": "038fb89ac4c42c525917835dcc30902a9d8e1e531bbb09d60134411ee6e68bf5",
+      "canonical_fields": {
+        "title": "合规审计-26",
+        "body": "正文-26: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "unread",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070026_1"
+          },
+          {
+            "reply_id": "rp_2070026_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070026_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070026_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070027",
+      "canonical_sha256": "5c5728894ca1aa65d6db6bd03b8ec22b55ab1ad26808482f778bb705c7449f1c",
+      "canonical_fields": {
+        "title": "合规审计-27",
+        "body": "正文-27: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "read",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070027_1"
+          },
+          {
+            "reply_id": "rp_2070027_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070027_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070027_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070028",
+      "canonical_sha256": "43fa6d758f7664c00dab427f34582b3c060ebf1d055f1e4bd6d17c749ae11308",
+      "canonical_fields": {
+        "title": "合规审计-28",
+        "body": "正文-28: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "unread",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070028_1"
+          },
+          {
+            "reply_id": "rp_2070028_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070028_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070028_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070029",
+      "canonical_sha256": "3e93e7bd30480ac3d9e453ce56c3a7cd89aa8cc10467abd3661fc576e3cb0984",
+      "canonical_fields": {
+        "title": "合规审计-29",
+        "body": "正文-29: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "read",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070029_1"
+          },
+          {
+            "reply_id": "rp_2070029_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070029_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070029_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070030",
+      "canonical_sha256": "8ef9340200f803002f20378b7bef46a8b0c5afa11d711611a5bbbecdf4fbf43f",
+      "canonical_fields": {
+        "title": "合规审计-30",
+        "body": "正文-30: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "unread",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070030_1"
+          },
+          {
+            "reply_id": "rp_2070030_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070030_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070030_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070031",
+      "canonical_sha256": "3594f18a530c550a67ed11f80bce4a3c7c16b8dcbded27409801e8dc6a1fd0e8",
+      "canonical_fields": {
+        "title": "合规审计-31",
+        "body": "正文-31: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "read",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070031_1"
+          },
+          {
+            "reply_id": "rp_2070031_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070031_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070031_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070032",
+      "canonical_sha256": "3fb025d46a818b4e62a8a4bdd0da9d3bfefe0ab2c148b978dbbb5d67283b0e11",
+      "canonical_fields": {
+        "title": "合规审计-32",
+        "body": "正文-32: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "unread",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070032_1"
+          },
+          {
+            "reply_id": "rp_2070032_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070032_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070032_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070033",
+      "canonical_sha256": "4df61628f8f2f14323d9aac46f8f16b4f90b7833b6dfe687b4818685d26ec6c6",
+      "canonical_fields": {
+        "title": "合规审计-33",
+        "body": "正文-33: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "read",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070033_1"
+          },
+          {
+            "reply_id": "rp_2070033_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070033_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070033_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070034",
+      "canonical_sha256": "4037d50cee4922eef63ccb40f4b08be7b10e2a3adb12817355f084abd814196c",
+      "canonical_fields": {
+        "title": "合规审计-34",
+        "body": "正文-34: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "unread",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070034_1"
+          },
+          {
+            "reply_id": "rp_2070034_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070034_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070034_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070035",
+      "canonical_sha256": "c064c8f624589863fde07745a18433d4ef9d8542d674e978d0889226530f9f3d",
+      "canonical_fields": {
+        "title": "合规审计-35",
+        "body": "正文-35: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "read",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070035_1"
+          },
+          {
+            "reply_id": "rp_2070035_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070035_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070035_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070036",
+      "canonical_sha256": "032b3386d63444c1db65e301cd06541b963e79628045c33d7ce1f24dc1dd0a18",
+      "canonical_fields": {
+        "title": "合规审计-36",
+        "body": "正文-36: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "unread",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070036_1"
+          },
+          {
+            "reply_id": "rp_2070036_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070036_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070036_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070037",
+      "canonical_sha256": "b7bc136e64fe69ef300b1ab90d0512fa03f3818bce669b6448705e364f6a2375",
+      "canonical_fields": {
+        "title": "合规审计-37",
+        "body": "正文-37: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "read",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070037_1"
+          },
+          {
+            "reply_id": "rp_2070037_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070037_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070037_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070038",
+      "canonical_sha256": "a120fb8527674d1a235a3e00c5007e45962bff2512ef6d150529ebb42de43bfc",
+      "canonical_fields": {
+        "title": "合规审计-38",
+        "body": "正文-38: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "unread",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070038_1"
+          },
+          {
+            "reply_id": "rp_2070038_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070038_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070038_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070039",
+      "canonical_sha256": "07279c226844c829dc942914be2f14f12900b6dfc94952c3887a83335c8264d5",
+      "canonical_fields": {
+        "title": "合规审计-39",
+        "body": "正文-39: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "read",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070039_1"
+          },
+          {
+            "reply_id": "rp_2070039_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070039_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070039_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070040",
+      "canonical_sha256": "78acd9cdd0cd0bc401e0b1a27d00c0b36e65f392d1245d8588a3f79186afbf8f",
+      "canonical_fields": {
+        "title": "合规审计-40",
+        "body": "正文-40: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "unread",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070040_1"
+          },
+          {
+            "reply_id": "rp_2070040_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070040_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070040_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070041",
+      "canonical_sha256": "a0ffcba5db627bffb789f7c74c64ec0d6ecf9043ff72a6143da714d8b6c3b072",
+      "canonical_fields": {
+        "title": "合规审计-41",
+        "body": "正文-41: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "read",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070041_1"
+          },
+          {
+            "reply_id": "rp_2070041_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070041_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070041_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070042",
+      "canonical_sha256": "a52fb580beb60872c99e535b3d921c4b1bf850912bd57f8631d4c3e59431785f",
+      "canonical_fields": {
+        "title": "合规审计-42",
+        "body": "正文-42: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "unread",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070042_1"
+          },
+          {
+            "reply_id": "rp_2070042_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070042_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070042_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070043",
+      "canonical_sha256": "80ac0c28ec9dd1928069dd2ef3e9346b5a4ee38b6136c37e452e10e36f355668",
+      "canonical_fields": {
+        "title": "合规审计-43",
+        "body": "正文-43: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "read",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070043_1"
+          },
+          {
+            "reply_id": "rp_2070043_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070043_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070043_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070044",
+      "canonical_sha256": "9047938d3b7470717203392675fc86145bb802696008e9d8d3851cb154bda5bb",
+      "canonical_fields": {
+        "title": "合规审计-44",
+        "body": "正文-44: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "unread",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070044_1"
+          },
+          {
+            "reply_id": "rp_2070044_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070044_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070044_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070045",
+      "canonical_sha256": "3bb1329b9c68e3c9b75cf0fbc3a85a69cde2c0cde92cd402d0b307af4c8307a9",
+      "canonical_fields": {
+        "title": "合规审计-45",
+        "body": "正文-45: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "read",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070045_1"
+          },
+          {
+            "reply_id": "rp_2070045_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070045_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070045_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070046",
+      "canonical_sha256": "5aa6f34b7df90501d02207f0e09c6018d49f9a0efcb06c00d6a07d9aeb701fdd",
+      "canonical_fields": {
+        "title": "合规审计-46",
+        "body": "正文-46: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "unread",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070046_1"
+          },
+          {
+            "reply_id": "rp_2070046_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070046_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070046_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070047",
+      "canonical_sha256": "8ce4fead7f27be3ee858c641ed5bdbb090eea91292f2272622626553f146aa08",
+      "canonical_fields": {
+        "title": "合规审计-47",
+        "body": "正文-47: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "read",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070047_1"
+          },
+          {
+            "reply_id": "rp_2070047_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070047_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070047_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070048",
+      "canonical_sha256": "4643ac1e9f308fbd576220b7ef6c7173684d20e706e5110ca4d21c13850b056d",
+      "canonical_fields": {
+        "title": "合规审计-48",
+        "body": "正文-48: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "unread",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070048_1"
+          },
+          {
+            "reply_id": "rp_2070048_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070048_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070048_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070049",
+      "canonical_sha256": "2ac1668a676dcd77e021765d92d6eabd048e125b41a8f63396b528dd938388cd",
+      "canonical_fields": {
+        "title": "合规审计-49",
+        "body": "正文-49: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "read",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070049_1"
+          },
+          {
+            "reply_id": "rp_2070049_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070049_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070049_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070050",
+      "canonical_sha256": "eff6cb5abcd44e371071ee55895d918fc0a3ed99516cf2fcb70167c4aed346a8",
+      "canonical_fields": {
+        "title": "合规审计-50",
+        "body": "正文-50: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "unread",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070050_1"
+          },
+          {
+            "reply_id": "rp_2070050_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070050_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070050_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070051",
+      "canonical_sha256": "ca2281778292439a48ab693aba366615c92a53d081ba1a082a802e8f910a297b",
+      "canonical_fields": {
+        "title": "合规审计-51",
+        "body": "正文-51: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "read",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070051_1"
+          },
+          {
+            "reply_id": "rp_2070051_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070051_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070051_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070052",
+      "canonical_sha256": "4e5ddc1bb092d6cdf8d00f406d8b8d80ba3c4c83517bcaaea0995656f853a86e",
+      "canonical_fields": {
+        "title": "合规审计-52",
+        "body": "正文-52: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "unread",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070052_1"
+          },
+          {
+            "reply_id": "rp_2070052_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070052_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070052_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070053",
+      "canonical_sha256": "515d1f431cee0962c41587a61eca060d0a2dea9a726517a90b2c7b991efe8c6f",
+      "canonical_fields": {
+        "title": "合规审计-53",
+        "body": "正文-53: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "read",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070053_1"
+          },
+          {
+            "reply_id": "rp_2070053_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070053_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070053_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2070054",
+      "canonical_sha256": "af6d8f038f07f2a571f9565d623f4d5274f3d2d743e077a5251093d5687aad44",
+      "canonical_fields": {
+        "title": "合规审计-54",
+        "body": "正文-54: NFC 测试 é",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "unread",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2070054_1"
+          },
+          {
+            "reply_id": "rp_2070054_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2070054_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2070054_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2071000",
+      "canonical_sha256": "b1bc01ebafc3ee3d49cd465c4171f3bfcebf65a1d327dab32f193ef08e2b248e",
+      "canonical_fields": {
+        "title": "B独享-0",
+        "body": "body-b-0",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "read",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2071000_1"
+          },
+          {
+            "reply_id": "rp_2071000_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2071000_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2071000_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    },
+    {
+      "schema": "cwk.dual_user_observation.v1",
+      "tenant_id": "t_bbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "report_key": "cwork:2071001",
+      "canonical_sha256": "6ccbedb03b769afba131a9835c13b420db53254cd431909babb0980027ac1f8c",
+      "canonical_fields": {
+        "title": "B独享-1",
+        "body": "body-b-1",
+        "author": {
+          "source_user_id": "u_writer_1",
+          "display_name": "张三"
+        },
+        "created_at": "2026-08-01T10:00:00Z",
+        "source_updated_at": "2026-08-01T12:00:00Z"
+      },
+      "overlay_fields": {
+        "lane": "received",
+        "read_status": "unread",
+        "todo_status": "pending",
+        "roles": [
+          "receiver"
+        ],
+        "allowed_actions": [
+          "reply",
+          "archive"
+        ],
+        "reply_overlay": [
+          {
+            "reply_id": "rp_2071001_1"
+          },
+          {
+            "reply_id": "rp_2071001_2"
+          }
+        ],
+        "node_overlay": [
+          {
+            "node_id": "nd_2071001_1",
+            "type": "approve"
+          }
+        ],
+        "attachment_permissions": [
+          {
+            "attachment_id": "att_2071001_1",
+            "permission": "download"
+          }
+        ]
+      },
+      "observed_at": "2026-08-01T13:00:00Z"
+    }
+  ]
+}

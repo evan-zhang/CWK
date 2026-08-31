@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.sample_manifest.v1",
+  "title": "sample_manifest_v1",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": [
+    "schema",
+    "tenant_id",
+    "random_seed",
+    "target_sample_size",
+    "actual_sample_size",
+    "strata",
+    "chunk_size",
+    "chunk_layout",
+    "samples",
+    "holdout",
+    "created_at"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.sample_manifest.v1"},
+    "tenant_id": {"type": "string", "pattern": "^t_[a-z0-9]{26}$"},
+    "random_seed": {"type": "string", "pattern": "^[0-9a-f]{16,64}$"},
+    "target_sample_size": {"type": "integer", "minimum": 100, "maximum": 200},
+    "actual_sample_size": {"type": "integer", "minimum": 100, "maximum": 200},
+    "strata": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "unevaluatedProperties": false,
+        "required": ["dimension", "bucket", "picked"],
+        "properties": {
+          "dimension": {"type": "string", "maxLength": 64},
+          "bucket": {"type": "string", "maxLength": 128},
+          "picked": {"type": "integer", "minimum": 0, "maximum": 200}
+        }
+      }
+    },
+    "chunk_size": {"type": "integer", "minimum": 1, "maximum": 50},
+    "chunk_layout": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "unevaluatedProperties": false,
+        "required": ["chunk_id", "report_keys"],
+        "properties": {
+          "chunk_id": {"type": "string", "maxLength": 64},
+          "report_keys": {
+            "type": "array",
+            "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}:[A-Za-z0-9][A-Za-z0-9_\\-.]{0,127}$"},
+            "uniqueItems": true
+          }
+        }
+      }
+    },
+    "samples": {
+      "type": "array",
+      "minItems": 100,
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "unevaluatedProperties": false,
+        "required": ["report_key", "canonical_sha256"],
+        "properties": {
+          "report_key": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}:[A-Za-z0-9][A-Za-z0-9_\\-.]{0,127}$"},
+          "canonical_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    "holdout": {
+      "type": "array",
+      "minItems": 20,
+      "maxItems": 30,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "unevaluatedProperties": false,
+        "required": ["report_key", "canonical_sha256"],
+        "properties": {
+          "report_key": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}:[A-Za-z0-9][A-Za-z0-9_\\-.]{0,127}$"},
+          "canonical_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    "created_at": {"type": "string", "format": "date-time"}
+  }
+}

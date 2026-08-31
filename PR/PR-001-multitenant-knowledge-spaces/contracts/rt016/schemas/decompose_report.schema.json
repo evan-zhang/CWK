@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.rt016.decompose_report.v1",
+  "title": "LegacyRawDecomposer per-report decomposition report v1 (RT-016)",
+  "description": "Structured evidence describing how one legacy raw was interpreted. Purely descriptive metadata about the decomposition attempt: field origins, invoked rules, unknown legacy fields, exact byte-level SHA-256 of the legacy source, and (if produced) the canonical envelope SHA and its JCS object bytes SHA. Never contains bodies, temporary URLs, credentials, tenant/agent identifiers, or host paths.",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": [
+    "schema",
+    "decomposer_version",
+    "normalizer_version",
+    "legacy_source_sha256",
+    "canonical_sha256",
+    "object_bytes_sha256",
+    "body_bytes_length",
+    "body_truncation_would_occur",
+    "field_sources",
+    "hit_rules",
+    "unknown_frontmatter_keys",
+    "unknown_row_keys",
+    "unknown_reply_keys",
+    "unknown_node_keys",
+    "timeline_event_hash_check",
+    "decomposition_status",
+    "quarantine_reasons"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.rt016.decompose_report.v1"},
+    "decomposer_version": {"type": "string", "pattern": "^v[0-9]{1,4}$"},
+    "normalizer_version": {"type": "string", "pattern": "^v[0-9]{1,4}$"},
+    "legacy_source_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "canonical_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+    "object_bytes_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+    "body_bytes_length": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+    "body_truncation_would_occur": {"type": "boolean"},
+    "field_sources": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 128,
+        "pattern": "^[A-Za-z0-9_.:/\\-]+$"
+      },
+      "propertyNames": {"pattern": "^[a-z][a-z0-9_.]{0,63}$"}
+    },
+    "hit_rules": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^[a-z][a-z0-9_.:]{0,127}$", "maxLength": 128},
+      "uniqueItems": true,
+      "maxItems": 64
+    },
+    "unknown_frontmatter_keys": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^[A-Za-z0-9_\\-.]+$", "maxLength": 64},
+      "uniqueItems": true,
+      "maxItems": 64
+    },
+    "unknown_row_keys": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^[A-Za-z0-9_\\-.]+$", "maxLength": 64},
+      "uniqueItems": true,
+      "maxItems": 64
+    },
+    "unknown_reply_keys": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^[A-Za-z0-9_\\-.]+$", "maxLength": 64},
+      "uniqueItems": true,
+      "maxItems": 128
+    },
+    "unknown_node_keys": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^[A-Za-z0-9_\\-.]+$", "maxLength": 64},
+      "uniqueItems": true,
+      "maxItems": 128
+    },
+    "timeline_event_hash_check": {
+      "type": "object",
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "required": ["snapshot_count", "event_count", "matched_event_count", "unmatched_event_count", "coverage_ok"],
+      "properties": {
+        "snapshot_count": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+        "event_count": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+        "matched_event_count": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+        "unmatched_event_count": {"type": "integer", "minimum": 0, "maximum": 9007199254740991},
+        "coverage_ok": {"type": "boolean"}
+      }
+    },
+    "decomposition_status": {"type": "string", "enum": ["ok", "quarantined"]},
+    "quarantine_reasons": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "missing_frontmatter",
+          "missing_report_id",
+          "missing_title",
+          "missing_author",
+          "missing_created_at",
+          "missing_source_updated_at",
+          "missing_body_section",
+          "empty_body",
+          "oversize_body",
+          "malformed_frontmatter",
+          "malformed_json_section",
+          "malformed_report_id",
+          "malformed_source_namespace",
+          "unparseable_timestamp",
+          "ambiguous_timezone",
+          "control_chars_in_field",
+          "duplicate_report_id",
+          "timeline_event_hash_mismatch",
+          "timeline_ordering_missing",
+          "timeline_snapshot_missing",
+          "unknown_top_level_json",
+          "canonical_validation_failed",
+          "path_containment_failure",
+          "toctou_drift",
+          "unicode_normalization_conflict",
+          "author_source_user_id_invalid"
+        ]
+      },
+      "uniqueItems": true,
+      "maxItems": 32
+    }
+  },
+  "customKeywords": {
+    "deepForbiddenProperties": [
+      "tenant_id", "agent_id", "agent_id_hash", "credential_ref", "credentials", "app_key",
+      "body", "canonical_body", "reply_body", "node_body", "content", "text", "html",
+      "absolute_path", "mirror_root", "path",
+      "attachment_url", "preview_url", "short_url", "presign_url", "download_url", "temporary_url",
+      "cookie", "session_token", "authorization"
+    ]
+  }
+}

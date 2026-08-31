@@ -1,0 +1,3 @@
+# Do not paste credentials here. The runtime must provide CWORK_APP_KEY.
+# Enable only after a manual read-only run and capacity check.
+*/5 * * * * cd /path/to/CWK && /usr/bin/env python3.11 scripts/cwk_thread_watch.py --detail-cap 120 >> runs/thread-watch-cron.log 2>&1

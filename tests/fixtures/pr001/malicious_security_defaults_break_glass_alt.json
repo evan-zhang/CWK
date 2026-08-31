@@ -1,0 +1,42 @@
+{
+  "__fixture_note": "MALICIOUS: break_glass.alternate_enabled sneaks in a bypass toggle.",
+  "schema": "cwk.security_defaults.v1",
+  "version": "v1",
+  "report_key_composition": {"form": "x", "encoding": "utf-8", "reason": "y", "downgrade_forbidden": true},
+  "canonical_json": {"unicode_normalization": "NFC", "canonicalization": "RFC 8785 JCS", "encoding": "utf-8"},
+  "object_id": {"form": "x", "entropy_bits": 128, "alphabet": "y", "regex": "^o_[a-z2-7]{26}$"},
+  "profile_sha256_recipe": {
+    "domain_separator_ascii": "cwk-profile-v1",
+    "byte_formula": "...",
+    "required_inputs": ["a"],
+    "component_separator": "0x00",
+    "no_concatenation_without_separator": true,
+    "reject_missing_inputs": true
+  },
+  "transport_and_identity": {
+    "preferred_transport": "openclaw_controlled_tool",
+    "fallback_transport": "unix_domain_socket_peercred",
+    "forbidden_transport": "loopback_http_self_reported_agent_id",
+    "identity_source": "gateway_authenticated_context",
+    "request_body_identity_fields_permitted": false
+  },
+  "access_grant": {
+    "states": [], "query_eligible_states": ["active"], "fail_closed_states": [],
+    "grace_read_forbidden": true, "revalidation_due_interval_max_seconds": 900,
+    "revocation_ack_target_seconds": null, "derived_cleanup_target_seconds": null,
+    "sla_measurement_owner": "RT-024", "sla_confirmation_owner": "RT-026"
+  },
+  "profile_lifecycle": {
+    "version_states": [], "rolled_back_state_forbidden": true,
+    "rollback_mechanism": "profile_pointer_rollback event",
+    "rollback_target": "most_recent_superseded_only"
+  },
+  "cold_archive": {
+    "physical_delete_default": false, "included_dispositions_default": [],
+    "opt_in_dispositions": [], "archive_no_index_limit_ratio_max": 0.5,
+    "archive_no_index_scan_raw_forbidden": true
+  },
+  "cache_key": {"required_components": [], "cross_tenant_share_forbidden": true},
+  "logging": {"forbidden_content": [], "audit_append_only": true},
+  "break_glass": {"enabled": false, "alternate_enabled": true}
+}

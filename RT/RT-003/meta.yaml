@@ -1,0 +1,9 @@
+rt_id: RT-003
+title: 云端优先 LLM Wiki 知识层
+status: in_progress
+profile: Spec-Lite
+created: 2026-07-23
+assignee: Codex
+priority: high
+depends_on: [RT-001]
+labels: [cloud-first, llm-wiki, openkb-pattern, knowledge-mirror, read-only]

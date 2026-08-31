@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.rt015.access_grant_record.v1",
+  "title": "AccessLedger on-disk grant record v1 (RT-015)",
+  "description": "Wrapper around the frozen cwk.access_grant.v1 payload used by the internal access ledger. Every mutation bumps record_revision. RT-011 validate_access_grant is still applied to the nested .grant object; this schema only validates the RT-015-local envelope. Deep-forbidden fields reject any tenant view content, reply/node/attachment payload, credential material, or absolute path leakage.",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": [
+    "schema",
+    "grant_key",
+    "tenant_id",
+    "source_namespace",
+    "report_id",
+    "grant",
+    "record_revision",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.rt015.access_grant_record.v1"},
+    "grant_key": {"type": "string", "pattern": "^g_[a-z2-7]{26}$"},
+    "tenant_id": {"type": "string", "pattern": "^t_[a-z0-9]{26}$"},
+    "source_namespace": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"},
+    "report_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_\\-.]{0,127}$"},
+    "grant": {"type": "object"},
+    "record_revision": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+    "created_at": {"type": "string", "format": "date-time"},
+    "updated_at": {"type": "string", "format": "date-time"}
+  },
+  "customKeywords": {
+    "deepForbiddenProperties": [
+      "agent_id", "agent_id_hash", "credential_ref", "credentials", "app_key", "app_secret",
+      "body", "body_text", "content", "reply", "replies", "node", "nodes",
+      "attachment", "attachments", "attachment_url", "temporary_url",
+      "preview_url", "short_url", "presign_url", "download_url",
+      "path", "absolute_path", "mirror_root", "cwork_root", "instance_root",
+      "cookie", "session_token", "authorization", "prompt_template"
+    ]
+  }
+}

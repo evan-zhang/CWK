@@ -11,14 +11,20 @@ The sync is intentionally conservative:
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import gzip
+import hashlib
+import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 
@@ -26,10 +32,11 @@ from pathlib import Path
 PROJECT = Path(__file__).resolve().parents[1]
 MIRROR = PROJECT / "knowledge" / "工作协同镜像"
 DOCDB = Path(os.environ.get("CMS_DOCDB_SKILL_DIR", str(Path.home() / ".agents" / "skills" / "cms-docdb")))
+AUTH_SKILL = Path(os.environ.get("CMS_AUTH_SKILL_DIR", str(Path.home() / ".agents" / "skills" / "cms-auth-skills")))
 AUTH = Path(
     os.environ.get(
         "CMS_AUTH_LOGIN",
-        str(Path.home() / ".agents" / "skills" / "cms-auth-skills" / "scripts" / "auth" / "login.py"),
+        str(AUTH_SKILL / "scripts" / "auth" / "login.py"),
     )
 )
 DEFAULT_PROJECT_ID = os.environ.get("CWK_DOCDB_PROJECT_ID", "")
@@ -38,7 +45,42 @@ DEFAULT_ROOT_NAME = "工作协同镜像"
 DEFAULT_SENDER_ID = os.environ.get("CWK_SENDER_ID", "")
 DEFAULT_ACCOUNT_ID = os.environ.get("CWK_ACCOUNT_ID", "default")
 DEFAULT_RETRY_QUEUE = PROJECT / "runs" / "docdb-sync-retry-queue.json"
-TRANSIENT_ERRORS = ("服务器繁忙", "文件信息查询失败", "timeout", "timed out", "temporarily unavailable", "connection reset")
+DEFAULT_SYNC_STATE = PROJECT / "runs" / "docdb-sync-state.json"
+TRANSIENT_ERRORS = (
+    "服务器繁忙", "文件信息查询失败", "请求太过频繁", "频繁", "timeout", "timed out",
+    "temporarily unavailable", "connection reset", "429", "401",
+)
+_UPLOAD_CONTENT_MODULE = None
+_UPLOAD_CONTENT_LOCK = threading.Lock()
+RAW_CHUNK_THRESHOLD_BYTES = 2_000_000
+RAW_CHUNK_BYTES = 1_200_000
+CLOUD_FILE_NAMES = {
+    # `manifest.json` is too generic for the DocDB search API and can produce
+    # a server-side file-info lookup failure. Keep the local canonical name
+    # while publishing a stable, unique cloud-side name.
+    # The prior remote manifest object repeatedly failed its file-info lookup.
+    # Publish future versions through a fresh, stable object name rather than
+    # retrying a corrupt/stale DocDB file ID indefinitely.
+    "wiki/_system/manifest.json": "cwk-wiki-manifest-v2.json",
+    "wiki/_system/cloud-objects.json": "cwk-cloud-objects.json",
+    "wiki/_system/index-meta.json": "cwk-index-meta.json",
+    # DocDB's object pipeline materializes `.gz` uploads as zero-byte files.
+    # Publish the opaque compressed index as `.bin`; its catalog path and hash
+    # remain `wiki/_system/search-index.json.gz` for local decompression.
+    "wiki/_system/search-index.json.gz": "cwk-search-index.bin",
+}
+COMMIT_POINTER_PATHS = {
+    "wiki/_system/manifest.json",
+    "wiki/_system/cloud-objects.json",
+}
+SUCCESS_ACTIONS = {
+    "create", "update_version", "physical_create", "physical_update_version",
+    "physical_chunked_create", "physical_chunked_update", "skip_existing", "unchanged",
+}
+
+
+def sanitize_error(value: object) -> str:
+    return str(value)[:1000]
 
 
 @dataclass
@@ -67,8 +109,8 @@ def run_json(cmd: list[str], env: dict[str, str], retries: int = 3) -> dict:
         else:
             last_error = f"command failed: {' '.join(cmd)}\n{proc.stderr.strip()}\n{proc.stdout.strip()}"
         if attempt < retries - 1:
-            time.sleep(1 + attempt * 2)
-    raise RuntimeError(last_error)
+            time.sleep(1 + attempt)
+    raise RuntimeError(sanitize_error(last_error))
 
 
 def resolve_app_key(sender_id: str, account_id: str) -> str:
@@ -158,8 +200,48 @@ def resolve_docdb_target(project_id: str, root_file_id: str, env: dict[str, str]
     return str(project_id), str(root_file_id)
 
 
-def iter_items(limit: int | None, only_prefix: str | None, paths_manifest: str | None = None) -> list[SyncItem]:
-    files = sorted(path for path in MIRROR.rglob("*") if path.is_file() and path.suffix.lower() in {".md", ".html"})
+def iter_items(
+    limit: int | None,
+    only_prefix: str | None,
+    paths_manifest: str | None = None,
+    *,
+    allow_raw: bool = False,
+) -> list[SyncItem]:
+    # JSON manifests are part of the cloud-side truth/audit layer.  Keep them
+    # alongside Markdown/HTML rather than leaving state only on this machine.
+    files = sorted(path for path in MIRROR.rglob("*") if path.is_file() and path.suffix.lower() in {".md", ".html", ".json", ".gz", ".bin"})
+    # The compressed index is the cloud canonical artifact. The uncompressed
+    # JSON copy is a local build aid and would add ~20 MB to every sync.
+    # RT-010 follow-up (independent audit blocker E): the entity catalog
+    # (json, gz, meta) and anchor cache are also LOCAL-ONLY derived
+    # artifacts.  They are rebuilt deterministically from summaries plus
+    # the version-controlled registry, and the .gz variant is a binary
+    # blob that would corrupt through a UTF-8 sync pipe.  Exclude them
+    # here as belt-and-suspenders on top of removing them from the
+    # search-index changed_relative_paths.
+    files = [
+        path for path in files
+        if path.relative_to(MIRROR).as_posix() not in {
+            "wiki/_system/search-index.json",
+            "wiki/_system/search-index.json.gz",
+            "wiki/_system/entity-catalog.json",
+            "wiki/_system/entity-catalog.json.gz",
+            "wiki/_system/entity-catalog-meta.json",
+            "wiki/_system/entity-anchors-cache.json",
+            # RT-010 final blockers (Blocker 8): the mirror-local
+            # ``entity-family-registry.json`` is an EXPERIMENTAL local
+            # override — the canonical version-controlled source lives
+            # at ``config/entity-family-registry.json`` inside the
+            # repo. Excluding the override here (and, transitively,
+            # from ``partition_retry_paths`` via ``all_prefix_items``)
+            # keeps cloud rebuilds deterministic across machines and
+            # prevents an accidentally-committed local override from
+            # silently reaching DocDB.
+            "wiki/_system/entity-family-registry.json",
+        }
+    ]
+    if not allow_raw:
+        files = [path for path in files if not path.relative_to(MIRROR).as_posix().startswith("raw/")]
     if paths_manifest:
         payload = json.loads(Path(paths_manifest).expanduser().resolve().read_text(encoding="utf-8"))
         allowed = {str(value) for value in (payload.get("changed_relative_paths") or [])}
@@ -179,7 +261,7 @@ def iter_items(limit: int | None, only_prefix: str | None, paths_manifest: str |
                 path=path,
                 rel=rel,
                 folder_name=folder_name,
-                file_name=path.name,
+                file_name=CLOUD_FILE_NAMES.get(rel.as_posix(), path.name),
                 expected_ancestor=expected_ancestor,
             )
         )
@@ -205,6 +287,90 @@ def write_retry_paths(path: Path, paths: set[str]) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def load_sync_state(path: Path) -> dict:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError):
+        return {"schema_version": "cwk.docdb_sync_state.v1", "objects": {}}
+    if not isinstance(payload.get("objects"), dict):
+        payload["objects"] = {}
+    payload.setdefault("schema_version", "cwk.docdb_sync_state.v1")
+    return payload
+
+
+def bootstrap_sync_state(path: Path, receipts_dir: Path) -> dict:
+    """Recover durable file IDs and hashes from prior successful receipts.
+
+    This makes a fresh install or a deleted state file self-healing without
+    asking DocDB's search endpoint to rediscover every existing object.
+    """
+    state = load_sync_state(path)
+    objects = state.setdefault("objects", {})
+    if objects:
+        return state
+    receipts: list[tuple[str, Path, dict]] = []
+    for receipt in receipts_dir.glob("docdb-*.json"):
+        try:
+            payload = json.loads(receipt.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError, TypeError):
+            continue
+        if payload.get("dry_run"):
+            continue
+        receipts.append((str(payload.get("generated_at") or ""), receipt, payload))
+    for generated_at, _receipt, payload in sorted(receipts):
+        for row in payload.get("results") or []:
+            rel = str(row.get("relative_path") or "")
+            file_id = str(row.get("file_id") or "")
+            if not rel or not file_id or row.get("action") not in SUCCESS_ACTIONS:
+                continue
+            objects[rel] = {
+                "file_id": file_id,
+                "content_sha256": (
+                    "" if row.get("action") == "skip_existing"
+                    else str(row.get("content_sha256") or "")
+                ),
+                "file_name": str(row.get("file_name") or CLOUD_FILE_NAMES.get(rel, Path(rel).name)),
+                "synced_at": generated_at,
+            }
+    return state
+
+
+def write_sync_state(path: Path, state: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    state["updated_at"] = datetime.now().isoformat(timespec="seconds")
+    temp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    temp.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(temp, path)
+
+
+def partition_retry_paths(retry_paths: set[str], only_prefix: str | None, available: set[str]) -> tuple[set[str], set[str]]:
+    matching = {rel for rel in retry_paths if not only_prefix or rel.startswith(only_prefix)}
+    return matching & available, matching - available
+
+
+def partition_commit_items(items: list[SyncItem]) -> tuple[list[SyncItem], list[SyncItem]]:
+    regular = [item for item in items if item.rel.as_posix() not in COMMIT_POINTER_PATHS]
+    commit = [item for item in items if item.rel.as_posix() in COMMIT_POINTER_PATHS]
+    return regular, commit
+
+
+def enforce_raw_cloud_pause(*, allow_raw: bool, experimental_cloud_raw: bool) -> None:
+    """Require a second explicit opt-in while raw cloud publishing is paused."""
+    if allow_raw and not experimental_cloud_raw:
+        raise SystemExit(
+            "CWK raw cloud publishing is paused. For a controlled Cloud-First experiment, "
+            "also pass --experimental-cloud-raw."
+        )
+
+
+def healed_cloud_name(item: SyncItem) -> str:
+    """Return a stable alternate name when a remote file ID is unrecoverable."""
+    suffix = Path(item.file_name).suffix
+    stem = item.file_name[:-len(suffix)] if suffix else item.file_name
+    path_key = hashlib.sha256(item.rel.as_posix().encode("utf-8")).hexdigest()[:10]
+    return f"{stem}.cwk-heal-{path_key}{suffix}"
+
+
 def write_sync_manifest(output: Path, args: argparse.Namespace, results: list[dict]) -> dict:
     counts = {
         "total": len(results),
@@ -212,7 +378,10 @@ def write_sync_manifest(output: Path, args: argparse.Namespace, results: list[di
         "update_version": sum(1 for r in results if r.get("action") == "update_version"),
         "physical_create": sum(1 for r in results if r.get("action") == "physical_create"),
         "physical_update_version": sum(1 for r in results if r.get("action") == "physical_update_version"),
+        "physical_chunked_create": sum(1 for r in results if r.get("action") == "physical_chunked_create"),
+        "physical_chunked_update": sum(1 for r in results if r.get("action") == "physical_chunked_update"),
         "skip_existing": sum(1 for r in results if r.get("action") == "skip_existing"),
+        "unchanged": sum(1 for r in results if r.get("action") == "unchanged"),
         "skip_too_large": sum(1 for r in results if r.get("action") == "skip_too_large"),
         "failed": sum(1 for r in results if r.get("action") == "failed"),
     }
@@ -221,9 +390,14 @@ def write_sync_manifest(output: Path, args: argparse.Namespace, results: list[di
         "dry_run": args.dry_run,
         "project_id": args.project_id,
         "root_file_id": args.root_file_id,
-        "mirror_root": str(MIRROR.relative_to(PROJECT)),
+        "allow_raw": bool(getattr(args, "allow_raw", False)),
+        "experimental_cloud_raw": bool(getattr(args, "experimental_cloud_raw", False)),
+        "mirror_root": str(MIRROR.relative_to(PROJECT)) if MIRROR.is_relative_to(PROJECT) else str(MIRROR),
         "counts": counts,
         "results": results,
+        "retry_queue": str(Path(args.retry_queue).expanduser().resolve()),
+        "sync_state": str(Path(args.sync_state).expanduser().resolve()),
+        "stale_retry_paths_removed": sorted(getattr(args, "stale_retry_paths_removed", [])),
     }
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -252,6 +426,29 @@ def find_existing(item: SyncItem, project_id: str, root_file_id: str, env: dict[
     return None
 
 
+def resolve_existing_for_publish(
+    item: SyncItem,
+    catalog_row: dict,
+    project_id: str,
+    root_file_id: str,
+    env: dict[str, str],
+    assume_missing: bool,
+) -> dict | None:
+    """Resolve the live target for a publish operation.
+
+    Commit pointers are deliberately re-discovered by their exact cloud path
+    instead of trusting a cached file ID.  A stale pointer ID can otherwise
+    keep every later generation pinned to an unreadable DocDB object.
+    """
+    if assume_missing:
+        return None
+    if item.rel.as_posix() in COMMIT_POINTER_PATHS:
+        return find_existing(item, project_id, root_file_id, env)
+    if catalog_row.get("file_id"):
+        return {"id": str(catalog_row["file_id"]), "name": item.file_name}
+    return find_existing(item, project_id, root_file_id, env)
+
+
 def extract_resource_id(payload: dict, item: SyncItem) -> str:
     data = payload.get("data")
     if isinstance(data, dict):
@@ -267,7 +464,12 @@ def upload_resource(item: SyncItem, env: dict[str, str]) -> str:
     # Keep the multipart upload filename short and ASCII. The docdb save step
     # still stores the original mirror file name.
     with tempfile.TemporaryDirectory(prefix="cwk-raw-upload-") as tmp:
-        suffix = item.path.suffix or ".md"
+        # Raw Markdown can contain multi-megabyte embedded payloads. Upload it
+        # as an opaque resource so DocDB does not route it through the text
+        # materializer (which truncates/zeros large Markdown bodies). The
+        # saved file keeps its original display name and suffix.
+        opaque = item.rel.as_posix().startswith("raw/") or item.path.suffix.lower() in {".gz", ".bin"}
+        suffix = ".bin" if opaque else (item.path.suffix or ".md")
         upload_path = Path(tmp) / f"{item.path.stem[:18].encode('utf-8').hex()[:24]}{suffix}"
         shutil.copy2(item.path, upload_path)
         payload = run_json([sys.executable, str(DOCDB / "scripts/upload/upload-whole-file.py"), str(upload_path)], env)
@@ -276,10 +478,44 @@ def upload_resource(item: SyncItem, env: dict[str, str]) -> str:
     return extract_resource_id(payload, item)
 
 
+def upload_text_api(**kwargs) -> dict:
+    """Call the approved cms-docdb upload script in-process.
+
+    This avoids placing confidential Markdown bodies in the OS process list and
+    also removes one Python startup per object.
+    """
+    global _UPLOAD_CONTENT_MODULE
+    if _UPLOAD_CONTENT_MODULE is None:
+        with _UPLOAD_CONTENT_LOCK:
+            if _UPLOAD_CONTENT_MODULE is None:
+                script = DOCDB / "scripts" / "upload" / "upload-content.py"
+                spec = importlib.util.spec_from_file_location("cwk_cms_docdb_upload_content", script)
+                if not spec or not spec.loader:
+                    raise RuntimeError(f"cannot load approved DocDB upload script: {script}")
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                _UPLOAD_CONTENT_MODULE = module
+    last_result: dict | None = None
+    for attempt in range(3):
+        try:
+            payload = _UPLOAD_CONTENT_MODULE.call_api(**kwargs)
+        except SystemExit as exc:
+            raise RuntimeError(f"DocDB upload-content failed: {exc}") from exc
+        result = _UPLOAD_CONTENT_MODULE.process_result(payload)
+        last_result = result
+        message = str(result.get("resultMsg") or "")
+        transient = any(token.lower() in message.lower() for token in TRANSIENT_ERRORS)
+        if result.get("resultCode") == 1 or not transient:
+            return result
+        if attempt < 2:
+            time.sleep(1 + attempt)
+    return last_result or {"resultCode": 0, "resultMsg": "DocDB upload-content returned no result"}
+
+
 def physical_save_or_update(item: SyncItem, existing: dict | None, project_id: str, env: dict[str, str]) -> dict:
     resource_id = upload_resource(item, env)
     size = str(item.path.stat().st_size)
-    suffix = item.path.suffix.lstrip(".") or "md"
+    suffix = Path(item.file_name).suffix.lstrip(".") or item.path.suffix.lstrip(".") or "md"
     if existing:
         action = "physical_update_version"
         payload = run_json(
@@ -342,6 +578,75 @@ def physical_save_or_update(item: SyncItem, existing: dict | None, project_id: s
     }
 
 
+def upload_chunked_raw(
+    item: SyncItem,
+    catalog_row: dict,
+    project_id: str,
+    root_file_id: str,
+    env: dict[str, str],
+    dry_run: bool,
+) -> dict:
+    """Publish a large raw object as deterministic gzip parts.
+
+    DocDB's Markdown materializer returns zero bytes for large `.md` files.
+    Versioned opaque parts keep exact bytes and let the catalog switch to the
+    complete new generation atomically.
+    """
+    raw_bytes = item.path.read_bytes()
+    content_sha256 = hashlib.sha256(raw_bytes).hexdigest()
+    compressed = gzip.compress(raw_bytes, compresslevel=9, mtime=0)
+    artifact_sha256 = hashlib.sha256(compressed).hexdigest()
+    report_id = item.path.name.split("-", 1)[0]
+    part_rows: list[dict] = []
+    with tempfile.TemporaryDirectory(prefix="cwk-raw-parts-") as tmp:
+        for index, offset in enumerate(range(0, len(compressed), RAW_CHUNK_BYTES)):
+            blob = compressed[offset : offset + RAW_CHUNK_BYTES]
+            name = f"{report_id}.raw-{content_sha256[:16]}-{index:03d}.bin"
+            path = Path(tmp) / name
+            path.write_bytes(blob)
+            part_rel = item.rel.parent / name
+            part_item = SyncItem(
+                path=path,
+                rel=part_rel,
+                folder_name=item.folder_name,
+                file_name=name,
+                expected_ancestor=item.expected_ancestor,
+            )
+            existing = find_existing(part_item, project_id, root_file_id, env)
+            if dry_run:
+                file_id = str((existing or {}).get("id") or "")
+            elif existing:
+                # The name is content-addressed; an exact-name hit is an
+                # immutable part from this same logical generation.
+                file_id = str(existing.get("id") or "")
+            else:
+                saved = physical_save_or_update(part_item, None, project_id, env)
+                file_id = str(saved.get("file_id") or "")
+            if not dry_run and not file_id:
+                raise RuntimeError(f"chunk upload returned no file id for {part_rel.as_posix()}")
+            part_rows.append(
+                {
+                    "name": name,
+                    "remote_relative_path": part_rel.as_posix(),
+                    "file_id": file_id,
+                    "content_sha256": hashlib.sha256(blob).hexdigest(),
+                    "size": len(blob),
+                }
+            )
+    return {
+        "relative_path": item.rel.as_posix(),
+        "action": "physical_chunked_update" if catalog_row.get("parts") else "physical_chunked_create",
+        "file_id": str(part_rows[0].get("file_id") or "") if part_rows else "",
+        "folder_name": item.folder_name,
+        "size": len(raw_bytes),
+        "content_sha256": content_sha256,
+        "storage": "physical_gzip_parts",
+        "compression": "gzip",
+        "artifact_sha256": artifact_sha256,
+        "parts": part_rows,
+    }
+
+
 def upload_or_update(
     item: SyncItem,
     existing: dict | None,
@@ -352,6 +657,7 @@ def upload_or_update(
     physical_prefixes: list[str],
     max_bytes: int | None,
 ) -> dict:
+    content_sha256 = hashlib.sha256(item.path.read_bytes()).hexdigest()
     physical = any(item.rel.as_posix().startswith(prefix) for prefix in physical_prefixes)
     size = item.path.stat().st_size
     if max_bytes is not None and size > max_bytes:
@@ -361,6 +667,7 @@ def upload_or_update(
             "file_id": existing.get("id") if existing else None,
             "folder_name": item.folder_name,
             "size": size,
+            "content_sha256": content_sha256,
         }
     if existing and create_missing_only:
         return {
@@ -368,6 +675,7 @@ def upload_or_update(
             "action": "skip_existing",
             "file_id": existing.get("id"),
             "folder_name": item.folder_name,
+            "content_sha256": content_sha256,
         }
     if dry_run:
         return {
@@ -385,37 +693,38 @@ def upload_or_update(
             ),
             "file_id": existing.get("id") if existing else None,
             "folder_name": item.folder_name,
+            "content_sha256": content_sha256,
         }
     if physical:
-        return physical_save_or_update(item, existing, project_id, env)
+        result = physical_save_or_update(item, existing, project_id, env)
+        result["content_sha256"] = content_sha256
+        return result
 
-    content = item.path.read_text(encoding="utf-8")
-    cmd = [
-        sys.executable,
-        str(DOCDB / "scripts/upload/upload-content.py"),
-        content,
-        item.file_name,
-        "--file-suffix",
-        item.path.suffix.lstrip(".") or "md",
-        "--project-id",
-        project_id,
-    ]
+    try:
+        content = item.path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise RuntimeError(
+            f"binary/non-UTF8 object requires --physical-prefix for {item.rel.as_posix()}"
+        ) from exc
+    upload_kwargs = {
+        "content": content,
+        "file_name": item.file_name,
+        "file_suffix": item.path.suffix.lstrip(".") or "md",
+        "project_id": int(project_id),
+    }
     if existing:
-        cmd.extend(
-            [
-                "--update-file-id",
-                str(existing["id"]),
-                "--version-name",
-                datetime.now().strftime("cwk-sync-%Y%m%d-%H%M%S"),
-                "--version-remark",
-                f"工作协同镜像同步：{item.rel.as_posix()}",
-            ]
+        upload_kwargs.update(
+            {
+                "update_file_id": int(existing["id"]),
+                "version_name": datetime.now().strftime("cwk-sync-%Y%m%d-%H%M%S"),
+                "version_remark": f"工作协同镜像同步：{item.rel.as_posix()}",
+            }
         )
         action = "update_version"
     else:
-        cmd.extend(["--folder-name", item.folder_name])
+        upload_kwargs["folder_name"] = item.folder_name
         action = "create"
-    payload = run_json(cmd, env)
+    payload = upload_text_api(**upload_kwargs)
     if payload.get("resultCode") != 1:
         raise RuntimeError(payload.get("resultMsg") or f"upload failed for {item.rel}")
     data = payload.get("data") or {}
@@ -424,10 +733,53 @@ def upload_or_update(
         "action": action,
         "file_id": data.get("fileId") or (existing.get("id") if existing else None),
         "folder_name": item.folder_name,
+        "content_sha256": content_sha256,
     }
 
 
+def publish_with_stale_id_recovery(
+    item: SyncItem,
+    existing: dict | None,
+    project_id: str,
+    root_file_id: str,
+    env: dict[str, str],
+    dry_run: bool,
+    create_missing_only: bool,
+    physical_prefixes: list[str],
+    max_bytes: int | None,
+) -> dict:
+    try:
+        result = upload_or_update(
+            item, existing, project_id, env, dry_run,
+            create_missing_only, physical_prefixes, max_bytes,
+        )
+        result.setdefault("file_name", item.file_name)
+        return result
+    except Exception as exc:
+        error = sanitize_error(exc)
+        if not existing or "文件信息查询失败" not in error or dry_run:
+            raise RuntimeError(f"publish: {error}") from exc
+        healed_item = replace(item, file_name=healed_cloud_name(item))
+        try:
+            healed_existing = find_existing(healed_item, project_id, root_file_id, env)
+            result = upload_or_update(
+                healed_item, healed_existing, project_id, env, False,
+                create_missing_only, physical_prefixes, max_bytes,
+            )
+            result.update({
+                "file_name": healed_item.file_name,
+                "self_healed": True,
+                "stale_file_id": str(existing.get("id") or ""),
+            })
+            return result
+        except Exception as heal_exc:
+            raise RuntimeError(
+                f"publish_stale_id; self_heal_failed: {sanitize_error(heal_exc)}"
+            ) from heal_exc
+
+
 def main() -> None:
+    global MIRROR
     parser = argparse.ArgumentParser(description="Sync local CWork mirror Markdown files to docdb.")
     parser.add_argument("--project-id", default=DEFAULT_PROJECT_ID)
     parser.add_argument("--root-file-id", default=DEFAULT_ROOT_FILE_ID)
@@ -435,14 +787,56 @@ def main() -> None:
     parser.add_argument("--account-id", default=DEFAULT_ACCOUNT_ID)
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--only-prefix", default=None, help="Only sync relative paths with this prefix, e.g. raw/")
+    parser.add_argument(
+        "--allow-raw",
+        action="store_true",
+        help="Explicitly permit raw/ uploads for an approved Cloud-First migration. Raw is denied by default.",
+    )
+    parser.add_argument(
+        "--experimental-cloud-raw",
+        action="store_true",
+        help="Second explicit unlock required while Cloud-First raw publishing is paused.",
+    )
     parser.add_argument("--paths-manifest", default=None, help="Only sync paths listed in a safe-materialize manifest.")
     parser.add_argument("--physical-prefix", action="append", default=[], help="Use physical-file upload for matching relative path prefixes.")
     parser.add_argument("--max-bytes", type=int, default=None, help="Skip files larger than this many bytes.")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--create-missing-only", action="store_true")
+    parser.add_argument(
+        "--assume-missing",
+        action="store_true",
+        help="Skip search and create directly; only safe with a pre-audited manifest of paths absent from DocDB.",
+    )
+    parser.add_argument(
+        "--object-catalog",
+        default="",
+        help="Optional cloud-objects.json used to resolve existing file IDs without one search request per path.",
+    )
+    parser.add_argument("--max-parallel", type=int, default=1, help="Concurrent DocDB object syncs (1-16).")
+    parser.add_argument(
+        "--mirror-root",
+        default=os.environ.get("CWK_MIRROR_ROOT", str(MIRROR)),
+        help="Local cache of the cloud mirror to sync (defaults to this package's mirror).",
+    )
     parser.add_argument("--manifest", default=None)
     parser.add_argument("--retry-queue", default=str(DEFAULT_RETRY_QUEUE), help="Persistent queue for failed relative paths.")
+    parser.add_argument("--sync-state", default=str(DEFAULT_SYNC_STATE), help="Durable successful file-id/hash receipt cache.")
+    parser.add_argument("--retry-only", action="store_true", help="Process only currently queued retry paths.")
     args = parser.parse_args()
+    enforce_raw_cloud_pause(
+        allow_raw=bool(args.allow_raw),
+        experimental_cloud_raw=bool(args.experimental_cloud_raw),
+    )
+    MIRROR = Path(args.mirror_root).expanduser().resolve()
+    if not MIRROR.is_dir():
+        raise SystemExit(f"mirror root does not exist: {MIRROR}")
+    if str(args.only_prefix or "").startswith("raw/") and not args.allow_raw:
+        raise SystemExit(
+            "raw/ sync is denied by default; an approved experiment requires both "
+            "--allow-raw and --experimental-cloud-raw"
+        )
+    if args.max_parallel < 1 or args.max_parallel > 16:
+        raise SystemExit("--max-parallel must be between 1 and 16")
 
     app_key = (
         os.environ.get("XG_BIZ_API_KEY")
@@ -452,41 +846,145 @@ def main() -> None:
     )
     env = os.environ.copy()
     env["XG_BIZ_API_KEY"] = app_key
+    os.environ["XG_BIZ_API_KEY"] = app_key
     args.project_id, args.root_file_id = resolve_docdb_target(args.project_id, args.root_file_id, env, args.dry_run)
+    if args.allow_raw:
+        personal_project_id = get_personal_project_id(env)
+        if str(args.project_id) != str(personal_project_id):
+            raise SystemExit("raw/ upload is permitted only to the authenticated user's personal/private DocDB project")
+        if not any(str(prefix).startswith("raw/") for prefix in args.physical_prefix):
+            raise SystemExit("raw/ upload requires --physical-prefix raw/ so original bytes are never sent to the text materializer")
 
     output = Path(args.manifest) if args.manifest else PROJECT / "runs" / "docdb-mirror-sync-manifest.json"
     retry_queue = Path(args.retry_queue).expanduser().resolve()
     retry_paths = load_retry_paths(retry_queue)
-    items = iter_items(args.limit, args.only_prefix, args.paths_manifest)
+    sync_state_path = Path(args.sync_state).expanduser().resolve()
+    sync_state = bootstrap_sync_state(sync_state_path, PROJECT / "runs")
+    sync_state_objects = sync_state.setdefault("objects", {})
+    local_catalog_objects: dict[str, dict] = {}
+    local_catalog_path = MIRROR / "wiki" / "_system" / "cloud-objects.json"
+    try:
+        local_catalog_objects = json.loads(local_catalog_path.read_text(encoding="utf-8")).get("objects") or {}
+    except (OSError, ValueError, TypeError):
+        pass
+    all_prefix_items = {
+        item.rel.as_posix(): item
+        for item in iter_items(None, args.only_prefix, None, allow_raw=args.allow_raw)
+    }
+    active_retry_paths, stale_retry_paths = partition_retry_paths(
+        retry_paths, args.only_prefix, set(all_prefix_items),
+    )
+    retry_paths.difference_update(stale_retry_paths)
+    args.stale_retry_paths_removed = stale_retry_paths
+    items = [] if args.retry_only else iter_items(args.limit, args.only_prefix, args.paths_manifest, allow_raw=args.allow_raw)
     selected = {item.rel.as_posix(): item for item in items}
-    for item in iter_items(None, args.only_prefix, None):
-        if item.rel.as_posix() in retry_paths:
-            selected.setdefault(item.rel.as_posix(), item)
+    for rel in sorted(active_retry_paths):
+        selected.setdefault(rel, all_prefix_items[rel])
 
-    results = []
-    for index, item in enumerate(selected.values(), 1):
+    results: list[dict] = []
+    catalog_objects: dict[str, dict] = {}
+    if args.object_catalog:
+        catalog_path = Path(args.object_catalog).expanduser().resolve()
+        try:
+            catalog_payload = json.loads(catalog_path.read_text(encoding="utf-8"))
+            catalog_objects = {
+                str(rel): row for rel, row in (catalog_payload.get("objects") or {}).items()
+                if isinstance(row, dict) and row.get("file_id")
+            }
+        except (OSError, ValueError, TypeError) as exc:
+            raise SystemExit(f"invalid object catalog {catalog_path}: {exc}") from exc
+
+    def sync_item(item: SyncItem) -> dict:
         rel = item.rel.as_posix()
         try:
-            existing = find_existing(item, args.project_id, args.root_file_id, env)
-            result = upload_or_update(
-                    item,
-                    existing,
-                    args.project_id,
-                    env,
-                    args.dry_run,
-                    args.create_missing_only,
-                    args.physical_prefix,
-                    args.max_bytes,
+            catalog_row = catalog_objects.get(rel) or sync_state_objects.get(rel) or local_catalog_objects.get(rel) or {}
+            effective_item = replace(item, file_name=str(catalog_row.get("file_name") or item.file_name))
+            content_sha256 = hashlib.sha256(item.path.read_bytes()).hexdigest()
+            if catalog_row.get("file_id") and catalog_row.get("content_sha256") == content_sha256:
+                return {
+                    "relative_path": rel,
+                    "action": "unchanged",
+                    "file_id": str(catalog_row["file_id"]),
+                    "folder_name": item.folder_name,
+                    "file_name": effective_item.file_name,
+                    "content_sha256": content_sha256,
+                }
+            if (
+                rel.startswith("raw/")
+                and item.path.stat().st_size > RAW_CHUNK_THRESHOLD_BYTES
+                and any(rel.startswith(prefix) for prefix in args.physical_prefix)
+            ):
+                return upload_chunked_raw(
+                    effective_item, catalog_row, args.project_id, args.root_file_id, env, args.dry_run,
                 )
-            results.append(result)
-            retry_paths.discard(rel)
-        except Exception as exc:  # continue the batch and persist a compensating retry
-            results.append({"relative_path": rel, "action": "failed", "error": str(exc)[:1000]})
-            retry_paths.add(rel)
-        write_retry_paths(retry_queue, retry_paths)
-        write_sync_manifest(output, args, results)
+            try:
+                existing = resolve_existing_for_publish(
+                    effective_item,
+                    catalog_row,
+                    args.project_id,
+                    args.root_file_id,
+                    env,
+                    args.assume_missing,
+                )
+            except Exception as exc:
+                raise RuntimeError(f"resolve_existing: {sanitize_error(exc)}") from exc
+            try:
+                return publish_with_stale_id_recovery(
+                    effective_item, existing, args.project_id, args.root_file_id, env,
+                    args.dry_run, args.create_missing_only, args.physical_prefix, args.max_bytes,
+                )
+            except Exception as exc:
+                raise RuntimeError(sanitize_error(exc)) from exc
+        except Exception as exc:
+            error = sanitize_error(exc)
+            return {
+                "relative_path": rel,
+                "action": "failed",
+                "error": error,
+                "retryable": any(token.lower() in error.lower() for token in TRANSIENT_ERRORS),
+            }
+
+    values = list(selected.values())
+    regular_values, commit_values = partition_commit_items(values)
+
+    def record_result(result: dict, fallback_item: SyncItem, index: int) -> None:
+        rel = str(result.get("relative_path") or fallback_item.rel.as_posix())
+        results.append(result)
+        if not args.dry_run:
+            if result.get("action") == "failed":
+                retry_paths.add(rel)
+            else:
+                retry_paths.discard(rel)
+                file_id = str(result.get("file_id") or "")
+                if file_id:
+                    sync_state_objects[rel] = {
+                        "file_id": file_id,
+                        "content_sha256": str(result.get("content_sha256") or ""),
+                        "file_name": str(result.get("file_name") or fallback_item.file_name),
+                        "synced_at": datetime.now().isoformat(timespec="seconds"),
+                    }
         if index % 10 == 0:
+            if not args.dry_run:
+                write_retry_paths(retry_queue, retry_paths)
+                write_sync_state(sync_state_path, sync_state)
+            write_sync_manifest(output, args, sorted(results, key=lambda row: str(row.get("relative_path") or "")))
             print(f"processed {index}", file=sys.stderr, flush=True)
+    processed = 0
+    with ThreadPoolExecutor(max_workers=args.max_parallel, thread_name_prefix="cwk-docdb") as executor:
+        futures = {executor.submit(sync_item, item): item for item in regular_values}
+        for future in as_completed(futures):
+            processed += 1
+            record_result(future.result(), futures[future], processed)
+    # Commit pointers are published only after every data object in the batch
+    # has settled, and are deliberately serialized to avoid racing large index
+    # uploads against the object that declares the new generation complete.
+    for item in commit_values:
+        processed += 1
+        record_result(sync_item(item), item, processed)
+    results.sort(key=lambda row: str(row.get("relative_path") or ""))
+    if not args.dry_run:
+        write_retry_paths(retry_queue, retry_paths)
+        write_sync_state(sync_state_path, sync_state)
     manifest = write_sync_manifest(output, args, results)
     print(json.dumps(manifest["counts"], ensure_ascii=False))
     print(output)

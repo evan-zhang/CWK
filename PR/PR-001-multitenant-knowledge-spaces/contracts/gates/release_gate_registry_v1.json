@@ -1,0 +1,534 @@
+{
+  "schema": "cwk.pr001.release_gate_registry.v1",
+  "description": "Frozen registry of PR-001 release gates G1..G7. This file is CONFIGURATION, not state: it declares each release gate's exact machine-receipt path, its exact frozen prerequisite set, which verification gates it consumes, who is allowed to produce it, and nothing about whether it ran. Runtime status is derived solely from whether receipt_path exists and, if so, from the status/conclusion inside that receipt. NO release gate receipt exists today, so every one of the seven entries is NOT_RUN. G0 is deliberately NOT an entry here (see bootstrap_gate). G1..G6 are release VERIFICATION gates and use cwk.pr001.release_gate_receipt.v1; G7 is a release AUTHORIZATION and uses a different schema, a different filename and a different domain separator, because an authorization is not a verification pass and must never be produced by the same machinery.",
+  "receipt_root": "PR/PR-001-multitenant-knowledge-spaces/release-gate-receipts/",
+  "receipt_schema_ref": "PR/PR-001-multitenant-knowledge-spaces/contracts/gates/release_gate_receipt_v1.schema.json",
+  "receipt_schema_id": "cwk.pr001.release_gate_receipt.v1",
+  "authorization_schema_ref": "PR/PR-001-multitenant-knowledge-spaces/contracts/gates/release_authorization_receipt_v1.schema.json",
+  "authorization_schema_id": "cwk.pr001.release_authorization_receipt.v1",
+  "downstream_only_ids": ["G7"],
+  "bootstrap_gate": {
+    "gate_id": "G0",
+    "in_registry": false,
+    "exclusion_reason": "G0 is the pre-RT DOCUMENT review gate: it certifies that the PRD, DESIGN and 开发计划 were reviewed with no Blocker/Major before RT-011 begins. Its evidence is a narrative Markdown review report, not a machine receipt, and it has no feeder RT, no test evidence, no artifact hash set and no environment binding. Modelling it as an eighth registry entry would force a machine receipt schema onto a document review and would let a Markdown file masquerade as a verifiable release gate. It is therefore excluded from `gates` by construction and may appear ONLY as the ref_id `G0` inside G1's frozen prerequisite set, where it resolves through the paths below.",
+    "historical_narrative_ref": "PR/PR-001-multitenant-knowledge-spaces/reviews/审核报告-r4.md",
+    "final_wave0_review_report_path": "PR/PR-001-multitenant-knowledge-spaces/reviews/审核报告-wave0-final.md",
+    "resolution_rule": "G0 is satisfied ONLY by final_wave0_review_report_path, which is FROZEN here and DOES NOT EXIST YET. historical_narrative_ref is the round-4 report that predates the Wave-0 contract remediation waves; it is retained for provenance and is explicitly NOT sufficient, because it reviewed an earlier revision of the documents and cannot speak to contracts frozen after it was written. Trusting the stale r4 report would let a superseded review authorise G1. Therefore: final_wave0_review_report_path absent => G0 UNSATISFIED => G1 is NOT_RUN and can never be issued. Nothing in this repository may create that report as a side effect of implementation work; it is produced by an independent reviewer only."
+  },
+  "consumer_relation_model": "There are TWO DISTINCT and NON-INTERCHANGEABLE consumer relations over verification gates VG-A..VG-E, and conflating them was a real contradiction in earlier revisions. (1) DIRECT RT CONSUMERS: the RT delivery packages whose own implementation reads a VG receipt JSON as an input. This relation is the `consumers` field of gate_registry_v1.json and its value space is exactly {RT-024, RT-026}. (2) RELEASE-GATE CONSUMERS: the release gates that must cite a VG receipt in their frozen prerequisite set. This relation is `consumes_verification_gates` in THIS file, and its inverse is VG-A -> {G3, G6}, VG-B -> {G6}, VG-C -> {G4, G6}, VG-D -> {G5, G6}, VG-E -> {G6}. A gate appearing in relation (2) is NOT added to relation (1): G3 consuming VG-A does not make G3 an RT consumer, and RT-026 consuming VG-A does not make RT-026 a release gate. Both relations are machine-readable and each is authoritative only for its own file; neither may be derived from the other.",
+  "status_resolution_rule": "A release gate is NOT_RUN iff its receipt_path does not exist. Otherwise its status and conclusion are EXACTLY the status/conclusion fields of the file at receipt_path, which must additionally pass full schema and semantic validation or the gate fails closed. No release gate receipt exists today, therefore all seven entries are NOT_RUN. A missing gate may never be inferred from a downstream gate, from a narrative document, from this registry, or from the fact that its prerequisites are satisfied: prerequisites being green is a precondition for RUNNING a gate, never a substitute for its receipt.",
+  "root_closure_rule": "Closure is judged over the ENTIRE receipt_root subtree, not only over the paths listed in `gates`. After recursive enumeration of release-gate-receipts/, every regular file must land EXACTLY on a declared receipt_path, or on a declared archive_dir member named <its own recomputed hash>.json. A symlink at any component or leaf, a dotfile, a non-regular file (FIFO, device node, socket), a nested extra receipt, a stray JSON beside a declared receipt, or a receipt.json placed under G7 (whose declared filename is authorization.json) is a HARD NO_GO rather than a bonus. Rationale: such entries carry no gate_id and no sequence, so every per-entry and per-chain rule is structurally blind to them; only whole-directory closure sees them. receipt_root DOES NOT EXIST today and must not be created by implementation work.",
+  "root_separation_rule": "release-gate-receipts/ is a SEPARATE root from gate-receipts/. It must never be merged with it. gate-receipts/ is already validated as an exact VG-A..VG-E closure: every receipt.json under it must sit at a VG registry path, so placing G1..G7 receipts there would immediately register as undeclared-extra files and would force that closure check to be weakened. Keeping the roots disjoint means neither closure rule has to be relaxed and neither family can be smuggled into the other's evidence set.",
+  "prerequisite_rank_rule": "required_prerequisite_ids below is the EXACT, EXHAUSTIVE, frozen prerequisite set for each gate's receipt: a receipt's prerequisite_refs[].ref_id multiset must EQUAL this set - not a subset, not a superset - and every entry must carry the recomputed hash of the referenced evidence. It is derived from four rank constraints and nothing else: (1) release-gate rank - a gate cites only strictly earlier release gates, never itself and never a later one, and nothing may cite G7; (2) RT rank - a gate cites only RTs at or below its own scope ceiling; (3) VG rank - a gate cites exactly the verification gates it is defined to consume; (4) capability/security rank - a gate cites a capability activation or a security gate receipt only where that evidence is a declared precondition of its scope. G7 is a deliberate NARROW-AUTHORITY exception to (2),(3),(4): its set is exactly {G6}, because an authorization re-consuming RT/VG/G1..G5 evidence would silently re-open verification questions that G6 already closed and would let an authorizer overrule a verifier.",
+  "authorization_separation_rule": "G1..G6 answer 'was this verified?'; G7 answers 'is this authorized to be deployed?'. These are different questions with different trust roots and are kept structurally apart: different schema ($id), different filename (authorization.json vs receipt.json), different domain separator (cwk-release-authorization-receipt-v1\\0 vs cwk-release-gate-receipt-v1\\0), and different signer requirements (an EXTERNAL trust root vs an independent project verifier). No project agent, implementation agent, acceptance agent, evaluator or test signer may produce a G7 authorization; a G7 file whose signer resolves to any in-repo or test key is INVALID regardless of its contents. Equally, a valid G7 is NOT a verification result and can never upgrade, repair or substitute for a missing or failing G1..G6.",
+  "rt026_terminal_conclusion_rule": "RT-026's terminal self-conclusion token is FROZEN as READY_FOR_G7_REVIEW, and its NORMATIVE MEANING is exactly READY_FOR_G6_FINAL_ACCEPTANCE: 'this candidate package may be SUBMITTED to G6 final acceptance'. The token name is an acknowledged v1 misnomer - it names G7 while meaning G6 - and it is retained rather than renamed because it is already frozen inside synthetic_closure_map_v1.json and in executable assertions, so a rename would be an unversioned break of a frozen contract. Every user-facing document must therefore gloss it as '可提交 G6 最终验收' and must never render it as G7_AUTHORIZED, RELEASE_APPROVED or any equivalent. RT-026 reaching this conclusion authorises NOTHING: it does not issue G6, does not skip G6, does not request G7 and does not make G7 reachable.",
+  "go_no_go_contract": {
+    "schema_ref": "PR/PR-001-multitenant-knowledge-spaces/contracts/rt026/schemas/go_no_go_report_v1.schema.json",
+    "schema_id": "cwk.pr001.go_no_go_report.v1",
+    "report_path": "RT/RT-026/reports/go-no-go-report.json",
+    "domain_separator": "cwk-rt026-go-no-go-report-v1\\0",
+    "terminal_conclusion": "READY_FOR_G7_REVIEW",
+    "terminal_meaning": "READY_FOR_G6_FINAL_ACCEPTANCE_ONLY",
+    "policy_ref_path": "PR/PR-001-multitenant-knowledge-spaces/contracts/gates/release_gate_registry_v1.json",
+    "exact_input_ids": [
+      "VG-A", "VG-B", "VG-C", "VG-D", "VG-E",
+      "G1", "G2", "G3", "G4", "G5",
+      "CAP:cwork-authority-source", "CAP:gateway-identity-transport",
+      "SG:RT-017", "SG:RT-018", "SG:RT-019", "SG:RT-020", "SG:RT-021",
+      "SG:RT-022", "SG:RT-023", "SG:RT-024", "SG:RT-025", "SG:RT-026",
+      "EVIDENCE:rt016-data-diff", "EVIDENCE:query-diff-six-layer",
+      "EVIDENCE:rt024-benchmark", "EVIDENCE:rt025-vge-recovery",
+      "EVIDENCE:rollback-rehearsal", "EVIDENCE:default-off", "EVIDENCE:open-findings"
+    ],
+    "evidence_inputs": {
+      "EVIDENCE:rt016-data-diff": {"input_class": "rt016_data_diff", "ref_kind": "data_diff_report", "ref_path": "RT/RT-016/reports/data-diff.json", "schema_id": null},
+      "EVIDENCE:query-diff-six-layer": {"input_class": "query_diff_six_layer", "ref_kind": "query_diff_report", "ref_path": "RT/RT-026/reports/query-diff-six-layer.json", "schema_id": null},
+      "EVIDENCE:rt024-benchmark": {"input_class": "rt024_benchmark", "ref_kind": "benchmark_report", "ref_path": "RT/RT-024/reports/benchmark.json", "schema_id": null},
+      "EVIDENCE:rt025-vge-recovery": {"input_class": "rt025_vge_recovery", "ref_kind": "recovery_report", "ref_path": "RT/RT-025/reports/vge-recovery.json", "schema_id": null},
+      "EVIDENCE:rollback-rehearsal": {"input_class": "rollback_rehearsal", "ref_kind": "rollback_report", "ref_path": "RT/RT-026/reports/rollback-rehearsal.json", "schema_id": null},
+      "EVIDENCE:default-off": {"input_class": "default_off", "ref_kind": "default_off_report", "ref_path": "RT/RT-026/reports/default-off.json", "schema_id": null},
+      "EVIDENCE:open-findings": {"input_class": "open_findings", "ref_kind": "findings_report", "ref_path": "RT/RT-026/reports/open-findings.json", "schema_id": null}
+    },
+    "exact_artifact_roles": ["input_manifest", "evaluation_log", "launcher_run_attestation"],
+    "self_hash_rule": "report_sha256 = sha256(cwk-rt026-go-no-go-report-v1\\0 || JCS_UTF8(NFC(record excluding only report_sha256)))."
+  },
+  "release_version_resolution": {
+    "logical_ref_path_field": "ref_path",
+    "lookup_key_field": "raw_sha256",
+    "storage_locations": ["current", "archive"],
+    "as_of_field": "consumer.created_at",
+    "selection_rule": "Resolve the unique raw hash from the fail-closed current+archive index, then require it to be the highest sequence whose created_at is strictly earlier than the consuming receipt's created_at. A logical ref_path never changes when the bytes come from archive.",
+    "current_expiry_clock": "evaluation_context.now",
+    "cycle_guard_fields": ["gate_id", "receipt_sha256"],
+    "closure_rule": "One snapshot validates every current and archive member for schema, self-hash, filename, gate id, sequence, predecessor and strictly increasing time; duplicate raw hashes, gaps, forks, orphans and cycles fail closed before resolution."
+  },
+  "prerequisite_resolution": {
+    "binding_rule": "A prerequisite_refs[] entry is NOT bound by its ref_id. An earlier revision compared ref_id against a caller-supplied {ref_id: hash} map, which meant the evaluator never learned WHICH FILE an id denotes: any 64-hex string injected under the right key satisfied the check, `G0` could denote any document at all, and a cheap artefact under an expensive id was undetectable. Binding is therefore three-part and all three parts must hold. (1) PATH: ref_path must EQUAL the canonical path this id resolves to under `families` below - not merely match a path pattern, not merely exist. (2) FAMILY: ref_kind must equal the family's ref_kind, and the referenced body must carry the family's schema id (or, for the two Markdown families, must not be JSON at all). (3) BODY: the body is read through a fail-closed openat/O_NOFOLLOW/dirfd chain, its sha256 is RECOMPUTED and must equal ref_sha256, and it must additionally satisfy `required_body_checks`. A prerequisite whose file is absent, unreadable, symlinked, hardlinked, behind a swapped parent directory, of the wrong family, or failing/expired/revoked makes the citing gate INVALID; it is never downgraded to 'partially verified' and never treated as NOT_RUN-therefore-ignorable.",
+    "families": [
+      {
+        "family": "bootstrap_review",
+        "ref_id_pattern": "^G0$",
+        "ref_kind": "narrative_review_report",
+        "body_kind": "markdown",
+        "schema_id": null,
+        "path_source": "bootstrap_gate.final_wave0_review_report_path",
+        "forbidden_paths": [
+          "PR/PR-001-multitenant-knowledge-spaces/reviews/审核报告-r4.md"
+        ],
+        "note": "G0 resolves to EXACTLY bootstrap_gate.final_wave0_review_report_path and to nothing else. The round-4 report is enumerated in forbidden_paths precisely because it is the plausible substitute: it exists on disk, it is a real independent review, and it hashes to a stable value, so an evaluator that accepted 'some review report' would accept it. It reviewed an earlier revision of the documents and cannot speak to contracts frozen after it was written, so accepting it would let a superseded review authorise G1. Any other path - arbitrary, adjacent, or merely similar - is equally rejected. The canonical path DOES NOT EXIST today, so G0 is UNSATISFIED and G1 is permanently NOT_RUN until an independent reviewer produces it."
+      },
+      {
+        "family": "release_gate",
+        "ref_id_pattern": "^G[1-6]$",
+        "ref_kind": "release_gate_receipt",
+        "body_kind": "json",
+        "schema_id": "cwk.pr001.release_gate_receipt.v1",
+        "path_source": "release_gate_registry_v1.json#gates[gate_id==ref_id].receipt_path",
+        "forbidden_paths": [],
+        "note": "Resolved inside THIS registry. The referenced receipt must itself pass full structural and semantic validation, not merely parse: a green-looking G3 that has since drifted, been superseded, or been left in `implementation_done` cannot be laundered into G6 by citing its hash."
+      },
+      {
+        "family": "rt_acceptance",
+        "ref_id_pattern": "^RT-0(1[1-9]|2[0-6])$",
+        "ref_kind": "rt_independent_acceptance",
+        "body_kind": "markdown",
+        "schema_id": null,
+        "path_source": "prerequisite_resolution.rt_acceptance_reports[ref_id].report_path",
+        "forbidden_paths": [
+          "PR/PR-001-multitenant-knowledge-spaces/reviews/审核报告-r4.md",
+          "RT/RT-012/reports/独立验收报告.md",
+          "RT/RT-013/reports/独立验收报告.md"
+        ],
+        "note": "Each RT resolves to ONE exact independent acceptance report. RT-011 deliberately resolves to 独立验收报告-r2.md: the un-suffixed RT-011 report is retained as historical FAILED evidence, so a resolver that guessed the un-suffixed filename by convention would bind a failed acceptance under a passing id. RT-012 and RT-013 deliberately resolve to 独立验收报告-stage09.md and 独立验收报告-stage10.md respectively: their original reports predate the Stage-09 cwk_instance.py root-anchor remediation and Stage-10 cwk_agent_binding.py concurrent-bind remediation, and are retained only inside their own superseded_legacy_report objects, never as current acceptance. A delivery-verification report (交付验证报告.md) or an implementation record (实现记录.md) is NOT an independent acceptance and may never be substituted."
+      },
+      {
+        "family": "verification_gate",
+        "ref_id_pattern": "^VG-[A-E]$",
+        "ref_kind": "verification_gate_receipt",
+        "body_kind": "json",
+        "schema_id": "cwk.pr001.verification_gate_receipt.v1",
+        "path_source": "gate_registry_v1.json#gates[gate_id==ref_id].receipt_path",
+        "forbidden_paths": [],
+        "note": "Resolved through the VERIFICATION gate registry, which is a different file with a different receipt root. The two roots are disjoint by root_separation_rule, so a release receipt can never resolve to a VG path or vice versa."
+      },
+      {
+        "family": "capability_activation",
+        "ref_id_pattern": "^CAP:(cwork-authority-source|gateway-identity-transport)$",
+        "ref_kind": "capability_activation_receipt",
+        "body_kind": "json",
+        "schema_id": "cwk.pr001.capability_activation_receipt.v1",
+        "path_source": "synthetic_closure_map_v1.json#capabilities[capability_id==suffix].activation_receipt_path",
+        "forbidden_paths": [],
+        "note": "The id suffix after 'CAP:' is the capability_id. Activation receipts are time-bounded: an activation past its expires_at is a stale trust claim, which is a silent authentication bypass rather than a stale permission list, so it fails the citing gate closed."
+      },
+      {
+        "family": "security_gate",
+        "ref_id_pattern": "^SG:RT-0(1[7-9]|2[0-6])$",
+        "ref_kind": "security_gate_receipt",
+        "body_kind": "json",
+        "schema_id": "cwk.pr001.security_gate_receipt.v1",
+        "path_source": "security_gate_registry_v1.json#entries[producer_rt==suffix].receipt_path",
+        "forbidden_paths": [],
+        "note": "The id suffix after 'SG:' is the producing RT. Resolution goes through the SECURITY registry, never by string-building a path from the RT id, so a security receipt cannot be pointed at an RT package directory."
+      },
+      {
+        "family": "go_no_go",
+        "ref_id_pattern": "^RT-026-GO-NO-GO$",
+        "ref_kind": "go_no_go_report",
+        "body_kind": "json",
+        "schema_id": "cwk.pr001.go_no_go_report.v1",
+        "path_source": "prerequisite_resolution.go_no_go_report_path",
+        "forbidden_paths": [],
+        "note": "One exact frozen path. RT-026's go/no-go output is machine-readable so that G6 can bind its conclusion rather than read a narrative; it is an INPUT to G6 and G6 is never an input to it."
+      }
+    ],
+    "markdown_acceptance_marker": {
+      "description": "The FROZEN machine-parseable block that both Markdown families must carry. Naive substring matching on the word PASS is explicitly FORBIDDEN: 'PASS' occurs in ordinary prose ('the criteria to PASS were not met', 'did not pass'), inside quoted contract text, and inside a table of contents, so a substring test accepts a report that says the opposite of what it is read to say. The block is an HTML comment so it renders as nothing, and it is parsed as an exact line grammar rather than searched.",
+      "block_open": "<!-- cwk-acceptance-v1",
+      "block_close": "-->",
+      "field_line_pattern": "^([a-z][a-z0-9_]*): (\\S+)$",
+      "required_fields": [
+        "report_id",
+        "verdict",
+        "open_blocker",
+        "open_major",
+        "subject_commit",
+        "owner_scope_tree_sha256"
+      ],
+      "rt_acceptance_required_identity_fields": ["implementer_ids", "reviewer_ids"],
+      "identity_token_pattern": "^[a-z0-9][a-z0-9._:@/-]{0,127}$",
+      "identity_list_rule": "Every RT entry whose marker_style is cwk_acceptance_v1 - currently RT-012, RT-013 and RT-017..RT-026 - must carry implementer_ids and reviewer_ids as comma-separated NFC ASCII tokens, sorted, unique, non-empty, whitespace-free, with the two sets disjoint. G0 retains the six-field marker because it is a document review rather than an RT implementation acceptance. The closed legacy set RT-011 and RT-014..RT-016 retains frozen historical bytes and is never parsed.",
+      "verdict_pass_value": "PASS",
+      "parse_rules": [
+        "EXACTLY ONE block may appear in the document. Zero blocks is an unmarked report; two or more is ambiguous, and picking the first would let an author append a second, contradictory block that humans read and machines ignore.",
+        "The block's inner lines must EACH match field_line_pattern. A line that does not match, a duplicated key, a missing required field and an unknown extra key are all rejected; there is no lenient skip.",
+        "verdict must equal verdict_pass_value EXACTLY, compared as a whole field value. Any other verdict - FAIL, CONDITIONAL, PASS_WITH_FINDINGS, PASSED - is not a pass.",
+        "open_blocker and open_major must both be the literal string 0. A report with open findings is not an acceptance no matter what its verdict line says.",
+        "subject_commit must be 40 lowercase hex and must EQUAL the citing receipt's tested_subject_commit; owner_scope_tree_sha256 must be 64 lowercase hex and must EQUAL the citing receipt's owner_scope_tree_sha256. This is the subject binding: without it, a genuine acceptance of an OLD candidate is indistinguishable from an acceptance of the candidate actually being released.",
+        "report_id must equal the family-declared id for the resolved path - G0's declared bootstrap_report_id, or the RT id for an rt_acceptance entry. A correctly-marked RT-014 acceptance cited under RT-015 is rejected."
+      ]
+    },
+    "bootstrap_report_id": "G0-FINAL-WAVE0",
+    "acceptance_marker_styles": ["legacy_frozen_hash", "cwk_acceptance_v1"],
+    "legacy_acceptance_grandfather_rule": "The closed set RT-011 and RT-014..RT-016 was independently accepted BEFORE markdown_acceptance_marker existed, and those reports are historical reviewed evidence whose bytes are already referenced by frozen hashes elsewhere. Editing them to insert a marker block would (a) invalidate every existing hash that pins them, (b) mean the release layer retroactively rewrites the evidence it is supposed to be judged against, and (c) let any future 'compatibility' edit launder a changed conclusion into a historical document. They are therefore GRANDFATHERED and MUST NOT be modified. For marker_style=legacy_frozen_hash the binding moves OUT of the document and INTO this registry: the document is bound by its exact path and its RAW SHA-256 of the exact bytes on disk, and the authoritative accepted_subject_commit / verdict / open_blocker / open_major are the TRANSCRIPTIONS frozen here, reviewed once and then immutable. The document is never parsed for a verdict, so no substring search runs against it and its prose can never be re-interpreted. Because the transcribed subject commit is historical and the release candidate is newer, a legacy binding alone is NOT sufficient: the citing gate must ALSO satisfy legacy_acceptance_drift_rule. RT-012 and RT-013 are deliberately excluded after Stage-09 changed cwk_instance.py and Stage-10 changed cwk_agent_binding.py: each original report remains immutable provenance under its exact superseded_legacy_report object, while each current canonical path must carry a new cwk_acceptance_v1 marker bound to the remediated candidate. The exception can never grow.",
+    "legacy_acceptance_drift_rule": "A grandfathered acceptance certifies ONE commit. To carry it forward to the release candidate the citing gate must prove BOTH: (1) ANCESTRY - accepted_subject_commit must equal, or be a strict ancestor of, the citing receipt's tested_subject_commit; and (2) NO-DRIFT - the owner scope tree digest recomputed over that RT's owner_code_path_prefixes must be IDENTICAL at accepted_subject_commit and tested_subject_commit under the same cwk-owner-scope-tree-v1\\0 construction and exact path-boundary matching. Any owner-scope drift is an unconditional failure of that legacy evidence. A caller-supplied fresh-regression flag, extra artifact, or alternate report cannot bypass this rule; an RT that legitimately evolves must leave the grandfathered set and receive a new canonical cwk_acceptance_v1 report, exactly as RT-012 and RT-013 do for Stages 09 and 10. Ancestry alone is the dangerous case this exists for - the candidate descends from the accepted commit while the RT's own code was rewritten in between, so the historical PASS is stale while every hash still checks out.",
+    "rt_acceptance_reports": {
+      "RT-011": {"report_path": "RT/RT-011/reports/独立验收报告-r2.md", "report_id": "RT-011", "marker_style": "legacy_frozen_hash", "report_sha256": "65d98b614dea71906ece00a9b68fc448b2cfa404307f947783276d2c8cb2582f", "accepted_subject_commit": "eba42ccd34378e3d295e70e447365520952ae6c0", "historical_verdict": "PASS", "historical_open_blocker": 0, "historical_open_major": 0, "note": "Round 2 is authoritative. The un-suffixed RT-011 report is retained as historical FAILED evidence, so a resolver that built the filename by convention would bind a failed acceptance under a passing id."},
+      "RT-012": {"report_path": "RT/RT-012/reports/独立验收报告-stage09.md", "report_id": "RT-012", "marker_style": "cwk_acceptance_v1", "superseded_legacy_report": {"report_id": "RT-012", "report_path": "RT/RT-012/reports/独立验收报告.md", "marker_style": "legacy_frozen_hash", "report_sha256": "bce39f7dfaf1ac92b2f9765bb82622e4e0a5b16be2c48f7ed6cb5c0b822791e2", "accepted_subject_commit": "1894576b20a9e00d396718daeca0c781a7d233a6", "historical_verdict": "PASS", "historical_open_blocker": 0, "historical_open_major": 0, "superseded_by_stage_index": 9}},
+      "RT-013": {"report_path": "RT/RT-013/reports/独立验收报告-stage10.md", "report_id": "RT-013", "marker_style": "cwk_acceptance_v1", "superseded_legacy_report": {"report_id": "RT-013", "report_path": "RT/RT-013/reports/独立验收报告.md", "marker_style": "legacy_frozen_hash", "report_sha256": "ece89870ada955d296fe90c8be3a4b4989e97be6b75cf10bf2863736bac6b76b", "accepted_subject_commit": "19f2e37ba8b35b0d98d3e866895d4490747c9e75", "historical_verdict": "PASS", "historical_open_blocker": 0, "historical_open_major": 0, "superseded_by_stage_index": 10}},
+      "RT-014": {"report_path": "RT/RT-014/reports/独立验收报告.md", "report_id": "RT-014", "marker_style": "legacy_frozen_hash", "report_sha256": "6536cd8c62aa5920d4797cf0e7107241df48053f5eeff3714486620526f04f90", "accepted_subject_commit": "d658b05a6886ca71b344147b28aec4857d874bed", "historical_verdict": "PASS", "historical_open_blocker": 0, "historical_open_major": 0},
+      "RT-015": {"report_path": "RT/RT-015/reports/独立验收报告.md", "report_id": "RT-015", "marker_style": "legacy_frozen_hash", "report_sha256": "75a789cd0a54c541eb9127055d549278bd1bbfcde14f33241d183bef7cf89188", "accepted_subject_commit": "9b115ed961602a6731c98f627fa47813cf788630", "historical_verdict": "PASS", "historical_open_blocker": 0, "historical_open_major": 0},
+      "RT-016": {"report_path": "RT/RT-016/reports/独立验收报告.md", "report_id": "RT-016", "marker_style": "legacy_frozen_hash", "report_sha256": "6e51a938501e6d07f15477d367d62ee8c60b5eae32e0d738d7d1c75a998fd2d4", "accepted_subject_commit": "e8a75f6203a64e125419ce92d54a9435e0e4e6a8", "historical_verdict": "PASS", "historical_open_blocker": 0, "historical_open_major": 0},
+      "RT-017": {"report_path": "RT/RT-017/reports/独立验收报告.md", "report_id": "RT-017", "marker_style": "cwk_acceptance_v1"},
+      "RT-018": {"report_path": "RT/RT-018/reports/独立验收报告.md", "report_id": "RT-018", "marker_style": "cwk_acceptance_v1"},
+      "RT-019": {"report_path": "RT/RT-019/reports/独立验收报告.md", "report_id": "RT-019", "marker_style": "cwk_acceptance_v1"},
+      "RT-020": {"report_path": "RT/RT-020/reports/独立验收报告.md", "report_id": "RT-020", "marker_style": "cwk_acceptance_v1"},
+      "RT-021": {"report_path": "RT/RT-021/reports/独立验收报告.md", "report_id": "RT-021", "marker_style": "cwk_acceptance_v1"},
+      "RT-022": {"report_path": "RT/RT-022/reports/独立验收报告.md", "report_id": "RT-022", "marker_style": "cwk_acceptance_v1"},
+      "RT-023": {"report_path": "RT/RT-023/reports/独立验收报告.md", "report_id": "RT-023", "marker_style": "cwk_acceptance_v1"},
+      "RT-024": {"report_path": "RT/RT-024/reports/独立验收报告.md", "report_id": "RT-024", "marker_style": "cwk_acceptance_v1"},
+      "RT-025": {"report_path": "RT/RT-025/reports/独立验收报告.md", "report_id": "RT-025", "marker_style": "cwk_acceptance_v1"},
+      "RT-026": {"report_path": "RT/RT-026/reports/独立验收报告.md", "report_id": "RT-026", "marker_style": "cwk_acceptance_v1"}
+    },
+    "go_no_go_report_path": "RT/RT-026/reports/go-no-go-report.json",
+    "go_no_go_path_separation_rule": "The go/no-go report is RT-026's own machine-readable output and lives in RT-026's package, OUTSIDE every receipt root. It must NOT be placed under release-gate-receipts/, gate-receipts/, security-receipts/ or capability-receipts/. Those four roots are governed by EXACT closure rules - every regular file under them must land on a declared receipt path or a declared archive member - so a go/no-go report inside one of them is either an undeclared extra file that fails closure, or it forces a per-file exception carved into the closure check. A closure rule with an exception is not a closure rule: the same exception admits anything else that happens to be named that way. Keeping the report in RT/RT-026/reports/ costs nothing, since resolution is by exact declared path rather than by directory scan.",
+    "receipt_roots_that_must_not_contain_evidence_reports": [
+      "PR/PR-001-multitenant-knowledge-spaces/release-gate-receipts/",
+      "PR/PR-001-multitenant-knowledge-spaces/gate-receipts/",
+      "PR/PR-001-multitenant-knowledge-spaces/security-receipts/",
+      "PR/PR-001-multitenant-knowledge-spaces/capability-receipts/"
+    ],
+    "required_body_checks": [
+      "JSON families: the body's `schema` field must equal the family's schema_id. A body carrying a different schema id is a cross-family substitution and is rejected even when the path and hash are correct.",
+      "JSON families: the body's own id field must equal the ref_id it is cited under - gate_id for release and verification gates, capability_id for activations, producer_rt for security receipts. A correctly-hashed VG-B receipt filed under the id VG-C is rejected.",
+      "JSON families: the body's status must be `pass`. `not_run`, `implementation_done`, `fail` and any unknown value all fail the citing gate closed. `implementation_done` is called out because it is the value a self-recording implementer writes and it is explicitly NOT a pass.",
+      "JSON families: where the body carries `expires_at`, it must be strictly in the future at the evaluation instant. Where it carries a revocation marker or a `revoked` state, it is rejected outright.",
+      "JSON families: where the body carries `synthetic`, that value PROPAGATES upward - see synthetic_propagation_rule.",
+      "Markdown families: the body must be a non-empty UTF-8 document that is NOT parseable as a JSON object, so a JSON receipt can never be filed under a narrative id. Which acceptance check then applies is decided by the entry's declared marker_style, and by nothing the document itself says - a document can never elect its own validation mode. marker_style=cwk_acceptance_v1 (G0's final report, RT-012 Stage-09 re-acceptance, RT-013 Stage-10 re-acceptance and RT-017..RT-026): the body must carry exactly one markdown_acceptance_marker block satisfying every one of that block's parse_rules; every RT-shaped id additionally requires the two identity fields. An empty file, a placeholder, a template with fields blank, and a genuine report whose block records open findings or a different subject commit are all rejected. marker_style=legacy_frozen_hash (only RT-011 and RT-014..RT-016, a CLOSED set): the body is NOT parsed; its raw SHA-256 must equal the registry's frozen report_sha256, and verdict/open_blocker/open_major/accepted_subject_commit come from the registry transcription. The citing gate must additionally satisfy legacy_acceptance_drift_rule. RT-012 and RT-013 superseded_legacy_report objects are provenance only and their historical paths are forbidden as prerequisites.",
+      "go_no_go family: the resolved path must lie OUTSIDE every entry of receipt_roots_that_must_not_contain_evidence_reports - see go_no_go_path_separation_rule. This is checked as an exact path-boundary containment test, not a substring test.",
+      "All families: ref_sha256 is recomputed from the bytes the fail-closed reader actually returned, never from a hash the receipt supplied and never from a cached value."
+    ]
+  },
+  "synthetic_propagation_rule": "SYNTHETIC SCOPE IS INFECTIOUS AND PROPAGATES DOWNSTREAM. If ANY resolved prerequisite body carries synthetic=true, or is a release gate whose own synthetic=true, then the citing gate MUST carry synthetic=true, MUST carry a synthetic_reason, and its conclusion is CAPPED at conservative_unknown. It may not claim release_gate_verified and may not claim READY_FOR_G7_AUTHORIZATION. The concrete case this exists for: VG-A is PERMANENTLY synthetic - it verified the RT-015 host chain against a FakeSigningAuthority and its receipt is pinned by static hash with rerun_allowed=false - and G3's frozen prerequisite set contains VG-A. Therefore G3 can NEVER carry conclusion=release_gate_verified while VG-A remains synthetic, no matter how green everything else is. A G3 that claims non-synthetic release_gate_verified over a synthetic VG-A is the exact overclaim this rule rejects, and because VG-A also sits in G6's prerequisite set, the cap reaches G6 as well until the VG-A capability gap is closed by both activation receipts. Propagation is RECOMPUTED from the resolved bodies; a receipt's own synthetic=false is not evidence about its inputs.",
+  "owner_scope_model": {
+    "binding_rule": "owner_scope_tree_sha256 is meaningless without a machine-readable definition of WHICH paths a gate owns. Earlier revisions named owner_code_path_prefixes in prose while no such map existed, which made the digest unrecomputable and therefore unfalsifiable: any 64-hex value satisfied it. A first attempt at this object listed only RT/RT-0xx/specs, tasks and rt-intake - i.e. the RT's DOCUMENTS - which was worse than nothing: every script, test and contract schema could be rewritten while the owner tree stayed byte-identical, so the digest would certify a candidate whose entire runtime had changed. The scope basis is therefore scope_mode=candidate_tree_minus_closed_exclusions for ALL of G1..G6: owner_scope_tree_sha256 = sha256(b\"cwk-owner-scope-tree-v1\\0\" + the sorted, NUL-terminated `git ls-tree -r -z --full-tree` records at tested_subject_commit whose paths are NOT excluded by candidate_tree_excluded_prefixes or candidate_tree_excluded_patterns).",
+    "scope_mode": "candidate_tree_minus_closed_exclusions",
+    "scope_mode_rationale": "Per-RT implementation allowlists were considered and REJECTED on evidence. (1) They are FAIL-OPEN by default: anything not listed drifts invisibly, which is exactly the defect that produced the docs-only draft. A closed exclusion list inverts this - anything not explicitly excluded is in scope, so a newly added script or test is covered automatically and forgetting to update the registry makes the gate stricter, never weaker. (2) Ownership is genuinely NOT partitionable: scripts/cwk_tenant_cli.py is exercised by RT-012, RT-013 and RT-014, and scripts/cwk_pr001_contracts.py by RT-011, RT-014, RT-015 and RT-016, so 'which RT owns this file' has no single answer and any assignment is arbitrary. (3) Several RTs (RT-020, RT-021, RT-023, RT-026) own no implementation file yet, so their allowlists would be empty and their owner digests constant - a gate whose subject binding cannot change is not a binding at all. Binding the whole non-evidence tree has none of these failure modes. The cost is that an unrelated change anywhere in the candidate moves every gate's digest; that is accepted deliberately, because a release gate's claim is about the CANDIDATE it verified, and over-sensitivity fails closed while under-sensitivity fails open.",
+    "candidate_tree_excluded_prefixes": [
+      "PR/PR-001-multitenant-knowledge-spaces/release-gate-receipts/",
+      "PR/PR-001-multitenant-knowledge-spaces/gate-receipts/",
+      "PR/PR-001-multitenant-knowledge-spaces/security-receipts/",
+      "PR/PR-001-multitenant-knowledge-spaces/capability-receipts/"
+    ],
+    "candidate_tree_excluded_patterns": [
+      "^RT/RT-0(1[1-9]|2[0-6])/reports/"
+    ],
+    "exclusion_closure_rule": "The exclusion list is CLOSED and exhaustively justified: the four receipt roots and the sixteen RT reports directories, and NOTHING else. All of them are EVIDENCE OUTPUT. They are excluded for one reason: if a gate's own receipt, or the acceptance report that certifies it, were inside the digest, then writing the evidence would change the subject the evidence describes - a receipt could manufacture its own subject binding, and no fixed point would exist. Untracked paths need no exclusion because `git ls-tree` enumerates only tracked files, so __pycache__, .git and scratch directories are structurally absent. Adding any further exclusion is a contract change requiring the same justification, because every added exclusion is a region of the candidate that may drift silently.",
+    "path_boundary_rule": "Containment is matched on EXACT PATH BOUNDARIES, never by string prefix. A prefix P contains a path X iff X == P.rstrip('/') or X starts with P.rstrip('/') + '/'. Under a naive startswith test the prefix RT/RT-023 also matches RT/RT-023-evil/exploit.py, so an attacker could create a sibling package whose name merely BEGINS with the owner's and have its contents counted as owner scope - changing the digest, or worse, keeping it stable while smuggling files in. Every prefix here is written with a trailing slash for that reason, and the comparison is still boundary-checked rather than trusting the slash.",
+    "disjointness_rule": "rt_owner_code_prefixes/rt_owner_code_patterns and rt_owner_evidence_prefixes are DISJOINT by construction: an RT owns its specs, tasks, intake, RT-keyed tests and RT-keyed contract schemas as CODE, and its reports directory as EVIDENCE OUTPUT. The separation is what stops evidence from bootstrapping its own subject binding - a commit that touched nothing but RT-023's acceptance report does not satisfy 'the subject commit touched the feeder packages', so a receipt cannot manufacture its own subject by writing itself. excluded_evidence_prefixes extends this to the four receipt roots for the same reason.",
+    "rt_touch_scope_rule": "rt_owner_code_prefixes and rt_owner_code_patterns are NOT the basis of owner_scope_tree_sha256 - scope_mode is candidate_tree_minus_closed_exclusions and the digest covers the whole non-evidence tree. They serve two NARROWER purposes: (1) the subject-touch check, 'did tested_subject_commit actually change something this gate's RTs own?', and (2) the legacy_acceptance_drift_rule no-drift comparison for the closed grandfathered set. Both are SUPPLEMENTARY signals layered on top of the whole-tree digest. scripts/cwk_instance.py is explicitly part of RT-012's touch scope because Stage-09 changed that exact runtime boundary, and scripts/cwk_agent_binding.py is explicitly part of RT-013's touch scope because Stage-10 changed its concurrent-bind boundary; each new acceptance must bind its remediated runtime. Shared implementation files such as scripts/cwk_tenant_cli.py, which RT-012, RT-013 and RT-014 all exercise, remain deliberately unassigned because their ownership is genuinely not partitionable. A file omitted from these patterns still moves the owner tree digest; it merely does not by itself prove a touch.",
+    "rt_owner_code_patterns": {
+      "description": "Regex templates completing each RT's touch scope beyond its package directory. {rt_digits} is substituted with the three-digit RT number, e.g. 012. Anchored at ^ so they are prefix rules, and the RT-keyed naming convention is what makes them machine-derivable at all.",
+      "templates": [
+        "^tests/test_rt{rt_digits}_",
+        "^tests/_rt{rt_digits}_helpers\\.py$",
+        "^PR/PR-001-multitenant-knowledge-spaces/contracts/rt{rt_digits}/"
+      ]
+    },
+    "rt_owner_code_prefixes": {
+      "RT-011": ["RT/RT-011/specs/", "RT/RT-011/tasks/", "RT/RT-011/rt-intake.md"],
+      "RT-012": ["RT/RT-012/specs/", "RT/RT-012/tasks/", "RT/RT-012/rt-intake.md", "scripts/cwk_instance.py"],
+      "RT-013": ["RT/RT-013/specs/", "RT/RT-013/tasks/", "RT/RT-013/rt-intake.md", "scripts/cwk_agent_binding.py"],
+      "RT-014": ["RT/RT-014/specs/", "RT/RT-014/tasks/", "RT/RT-014/rt-intake.md"],
+      "RT-015": ["RT/RT-015/specs/", "RT/RT-015/tasks/", "RT/RT-015/rt-intake.md"],
+      "RT-016": ["RT/RT-016/specs/", "RT/RT-016/tasks/", "RT/RT-016/rt-intake.md"],
+      "RT-017": ["RT/RT-017/specs/", "RT/RT-017/tasks/", "RT/RT-017/rt-intake.md"],
+      "RT-018": ["RT/RT-018/specs/", "RT/RT-018/tasks/", "RT/RT-018/rt-intake.md"],
+      "RT-019": ["RT/RT-019/specs/", "RT/RT-019/tasks/", "RT/RT-019/rt-intake.md"],
+      "RT-020": ["RT/RT-020/specs/", "RT/RT-020/tasks/", "RT/RT-020/rt-intake.md"],
+      "RT-021": ["RT/RT-021/specs/", "RT/RT-021/tasks/", "RT/RT-021/rt-intake.md"],
+      "RT-022": ["RT/RT-022/specs/", "RT/RT-022/tasks/", "RT/RT-022/rt-intake.md"],
+      "RT-023": ["RT/RT-023/specs/", "RT/RT-023/tasks/", "RT/RT-023/rt-intake.md"],
+      "RT-024": ["RT/RT-024/specs/", "RT/RT-024/tasks/", "RT/RT-024/rt-intake.md"],
+      "RT-025": ["RT/RT-025/specs/", "RT/RT-025/tasks/", "RT/RT-025/rt-intake.md"],
+      "RT-026": ["RT/RT-026/specs/", "RT/RT-026/tasks/", "RT/RT-026/rt-intake.md"]
+    },
+    "rt_owner_evidence_prefixes": {
+      "RT-011": ["RT/RT-011/reports/"],
+      "RT-012": ["RT/RT-012/reports/"],
+      "RT-013": ["RT/RT-013/reports/"],
+      "RT-014": ["RT/RT-014/reports/"],
+      "RT-015": ["RT/RT-015/reports/"],
+      "RT-016": ["RT/RT-016/reports/"],
+      "RT-017": ["RT/RT-017/reports/"],
+      "RT-018": ["RT/RT-018/reports/"],
+      "RT-019": ["RT/RT-019/reports/"],
+      "RT-020": ["RT/RT-020/reports/"],
+      "RT-021": ["RT/RT-021/reports/"],
+      "RT-022": ["RT/RT-022/reports/"],
+      "RT-023": ["RT/RT-023/reports/"],
+      "RT-024": ["RT/RT-024/reports/"],
+      "RT-025": ["RT/RT-025/reports/"],
+      "RT-026": ["RT/RT-026/reports/"]
+    },
+    "excluded_evidence_prefixes": [
+      "PR/PR-001-multitenant-knowledge-spaces/release-gate-receipts/",
+      "PR/PR-001-multitenant-knowledge-spaces/gate-receipts/",
+      "PR/PR-001-multitenant-knowledge-spaces/security-receipts/",
+      "PR/PR-001-multitenant-knowledge-spaces/capability-receipts/"
+    ],
+    "gate_owner_scope_rt_ids": {
+      "G1": ["RT-011"],
+      "G2": ["RT-012", "RT-013"],
+      "G3": ["RT-014", "RT-015", "RT-016"],
+      "G4": ["RT-019", "RT-020", "RT-021"],
+      "G5": ["RT-022", "RT-023"],
+      "G6": ["RT-017", "RT-018", "RT-019", "RT-020", "RT-021", "RT-022", "RT-023", "RT-024", "RT-025", "RT-026"]
+    },
+    "gate_owner_scope_derivation_rule": "gate_owner_scope_rt_ids[gate_id] must EQUAL the set of RT-0xx ids appearing in that gate's required_prerequisite_ids, and this equality is asserted rather than assumed - declared data plus a consistency check catches a typo in either place, whereas deriving it silently would let a typo in required_prerequisite_ids quietly shrink the owner scope. Note G6: its feeder_rts are only RT-024..RT-026, but its owner scope is the RT-017..RT-026 UNION, because G6 directly cites all ten of those acceptances. Scoping G6's owner tree to its three feeder RTs would leave RT-017..RT-023 code changes invisible to the final gate's subject binding, which is precisely the drift a final acceptance exists to catch.",
+    "owner_scope_recomputation_rule_ref": "See owner_scope_recomputation_rule for how the digest and the environment fingerprint are compared."
+  },
+  "owner_scope_recomputation_rule": "owner_scope_tree_sha256 is RECOMPUTED, never format-checked. For every G1..G6 receipt, scope_mode=candidate_tree_minus_closed_exclusions: the consumer derives sha256(b\"cwk-owner-scope-tree-v1\\0\" + the sorted, NUL-terminated `git ls-tree -r -z --full-tree` records at tested_subject_commit whose paths are NOT excluded by owner_scope_model.candidate_tree_excluded_prefixes or owner_scope_model.candidate_tree_excluded_patterns) and compares it to the declared value. rt_owner_code_prefixes and rt_owner_code_patterns are supplementary subject-touch and legacy-drift selectors only; they never define this digest. The closed exclusions are matched on exact path boundaries so an evidence sibling with a lookalike prefix cannot disappear from the candidate tree. environment_fingerprint is likewise compared for EXACT equality against the environment actually being certified - every declared key must be observed with the same value AND no undeclared key may be present - rather than being matched against a pattern.",
+  "orchestration_provenance_rule": "G6's 'freshness' must be anchored to a real orchestration, not to self-reported strings and booleans. orchestration_provenance therefore binds: (1) candidate_freeze_sha256 and candidate_frozen_at - WHAT was frozen and WHEN, so 'this run judged the candidate' is checkable; (2) session_id and session_started_at, where session_started_at must be STRICTLY AFTER candidate_frozen_at, because a session that began before the candidate was frozen cannot have exercised it; (3) engagement_id, which must equal verifier_provenance.engagement_id, so the provenance block and the verifier identity cannot name two different engagements; (4) session_participants, the EXHAUSTIVE list of identities that took part. Exclusion is then recomputed over that list rather than asserted: NO participant may appear as producer OR verifier in ANY resolved upstream evidence - every RT acceptance, every VG receipt, every G1..G5 receipt, every security receipt and every capability activation - and NO participant may be an RT-026 implementation identity, the RT-026 go/no-go evaluator identity, or an RT-026 acceptance identity. A freshness_attestation whose booleans contradict this recomputation is INVALID; the booleans are a claim, the recomputation is the evidence, and where they disagree the receipt is rejected rather than the claim believed.",
+  "g6_fresh_evidence_common_fields": [
+    "role",
+    "run_id",
+    "engagement_id",
+    "runner_id",
+    "session_id",
+    "command",
+    "tested_subject_commit",
+    "candidate_tree_sha256",
+    "environment_fingerprint",
+    "started_at",
+    "completed_at",
+    "checks_total",
+    "checks_failed",
+    "exit_code",
+    "result",
+    "artifact_path",
+    "artifact_sha256"
+  ],
+  "g6_fresh_evidence_roles": [
+    {
+      "role": "full_regression",
+      "description": "The complete test suite executed at tested_subject_commit in this environment by this engagement.",
+      "required_role_fields": [],
+      "role_assertions": ["checks_failed must be 0 and checks_total must be greater than 0: a run that executed nothing trivially has no failures."]
+    },
+    {
+      "role": "wiki_smoke",
+      "description": "The wiki lint/smoke path, which is the user-visible surface most likely to regress silently.",
+      "required_role_fields": [],
+      "role_assertions": ["checks_failed must be 0 and checks_total must be greater than 0."]
+    },
+    {
+      "role": "legacy_smoke",
+      "description": "The sanitized legacy nightly fixture, proving the pre-existing pipeline still behaves. Previously drafted as legacy_nightly_smoke; the name is frozen as legacy_smoke and the nightly-fixture semantics are retained in this description and in legacy_fixture_id.",
+      "required_role_fields": ["legacy_fixture_id"],
+      "role_assertions": ["checks_failed must be 0 and checks_total must be greater than 0.", "legacy_fixture_id must name the sanitized nightly fixture actually exercised, so a hand-written stub cannot stand in for the real legacy corpus."]
+    },
+    {
+      "role": "attack_suite",
+      "description": "Security-gate rechecks plus the adversarial/attack suite, run against the frozen candidate. Previously drafted as security_adversarial_suite; the name is frozen as attack_suite and the security-gate-recheck semantics are retained via security_gate_ids_rechecked.",
+      "required_role_fields": ["security_gate_ids_rechecked"],
+      "role_assertions": ["checks_failed must be 0 and checks_total must be greater than 0.", "security_gate_ids_rechecked must cover every SG:RT-0xx id in the citing receipt's prerequisite set, so a partial recheck cannot be presented as an adversarial pass."]
+    },
+    {
+      "role": "secret_scan",
+      "description": "A credential/token pattern scan over the candidate, proving no real secret entered the tree.",
+      "required_role_fields": ["findings_count"],
+      "role_assertions": ["findings_count must be 0. A scan that found secrets is evidence AGAINST release, and a nonzero count with result=pass is a contradiction the validator rejects rather than reconciles."]
+    },
+    {
+      "role": "restore_drill",
+      "description": "A real restore from backup, proving the recovery path works on the assembled system.",
+      "required_role_fields": ["clean_room", "restore_verified"],
+      "role_assertions": ["clean_room must be true: a restore onto the machine that still holds the original data proves nothing about recovery.", "restore_verified must be true, meaning the restored state was actually compared against expectation rather than merely completing without error."]
+    },
+    {
+      "role": "rollback_drill",
+      "description": "A real one-click rollback to the legacy read path.",
+      "required_role_fields": ["legacy_read_path_restored"],
+      "role_assertions": ["legacy_read_path_restored must be true. Rollback that leaves the new read path partially live is the failure mode this drill exists to catch."]
+    },
+    {
+      "role": "default_off_verification",
+      "description": "Proof that every new component is OFF by default and every enable/allowlist count is zero.",
+      "required_role_fields": ["enabled_component_count", "allowlisted_tenant_count", "enabled_flag_count"],
+      "role_assertions": ["enabled_component_count, allowlisted_tenant_count and enabled_flag_count must ALL be 0. 'Default off' is a claim about the shipped default state, so any nonzero enable count falsifies it regardless of intent."]
+    },
+    {
+      "role": "final_findings_reconciliation",
+      "description": "The independent finding ledger reconciled against the frozen candidate: zero open Blocker, zero open Major, a clean working tree, and tracked evidence matching what the receipt cites. Previously drafted as blocker_major_zero; the name is frozen as final_findings_reconciliation and the zero-open-Blocker/Major semantics are retained as required fields.",
+      "required_role_fields": ["open_blocker_count", "open_major_count", "git_diff_check_clean", "tracked_evidence_match"],
+      "role_assertions": ["open_blocker_count and open_major_count must both be 0.", "git_diff_check_clean must be true: an unclean tree means the reconciled artefacts are not the frozen candidate.", "tracked_evidence_match must be true, meaning every evidence artefact the receipt cites was found tracked at the frozen candidate rather than existing only in the runner's scratch space."]
+    }
+  ],
+  "g6_fresh_evidence_rule": "The five unbound labels this replaces (full_regression, attack_suite, restore_drill, rollback_drill, default_off_verification as bare enum members) asserted that five KINDS of run had happened and bound NONE of them to an artefact, a command, a commit, an environment or a time. A verifier could type five strings. fresh_evidence_refs is therefore an array of role-keyed OBJECTS whose role multiset must EQUAL the nine roles in g6_fresh_evidence_roles exactly - a missing role and an unknown role are equally invalid, and there is no 'covered by another run' allowance. Every entry must carry every field in g6_fresh_evidence_common_fields plus that role's required_role_fields, and must satisfy that role's role_assertions. Each field is then RECOMPUTED or CROSS-CHECKED rather than trusted: the artifact must exist and hash to artifact_sha256 through the fail-closed reader; tested_subject_commit must EQUAL the receipt's; candidate_tree_sha256 must EQUAL orchestration_provenance.candidate_freeze_sha256; environment_fingerprint must EQUAL the receipt's AND the observed environment, key for key and value for value in both directions; engagement_id must equal verifier_provenance.engagement_id; session_id must equal orchestration_provenance.session_id; runner_id must appear in orchestration_provenance.session_participants, so a run attributed to an identity outside the declared orchestration is rejected; run_id must be unique across the array. The TIMING ENVELOPE is closed on both ends: orchestration_provenance.candidate_frozen_at <= started_at < completed_at <= the receipt's created_at. A run that started before the candidate was frozen tested something else; a run that completed after the receipt was created was not evidence available to the verifier when they signed. exit_code must be 0, checks_failed must be 0, and result must be pass for status=pass. ONE ARTEFACT MAY NOT SATISFY TWO ROLES: artifact_path and artifact_sha256 must each be unique across the array, so a single log file cannot be cited nine times to manufacture nine fresh runs.",
+  "trust_store_rule": "The G7 trust store is an AUTHORITATIVE MAPPING keyed by the PAIR (trust_root_id, key_id), not a set of accepted names and not a lookup by key_id alone - two roots may legitimately number their keys the same way, and collapsing the key would let a weaker root's key validate a stronger root's authorization. Each record carries: trust_root_id, key_id, public_key (the verification key itself), algorithm, state, not_before, expires_at, revoked_at (null when live), purpose and principal_id. Lookup FAILS CLOSED: an unknown pair is rejected, never treated as an unconstrained key. The authorization's external_signature fields are MIRRORS of that record and every mirrored field must MATCH it exactly: a mismatched key_id, a key_state of `active` where the store says `revoked` or `suspended`, an algorithm the store does not issue for that key, or a key_expires_at later than the store's are each rejected. The record's purpose must be the release-authorization purpose - a key issued for code signing or transport identity may not authorise a deployment - and principal_id must equal the authorizing principal named in the artefact and must not resolve to any in-repo, project or test identity. Verification uses the STORE's public_key and the STORE's algorithm - NEVER the values the artefact carries - so an artefact can never nominate the key that validates it. Validity is judged at the EVALUATION instant, not the signing instant: the instant must fall at or after not_before and strictly before expires_at, and revoked_at must be null or strictly after the evaluation instant. A key revoked or expired AFTER a genuine signature was made therefore still rejects, because the question at use time is whether this authorization may be relied on NOW.",
+  "detached_signature_rule": "The signature is DETACHED and the signed payload is explicitly bounded. An earlier revision signed 'the body excluding authorization_sha256', which still included external_signature.signature_b64 and was therefore UNIMPLEMENTABLE: producing the signature required already knowing it. A later revision froze the payload digest in a top-level signed_payload_sha256, which was UNIMPLEMENTABLE for the mirror-image reason: that field is itself part of the record and the exclusion list does not remove it, so its value would have to sit inside the very bytes it digests. It has been DELETED rather than added to the exclusion list, because every additional exclusion is a field an attacker may then mutate with impunity. The construction is now fully mechanical and is frozen in these exact steps. (1) DEEP-COPY the authorization record. (2) DELETE exactly two things from the copy: the TOP-LEVEL key authorization_sha256, and the NESTED key external_signature.signature_b64. Nothing else is removed - not key_id, not algorithm, not trust_root_id - so every other field an attacker might touch is inside the signature. (3) Normalise recursively to NFC (every object key and every string value) and serialise with RFC 8785 JCS to UTF-8 bytes. (4) Prefix the domain separator cwk-release-authorization-signature-v1\\0 and SIGN those bytes with the trust record's algorithm and key. Verification RECOMPUTES those same bytes from the two-key exclusion rule and verifies the signature over them DIRECTLY: there is no cached payload digest to consult, and therefore none that can disagree with the bytes it claims to summarise. (5) Only THEN compute authorization_sha256, over the domain cwk-release-authorization-receipt-v1\\0 and the full record excluding ONLY authorization_sha256 - which means it covers signature_b64 and therefore DOES bind the final signature bytes. The signature and the self-hash are checked INDEPENDENTLY and both must hold. Three cases separate them cleanly: a body-field mutation with authorization_sha256 recomputed but NOT re-signed leaves the self-hash correct and fails ONLY signature verification; a signature-only replacement with authorization_sha256 recomputed leaves the signed payload bytes byte-identical and again fails ONLY signature verification, on real cryptography rather than on a hash comparison; and a corrupted authorization_sha256 alone leaves the signature verifiable and fails ONLY the self-hash. That a signature swap leaves the signed payload unchanged is the executable proof that the exclusion is real and that step (4) is implementable without knowing its own output.",
+  "tenant_allowlist_binding_rule": "scope binds the pilot allowlist by PRIVACY-PRESERVING DIGEST plus count, never by identifier. tenant_allowlist_sha256 = sha256(b\"cwk-release-tenant-allowlist-v1\\0\" + the sorted, NUL-terminated, NFC-normalised tenant ids), and allowlisted_tenant_count must equal the number of ids that went into it. The enforcing code recomputes the digest from the ACTUAL deployment allowlist and requires an exact match, AND requires target_binding.instance_id and target_binding.environment_fingerprint to equal the instance and environment being deployed to. A count alone is not a binding: two different tenant sets of the same size would be interchangeable, which is precisely how an authorization for tenants {a,b} gets replayed against tenants {c,d}. tenant_id and tenant_ids remain deep-forbidden, so the digest is the only permitted representation and the artefact can never become a tenant data leak.",
+  "archive_validation_rule": "Current and archive are validated by the SAME rules, through the SAME fail-closed reader. Each archived entry must independently pass structural validation, semantic validation, self-hash recomputation, gate_id agreement with the directory it sits in, and sequence agreement - an archive is a history of receipts, not a bag of blobs, and an entry that would be rejected as a current receipt is rejected as an archived one. An archive directory may NOT exist when the current receipt is absent: a history with no present is an orphan chain. Enumeration declares the frozen filename grammar `<64 hex>.json` up front and reads every entry through the openat/O_NOFOLLOW/dirfd chain, so a stray extension, a nested directory, a dotfile, a symlinked component or leaf, a hardlinked entry, a special file, a name that aliases another under NFC+casefold, a parent directory swapped mid-walk, or an entry rewritten during the read all make the history UNVERIFIABLE rather than being silently skipped by a `*.json` glob. The chain must then be a single unique PREFIX walk. Concretely, when the current receipt carries sequence N, the archive must contain EXACTLY the sequences 1..N-1 - one entry each, no gap, no duplicate, no fork, no orphan, no cycle - with the current receipt alone at the tip. N=1 therefore means an EMPTY archive, and an absent current receipt means an absent or empty archive: a history with no present is an orphan chain. Every archived entry's supersedes/predecessor link must walk exactly backwards through that sequence, created_at must strictly increase along it, and the CURRENT receipt's own self-hash must NOT appear anywhere in the archive - an archived copy of the live receipt is either a duplicate tip or a rollback staged to look like history. Every entry must independently carry the right schema family and the right gate_id for the directory it sits in, and its filename must equal its own RECOMPUTED self-hash, so a correct receipt filed under a forged name and a forged receipt filed under a correct name both fail.",
+  "gates": [
+    {
+      "gate_id": "G1",
+      "title": "契约、安全默认与身份/传输 ADR 冻结门禁",
+      "gate_kind": "release_verification",
+      "definition_ref": "PR/PR-001-multitenant-knowledge-spaces/plans/开发计划.md#24-gatemigration-与-verification-三轴映射",
+      "receipt_path": "PR/PR-001-multitenant-knowledge-spaces/release-gate-receipts/G1/receipt.json",
+      "archive_dir": "PR/PR-001-multitenant-knowledge-spaces/release-gate-receipts/G1/archive",
+      "receipt_schema_id": "cwk.pr001.release_gate_receipt.v1",
+      "feeder_rts": ["RT-011"],
+      "scope_ceiling": "RT-011 冻结的 v1 契约、安全默认、身份/传输 ADR 与能力探针。真实 transport 合规不属于本门禁，留到 G5。",
+      "consumes_verification_gates": [],
+      "direct_rt_consumers": ["RT-026"],
+      "producer_role": "wave_release_verifier",
+      "requires_external_authorization": false,
+      "required_prerequisite_ids": ["G0", "RT-011"],
+      "static_note": "G0 只能由 bootstrap_gate.final_wave0_review_report_path 满足，该报告当前不存在，因此 G1 现在恒为 NOT_RUN。G1 的 receipt 不得引用任何 RT-012 及之后的包，也不得引用任何 VG——VG-A 的 feeder RT-015 排在 RT-011 之后。"
+    },
+    {
+      "gate_id": "G2",
+      "title": "路径、tenant、binding 与 credential 门禁",
+      "gate_kind": "release_verification",
+      "definition_ref": "PR/PR-001-multitenant-knowledge-spaces/plans/开发计划.md#24-gatemigration-与-verification-三轴映射",
+      "receipt_path": "PR/PR-001-multitenant-knowledge-spaces/release-gate-receipts/G2/receipt.json",
+      "archive_dir": "PR/PR-001-multitenant-knowledge-spaces/release-gate-receipts/G2/archive",
+      "receipt_schema_id": "cwk.pr001.release_gate_receipt.v1",
+      "feeder_rts": ["RT-012", "RT-013"],
+      "scope_ceiling": "RT-012～RT-013 的路径、tenant、binding、credential 测试。不覆盖共享对象与授权基础（属 G3）。",
+      "consumes_verification_gates": [],
+      "direct_rt_consumers": ["RT-026"],
+      "producer_role": "wave_release_verifier",
+      "requires_external_authorization": false,
+      "required_prerequisite_ids": ["G1", "RT-012", "RT-013"],
+      "static_note": "G2 引用 G1 而不是 G0：链上每一环只引用其直接前驱释放门禁，G0 的传递性由 G1 承担。仍无任何 VG 可引用。"
+    },
+    {
+      "gate_id": "G3",
+      "title": "共享对象、授权基础与 legacy 数据级迁移对账门禁",
+      "gate_kind": "release_verification",
+      "definition_ref": "PR/PR-001-multitenant-knowledge-spaces/plans/开发计划.md#24-gatemigration-与-verification-三轴映射",
+      "receipt_path": "PR/PR-001-multitenant-knowledge-spaces/release-gate-receipts/G3/receipt.json",
+      "archive_dir": "PR/PR-001-multitenant-knowledge-spaces/release-gate-receipts/G3/archive",
+      "receipt_schema_id": "cwk.pr001.release_gate_receipt.v1",
+      "feeder_rts": ["RT-014", "RT-015", "RT-016"],
+      "scope_ceiling": "SCOPE CEILING = 数据级/迁移级对账 ONLY. G3 只证明 RT-014/015/016 的共享对象、授权基础与 legacy 数据级 crosswalk 对账，且其 VG-A 前置的证明范围被 VG-A 自身钉死在 synthetic authority 之下。G3 因此绝不构成查询级、运行时级或生产授权级结论，也不得被读作 RT-016 的替代品。",
+      "consumes_verification_gates": ["VG-A"],
+      "direct_rt_consumers": ["RT-026"],
+      "producer_role": "wave_release_verifier",
+      "requires_external_authorization": false,
+      "required_prerequisite_ids": ["G2", "RT-014", "RT-015", "RT-016", "VG-A"],
+      "static_note": "G3 消费 VG-A，因此 G3 永远不在 VG-A 自身的 allowed_prerequisite_ids 内（见 gate_registry_v1.json）。VG-A 的 receipt 恒为 synthetic=true、conclusion 上限 conservative_unknown，故 G3 的结论上限被 VG-A 传染性地压住：G3 不得声称 integration/production 级验证。"
+    },
+    {
+      "gate_id": "G4",
+      "title": "Profile、路由、多空间与派生清理门禁",
+      "gate_kind": "release_verification",
+      "definition_ref": "PR/PR-001-multitenant-knowledge-spaces/plans/开发计划.md#24-gatemigration-与-verification-三轴映射",
+      "receipt_path": "PR/PR-001-multitenant-knowledge-spaces/release-gate-receipts/G4/receipt.json",
+      "archive_dir": "PR/PR-001-multitenant-knowledge-spaces/release-gate-receipts/G4/archive",
+      "receipt_schema_id": "cwk.pr001.release_gate_receipt.v1",
+      "feeder_rts": ["RT-019", "RT-020", "RT-021"],
+      "scope_ceiling": "RT-019～RT-021 + VG-C 的 Profile、路由、多空间与派生索引/缓存清理。",
+      "consumes_verification_gates": ["VG-C"],
+      "direct_rt_consumers": ["RT-026"],
+      "producer_role": "wave_release_verifier",
+      "requires_external_authorization": false,
+      "required_prerequisite_ids": ["G3", "RT-019", "RT-020", "RT-021", "VG-C"],
+      "static_note": "G4 消费 VG-C，因此 G4 永远不在 VG-C 的 allowed_prerequisite_ids 内。RT-017/RT-018 的证据经 VG-B 与 G3 之后的链传递，不在 G4 的精确前置集中重复列举。"
+    },
+    {
+      "gate_id": "G5",
+      "title": "Broker、可信 transport、双 ACL、撤权与沙箱越权门禁",
+      "gate_kind": "release_verification",
+      "definition_ref": "PR/PR-001-multitenant-knowledge-spaces/plans/开发计划.md#24-gatemigration-与-verification-三轴映射",
+      "receipt_path": "PR/PR-001-multitenant-knowledge-spaces/release-gate-receipts/G5/receipt.json",
+      "archive_dir": "PR/PR-001-multitenant-knowledge-spaces/release-gate-receipts/G5/archive",
+      "receipt_schema_id": "cwk.pr001.release_gate_receipt.v1",
+      "feeder_rts": ["RT-022", "RT-023"],
+      "scope_ceiling": "RT-022～RT-023 + VG-D 的 Broker、可信 transport、双 ACL、撤权与沙箱越权测试。这是真实 transport 合规首次被证明的门禁（G1 显式把它推迟到这里）。",
+      "consumes_verification_gates": ["VG-D"],
+      "direct_rt_consumers": ["RT-026"],
+      "producer_role": "wave_release_verifier",
+      "requires_external_authorization": false,
+      "required_prerequisite_ids": [
+        "G4",
+        "RT-022",
+        "RT-023",
+        "VG-D",
+        "CAP:gateway-identity-transport"
+      ],
+      "static_note": "G5 必须引用 gateway-identity-transport 能力激活 receipt：没有它，VG-D 只能是 synthetic，而 synthetic VG-D 正是该能力激活要防止的东西。注意方向——激活 receipt 由 RT-023 在其独立 PASS 之后签发，是 RT-023 的产出物；它是 G5 的前置，绝不是 RT-023 的前置。G5 消费 VG-D，因此 G5 永远不在 VG-D 的 allowed_prerequisite_ids 内。"
+    },
+    {
+      "gate_id": "G6",
+      "title": "最终验收门禁（新鲜独立最终验收者签发）",
+      "gate_kind": "release_verification",
+      "definition_ref": "PR/PR-001-multitenant-knowledge-spaces/plans/开发计划.md#24-gatemigration-与-verification-三轴映射",
+      "receipt_path": "PR/PR-001-multitenant-knowledge-spaces/release-gate-receipts/G6/receipt.json",
+      "archive_dir": "PR/PR-001-multitenant-knowledge-spaces/release-gate-receipts/G6/archive",
+      "receipt_schema_id": "cwk.pr001.release_gate_receipt.v1",
+      "feeder_rts": ["RT-024", "RT-025", "RT-026"],
+      "scope_ceiling": "全量最终验收：G1～G5 全链、RT-017～RT-026 各自独立 PASS、VG-A～VG-E、两份能力激活、十份安全门 receipt、RT-026 的 go/no-go 报告，以及新鲜的全量回归/攻击面/恢复/回滚/默认关闭证据。G6 的结论上限是 READY_FOR_G7_AUTHORIZATION——它仍然不是部署授权。",
+      "consumes_verification_gates": ["VG-A", "VG-B", "VG-C", "VG-D", "VG-E"],
+      "direct_rt_consumers": [],
+      "producer_role": "fresh_final_independent_verifier",
+      "requires_external_authorization": false,
+      "required_prerequisite_ids": [
+        "G1",
+        "G2",
+        "G3",
+        "G4",
+        "G5",
+        "RT-017",
+        "RT-018",
+        "RT-019",
+        "RT-020",
+        "RT-021",
+        "RT-022",
+        "RT-023",
+        "RT-024",
+        "RT-025",
+        "RT-026",
+        "VG-A",
+        "VG-B",
+        "VG-C",
+        "VG-D",
+        "VG-E",
+        "CAP:cwork-authority-source",
+        "CAP:gateway-identity-transport",
+        "SG:RT-017",
+        "SG:RT-018",
+        "SG:RT-019",
+        "SG:RT-020",
+        "SG:RT-021",
+        "SG:RT-022",
+        "SG:RT-023",
+        "SG:RT-024",
+        "SG:RT-025",
+        "SG:RT-026",
+        "RT-026-GO-NO-GO"
+      ],
+      "static_note": "G6 引用 G1～G5 全部五个而不只是 G5：链式传递会让一个被撤销或过期的中段门禁悄悄留在结论里，逐个重新绑定哈希才能发现。G6 是 RT-026 的严格下游，`direct_rt_consumers` 为空——没有任何 RT 消费 G6，特别是 RT-026 既不读它也不写它，否则构成自依赖环。签发者必须是**新鲜**最终独立验收者，见 receipt schema 的 freshness_attestation 与 verifier_provenance 规则。"
+    },
+    {
+      "gate_id": "G7",
+      "title": "Release readiness 授权（外部信任根，非验证结论）",
+      "gate_kind": "release_authorization",
+      "definition_ref": "PR/PR-001-multitenant-knowledge-spaces/plans/开发计划.md#24-gatemigration-与-verification-三轴映射",
+      "receipt_path": "PR/PR-001-multitenant-knowledge-spaces/release-gate-receipts/G7/authorization.json",
+      "archive_dir": "PR/PR-001-multitenant-knowledge-spaces/release-gate-receipts/G7/archive",
+      "receipt_schema_id": "cwk.pr001.release_authorization_receipt.v1",
+      "feeder_rts": [],
+      "scope_ceiling": "只授权 M4 受控试点：对 allowlist 内有限数量真实 tenant 启用独立试点 Broker/调度。绝不授权扩大切换（M5）、绝不授权 GA、绝不追认任何缺失或失败的验证门禁。",
+      "consumes_verification_gates": [],
+      "direct_rt_consumers": [],
+      "producer_role": "external_authorizing_principal",
+      "requires_external_authorization": true,
+      "required_prerequisite_ids": ["G6"],
+      "static_note": "NARROW AUTHORITY BY CONSTRUCTION：G7 的精确前置集恰为 {G6}，不重新消费 RT、VG 或 G1～G5。理由是职责分离——授权者若能直接引用底层证据，就能绕过 G6 对这些证据的判断、或对 G6 已经否决的项目给出自己的解读；把授权的唯一输入钉死为「一份当前有效的 G6」，使授权者只能回答「是否批准部署这个已被验证的候选」，不能回答「这个候选是否已被验证」。文件名是 authorization.json 而非 receipt.json，schema 与 domain separator 均不同，因此它在任何按 receipt 语义遍历的路径上都不会被误当作一次验证通过。RT-026 与任何项目内 agent / 测试签名者都不得生成它。"
+    }
+  ]
+}

@@ -1,0 +1,469 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.release_gate_receipt.v1",
+  "title": "PR-001 release gate receipt v1 (G1..G6 verification only)",
+  "description": "The single machine-readable receipt format for release VERIFICATION gates G1..G6. It answers 'was this verified?' and never 'may this be deployed?': G7 is a release AUTHORIZATION with its own schema, its own filename (authorization.json) and its own domain separator, and this schema's gate_id enum structurally excludes it. Produced by an independent verifier and never by the RT being certified; G6 additionally requires a FRESH verifier with declared provenance. prerequisite_refs is not free-form - the pattern bounds the id space and required_prerequisite_ids in release_gate_registry_v1.json is the EXACT set, so a missing prerequisite and an extra prerequisite are equally invalid. Every prerequisite carries a recomputed hash, so a green-looking upstream that has since drifted, expired or been revoked cannot survive inside a downstream conclusion. Deep-forbidden fields reject tenant bodies, credentials, absolute host paths, raw model output and any self-granted authorization field.",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": [
+    "schema",
+    "gate_id",
+    "status",
+    "conclusion",
+    "synthetic",
+    "producer",
+    "verifier",
+    "verifier_role",
+    "feeder_rts",
+    "feeder_rts_independent_pass",
+    "consumes_verification_gates",
+    "prerequisite_refs",
+    "evidence",
+    "artifacts",
+    "tested_subject_commit",
+    "owner_scope_tree_sha256",
+    "environment_fingerprint",
+    "sequence",
+    "created_at",
+    "receipt_sha256"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.pr001.release_gate_receipt.v1"},
+    "gate_id": {
+      "description": "Which release verification gate this receipt is for. G7 is absent by construction: an authorization is not a verification pass and uses cwk.pr001.release_authorization_receipt.v1.",
+      "enum": ["G1", "G2", "G3", "G4", "G5", "G6"]
+    },
+    "status": {
+      "description": "not_run = planned placeholder; implementation_done = self-recorded by the gate implementer and explicitly NOT a PASS; pass/fail = signed by an independent verifier.",
+      "enum": ["not_run", "implementation_done", "pass", "fail"]
+    },
+    "conclusion": {
+      "description": "Machine conclusion. conservative_unknown is MANDATORY whenever any required input is only synthetically satisfied. release_gate_verified is the ceiling for G1..G5. READY_FOR_G7_AUTHORIZATION is the ceiling for G6 and is still NOT a deployment authorization - only a G7 authorization.json can authorize anything.",
+      "enum": [
+        "not_run",
+        "release_gate_verified",
+        "READY_FOR_G7_AUTHORIZATION",
+        "conservative_unknown",
+        "blocked",
+        "failed"
+      ]
+    },
+    "synthetic": {
+      "description": "True when any input this gate rests on was synthetic (fake authority, fake identity, fake transport, test-only registration hook). A synthetic receipt can never carry release_gate_verified or READY_FOR_G7_AUTHORIZATION.",
+      "type": "boolean"
+    },
+    "synthetic_reason": {
+      "description": "Required when synthetic=true. Stable opaque reason code, no host paths and no credentials.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{2,63}$"
+    },
+    "producer": {
+      "description": "Opaque agent identifier that assembled this receipt.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,63}$"
+    },
+    "verifier": {
+      "description": "Opaque agent identifier of the independent verifier. Always required and always strictly different from producer: a gate signed by its own producer is self-certification and is INVALID even when every other field is perfect.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,63}$"
+    },
+    "verifier_role": {
+      "description": "Must equal producer_role for this gate_id in release_gate_registry_v1.json: wave_release_verifier for G1..G5, fresh_final_independent_verifier for G6. external_authorizing_principal is absent from this enum because an authorizer may never sign a verification.",
+      "enum": ["wave_release_verifier", "fresh_final_independent_verifier"]
+    },
+    "verifier_provenance": {
+      "description": "REQUIRED for G6 by semantic rule. Declares where the final verifier came from so that 'fresh' is checkable rather than asserted. prior_engagement_ids must be EMPTY for G6: a verifier who already signed any RT-017..RT-026 acceptance, any VG receipt or any G1..G5 receipt is not fresh and is disqualified, because reviewing one's own earlier judgement is not independent review.",
+      "type": "object",
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "required": ["engagement_id", "prior_engagement_ids", "independent_of_producer_org"],
+      "properties": {
+        "engagement_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{2,63}$"},
+        "prior_engagement_ids": {
+          "type": "array",
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[a-z][a-z0-9-]{2,63}$"}
+        },
+        "independent_of_producer_org": {"type": "boolean"}
+      }
+    },
+    "freshness_attestation": {
+      "description": "REQUIRED for G6 by semantic rule. A checkable statement, recomputed by the consumer against the receipt set on disk, that this verifier signed none of the evidence it is now judging.",
+      "type": "object",
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "required": [
+        "signed_no_rt_acceptance",
+        "signed_no_verification_gate",
+        "signed_no_upstream_release_gate",
+        "signed_no_security_gate"
+      ],
+      "properties": {
+        "signed_no_rt_acceptance": {"const": true},
+        "signed_no_verification_gate": {"const": true},
+        "signed_no_upstream_release_gate": {"const": true},
+        "signed_no_security_gate": {"const": true}
+      }
+    },
+    "orchestration_provenance": {
+      "description": "REQUIRED for G6 by semantic rule. Anchors 'fresh' to a real orchestration instead of to self-reported booleans. Without it, freshness_attestation is four `true` literals a producer can type, and fresh_evidence_refs has no frozen candidate to be fresh WITH RESPECT TO.",
+      "type": "object",
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "required": [
+        "candidate_freeze_sha256",
+        "candidate_frozen_at",
+        "session_id",
+        "session_started_at",
+        "engagement_id",
+        "session_participants"
+      ],
+      "properties": {
+        "candidate_freeze_sha256": {
+          "description": "The candidate tree digest that was frozen for this final run. Every fresh_evidence_refs entry's candidate_tree_sha256 must equal it, so the nine runs provably exercised ONE candidate rather than nine drifting checkouts.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "candidate_frozen_at": {"type": "string", "format": "date-time"},
+        "session_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{2,63}$"},
+        "session_started_at": {
+          "description": "Must be STRICTLY AFTER candidate_frozen_at: a session that began before the candidate was frozen cannot have exercised it.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "engagement_id": {
+          "description": "Must equal verifier_provenance.engagement_id, so the provenance block and the verifier identity cannot name two different engagements.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{2,63}$"
+        },
+        "session_participants": {
+          "description": "The EXHAUSTIVE list of identities that took part. Exclusion is RECOMPUTED over this list rather than asserted: no participant may appear as producer or verifier in ANY resolved upstream evidence, and none may be an RT-026 implementation, go/no-go or acceptance identity. Declaring a short list does not help an attacker, because every fresh_evidence_refs runner_id must appear here.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[a-z][a-z0-9-]{2,63}$"}
+        }
+      }
+    },
+    "fresh_evidence_refs": {
+      "description": "REQUIRED for G6 by semantic rule. Replaces fresh_evidence_classes, which was an enum of five bare labels: it asserted that five KINDS of run had happened and bound NONE of them to an artefact, a command, a commit, an environment or a time, so a verifier could satisfy it by typing five strings. Each entry here is a role-keyed OBJECT binding a real run, and the role multiset must EQUAL the nine roles in release_gate_registry_v1.json g6_fresh_evidence_roles.",
+      "type": "array",
+      "minItems": 9,
+      "maxItems": 9,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "unevaluatedProperties": false,
+        "required": [
+          "role",
+          "run_id",
+          "engagement_id",
+          "runner_id",
+          "session_id",
+          "command",
+          "tested_subject_commit",
+          "candidate_tree_sha256",
+          "environment_fingerprint",
+          "started_at",
+          "completed_at",
+          "checks_total",
+          "checks_failed",
+          "exit_code",
+          "result",
+          "artifact_path",
+          "artifact_sha256"
+        ],
+        "properties": {
+          "role": {
+            "enum": [
+              "full_regression",
+              "wiki_smoke",
+              "legacy_smoke",
+              "attack_suite",
+              "secret_scan",
+              "restore_drill",
+              "rollback_drill",
+              "default_off_verification",
+              "final_findings_reconciliation"
+            ]
+          },
+          "run_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{2,63}$"},
+          "engagement_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{2,63}$"},
+          "runner_id": {
+            "description": "Must appear in orchestration_provenance.session_participants: a run attributed to an identity outside the declared orchestration is not part of this engagement.",
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{2,63}$"
+          },
+          "session_id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{2,63}$"},
+          "command": {"type": "string", "minLength": 1, "maxLength": 512},
+          "tested_subject_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+          "candidate_tree_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "environment_fingerprint": {
+            "type": "object",
+            "additionalProperties": false,
+            "unevaluatedProperties": false,
+            "required": ["python_version", "platform", "toolchain_build"],
+            "properties": {
+              "python_version": {"type": "string", "pattern": "^3\\.[0-9]{1,2}\\.[0-9]{1,2}$"},
+              "platform": {"type": "string", "minLength": 1, "maxLength": 128},
+              "toolchain_build": {"type": "string", "minLength": 1, "maxLength": 128},
+              "sandbox_profile": {"type": "string", "minLength": 1, "maxLength": 128}
+            }
+          },
+          "started_at": {"type": "string", "format": "date-time"},
+          "completed_at": {"type": "string", "format": "date-time"},
+          "checks_total": {"type": "integer", "minimum": 0},
+          "checks_failed": {"type": "integer", "minimum": 0},
+          "exit_code": {"type": "integer", "minimum": 0, "maximum": 255},
+          "result": {"enum": ["pass", "fail"]},
+          "artifact_path": {
+            "description": "Repo-relative log/report for this run. artifact_path and artifact_sha256 must each be UNIQUE across the array: one artefact may not satisfy two roles, or a single log file could be cited nine times to manufacture nine fresh runs.",
+            "type": "string",
+            "pattern": "^(?!/)(?!.*\\.\\.)[A-Za-z0-9_./\\-\\u4e00-\\u9fff]{1,255}$"
+          },
+          "artifact_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "legacy_fixture_id": {
+            "description": "Role legacy_smoke: names the sanitized nightly fixture actually exercised, so a hand-written stub cannot stand in for the real legacy corpus.",
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{2,63}$"
+          },
+          "security_gate_ids_rechecked": {
+            "description": "Role attack_suite: must cover every SG:RT-0xx id in the citing receipt's prerequisite set, so a partial recheck cannot be presented as an adversarial pass.",
+            "type": "array",
+            "maxItems": 16,
+            "uniqueItems": true,
+            "items": {"type": "string", "pattern": "^SG:RT-0(1[7-9]|2[0-6])$"}
+          },
+          "findings_count": {
+            "description": "Role secret_scan: must be 0. A scan that found secrets is evidence AGAINST release, and a nonzero count with result=pass is a contradiction rejected rather than reconciled.",
+            "type": "integer",
+            "minimum": 0
+          },
+          "clean_room": {
+            "description": "Role restore_drill: must be true. A restore onto the machine that still holds the original data proves nothing about recovery.",
+            "type": "boolean"
+          },
+          "restore_verified": {"type": "boolean"},
+          "legacy_read_path_restored": {
+            "description": "Role rollback_drill: must be true. Rollback that leaves the new read path partially live is the failure mode this drill exists to catch.",
+            "type": "boolean"
+          },
+          "enabled_component_count": {"type": "integer", "minimum": 0},
+          "allowlisted_tenant_count": {"type": "integer", "minimum": 0},
+          "enabled_flag_count": {"type": "integer", "minimum": 0},
+          "open_blocker_count": {"type": "integer", "minimum": 0},
+          "open_major_count": {"type": "integer", "minimum": 0},
+          "git_diff_check_clean": {"type": "boolean"},
+          "tracked_evidence_match": {"type": "boolean"}
+        }
+      }
+    },
+    "feeder_rts": {
+      "description": "Must equal feeder_rts for this gate_id in release_gate_registry_v1.json, verbatim.",
+      "type": "array",
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^RT-0(1[1-9]|2[0-6])$"}
+    },
+    "feeder_rts_independent_pass": {
+      "description": "True only when EVERY feeder RT already holds an independent acceptance PASS. status=pass requires this to be true; a single feeder RT short of PASS caps the gate.",
+      "type": "boolean"
+    },
+    "consumes_verification_gates": {
+      "description": "Must equal consumes_verification_gates for this gate_id in release_gate_registry_v1.json, and every member must also appear in prerequisite_refs so its hash is pinned.",
+      "type": "array",
+      "maxItems": 5,
+      "uniqueItems": true,
+      "items": {"enum": ["VG-A", "VG-B", "VG-C", "VG-D", "VG-E"]}
+    },
+    "prerequisite_refs": {
+      "description": "Upstream evidence this gate consumed, each pinned by recomputed hash. The pattern bounds the id space to G0..G6, RT-011..RT-026, VG-A..VG-E, capability activations, security gate receipts and the RT-026 go/no-go report; G7 is structurally excluded because nothing verifies against an authorization. The BINDING set is required_prerequisite_ids for this gate_id in release_gate_registry_v1.json and equality is required. uniqueItems only dedupes whole objects, so ref_id uniqueness is enforced separately: the same ref_id may not appear twice even with a different ref_sha256.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 48,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "unevaluatedProperties": false,
+        "required": ["ref_id", "ref_kind", "ref_path", "ref_sha256"],
+        "properties": {
+          "ref_id": {
+            "type": "string",
+            "pattern": "^(G[0-6]|RT-0(1[1-9]|2[0-6])|VG-[A-E]|CAP:(cwork-authority-source|gateway-identity-transport)|SG:RT-0(1[7-9]|2[0-6])|RT-026-GO-NO-GO)$"
+          },
+          "ref_kind": {
+            "enum": [
+              "narrative_review_report",
+              "rt_independent_acceptance",
+              "verification_gate_receipt",
+              "release_gate_receipt",
+              "capability_activation_receipt",
+              "security_gate_receipt",
+              "go_no_go_report"
+            ]
+          },
+          "ref_path": {
+            "description": "Repo-relative path of the referenced evidence. Absolute paths, .. and ~ are rejected by pattern; the consumer additionally reads it through a fail-closed openat/O_NOFOLLOW chain.",
+            "type": "string",
+            "pattern": "^(?!/)(?!.*\\.\\.)[A-Za-z0-9_./\\-\\u4e00-\\u9fff]{1,255}$"
+          },
+          "ref_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    "evidence": {
+      "description": "Reproduction evidence. Commands must be repo-relative and free of absolute host paths.",
+      "type": "object",
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "required": ["test_command", "tests_run", "tests_failed", "python_version"],
+      "properties": {
+        "test_command": {"type": "string", "minLength": 1, "maxLength": 512},
+        "tests_run": {"type": "integer", "minimum": 0},
+        "tests_failed": {"type": "integer", "minimum": 0},
+        "tests_skipped": {"type": "integer", "minimum": 0},
+        "python_version": {"type": "string", "pattern": "^3\\.[0-9]{1,2}\\.[0-9]{1,2}$"}
+      }
+    },
+    "artifacts": {
+      "description": "Repo-relative artifact paths with content hashes, non-empty. Each must resolve to a regular file whose hash matches; an artifact may never point at another release gate receipt or authorization, which would let a gate cite itself as its own evidence.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "unevaluatedProperties": false,
+        "required": ["path", "sha256"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "pattern": "^(?!/)(?!.*\\.\\.)[A-Za-z0-9_./\\-\\u4e00-\\u9fff]{1,255}$"
+          },
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    },
+    "tested_subject_commit": {
+      "description": "The exact 40-hex git commit of the implementation candidate this gate was executed against. Validated by ancestry, never by equality with a moving head: it must be a STRICT ancestor of the commit introducing this receipt, and it must have touched the gate's feeder RT packages. Downstream merges legitimately advance HEAD, so an equality rule would break every valid receipt.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "owner_scope_tree_sha256": {
+      "description": "For every G1..G6 receipt, scope_mode=candidate_tree_minus_closed_exclusions: sha256(b\"cwk-owner-scope-tree-v1\\0\" + the sorted, NUL-terminated `git ls-tree -r -z --full-tree` records at tested_subject_commit whose paths are NOT excluded by release_gate_registry_v1.owner_scope_model.candidate_tree_excluded_prefixes or candidate_tree_excluded_patterns). rt_owner_code_prefixes and rt_owner_code_patterns are supplementary touch/drift selectors only and never define this digest. Ancestry says WHEN the subject was frozen; this whole non-evidence candidate-tree digest says WHAT it contained.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "environment_fingerprint": {
+      "description": "Exact environment identity the gate run happened in, so 'it passed somewhere' can never stand in for 'it passed here'. The consumer RECOMPUTES these values against the environment being certified rather than pattern-matching them.",
+      "type": "object",
+      "additionalProperties": false,
+      "unevaluatedProperties": false,
+      "required": ["python_version", "platform", "toolchain_build"],
+      "properties": {
+        "python_version": {"type": "string", "pattern": "^3\\.[0-9]{1,2}\\.[0-9]{1,2}$"},
+        "platform": {"type": "string", "minLength": 1, "maxLength": 128},
+        "toolchain_build": {"type": "string", "minLength": 1, "maxLength": 128},
+        "sandbox_profile": {"type": "string", "minLength": 1, "maxLength": 128}
+      }
+    },
+    "sequence": {
+      "description": "Monotonic run counter for this gate_id. First run is 1; a chain of N receipts occupies exactly the integers 1..N with the current receipt at the tip and the archive holding 1..N-1. sequence, not created_at, is the primary ordering proof: created_at monotonicity catches backdating but cannot by itself prove there is no gap, fork or orphan.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "supersedes_receipt_sha256": {
+      "description": "Chain link to the immediately preceding CURRENT receipt for this gate_id. FORBIDDEN when sequence=1 - a first run has no predecessor, so a link there is proof of a hidden earlier run. REQUIRED when sequence>1, where it must equal the recomputed hash of the archived receipt at sequence-1, whose filename must be that same hash.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "expires_at": {
+      "description": "REQUIRED for G6 by semantic rule. A final acceptance ages out: the assembled system it certified drifts, so a G6 that never expires would let a stale full-system verdict authorize an indefinitely later deployment. expires_at - created_at must be strictly positive and at most 30 days.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "created_at": {"type": "string", "format": "date-time"},
+    "receipt_sha256": {
+      "description": "sha256(b\"cwk-release-gate-receipt-v1\\0\" + JCS_UTF8(NFC(record_without_receipt_sha256))). The separator is deliberately NOT interchangeable with cwk-verification-gate-receipt-v1\\0, cwk-security-gate-receipt-v1\\0, cwk-capability-activation-receipt-v1\\0 or cwk-release-authorization-receipt-v1\\0, so a receipt from one family can never be replayed as a member of another.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "deepForbiddenKeys": [
+    "tenant_id",
+    "agent_id",
+    "app_key",
+    "appkey",
+    "credential",
+    "credential_ref",
+    "token",
+    "authorization",
+    "authorized",
+    "authorized_actions",
+    "authorizing_principal",
+    "cookie",
+    "secret",
+    "signature",
+    "body",
+    "raw",
+    "raw_body",
+    "instance_root",
+    "mirror_root",
+    "abs_path",
+    "absolute_path",
+    "prompt",
+    "model_output"
+  ],
+  "semanticRules": [
+    "gate_id must be one of G1..G6. A release gate receipt for G7 is INVALID at the schema level: G7 is an authorization and uses cwk.pr001.release_authorization_receipt.v1 at release-gate-receipts/G7/authorization.json.",
+    "authorization fields are deep-forbidden here. A verification receipt that carries authorization, authorized, authorized_actions, authorizing_principal or signature is attempting to authorize itself and is INVALID, which is what keeps 'verified' and 'authorized' from collapsing into one artefact.",
+    "verifier is always required and must be strictly different from producer. A receipt where producer==verifier is self-certification and fails closed regardless of status.",
+    "verifier_role must equal producer_role for this gate_id in release_gate_registry_v1.json.",
+    "status=pass requires feeder_rts_independent_pass=true, evidence.tests_run>0 and evidence.tests_failed=0.",
+    "status=not_run requires conclusion=not_run and evidence.tests_run=0.",
+    "conclusion=release_gate_verified requires synthetic=false and status=pass, and is available only to G1..G5.",
+    "conclusion=READY_FOR_G7_AUTHORIZATION requires gate_id=G6, synthetic=false and status=pass. It is a verification ceiling, not an authorization: it states the candidate may be SUBMITTED for G7 authorization and grants nothing.",
+    "synthetic=true requires synthetic_reason and forbids both release_gate_verified and READY_FOR_G7_AUTHORIZATION.",
+    "feeder_rts and consumes_verification_gates must equal the frozen values for this gate_id in release_gate_registry_v1.json, verbatim.",
+    "the multiset of prerequisite_refs[].ref_id must EQUAL required_prerequisite_ids for this gate_id in release_gate_registry_v1.json. A missing id and an extra id are equally invalid: subset checking would let a weakened gate pass, superset checking would let a padded one.",
+    "prerequisite_refs[].ref_id must be unique within a receipt; two entries with the same ref_id and different ref_sha256 are invalid even though uniqueItems accepts them as distinct objects.",
+    "prerequisite_refs must not contain the receipt's own gate_id (no self-reference) nor any later release gate in the frozen order G1 < G2 < G3 < G4 < G5 < G6 < G7.",
+    "prerequisite_refs must not contain G7 (enforced by pattern). Verifying against an authorization would invert the trust direction.",
+    "every consumes_verification_gates member must also appear in prerequisite_refs, so the VG evidence is hash-pinned rather than merely named.",
+    "every prerequisite_refs[].ref_sha256 is RECOMPUTED by the consumer from the file at ref_path, read through a fail-closed openat/O_NOFOLLOW/dirfd chain with post-read identity re-verification. A prerequisite whose file is missing, is a symlink, is hardlinked, sits behind a swapped parent directory, or whose recomputed hash differs makes the gate INVALID - it is never downgraded to 'partially verified'.",
+    "ref_kind must match the referenced family: G0 is narrative_review_report, G1..G6 are release_gate_receipt, RT-0xx are rt_independent_acceptance, VG-x are verification_gate_receipt, CAP: are capability_activation_receipt, SG:RT-0xx are security_gate_receipt, RT-026-GO-NO-GO is go_no_go_report. A mismatched ref_kind is invalid, which stops a cheap artefact being substituted for an expensive one under a correct-looking id.",
+    "ref_path is CANONICALLY RESOLVED, never accepted because it matches a pattern. Each ref_id resolves through release_gate_registry_v1.json prerequisite_resolution.families to exactly one declared authority - G0 through bootstrap_gate.final_wave0_review_report_path, G1..G6 through this registry's receipt_path, RT-0xx through rt_acceptance_reports[id].report_path, VG-x through gate_registry_v1.json, CAP: through synthetic_closure_map_v1.json, SG: through security_gate_registry_v1.json, RT-026-GO-NO-GO through prerequisite_resolution.go_no_go_report_path - and ref_path must EQUAL that path. A path that merely exists, merely matches the pattern, or is supplied by the caller is rejected. In particular G0 must equal final_wave0_review_report_path and never the superseded round-4 review, which is enumerated in that family's forbidden_paths precisely because it exists, is a real independent review and hashes stably, so a lenient resolver would accept it.",
+    "the referenced BODY is validated, not just hashed: JSON families must declare the family's schema id, must carry their own id equal to the ref_id it is cited under, must have status=pass - not_run, implementation_done and fail all fail the citing gate closed - and must be unexpired and unrevoked. Markdown families are validated per their declared marker_style: cwk_acceptance_v1 requires exactly one parseable cwk-acceptance-v1 block with verdict=PASS, open_blocker=0, open_major=0 and a subject_commit/owner_scope_tree_sha256 matching this receipt; every RT-shaped cwk marker also requires implementer_ids and reviewer_ids. legacy_frozen_hash (only RT-011 and RT-014..RT-016, a closed set) binds historical bytes by frozen raw SHA-256 and is never parsed. RT-012 and RT-013 resolve only to their Stage-09/Stage-10 cwk markers; both superseded original reports are explicitly forbidden. Naive substring matching on PASS is forbidden in both cases.",
+    "a legacy_frozen_hash prerequisite additionally requires legacy_acceptance_drift_rule: accepted_subject_commit must equal or be a strict ancestor of tested_subject_commit, AND that RT's owner scope digest must be identical at both commits. There is no fresh-regression or caller-flag bypass. Ancestry alone is the dangerous case - the candidate legitimately descends from the accepted commit while the RT's own code was rewritten in between, so the historical PASS is stale though every hash still checks out. An RT that evolves must receive a new canonical cwk_acceptance_v1 report, as RT-012 and RT-013 do after Stages 09 and 10.",
+    "SYNTHETIC SCOPE PROPAGATES and is RECOMPUTED from the resolved bodies; a receipt's own synthetic=false is not evidence about its inputs. If any resolved prerequisite is synthetic, this receipt must carry synthetic=true with a synthetic_reason and is capped at conservative_unknown. Concretely: VG-A is PERMANENTLY synthetic and sits in G3's frozen prerequisite set, so G3 may NEVER carry conclusion=release_gate_verified while VG-A remains synthetic, however green everything else is. VG-A is also in G6's set, so the cap reaches G6.",
+    "a referenced capability activation must itself be currently valid, not merely present: an activation past its expires_at makes the citing gate fail closed, because a stale capability claim is exactly a silent authentication bypass.",
+    "G6 additionally REQUIRES verifier_provenance, freshness_attestation, orchestration_provenance, fresh_evidence_refs (all nine roles) and expires_at. These five fields are FORBIDDEN on G1..G5, so a wave gate cannot dress itself in final-acceptance clothing.",
+    "fresh_evidence_refs replaces the five-label fresh_evidence_classes enum. Its role multiset must EQUAL the nine roles in release_gate_registry_v1.json g6_fresh_evidence_roles - full_regression, wiki_smoke, legacy_smoke, attack_suite, secret_scan, restore_drill, rollback_drill, default_off_verification, final_findings_reconciliation - with a missing role and an unknown role equally invalid and no 'covered by another run' allowance.",
+    "every fresh_evidence_refs entry is RECOMPUTED, never trusted: artifact_path must resolve through the fail-closed reader to a regular file hashing to artifact_sha256; tested_subject_commit must equal the receipt's; candidate_tree_sha256 must equal orchestration_provenance.candidate_freeze_sha256; environment_fingerprint must equal the receipt's AND the observed environment, key for key in both directions; engagement_id must equal verifier_provenance.engagement_id; session_id must equal orchestration_provenance.session_id; runner_id must appear in orchestration_provenance.session_participants; run_id must be unique across the array.",
+    "the fresh-evidence TIMING ENVELOPE is closed on both ends: orchestration_provenance.candidate_frozen_at <= started_at < completed_at <= created_at. A run that started before the candidate was frozen tested something else, and a run that completed after the receipt was created was not evidence available to the verifier when they signed.",
+    "artifact_path and artifact_sha256 must each be UNIQUE across fresh_evidence_refs. One artefact may not satisfy two roles, otherwise a single log file cited nine times manufactures nine fresh runs.",
+    "role-specific assertions are mandatory and are the reason roles are objects rather than labels: secret_scan requires findings_count=0; restore_drill requires clean_room=true and restore_verified=true; rollback_drill requires legacy_read_path_restored=true; default_off_verification requires enabled_component_count, allowlisted_tenant_count and enabled_flag_count all 0; final_findings_reconciliation requires open_blocker_count=0, open_major_count=0, git_diff_check_clean=true and tracked_evidence_match=true; legacy_smoke requires legacy_fixture_id; attack_suite requires security_gate_ids_rechecked to cover every SG:RT-0xx id in the prerequisite set. For status=pass every entry additionally requires exit_code=0, checks_failed=0 and result=pass.",
+    "orchestration_provenance.session_started_at must be STRICTLY AFTER candidate_frozen_at, and orchestration_provenance.engagement_id must equal verifier_provenance.engagement_id. Participant exclusion is RECOMPUTED over session_participants against every resolved upstream producer and verifier identity and against the RT-026 implementation, go/no-go and acceptance identities. Self-reported strings and booleans are a claim; the recomputation is the evidence, and where they disagree the receipt is rejected rather than the claim believed.",
+    "G6 freshness is RECOMPUTED, not trusted: the consumer scans every RT acceptance, verification gate, upstream release gate and security gate receipt on disk and rejects the G6 if this verifier's identity appears as producer or verifier in ANY of them. A self-reported freshness_attestation that contradicts the recomputation is INVALID, and verifier_provenance.prior_engagement_ids must be empty.",
+    "G6's verifier must also differ from every RT-026 identity, and G6 must never appear as an input to RT-026. RT-026 consumes G1..G5 only; a G6 receipt placed in RT-026's input set must leave RT-026's conclusion unchanged, which is the executable proof that no self-dependency cycle exists.",
+    "G6 expires_at - created_at must be strictly positive and at most 30 days (2592000s). An expired G6 cannot support a G7 authorization: G7 must cite a CURRENT valid G6, and re-authorizing against a lapsed final acceptance is the failure this bound exists to prevent.",
+    "tested_subject_commit, owner_scope_tree_sha256 and environment_fingerprint are all REQUIRED and all RECOMPUTED. The commit must exist, must be a STRICT ancestor of the commit that introduces this receipt, and must have touched the feeder RT packages; owner scope is recomputed from the tree at that commit; the fingerprint must equal the environment actually being certified. A 40-hex string naming no commit, a commit on an unrelated branch, and the receipt's own commit are all rejected.",
+    "tested_subject_commit is checked against a DERIVED evidence commit, never an asserted one: the unique LATEST commit reachable from an explicitly injected evaluation_commit that changed this receipt's path, with exactly one parent, whose blob equals both the blob at evaluation_commit and the bytes the fail-closed reader returns from disk. Taking the first commit that ADDED the path is wrong for a rerunnable gate, because a later run occupies the same path and would bind the earlier evidence commit.",
+    "owner scope is matched on exact path boundaries, so RT/RT-023-evil never satisfies RT/RT-023, and evidence-output prefixes are disjoint from code prefixes so a receipt-only commit can never satisfy 'the subject touched the feeder package'.",
+    "sequence is the primary ordering proof: the archive plus the current receipt must occupy exactly the integers 1..N with no gap, no duplicate and no orphan, and the current receipt must be the tip (sequence=N).",
+    "supersedes_receipt_sha256 is FORBIDDEN when sequence=1 and REQUIRED when sequence>1, where it must equal the recomputed receipt_sha256 of the archived receipt at sequence-1, so the chain is a single unique prefix walk with no fork and no cycle.",
+    "created_at must strictly increase along the chain as an auxiliary check: a receipt whose created_at is not strictly later than the receipt it supersedes is invalid even when its sequence looks correct. created_at alone is never accepted as the ordering proof.",
+    "receipt_path in release_gate_registry_v1.json always holds the CURRENT receipt; superseded receipts live append-only under the declared archive_dir with filename <that receipt's own recomputed receipt_sha256>.json, never named receipt.json.",
+    "an archive directory is validated by exact membership: every entry must be a non-symlink regular file with exactly one hard link whose name is <its own recomputed receipt_sha256>.json. A junk file, a nested directory, a dotfile, a symlink, a hardlink or a misnamed JSON file invalidates the history instead of being silently skipped by a '*.json' glob.",
+    "closure is judged over the whole release-gate-receipts/ subtree, not only over declared paths. Any regular file that does not land exactly on a declared receipt_path or a declared archive member is a hard failure - such a file carries no gate_id and no sequence, so every per-entry and per-chain rule is structurally blind to it.",
+    "artifacts must be non-empty, each a repo-relative regular file whose sha256 matches disk, and none may point at another release gate receipt or at the G7 authorization; a gate may not cite gate evidence as its own artifact.",
+    "a gate only closes anything when the WHOLE receipt is valid, not merely when synthetic=false. Before any downstream use the consumer must confirm: status=pass, an allowed conclusion for that gate_id, feeder_rts_independent_pass=true, verifier present and DISTINCT from producer, verifier_role matching the registry, evidence.tests_failed=0 with tests_run>0, feeder_rts and consumes_verification_gates equal to the frozen values, the prerequisite ref_id set EQUAL to the frozen required set with every hash recomputed, artifact hashes matching disk, commit/scope/environment recomputed, sequence chain intact, and for G6 freshness recomputed and expiry unelapsed.",
+    "a missing receipt is NOT_RUN and must never be inferred from a downstream gate, from a narrative document, from the registry, or from the fact that all its prerequisites are satisfied. Prerequisites being green is a precondition for RUNNING a gate, never a substitute for its receipt."
+  ]
+}

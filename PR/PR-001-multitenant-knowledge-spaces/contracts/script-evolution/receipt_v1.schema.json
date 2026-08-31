@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.pr001.script_evolution_receipt.v1",
+  "title": "PR-001 Script Evolution Receipt v1 (append-only, owner-RT authored)",
+  "description": "One receipt per policy-predeclared stage. Structural gate only; the semantic gate (chain replay, previous-bytes link, migration note content, acceptance-test resolution, tenant CLI AST) lives in tests/pr001_script_evolution_guard.py. previous_receipt_sha256 is the SHA-256 of the previous receipt's raw file bytes on the SAME target_path, or for ordinal 1 the domain-separated genesis link sha256(genesis_link_domain || 0x00 || LP(policy_sha256) || LP(target_path)).",
+  "type": "object",
+  "additionalProperties": false,
+  "unevaluatedProperties": false,
+  "required": [
+    "schema",
+    "policy_id",
+    "policy_sha256",
+    "stage_index",
+    "owner_rt",
+    "target_path",
+    "ordinal",
+    "adds_provider_slot",
+    "from_sha256",
+    "to_sha256",
+    "previous_receipt_sha256",
+    "migration_note_path",
+    "migration_note_sha256",
+    "acceptance_test_refs",
+    "recorded_at"
+  ],
+  "properties": {
+    "schema": {"const": "cwk.pr001.script_evolution_receipt.v1"},
+    "policy_id": {"const": "pr001-script-evolution-v1"},
+    "policy_sha256": {"type": "string", "pattern": "\\A[0-9a-f]{64}\\Z"},
+    "stage_index": {"type": "integer", "minimum": 1, "maximum": 10},
+    "owner_rt": {"type": "string", "pattern": "\\ART-0(12|13|17|19|21|22|26)\\Z"},
+    "target_path": {"type": "string", "pattern": "\\Ascripts/cwk_[a-z0-9_]{1,64}\\.py\\Z"},
+    "ordinal": {"type": "integer", "minimum": 1, "maximum": 2},
+    "adds_provider_slot": {
+      "type": ["string", "null"],
+      "pattern": "\\Acwk_tenant_cmd_[a-z][a-z0-9_]{0,47}\\Z"
+    },
+    "from_sha256": {"type": "string", "pattern": "\\A[0-9a-f]{64}\\Z"},
+    "to_sha256": {"type": "string", "pattern": "\\A[0-9a-f]{64}\\Z"},
+    "previous_receipt_sha256": {"type": "string", "pattern": "\\A[0-9a-f]{64}\\Z"},
+    "migration_note_path": {
+      "type": "string",
+      "pattern": "\\ART/RT-0[0-9]{2}/reports/migrations/[a-z0-9][a-z0-9._-]{0,63}\\.md\\Z"
+    },
+    "migration_note_sha256": {"type": "string", "pattern": "\\A[0-9a-f]{64}\\Z"},
+    "acceptance_test_refs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "maxLength": 256,
+        "pattern": "\\Atests/test_rt0[0-9]{2}_[a-z0-9_]{1,64}\\.py::[A-Za-z_][A-Za-z0-9_]{0,63}::test_[a-z0-9_]{1,80}\\Z"
+      }
+    },
+    "recorded_at": {"type": "string", "format": "date-time"}
+  },
+  "customKeywords": {
+    "deepForbiddenProperties": [
+      "app_key",
+      "credential_ref",
+      "agent_id",
+      "absolute_path",
+      "mirror_root"
+    ],
+    "policy": {
+      "append_only": true,
+      "prefix_closed_per_target_path": true,
+      "authored_by": "owner_rt",
+      "semantic_rules_enforced_by": "tests/pr001_script_evolution_guard.py"
+    }
+  }
+}

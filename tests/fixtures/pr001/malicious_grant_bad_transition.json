@@ -1,0 +1,5 @@
+{
+  "__fixture_note": "MALICIOUS: attempt to transition purged -> active. Must be rejected.",
+  "from_status": "purged",
+  "to_status": "active"
+}

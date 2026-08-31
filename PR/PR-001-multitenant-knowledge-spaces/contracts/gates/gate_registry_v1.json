@@ -1,0 +1,98 @@
+{
+  "schema": "cwk.pr001.gate_registry.v1",
+  "description": "Frozen registry of PR-001 wave integration gates VG-A..VG-E. This file is CONFIGURATION, not state: it declares each gate's feeder RT, its single exact machine-receipt path and its two separate consumer allowlists, and never records execution status. Runtime status is derived solely from whether receipt_path exists and, if so, the status/conclusion fields inside that receipt. Consumers must read the JSON receipt, never the narrative Markdown. G6 and G7 are strictly downstream of every entry here and must never appear as an input to a VG.",
+  "receipt_schema_ref": "PR/PR-001-multitenant-knowledge-spaces/contracts/gates/verification_gate_receipt_v1.schema.json",
+  "receipt_schema_id": "cwk.pr001.verification_gate_receipt.v1",
+  "downstream_only_ids": ["G6", "G7", "RT-026"],
+  "consumer_relation_model": "There are TWO DISTINCT and NON-INTERCHANGEABLE consumer relations over VG-A..VG-E, and earlier revisions conflated them into one field, which read as a contradiction: the registry said only RT-024/RT-026 consume VG receipts while the plan said G3 consumes VG-A, G4 consumes VG-C and G5 consumes VG-D. Both statements were true about DIFFERENT relations. They are now frozen separately and machine-readably. (1) `consumers` = DIRECT RT CONSUMERS: the RT delivery packages whose own implementation reads this VG receipt JSON as an input. Its value space is exactly {RT-024, RT-026} and no release gate may ever be added to it. (2) `release_gate_consumers` = RELEASE-GATE CONSUMERS: the release gates that must cite this VG receipt inside their frozen prerequisite set. Its value space is exactly {G3, G4, G5, G6} and no RT may ever be added to it. The frozen relation is VG-A -> {G3, G6}, VG-B -> {G6}, VG-C -> {G4, G6}, VG-D -> {G5, G6}, VG-E -> {G6}, and it must be the exact inverse of `consumes_verification_gates` in release_gate_registry_v1.json, which is the authority for the release-gate side. Neither relation may be derived from the other, and a member of one is never implicitly a member of the other: G3 consuming VG-A does not make G3 an RT consumer, and RT-026 consuming VG-A does not make RT-026 a release gate. Note the deliberate asymmetry with allowed_prerequisite_ids: a release gate that CONSUMES a VG is by definition not upstream of it, so G3, G4 and G5 are excluded from the prerequisite allowlists of VG-A, VG-C and VG-D respectively.",
+  "release_gate_registry_ref": "PR/PR-001-multitenant-knowledge-spaces/contracts/gates/release_gate_registry_v1.json",
+  "status_resolution_rule": "A gate is NOT RUN iff receipt_path does not exist. Otherwise its status and conclusion are exactly the status and conclusion fields of the receipt at receipt_path. Consumers must not infer status from this registry, from narrative_refs, or from any Markdown.",
+  "prerequisite_rank_rule": "Each gate's allowed_prerequisite_ids below is the FROZEN, exhaustive allowlist for that gate's receipt prerequisite_refs[].ref_id. It is derived from three rank constraints and nothing else: (1) RT rank - no RT whose ordinal is above that gate's feeder_rt, so VG-A may cite at most RT-015, VG-B at most RT-018, VG-C at most RT-021, VG-D at most RT-023, VG-E at most RT-025; (2) VG rank - only strictly earlier gates in the frozen wave order VG-A < VG-B < VG-C < VG-D < VG-E, never the gate itself and never a later gate; (3) release-gate rank - only G0..Gn that are already upstream at that point, i.e. a G that consumes this gate is excluded (G3 consumes VG-A, G4 consumes VG-C, G5 consumes VG-D). G6, G7 and RT-026 are excluded everywhere. Any ref_id outside a gate's allowed_prerequisite_ids is a forward reference and must fail closed. Additionally, ref_id must be unique within a receipt: two prerequisite_refs entries carrying the same ref_id with different ref_sha256 are invalid even though they are distinct objects.",
+  "gates": [
+    {
+      "gate_id": "VG-A",
+      "title": "租户证据与授权集成门禁",
+      "feeder_rt": "RT-015",
+      "definition_ref": "PR/PR-001-multitenant-knowledge-spaces/plans/开发计划.md#8-vg-a租户证据与授权集成门禁",
+      "receipt_path": "PR/PR-001-multitenant-knowledge-spaces/gate-receipts/VG-A/receipt.json",
+      "narrative_refs": [
+        "PR/PR-001-multitenant-knowledge-spaces/gate-receipts/VG-A-集成验证.md",
+        "PR/PR-001-multitenant-knowledge-spaces/gate-receipts/VG-A-独立验收.md"
+      ],
+      "consumers": ["RT-024", "RT-026"],
+      "release_gate_consumers": ["G3", "G6"],
+      "allowed_prerequisite_ids": [
+        "G0", "G1", "G2",
+        "RT-011", "RT-012", "RT-013", "RT-014", "RT-015"
+      ],
+      "static_note": "证明范围限于 synthetic authority（RT-015 FakeSigningAuthority + test-only token）下的 host-chain 集成，因此该 gate 的 receipt 永远 synthetic=true 且 conclusion 上限为 conservative_unknown；真实 authority 接入前不得升级为 integration_verified。G3 消费 VG-A，因此 G3 不在本 gate 的前置允许集内。"
+    },
+    {
+      "gate_id": "VG-B",
+      "title": "采集与调度故障隔离门禁",
+      "feeder_rt": "RT-018",
+      "definition_ref": "PR/PR-001-multitenant-knowledge-spaces/plans/开发计划.md#12-vg-b采集与调度故障隔离门禁",
+      "receipt_path": "PR/PR-001-multitenant-knowledge-spaces/gate-receipts/VG-B/receipt.json",
+      "narrative_refs": [],
+      "consumers": ["RT-024", "RT-026"],
+      "release_gate_consumers": ["G6"],
+      "allowed_prerequisite_ids": [
+        "G0", "G1", "G2", "G3",
+        "RT-011", "RT-012", "RT-013", "RT-014", "RT-015", "RT-016", "RT-017", "RT-018",
+        "VG-A"
+      ],
+      "static_note": "只能在 RT-018 独立验收 PASS 之后执行；使用 fake CWork source 时 receipt 必须 synthetic=true。前置允许集上限为 RT-018 / G3 / VG-A，不得引用 VG-B 自身或任何后续 gate。"
+    },
+    {
+      "gate_id": "VG-C",
+      "title": "Profile、路由与多空间门禁",
+      "feeder_rt": "RT-021",
+      "definition_ref": "PR/PR-001-multitenant-knowledge-spaces/plans/开发计划.md#16-vg-cprofile路由与多空间门禁",
+      "receipt_path": "PR/PR-001-multitenant-knowledge-spaces/gate-receipts/VG-C/receipt.json",
+      "narrative_refs": [],
+      "consumers": ["RT-024", "RT-026"],
+      "release_gate_consumers": ["G4", "G6"],
+      "allowed_prerequisite_ids": [
+        "G0", "G1", "G2", "G3",
+        "RT-011", "RT-012", "RT-013", "RT-014", "RT-015", "RT-016", "RT-017",
+        "RT-018", "RT-019", "RT-020", "RT-021",
+        "VG-A", "VG-B"
+      ],
+      "static_note": "只能在 RT-021 独立验收 PASS 之后执行；派生索引/缓存清理的集成断言归属本 gate，不归 VG-A。G4 消费 VG-C，因此 G4 不在本 gate 的前置允许集内。"
+    },
+    {
+      "gate_id": "VG-D",
+      "title": "真实沙箱查询门禁",
+      "feeder_rt": "RT-023",
+      "definition_ref": "PR/PR-001-multitenant-knowledge-spaces/plans/开发计划.md#19-vg-d真实沙箱查询门禁",
+      "receipt_path": "PR/PR-001-multitenant-knowledge-spaces/gate-receipts/VG-D/receipt.json",
+      "narrative_refs": [],
+      "consumers": ["RT-024", "RT-026"],
+      "release_gate_consumers": ["G5", "G6"],
+      "allowed_prerequisite_ids": [
+        "G0", "G1", "G2", "G3", "G4",
+        "RT-011", "RT-012", "RT-013", "RT-014", "RT-015", "RT-016", "RT-017",
+        "RT-018", "RT-019", "RT-020", "RT-021", "RT-022", "RT-023",
+        "VG-A", "VG-B", "VG-C"
+      ],
+      "static_note": "只能在 RT-023 独立验收 PASS 之后执行；VG-D 的 PASS 不是 RT-023 completed 的前置条件。fake identity/transport 时 receipt 必须 synthetic=true。G5 消费 VG-D，因此 G5 不在本 gate 的前置允许集内。"
+    },
+    {
+      "gate_id": "VG-E",
+      "title": "恢复一致性门禁",
+      "feeder_rt": "RT-025",
+      "definition_ref": "PR/PR-001-multitenant-knowledge-spaces/plans/开发计划.md#22-vg-e恢复一致性门禁",
+      "receipt_path": "PR/PR-001-multitenant-knowledge-spaces/gate-receipts/VG-E/receipt.json",
+      "narrative_refs": [],
+      "consumers": ["RT-026"],
+      "release_gate_consumers": ["G6"],
+      "allowed_prerequisite_ids": [
+        "G0", "G1", "G2", "G3", "G4", "G5",
+        "RT-011", "RT-012", "RT-013", "RT-014", "RT-015", "RT-016", "RT-017",
+        "RT-018", "RT-019", "RT-020", "RT-021", "RT-022", "RT-023", "RT-024", "RT-025",
+        "VG-A", "VG-B", "VG-C", "VG-D"
+      ],
+      "static_note": "只能在 RT-025 独立验收 PASS 之后执行；VG-E 的 PASS 不是 RT-025 completed 的前置条件。本 gate 前置允许集最宽，但仍不含 VG-E 自身、G6/G7 与 RT-026。"
+    }
+  ]
+}
