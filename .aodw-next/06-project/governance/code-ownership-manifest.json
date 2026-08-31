@@ -1,0 +1,397 @@
+{
+  "schema": "cwk.governance.code_ownership_manifest.v1",
+  "manifest_version": "v1",
+  "established_by": "RT-030",
+  "established_at": "2026-08-31",
+  "baseline_commit_note": "建立于 16b4ee0（= RT-029 收口后的 main，亦即 origin/main）。本清单描述的是**当前代码树**，不是历史。历史 RT 与已签名证据不因本清单改变。",
+
+  "scope_rule": "判据面 = `git ls-files` 的全集。不是「新增文件才受管」，而是「这棵树上每个文件都必须被恰好一条规则认领」。",
+
+  "closure_rule": "每个受跟踪文件必须匹配恰好一条 rules[] 条目。匹配不到 = 孤儿 = 硬失败。匹配到 0 个文件的规则 = 失效规则 = 硬失败（防止例外与规则无声堆积）。",
+
+  "exact_only_zone_rule": "在 exact_only_zones 列出的目录里**只允许 kind=exact 或 kind=delegated 的规则**，禁止 kind=prefix。含义：往这些目录里新放一个文件，不会被任何宽泛规则吸收，它会直接变成孤儿并让门变红。这是本清单防「管理盲区」的主要机制——RT-030 正是靠它抓到了 scripts/cwk_wiki_batch_driver.sh。",
+
+  "exact_only_zones": ["", "scripts/", "config/", "references/", "skill/", ".github/"],
+  "exact_only_zone_root_note": "空串代表仓库根目录（路径中不含 `/` 的文件）。",
+
+  "upstream_authorities": [
+    {
+      "id": "pr001-security-registry",
+      "path": "PR/PR-001-multitenant-knowledge-spaces/contracts/security/security_gate_registry_v1.json",
+      "sha256": "247208a9b031e6e8c844c92a2e0dd318edbca14135fbf6d1ed1f64661d1a548a",
+      "role": "scripts/cwk_*.py 命名空间的封闭归属表（owner / central / legacy 三族）",
+      "mutability": "frozen-upstream：本 RT 一个字节都不改。此处按哈希引用，只为证明本清单绑定的是哪一版。"
+    },
+    {
+      "id": "pr001-script-evolution-policy-v1",
+      "path": "PR/PR-001-multitenant-knowledge-spaces/contracts/script-evolution/policy_v1.json",
+      "sha256": "2089490e45bdd84ba3bac75fe40092f81f40765638b988e17facdc4040d14a6d",
+      "role": "受管脚本的演化槽位与回执链定义",
+      "mutability": "frozen-upstream。该哈希同时被 pr001-security-registry 的 script_evolution_policy_sha256 固定，两处必须一致——这是 v1 未被改写的交叉证明。"
+    }
+  ],
+
+  "domains": [
+    {
+      "id": "runtime",
+      "description": "产品运行路径上会被执行或加载的代码与数据。",
+      "requires_owner": true,
+      "requires_evolution_path": true,
+      "requires_change_entry": true
+    },
+    {
+      "id": "test",
+      "description": "测试与脱敏 fixture。回归面本身即验证入口。",
+      "requires_owner": true,
+      "requires_evolution_path": false,
+      "requires_change_entry": false
+    },
+    {
+      "id": "build_ci",
+      "description": "构建、CI 与门禁机制自身。",
+      "requires_owner": true,
+      "requires_evolution_path": true,
+      "requires_change_entry": true
+    },
+    {
+      "id": "docs_governance",
+      "description": "文档、规范、RT/PR 记录与已签名证据。",
+      "requires_owner": true,
+      "requires_evolution_path": false,
+      "requires_change_entry": false
+    },
+    {
+      "id": "vendor_external",
+      "description": "从上游整体引入、本仓库不单独演进的外部资产。",
+      "requires_owner": true,
+      "requires_evolution_path": false,
+      "requires_change_entry": false
+    }
+  ],
+
+  "evolution_mechanisms": [
+    {
+      "id": "pr001-script-evolution-v1",
+      "kind": "receipt-chain",
+      "authority": "pr001-script-evolution-policy-v1",
+      "receipt_root_glob": "RT/*/receipts/script-evolution/*",
+      "description": "PR-001 既有机制：owner RT 在预留槽位内提交 from/to 哈希回执，链式校验。",
+      "exhausted": true,
+      "exhausted_note": "9 条 evolvable_paths 的 max_ordinal 均已用满（见 DI-001）。继续演化走 cwk-script-evolution-v2。"
+    },
+    {
+      "id": "cwk-script-evolution-v2",
+      "kind": "receipt-chain-overlay",
+      "authority": "cwk-script-evolution-v2",
+      "overlay_file": ".aodw-next/06-project/governance/script-evolution-v2.json",
+      "receipt_root_glob": "RT/*/receipts/script-evolution-v2/*",
+      "description": "前向叠加层。不修改 policy_v1，按哈希继承它，为已耗尽槽位与 legacy 族提供有主的续演路径。回执根目录与 v1 分离，因此不进入 v1 的闭合集合。",
+      "closes_deferred_items": ["DI-001", "DI-002"]
+    },
+    {
+      "id": "cwk-governance-repin-v1",
+      "kind": "rt-gated-repin",
+      "description": "本清单直管的敏感文件的变更入口：开 RT → 在 rt-lite.md 写明变更理由 → 更新本清单的 pin → make governance-audit 复核。pin 只是漂移探测器，不是放行条件；放行条件是 RT 记录 + 门禁复跑。",
+      "requires": ["rt_record", "manifest_pin_update", "governance_audit_pass"]
+    },
+    {
+      "id": "pr001-security-gate",
+      "kind": "external-gate",
+      "description": "PR-001 契约与证据由其自身的 SG-00..SG-10 门禁、schema 校验与签名回执管辖，本清单不重复管辖，只声明归属。"
+    },
+    {
+      "id": "aodw-constitution-direct",
+      "kind": "constitution-exempt",
+      "description": "AODW 规则文本按宪章「例外：改 AODW 规则文件本身不必开 RT」，在 main 上直接改并提交，理由写进提交说明。"
+    },
+    {
+      "id": "repo-standard-change",
+      "kind": "standard",
+      "description": "普通改动：走轻量车道或 RT，由 make ci 全量回归兜底。"
+    }
+  ],
+
+  "rules": [
+    {
+      "id": "R-runtime-pr001-managed-scripts",
+      "domain": "runtime",
+      "kind": "delegated",
+      "authority": "pr001-security-registry",
+      "selector": "managed_script_inventory",
+      "owner": "PR-001（逐文件 owner 见登记表 owner/central/legacy 三族）",
+      "management_domain": "pr001-managed-script-inventory",
+      "change_entry": "owner RT → 演化回执 → PR-001 安全门",
+      "evolution_path": "pr001-script-evolution-v1",
+      "rationale": "委派而非复制：成员资格由上游封闭声明集合决定，不是通配符。因此新增一个 scripts/cwk_newthing.py 不在声明集合内，会被判为孤儿。"
+    },
+    {
+      "id": "R-runtime-wiki-batch-driver",
+      "domain": "runtime",
+      "kind": "exact",
+      "path": "scripts/cwk_wiki_batch_driver.sh",
+      "sensitive": true,
+      "pin": { "mode": "100755", "sha256": "06ff70cbfda02722472e7578f23e67a24e75794889b36ad2917e45c54d3db2be" },
+      "owner": "RT-030",
+      "management_domain": "cwk-governance-v1",
+      "change_entry": "RT → rt-lite.md 记录理由 → 更新 pin → make governance-audit",
+      "evolution_path": "cwk-governance-repin-v1",
+      "rationale": "RT-030 的核心发现。100755 可执行运行时驱动，带 MODEL/REPAIR_MODEL 默认模型字面量、写 runs/、驱动 wiki 精编批次；因后缀是 .sh 而被 ^scripts/cwk_[a-z0-9_]+\\.py$ 静默漏掉，此前零判据。其模型字面量与 DI-002 记录的 cwk_ai_common.py 漂移属同一风险类别。"
+    },
+    {
+      "id": "R-runtime-entity-family-registry",
+      "domain": "runtime",
+      "kind": "exact",
+      "path": "config/entity-family-registry.json",
+      "sensitive": true,
+      "pin": { "mode": "100644", "sha256": "a37b2fb02a3a9ff59e4c23a86244e737508cfde1ff708138de0251db734fbde5" },
+      "owner": "RT-030",
+      "management_domain": "cwk-governance-v1",
+      "change_entry": "RT → rt-lite.md 记录理由 → 更新 pin → make governance-audit",
+      "evolution_path": "cwk-governance-repin-v1",
+      "rationale": "cwk_entity_catalog.py:473 作为 canonical 实体族注册表加载。承载它的脚本被 legacy pin 固定，但这份**数据输入**此前不受任何管辖——改数据即可改变运行时分类结果。"
+    },
+    {
+      "id": "R-runtime-relation-gold",
+      "domain": "runtime",
+      "kind": "exact",
+      "path": "references/relation-gold-v1.json",
+      "sensitive": true,
+      "pin": { "mode": "100644", "sha256": "edae0b40176200c9a01a5704eb83df9f1bc2d9120c1be8174106751ca626587d" },
+      "owner": "RT-030",
+      "management_domain": "cwk-governance-v1",
+      "change_entry": "RT → rt-lite.md 记录理由 → 更新 pin → make governance-audit",
+      "evolution_path": "cwk-governance-repin-v1",
+      "rationale": "cwk_relation_eval.py:64 的默认 gold 集，同时被 tests/test_ai_contracts.py:492 当作评测基准。改它等于无声改变评测口径。"
+    },
+    {
+      "id": "R-runtime-config-template",
+      "domain": "runtime",
+      "kind": "exact",
+      "path": "skill/templates/CONFIG.example.json",
+      "sensitive": true,
+      "pin": { "mode": "100644", "sha256": "aa547e272a9c6e119667d646631c4a9aa5cf97bcb32284a565382a17152be1a7" },
+      "owner": "RT-030",
+      "management_domain": "cwk-governance-v1",
+      "change_entry": "RT → rt-lite.md 记录理由 → 更新 pin → make governance-audit",
+      "evolution_path": "cwk-governance-repin-v1",
+      "rationale": "make doctor、三个 smoke 目标与 install.sh:59 都读它，安装时被复制成用户的 cwk-mirror.local.json。它是真正的安装期运行时产物。"
+    },
+
+    {
+      "id": "R-build-makefile",
+      "domain": "build_ci",
+      "kind": "exact",
+      "path": "Makefile",
+      "sensitive": true,
+      "pin": { "mode": "100644", "sha256": "b9939c69850874386570563defea5c264e81013c0a2fbd3eeb10d96bf8e1fa03" },
+      "owner": "RT-030",
+      "management_domain": "cwk-governance-v1",
+      "change_entry": "RT 或轻量车道 → 更新 pin → make governance-audit",
+      "evolution_path": "cwk-governance-repin-v1",
+      "rationale": "门的定义本身。若不纳管，任何人都可以把 governance-audit 从 ci 里摘掉而不留痕迹。"
+    },
+    {
+      "id": "R-build-github-ci",
+      "domain": "build_ci",
+      "kind": "exact",
+      "path": ".github/workflows/ci.yml",
+      "sensitive": true,
+      "pin": { "mode": "100644", "sha256": "2a81038e465adfbb805385f3571b9a5b77f0371df4ba49661224808fcce9784a" },
+      "owner": "RT-030",
+      "management_domain": "cwk-governance-v1",
+      "change_entry": "RT 或轻量车道 → 更新 pin → make governance-audit",
+      "evolution_path": "cwk-governance-repin-v1",
+      "rationale": "CI 权威门。DI-003 的补偿控制依赖它真的在跑 make ci，因此它必须被纳管。"
+    },
+    {
+      "id": "R-build-gitignore",
+      "domain": "build_ci",
+      "kind": "exact",
+      "path": ".gitignore",
+      "owner": "RT-030",
+      "management_domain": "cwk-governance-v1",
+      "change_entry": "轻量车道",
+      "evolution_path": "repo-standard-change",
+      "rationale": "决定哪些运行数据不入库，属工程边界配置。"
+    },
+    {
+      "id": "R-build-env-example",
+      "domain": "build_ci",
+      "kind": "exact",
+      "path": ".env.example",
+      "owner": "RT-030",
+      "management_domain": "cwk-governance-v1",
+      "change_entry": "轻量车道",
+      "evolution_path": "repo-standard-change",
+      "rationale": "环境变量样例，不含真实凭据。"
+    },
+    {
+      "id": "R-build-version",
+      "domain": "build_ci",
+      "kind": "exact",
+      "path": "VERSION",
+      "owner": "RT-030",
+      "management_domain": "cwk-governance-v1",
+      "change_entry": "发版流程",
+      "evolution_path": "repo-standard-change",
+      "rationale": "版本号。"
+    },
+
+    {
+      "id": "R-test-suite",
+      "domain": "test",
+      "kind": "prefix",
+      "prefix": "tests/",
+      "owner": "各 owner RT（PR-001 按 owner_test_file_prefixes 分派）",
+      "management_domain": "repo-test-suite",
+      "evolution_path": "repo-standard-change",
+      "rationale": "测试与脱敏 fixture。tests/ 不是 exact-only 区：新增测试是被鼓励的行为，且 PR-001 已按 owner_test_file_prefixes 对安全测试命名空间做了逐 RT 闭合。"
+    },
+
+    {
+      "id": "R-docs-root",
+      "domain": "docs_governance",
+      "kind": "exact_set",
+      "paths": [
+        "AGENTS.md",
+        "CHANGELOG.md",
+        "CLAUDE.md",
+        "MODEL_ROLES.md",
+        "PRIVACY.md",
+        "README.md",
+        "RELEASE_NOTES.md",
+        "SECURITY.md"
+      ],
+      "owner": "RT-030",
+      "management_domain": "repo-docs",
+      "evolution_path": "aodw-constitution-direct",
+      "rationale": "根目录文档。AGENTS.md 与 CLAUDE.md 含 AODW 协作条款，按宪章可直接在 main 改。"
+    },
+    {
+      "id": "R-docs-skill-facing",
+      "domain": "docs_governance",
+      "kind": "exact_set",
+      "paths": [
+        "skill/SKILL.md",
+        "skill/references/migration.md",
+        "skill/references/operations.md"
+      ],
+      "owner": "RT-030",
+      "management_domain": "repo-docs",
+      "evolution_path": "repo-standard-change",
+      "rationale": "Agent-facing 文档。逐条列出而非用前缀，因为 skill/ 是 exact-only 区——该目录同时放着运行时配置模板。"
+    },
+    {
+      "id": "R-docs-design",
+      "domain": "docs_governance",
+      "kind": "prefix",
+      "prefix": "docs/",
+      "owner": "RT-030",
+      "management_domain": "repo-docs",
+      "evolution_path": "repo-standard-change",
+      "rationale": "设计、运行、迁移与安全说明。"
+    },
+    {
+      "id": "R-docs-specs",
+      "domain": "docs_governance",
+      "kind": "prefix",
+      "prefix": "specs/",
+      "owner": "历史存量（AODW 接入前）",
+      "management_domain": "repo-docs",
+      "evolution_path": "repo-standard-change",
+      "rationale": "旧 Spec-Full 流程的需求契约与技术方案，按宪章只作证据。"
+    },
+    {
+      "id": "R-docs-tasks",
+      "domain": "docs_governance",
+      "kind": "prefix",
+      "prefix": "tasks/",
+      "owner": "历史存量（AODW 接入前）",
+      "management_domain": "repo-docs",
+      "evolution_path": "repo-standard-change",
+      "rationale": "旧流程的开发任务清单，只作证据。"
+    },
+    {
+      "id": "R-docs-reports",
+      "domain": "docs_governance",
+      "kind": "prefix",
+      "prefix": "reports/",
+      "owner": "历史存量（AODW 接入前）",
+      "management_domain": "repo-evidence",
+      "evolution_path": "repo-standard-change",
+      "rationale": "交付验证报告，属既成证据。"
+    },
+    {
+      "id": "R-governance-rt-records",
+      "domain": "docs_governance",
+      "kind": "prefix",
+      "prefix": "RT/",
+      "owner": "各 RT 自身",
+      "management_domain": "aodw-rt-records",
+      "evolution_path": "repo-standard-change",
+      "rationale": "研发轨迹与回执。历史 RT 按 rt_gate_scope.legacy_policy=evidence-only 只作证据，不倒改；受管 RT 由 rt-guard 门禁约束。"
+    },
+    {
+      "id": "R-governance-pr-contracts",
+      "domain": "docs_governance",
+      "kind": "prefix",
+      "prefix": "PR/",
+      "owner": "PR-001",
+      "management_domain": "pr001-contracts-and-evidence",
+      "evolution_path": "pr001-security-gate",
+      "rationale": "产品级合同、冻结契约与已签名证据。由 PR-001 自身的 SG 门禁、schema 校验与回执链管辖；本清单只声明归属并按哈希锚定两份权威文件，不重复管辖、更不改写。"
+    },
+
+    {
+      "id": "R-governance-project-slot",
+      "domain": "docs_governance",
+      "kind": "prefix",
+      "prefix": ".aodw-next/06-project/",
+      "owner": "RT-030",
+      "management_domain": "cwk-governance-v1",
+      "evolution_path": "aodw-constitution-direct",
+      "rationale": "AODW 的项目专属区，本仓库自有内容（含本清单与检查器）。放在框架升级不冲突的位置。"
+    },
+    {
+      "id": "R-vendor-aodw-framework",
+      "domain": "vendor_external",
+      "kind": "prefix",
+      "prefix": ".aodw-next/",
+      "owner": "AODW 上游（bd-eval-loop @ 08b0523c）",
+      "management_domain": "aodw-framework",
+      "evolution_path": "aodw-constitution-direct",
+      "rationale": "整体引入的方法论框架，随上游演进；本仓库不单独维护其内部实现。排在项目专属区规则之后，先匹配更具体的那条。"
+    }
+  ],
+
+  "exceptions": [
+    {
+      "id": "EX-001",
+      "subject": "DI-003 — pre-commit hook 无法安全安装",
+      "owner": "RT-030",
+      "raised_by": "RT-029",
+      "trigger_condition": "本仓库的 main 检出、RT worktree 与用户明确要求保持原样的 PR-001 工作树共用同一个 git common dir；hook 是 common dir 级别的，装一次会写到受保护工作树的提交路径上。",
+      "compensating_controls": [
+        {
+          "id": "CC-1",
+          "claim": "GitHub CI 是权威门，且它执行的就是 make ci",
+          "verified_by": "governance-audit 解析 .github/workflows/ci.yml，断言其运行命令为 make ci"
+        },
+        {
+          "id": "CC-2",
+          "claim": "make ci 真的包含 governance-audit",
+          "verified_by": "governance-audit 解析 Makefile 的 ci 目标，断言 governance-audit 在其中"
+        },
+        {
+          "id": "CC-3",
+          "claim": "本地有快速等价入口，无需写 hook",
+          "verified_by": "governance-audit 断言 Makefile 存在 governance-audit 目标"
+        }
+      ],
+      "exit_criteria": "用户处置完原 PR-001 工作树、本仓库不再与受保护工作树共用 git common dir 之后，改为安装 pre-commit hook 并撤销本例外。",
+      "review_by": "2026-11-30",
+      "scope_limit": "本例外只豁免「本地 pre-commit hook 未安装」这一件事。它不豁免任何判据，也不降低 CI 的强制性。",
+      "rationale": "用「为了消一条告警去写受保护工作树的提交路径」交换是坏买卖。但把它留成永久 warn 同样不可接受——所以补偿控制被机器验证：谁把 governance-audit 从 CI 里摘掉，本例外的 CC-2 当场失败。"
+    }
+  ]
+}
