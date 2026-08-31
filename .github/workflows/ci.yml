@@ -22,8 +22,13 @@ jobs:
           # 实际开发与验收基线是 3.11。
           python-version: "3.11"
       - name: Repo checks (same entry point as local `make ci`)
-        # 和本地同一条命令：make ci = make test + make aodw-check。
+        # 和本地同一条命令：make ci = make test + make aodw-check + make governance-audit。
         # 覆盖 doctor、py_compile、全量单测、三个脱敏 smoke、AODW 框架 fixture、
-        # 受管 RT 门禁、RT 花名册一致性。两边命令必须一致——命令不同的话，
-        # 「CI 是绿的」在本地就不可复现，也就不能当验收证据。
+        # 受管 RT 门禁、RT 花名册一致性、以及当前代码树的归属与演化管辖自检。
+        # 两边命令必须一致——命令不同的话，「CI 是绿的」在本地就不可复现，
+        # 也就不能当验收证据。
+        #
+        # 这一步同时是 DI-003 的补偿控制（见 code-ownership-manifest.json 的 EX-001）：
+        # 本仓库无法安全安装 pre-commit hook，CI 就是权威门。governance-audit 会
+        # 反向校验这一行确实在跑 make ci——把它改掉，门自己会红。
         run: make ci

@@ -1,4 +1,4 @@
-.PHONY: doctor test aodw-check ci smoke smoke-ai smoke-ai-degraded wiki-lint wiki-smoke clean
+.PHONY: doctor test aodw-check governance-audit ci smoke smoke-ai smoke-ai-degraded wiki-lint wiki-smoke clean
 
 PYTHON ?= python3
 TEST_TMPDIR ?= $(shell $(PYTHON) -c 'import os,tempfile; print(os.path.realpath(tempfile.gettempdir()))')
@@ -23,11 +23,18 @@ test:
 aodw-check:
 	bash .aodw-next/06-project/aodw-check.sh --root .
 
+# 代码层自检：当前代码树上每个受跟踪文件归谁管、怎么改（RT-030 建立）。
+# 与 aodw-check 分工——aodw-check 管方法层（RT 流程本身），本目标管产品代码归属。
+# 判据面是 `git ls-files` 全集，不是「新增文件才受管」。
+governance-audit:
+	$(PYTHON) .aodw-next/06-project/governance-audit.py --root .
+
 # CI 与本地共用的唯一入口。CI 跑什么本地就跑什么，反过来也一样——
 # 两边命令一旦不同，「CI 是绿的」这句话就不再是本地可复现的证据。
 ci:
 	$(MAKE) test
 	$(MAKE) aodw-check
+	$(MAKE) governance-audit
 
 wiki-lint:
 	$(PYTHON) scripts/cwk_wiki_query.py --lint

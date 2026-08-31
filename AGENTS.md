@@ -44,12 +44,20 @@ MCP、文件写入、subagent 或运行时调度权限。Work Agent 设计仍是
 
 ## 常用检查
 
-- `make ci`：**CI 跑的就是这一条**，等于 `make test` + `make aodw-check`。判断
-  「现在是不是绿的」以它为准；本地和 CI 命令不同的时候，CI 的绿灯不算本地证据；
+- `make ci`：**CI 跑的就是这一条**，等于 `make test` + `make aodw-check` +
+  `make governance-audit`。判断「现在是不是绿的」以它为准；本地和 CI 命令不同的时候，
+  CI 的绿灯不算本地证据；
 - `make doctor`：检查可移植安装条件（含 Python 版本闸，低于 3.10 会直接失败）；
 - `make test`：编译、单元测试和脱敏 smoke；
-- `make aodw-check`：AODW 方法层自检——框架 fixture、受管 RT 门禁、RT 花名册一致性；
+- `make aodw-check`：AODW **方法层**自检——框架 fixture、受管 RT 门禁、RT 花名册一致性；
   门禁面只含接入后新建的 RT，作用域配置在 `.aodw-next/project.yaml` 的 `rt_gate_scope`；
+- `make governance-audit`：**代码层**自检——`git ls-files` 全集里每个文件归谁管、
+  怎么改（RT-030 建立）。判据面是**当前代码树全量**，不是「新增文件才受管」：
+  新增文件没有归属就是孤儿，直接红。判据写在
+  `.aodw-next/06-project/governance/code-ownership-manifest.json`，
+  脚本演化的前向叠加层在同目录的 `script-evolution-v2.json`，
+  接管范围与例外边界见 `RT/RT-030/takeover-audit.md`。
+  与 `aodw-check` 分工：那条管 RT 流程本身，这条管产品代码归属；
 - `python3 scripts/cwk_wiki_query.py --lint`：检查本地 Wiki 证据完整性；
 - `python3 scripts/cwk_cloud_wiki_compile.py --help`：确认精编命令合同。
 
