@@ -1060,7 +1060,16 @@ class _RealAuthorizationFixtureBase(_SecurityOwnerFixture, unittest.TestCase):
         self.security_subjects = {}
         for entry in self.registry["entries"]:
             for stage_index in entry["owner_evolution_stage_indices"]:
-                self._add_evolution_stage(stage_index)
+                # `_prepare_evolution_baseline` already copied in every stage
+                # the real repository has materialized, and recorded them in
+                # `_materialized_stage_indices`.  Synthesizing such a stage
+                # again would overwrite the real receipt at the same path with
+                # a fixture receipt whose `from_sha256` is the real tip instead
+                # of the genesis, i.e. it would forge a break in a chain that
+                # is actually intact.  The security-gate fixture that owns this
+                # helper has always had this guard; keep both call sites equal.
+                if stage_index not in self._materialized_stage_indices:
+                    self._add_evolution_stage(stage_index)
             self._touch_unique_owner_path(entry)
             self.security_subjects[entry["producer_rt"]] = _real_binding.commit_all(
                 self.git, f"{entry['producer_rt']} security subject"
