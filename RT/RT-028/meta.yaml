@@ -1,0 +1,24 @@
+id: RT-028
+title: CWK Codex Work Agent 隔离 PoC
+type: Experiment
+profile: Spec-Lite
+execution_mode: collaborative
+status: created
+modules:
+  - ai-refinement
+  - runtime-policy
+  - work-agent-design
+branch: null
+worktree: null
+tool: codex
+owner: Codex
+created_at: 2026-08-31T00:06:47Z
+updated_at: 2026-08-31T00:06:47Z
+closed_at: null
+external_ids:
+  jira: null
+  github: null
+  other: null
+notes: >
+  仅规划并验证隔离的 Codex Work Agent 备用执行池 PoC；不接入生产精编，
+  不变更现有零工具 reviewer，不处理真实原文。
