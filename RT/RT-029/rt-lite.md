@@ -103,6 +103,19 @@
     `from_sha256` 变成真实链尖而不是 genesis，于是「伪造出一处本不存在的断链」，
     连带让 10 份 SG 回执全部判为 invalid。补上同一道判断即可，两个夹具的语义就此对齐；
     没有放宽任何断言（该测试仍要求十个阶段齐全、链尖等于真实文件哈希）。
+  - 上述四项修好后，全量首次跑完 2111 条：**14 失败 0 错误**，且 14 条同属一个根因，
+    全部落在 `test_pr001_release_gate_validation`。根因是 G2 的 owner-code 触碰证明
+    在干净 checkout 下不成立：夹具把 G2 绑到 `remediation_subject`，要求这条提交真的
+    碰过 RT-012/RT-013 的两个运行时选择器（`scripts/cwk_instance.py`、
+    `scripts/cwk_agent_binding.py`），但夹具克隆里本来就带着已验收的 Stage-09/10 字节，
+    `_prepare_evolution_baseline()` 只是用同样内容重写一遍，于是这条提交对两个文件
+    毫无改动 → `subject_commit_did_not_touch_owner_code`，再沿 G3/G4/G5/G6 与 archive
+    语义级联成 14 条。改法：先把这两个文件的一个真实「前态」单独提交，再在 remediation
+    提交里恢复回执绑定的字节——最终字节与已验收的 Stage-09/10 产物逐字节相同，触碰证明
+    却由 Git 历史真实产生。没有放宽任何断言。
+    需要用户知道的一点：原 PR-001 脏工作树（只读参考，未改动）里同一位置有一处等价的
+    在研修复。本 RT 是在干净基线上独立复现这个修法，二者文本高度相近；等 PR-001 的
+    在研工作真正落地时，这一段需要合并去重。
 - 被中断的上一轮遗留 WIP 中，把 `cwk_nightly_pipeline.py` 等 5 个文件回退成 genesis
   状态的做法已被否决并还原：那会静默撤销一项有实测证据的产品决策，用产品倒退换门禁
   通过，与门禁目的相反。
@@ -120,6 +133,8 @@
 | `4a14cd8` | 补齐 release 夹具漏掉的「已落地阶段」守卫 |
 | `17e948e` | AODW 治理对齐：落点规则、门禁作用域、RT 花名册、`make aodw-check` |
 | `8986e04` | CI 与本地共用 `make ci` 入口 |
+| `d6b8f3d` | RT-029 过程记录、复检口径与遗留事项台账 |
+| `a2da946` | 让 G2 的 owner-code 触碰证明在干净 checkout 下真实成立 |
 
 `Makefile` 被两个主题各改一处（`TEST_TMPDIR` 属 B1，`aodw-check`/`ci` 目标属
 B2/B3）。没有用交互式分块暂存，而是按主题分三次写入同一文件后分别提交，中间每个
