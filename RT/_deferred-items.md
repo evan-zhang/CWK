@@ -13,8 +13,8 @@
 | 字段 | 内容 |
 |---|---|
 | **发现于** | RT-029（AODW 产品基线收敛），2026-08-31 |
-| **状态** | 未认领 |
-| **建议认领时机** | RT-022 或 RT-026 立项时一并评估，不要等到实现中途才发现槽位不可用 |
+| **状态** | 已结清（RT-030，2026-08-31） |
+| **建议认领时机** | ——（已由 RT-030 提供前向续槽机制） |
 
 产品基线 `fe4add1` 里有两处 2026-08-30 的日常维护改动，动了受
 `pr001-script-evolution-v1` 契约管辖的脚本，但当时没有留下演化回执：
@@ -34,13 +34,32 @@ RT-029 用预留槽位如实登记了真实的 `from`/`to` 哈希转移，并在
 `policy_v1.json`**，而修订会牵动已签发的 stage-09/stage-10 回执、两份独立验收报告、
 安全登记表常量和 guard helper 里的人工审查基准值。
 
+**RT-030 的处置（2026-08-31，已结清）**：不改 `policy_v1.json`——它的 sha256
+被 `security_gate_registry_v1.json` 交叉固定，改它就是重写已签名证据。改为旁挂前向
+版本 `.aodw-next/06-project/governance/script-evolution-v2.json`
+（schema `cwk.governance.script_evolution_overlay.v2`）：
+
+- v2 用 `inherits` 按 sha256 钉住 v1 策略与安全登记表两份上游权威，任一漂移即红；
+- 为两个用尽的槽位各开一条 `continuation_slots`：`cwk_wiki_query.py`（owner RT-022）、
+  `cwk_nightly_pipeline.py`（owner RT-026），`v2_ordinal_start: 2`、`v2_max_ordinal: 5`；
+  `v1_chain_tip_sha256` 取自 v1 stage-06/stage-08 回执的 `to_sha256`，已验证与当前
+  磁盘哈希逐字相等——v1→v2 的交接点是可证明的，不是声称的；
+- v2 回执写在 `RT/<owner_rt>/receipts/script-evolution-v2/`，与 v1 的
+  `receipts/script-evolution/` 目录分离，因此不落进 v1 闭合性测试的 glob，
+  不会污染既有回执集合；
+- `owner_rt` 仍锁定 RT-022 / RT-026，与 v1 的归属语义一致——续槽不改主。
+
+由 `make governance-audit`（GA-V2-* 判据）与 `tests/test_governance_audit.py`
+的 `TestContinuationSlots` 强制。若后续 RT 需要突破 `v2_max_ordinal: 5`，
+按同样的前向叠加方式再开一版，仍不得回改 v1。
+
 ### DI-002 — 两个 legacy frozen 脚本的基线指纹已重新锚定
 
 | 字段 | 内容 |
 |---|---|
 | **发现于** | RT-029（AODW 产品基线收敛），2026-08-31 |
-| **状态** | 未认领 |
-| **建议认领时机** | 下一个要改 `legacy_frozen_files` 名下脚本的 RT |
+| **状态** | 已结清（RT-030，2026-08-31） |
+| **建议认领时机** | ——（已由 RT-030 建立有主的演化路径） |
 
 同一次模型切换 `dc96c28` 还改了 `scripts/cwk_ai_common.py`（模型允许清单从
 2 个扩到 4 个）和 `scripts/cwk_cloud_wiki_compile.py`（两个默认模型字面量）。这两个
@@ -55,13 +74,31 @@ RT-029 的处理：只更新了安全登记表里这两条指纹，使其描述�
 仍然只能靠改指纹来放行，缺少 migration note 与验收测试的约束。建议后续 RT 评估是否
 把高风险项（尤其是承载模型允许清单的 `cwk_ai_common.py`）迁入有回执机制的管辖。
 
+**RT-030 的处置（2026-08-31，已结清）**：同样不动安全登记表本体（它自己也被
+`inherits` 按 sha256 钉住），在 v2 叠加层里给这 53 个成员建立
+`legacy_evolution` 管辖：
+
+- `default_steward: "CWK maintainer"`——这一族不再是无主状态，缺 steward 即报
+  `GA-LEGACY-OWNER`；
+- `authorized_change_procedure` S-1..S-5 定义了唯一合法路径：开 RT → 写 v2 回执
+  （`from_sha256` 必须等于登记表当前指纹、`to_sha256` 等于改后哈希）→ 写 migration
+  note → 更新登记表指纹 → 复跑门禁；
+- `high_risk_members` 显式点名 `cwk_ai_common.py`（模型允许清单）与
+  `cwk_cloud_wiki_compile.py`（默认模型字面量），即 DI-002 正文点到的两个文件。
+
+关键在于**判据面是当前磁盘内容**：`make governance-audit` 直接把这 53 个文件的
+实际哈希与登记表指纹比对，漂移且无合规 v2 回执即 `GA-LEGACY-DRIFT` 红。
+`tests/test_governance_audit.py::TestLegacyFamilyEvolution` 双向验证——
+无回执的漂移必红、有合规回执的漂移放行、`from_sha256` 对不上的回执**不能**洗白漂移、
+拿掉 `default_steward` 会把 DI-002 重新打开。「只靠改指纹放行」这条老路已被堵死。
+
 ### DI-003 — `pre-commit` hook 在本仓库无法安全安装
 
 | 字段 | 内容 |
 |---|---|
 | **发现于** | RT-029（AODW 产品基线收敛），2026-08-31 |
-| **状态** | 未认领 |
-| **建议认领时机** | 用户决定 `main` 落点、原 PR-001 工作树处置完毕之后 |
+| **状态** | 已认领（RT-030，2026-08-31）——转为受控例外 EX-001，未结清 |
+| **建议认领时机** | 例外复查日 2026-11-30 之前；或原 PR-001 工作树处置完毕时提前处理 |
 
 AODW 的 G001 判据检查 `git rev-parse --git-common-dir` 下有没有 `pre-commit`
 hook，未装则每个 RT 报一条告警。CWK 的实际情况是：`main` 检出、RT-028/RT-029 的
@@ -75,6 +112,42 @@ RT-029 的处理：不装。G001 是告警级，不阻断；`make aodw-check` �
 遗留问题：等 `main` 的落点定了、原 PR-001 工作树处置完毕，再决定是否启用 hook。
 在那之前防绕底线层没有生效，RT 门禁只在有人主动跑 `make aodw-check` 或 CI 时执行。
 
+**RT-030 的处置（2026-08-31，已认领未结清）**：仍然不装 hook——理由未变，且用户
+明确要求不得写共享 git common-dir hook。但也不接受「永久 warn」这个形态：warn 没有
+主、没有到期日、没有退出标准，本质上就是无限期豁免。改为在
+`.aodw-next/06-project/governance/code-ownership-manifest.json` 里立**受控例外
+EX-001**，四要素齐全且全部机器可验：
+
+| 要素 | 内容 |
+|---|---|
+| owner | CWK maintainer |
+| trigger_condition | 多个 worktree 共用同一 git common dir，且其中含用户要求只读的 PR-001 工作树 |
+| exit_criteria | PR-001 工作树处置完毕、common dir 不再被只读工作树共用之后，安装 pre-commit hook 并撤销本例外 |
+| review_by | 2026-11-30（过期即 `GA-EXCEPTION-EXPIRED` 红，不自动续期） |
+| scope_limit | 仅豁免「本地 pre-commit 时点拦截」；不豁免任何判据本身 |
+
+补偿控制不是声明，是当场验证的（`GA-CONTROL`）：
+
+- **CC-1**：`.github/workflows/ci.yml` 必须有 `run:` 步骤真的在跑 `make ci`
+  ——只认执行位置，注释里写 `make ci` 不算数（这一点是被测试抓出来的实漏洞）；
+- **CC-2**：`make ci` 的配方里必须包含 `governance-audit`；
+- **CC-3**：`Makefile` 必须存在 `governance-audit` 目标。
+
+三条任一被摘掉，例外当场失效、门变红。换言之：本地拦不住，就必须让权威门在 CI 上
+真的存在——把门摘了想借例外蒙混过关是走不通的。
+由 `tests/test_governance_audit.py::TestExceptionBoundaries` 与
+`TestCompensatingControlsAreReal` 强制。
+
+未结清部分：hook 本身仍未安装，防绕底线层在本地依然不生效。这条留在台账里，
+到 2026-11-30 必须重新决策——届时门会因为例外过期自己变红来提醒。
+
 ## 已认领 / 已结清
 
-（当前无。）
+条目正文仍留在上面「待认领」各自原位（保持发现时的事实原样，便于对照 RT-029 当时
+的判断），此处只做索引：
+
+| 编号 | 认领 RT | 结果 | 落点 |
+|---|---|---|---|
+| DI-001 | RT-030 | 已结清 | `script-evolution-v2.json` 的 `continuation_slots`；判据 `GA-V2-*` |
+| DI-002 | RT-030 | 已结清 | `script-evolution-v2.json` 的 `legacy_evolution`；判据 `GA-LEGACY-*` |
+| DI-003 | RT-030 | 已认领，未结清 → 受控例外 EX-001 | `code-ownership-manifest.json` 的 `exceptions`；判据 `GA-EXCEPTION*` / `GA-CONTROL`；复查日 2026-11-30 |
