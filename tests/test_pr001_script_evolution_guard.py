@@ -3126,7 +3126,21 @@ class RealRepoTests(unittest.TestCase):
         }
         undeclared = sorted(found - declared)
         self.assertEqual(undeclared, [], "receipt files outside the policy's declared set")
-        self.assertEqual(sorted(found), receipts_on_disk(_REAL_ROOT, policy))
+        # ``found`` is a set, so ``sorted`` yields alphabetical order, while
+        # ``receipts_on_disk`` yields policy *stage* order.  Those two orders
+        # agreed only by coincidence while stage-09 (RT-012) and stage-10
+        # (RT-013) were the sole receipts on disk.  The first legitimate
+        # stage 1..8 receipt breaks the coincidence -- RT-022's stage-06 sorts
+        # first by stage but last by path -- which would contradict this test's
+        # own docstring promise that it "keeps passing unchanged" when
+        # RT-012/013/017/019/021/022/026 append their declared receipts.
+        #
+        # Compare the two declared sets in one deterministic order.  Set
+        # equality is unchanged, the ``undeclared`` assertion above still
+        # rejects any receipt the policy did not predeclare, and per-path stage
+        # ordering remains enforced by ``replay_chain`` through its closed-prefix
+        # gap rule and ``from_sha256`` chaining.
+        self.assertEqual(sorted(found), sorted(receipts_on_disk(_REAL_ROOT, policy)))
 
         # The current state is derived, never frozen to a particular count.
         report = EG.verify_repo(_REAL_ROOT, _REAL_GENESIS)
