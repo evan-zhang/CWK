@@ -1,0 +1,26 @@
+id: RT-030
+title: 现有代码全量规范接管
+type: Infrastructure
+profile: Spec-Lite
+execution_mode: collaborative
+status: created
+modules:
+  - code-governance
+  - aodw-governance
+  - ci
+branch: feature/RT-030-existing-code-governance
+worktree: .claude/worktrees/RT-030-existing-code-governance
+tool: claude
+owner: Claude
+created_at: 2026-08-31T15:20:00Z
+updated_at: 2026-08-31T15:20:00Z
+closed_at: null
+deferred_items_raised: []
+external_ids:
+  jira: null
+  github: null
+  other: null
+notes: >
+  把当前 main 上全部受版本控制的文件纳入可机器验证的归属与演化管辖：建立全树
+  ownership manifest 与稳定检查入口，消除 runtime 管理盲区，并为 DI-001/DI-002
+  提供不改写冻结证据的前向演化路径、为 DI-003 提供有边界的受控例外。

@@ -185,3 +185,8 @@ entries:
   status: in-progress
   profile: Spec-Lite
   created: 2026-08-31
+- id: RT-030
+  title: 现有代码全量规范接管
+  status: created
+  profile: Spec-Lite
+  created: 2026-08-31
