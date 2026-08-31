@@ -1,0 +1,26 @@
+id: RT-029
+title: CWK AODW 产品基线收敛
+type: Infrastructure
+profile: Spec-Lite
+execution_mode: collaborative
+status: created
+modules:
+  - repository-baseline
+  - aodw-governance
+  - test-infrastructure
+  - ci
+branch: null
+worktree: null
+tool: codex
+owner: Codex
+created_at: 2026-08-31T02:47:55Z
+updated_at: 2026-08-31T02:47:55Z
+closed_at: null
+external_ids:
+  jira: null
+  github: null
+  other: null
+notes: >
+  以 pr/PR-001-completion 的已提交提交 fe4add1 为产品代码基线，收敛 AODW、
+  测试与 CI 后再形成可继续开发的 main；原工作树全部未提交改动保持原状，
+  不纳入本 RT 基线。
