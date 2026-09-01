@@ -49,7 +49,29 @@ CWK uses AODW v0.6.1 for future engineering work. Start with
 does not change the Local-First production profile, CWork read-only boundary,
 current AI reviewer, or existing historical RT records.
 
-## Quick Start
+## 内部小团队上手（推荐）
+
+适用于已获得 CWork 读取授权的公司员工，在自己的 OpenClaw Agent 和本机目录中使用
+CWK。按[内部小团队上手](docs/INTERNAL_DISTRIBUTION.md)依次完成前置条件、安装、个人配置、
+本地自检和一次个人或已批准团队目标的只读试跑。
+
+```bash
+git clone https://github.com/evan-zhang/CWK.git
+cd CWK
+PYTHON=python3.11 ./install.sh --install-skill
+```
+
+安装只创建本机私有模板、运行脱敏 smoke，并为当前 OpenClaw 用户建立 Skill 链接；不会
+读取 CWork、写入 DocDB、创建 cron 或修改 Agent 配置。每人必须使用自己的 `.env`、
+工作协同 Key、`cwk-mirror.local.json` 和本机 Agent；不要复制 Evan 或其他同事的
+`.env`、`knowledge/`、`raw/`、`runs/`、`state/` 或历史镜像。
+
+CWK 需要 Python 3.10+（推荐 3.11），当前项目只依赖 Python 标准库，因此无需安装
+第三方包、lockfile 或包发布体系。实际 CWork 试跑还需要本机已有
+`cms-cwork-workflow` 和 `cms-auth-skills`；只有选择向个人或已批准的团队 DocDB 写派生产物
+时，才需要 `cms-docdb` 与相应写入权限。历史 RT/PR 与设计材料用于追溯，不是安装操作指令。
+
+## 进阶运行参考（不是首次上手步骤）
 
 1. Clone the private repository:
 

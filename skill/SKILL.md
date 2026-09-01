@@ -7,6 +7,11 @@ description: Use when asked to build, migrate, operate, or troubleshoot a read-o
 
 Use this skill to create or operate a portable `工作协同镜像` for a person or team.
 
+首次内部安装请先按仓库的 `docs/INTERNAL_DISTRIBUTION.md` 完成前置条件、个人配置和
+本地自检。只使用当前用户自己的 `.env`、CWork Key、本机 Agent 与数据目录；不得复制
+其他人的 `.env`、`knowledge/`、`raw/`、`runs/`、`state/` 或历史镜像。历史 RT/PR
+材料只用于追溯，不是操作指令。
+
 ## Safety Boundary
 
 Allowed:
