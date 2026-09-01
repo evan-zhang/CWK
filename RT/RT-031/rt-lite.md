@@ -141,7 +141,7 @@ SKILL_REGISTRATION_REQUIRES_HOST_ADMIN
     PR-001 定向测试；
   - `make governance-audit`、`make aodw-check`、`make ci`、`git diff --check`；
   - 敏感文件、私有配置和运行产物扫描。
-- 对照成功标准的结果（2026-09-01，定向验证，未跑全量 `make ci`）：
+- 对照成功标准的结果（2026-09-02，定向验证与最终全量 CI）：
   - 四种模式在隔离的临时 Workspace 中逐一通过；只读 Skill 根下核心安装仍
     `CWK_CORE_READY`，host handoff 状态正确，router 只写指定 `AGENTS.md`。
   - router 连跑两次不重复、保留原有内容；半块 / 重复块 / 反序标记均拒绝写入。
@@ -154,8 +154,12 @@ SKILL_REGISTRATION_REQUIRES_HOST_ADMIN
     `tests.test_governance_audit` + `tests.test_pr001_script_evolution_guard`
     （314 项，1 skip）、`make governance-audit`（591 文件）、`make aodw-check`、
     `git diff --check`。
-  - **未跑**：全量 `make ci`。收口前需要由编排方补一次绿的全量运行，本条在那之前
-    不得被当作“CI 已绿”。
+  - 最终全量 `make ci` 已在干净提交 `dd91579` 上通过：`make doctor` 通过；
+    2243 项单元测试通过（8 skip，用时 3971.637 秒）；规则 smoke、AI dry-run smoke、
+    AI degraded smoke 均通过；AODW 框架 fixture 79/79、RT-028～RT-031 门禁与 29 个 RT
+    花名册一致性通过；`governance-audit` 覆盖 591 个受跟踪文件且无孤儿。唯一告警是本机
+    `handover-pack` 未安装到 gitignored 的宿主目录，不阻断仓库交付。运行前显式清除了
+    `CWK_PROJECT_DIR`、真实凭据和 DocDB 目标等环境变量，未访问真实 CWork/DocDB。
 
 ### 收口前评审的整改（2026-09-01）
 
@@ -210,15 +214,16 @@ SKILL_REGISTRATION_REQUIRES_HOST_ADMIN
 - 2026-09-01：根据真实多 Agent sandbox 审计，将 RT-031 从“文档型最小上手”续做为
   “核心安装 + 四种 OpenClaw 接入模式”的完整安装合同；尚未修改业务代码。
 - 2026-09-01：实现核心安装与四种接入模式、`doctor` 多根发现与安全 dotenv 读取、
-  路由模板与四入口文档统一，并完成上述收口前评审整改。全量 `make ci` 待编排方运行。
+  路由模板与四入口文档统一，并完成上述收口前评审整改。
+- 2026-09-02：修复后独立复核确认 B1～B5 全部闭合；最终全量 `make ci` 在干净提交
+  `dd91579` 上通过，RT-031 进入收口审阅。
 
 ## 遗留事项
 
-- 全量 `make ci` 尚未运行，收口前必须补一次绿的全量运行。
 - `make doctor` 目标仍未传 `--project-dir`；`Makefile` 在 CWK 项目根执行时行为正确，
   本次按“最小改动、不扩大 owner surface”未改。若之后要让 `make doctor` 也免疫继承来的
   `CWK_PROJECT_DIR`，单独提 RT。
-- 评审提出的其余非阻塞项按约定未在本轮展开：Skill 复制包含未跟踪文件、历史规范文档、
-  路径显示归一化。已评估为不影响安全边界与本 RT 验收目标，留待需要时单独立项。
-- 实现中若发现 OpenClaw 版本差异或 PR-001 冻结 owner surface 需要独立治理，先作为本 RT
-  阻塞报告，不用改写历史合同或扩大范围来绕过。
+- 评审提出的其余非阻塞项按约定未在本轮展开：自定义 `--agents-file` / `--skills-dir`
+  只检查默认对侧路径，旧 `--install-skill` 兼容入口不参与新模式冲突检测，嵌套自定义
+  Skill 目录的中间层权限，以及 Skill 复制包含未跟踪文件、历史规范文档和路径显示归一化。
+  已评估为不影响四种新模式的默认主路径与本 RT 安全边界，留待需要时单独立项。
