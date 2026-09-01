@@ -332,13 +332,14 @@ chmod 000：每条都断言受害文件字节未变、链接仍是链接、没�
 一律 `EXIT_REFUSED`。`skill/references/activation.md` §8 改写成与之逐字对应。
 
 **残留 2：`flag-drift` 非法时不得偷改 `degraded_reason_code`。** 改为**先问再改**：
-`can_transition()` 前置判定（新增于状态模块），迁移非法就一个字都不写——尤其不写
-降级原因。否则一次「试跑失败后跑了 check-drift」会把 `pilot_failed` 覆盖成
-`contract_drift`，既无迁移记录也无授权，而使用者该做的 `rerun_pilot` 就再也推不出来
-了。凡是落盘的改动都走 `_commit_without_transition`（`revision` +1、刷新
-`updated_at`），保证「持久化的语义变更必有审计痕迹」没有例外分支；`cmd_status` /
-`cmd_schedule_handoff` 的无迁移提交一并纳入。回归已加：`pilot_failed -> drift check`
-断言状态文件**字节不变**。
+`can_transition()` 前置判定（新增于状态模块），迁移非法就不改状态、不改降级原因。
+否则一次「试跑失败后跑了 check-drift」会把 `pilot_failed` 覆盖成 `contract_drift`，
+既无迁移记录也无授权，而使用者该做的 `rerun_pilot` 就再也推不出来了。凡是落盘的改动
+都带 `revision` +1 与刷新后的 `updated_at`，保证「持久化的语义变更必有审计痕迹」没有
+例外分支；`cmd_status` / `cmd_schedule_handoff` 的无迁移提交一并纳入。回归已加：
+`pilot_failed -> drift check` 断言状态文件**字节不变**——成立的前提是那条路上已经没有
+第二道门可吊销了（`record-pilot-fail` 那条迁移先把它收走了），不是「非法迁移一律不
+写盘」。这条前提在第六轮被单独钉死，见下方残留 6。
 
 **残留 3：产物回读改为与写入对称的 dir-fd / 不跟随读。** `_read_artifact` 走
 `read_file(dir_fd, name)`，符号链接、目录、多一条硬链接一律拒绝，且「被换成链接」与
@@ -384,6 +385,109 @@ schema 挡掉，只好删除——而同目录其余 8 个 fixture 都靠这个�
 `CWORK_APP_KEY` 既未读取也未打印。**仍未跑完整 `make ci`**，按协调留给独立复审通过后
 的最终一次冻结 CI。
 
+## 第六轮整改（独立复审 NO-GO 的两个阻断项 + 四个残留项）
+
+**BL-1：执行合同的取值模型必须是完备的，不能是一张手工列表。** 复现是
+`{sync_docdb: false, wiki_sync: true}`：合同报「不发布」，交接单照出，哈希与
+`wiki_sync: false` 时相同——而 nightly 的顶层 `if args.wiki_sync` 会去调
+`cwk_sync_mirror_to_docdb.py --only-prefix wiki/`，不带 dry-run，也**不看**
+`sync_docdb`。用户确认的那句「没有内容离开这台机器」是假的。
+
+根因不是漏了一个键，而是「有没有漏」这件事没有独立判据。因此完备性改为**从上游
+反向推**：`tests/test_rt032_contract_fidelity.py` 用 AST 解析
+`cwk_nightly_pipeline.main()`，自己数出 41 个配置键、41 个环境变量键、全部
+argparse 选项和每个键的取值优先级，再与 `NIGHTLY_SETTINGS` 对拍。实现漏一个，
+测试**不会跟着漏**，因为两边的清单来源不同。取值优先级归为五类（`config_env_default`
+/ `env_config_default` / `sync_docdb` 的反转 / `env_first_scalar` / 派生），分类器
+按上游语句形状判定，不抄注册表。
+
+不可排期的组合改为**确认之前就失败关闭**：`cloud_first`、
+`publish_cloud_query_catalog` 会让 `enforce_cloud_pause` 在启动时 `SystemExit`，
+而固定 argv（`--config/--run-name/--date`）永远递不出对应的 `--experimental-*`，
+所以每一次被排期的运行都会在第一秒退出。给这种配置渲染一份和气的合同，等于请人
+授权一个跑不起来的任务，然后让他以为镜像是新的。现在 `render-contract` /
+`record-pilot` / `schedule-handoff` / `check-drift` 四道门一律 `EXIT_REFUSED`。
+
+**顺手挖出并修掉一个更严重的问题：交接单没有校验命令行上的 `--config`。**
+交接单里写的是 `--config <这次命令行给的路径>`，也就是说**今晚真正被读的是现在
+传进来的这份配置**；而原实现只比对「盘上的合同 == 确认过的哈希」，那两者可以都对，
+而 `--config` 指向另一份完全不同的配置。不需要有人使坏，树里放两份配置、tab 补全
+补错一次就够了。现在 `cmd_schedule_handoff` 就地用命令行上的配置重算一次合同并
+要求等于 `contract_sha256`：被确认的那句话，必须就是今晚会跑的那句话。绑定的是
+合同内容而不是文件名，所以同内容换个位置仍然放行。
+
+**BL-2：FIFO / 非常规文件会让激活路径永久挂住。** 上一轮已经给状态目录、状态文件、
+锁和产物换上「`O_NONBLOCK` 打开 + `fstat` 判定」的激活本地原语（`cwk_atomic_file.py`
+是 PR-001 冻结文件，RT-032 不能改）。本轮补上最后一条读路径：`_read_text`——它读的是
+命令行给的 `--config` / `--scope-file` / `--pilot-report`，原实现是
+`is_file()` 之后 `read_text()`，正是复审点名禁止的「先 lstat 再 open，窗口里仍会挂」。
+新增 `read_regular_path()`：**只 open 一次**，在同一个描述符上判定，判定和读取因此
+作用在同一个对象上，中间没有可以被替换的缝。与 `read_regular_at` 分工不同的一点是
+**保留跟随符号链接**：那守的是我们自己的 0700 私有目录，这守的是用户自己的文件，
+用户把配置放成软链或与 dotfiles 同 inode 是他自己的事，一刀切拒绝是我们越界。
+
+`tests/test_rt032_nonregular_inputs.py`（新增，26 tests）把这条性质当作**活性**
+来测，而不是当作「拒绝了错的文件」：进程内测挂住的代码，看起来只是套件变慢，断言
+永远轮不到执行。所以每一条都是真子进程 + 真超时，超时本身就是失败。覆盖 readiness
+探针、`cwk_doctor.py`、**真实 install.sh**、向导的读命令 / 写命令 / 抢锁、产物回读、
+以及命令行输入文件；植入 FIFO、目录、套接字、软链到 FIFO、断链、软链到 `/dev/zero`、
+硬链接七种形态。另外验证了拒绝仍然脱敏（无绝对路径、无 errno、无 traceback）、
+探针不写盘、失败的产物回读不推进状态、以及拒绝路径不漏描述符。清理一律按名字
+`unlink`，绝不 open——否则 teardown 自己就会挂，还会伪装成无关的 flake。
+
+**残留 1：吊销第二道门必须留下历史证据。** 原先只有 `revision`/`updated_at` 变化。
+新增 `_commit_after_gate_loss()`，覆盖**每一条**「门没了但没有迁移可写」的路径
+（`cmd_status` 与 `cmd_check_drift` 两个分支），写一条 schema 合法的
+`revoke-activation` 自环回执，记下吊销了哪道门、以及失效相对的是哪份合同摘要。
+`flag-drift` / `record-pilot-fail` 那两条路**不重复记账**——迁移本身就是回执。
+`PILOT_PASSED → confirm-activation → 试跑失败 → DEGRADED → check-drift` 全程已加
+回归，并顺带发现 `cmd_status` 原本存在一条**无审计的吊销落盘**，一并堵上。
+
+**残留 2：文档不再声称「一个字都不写」。** `skill/references/activation.md` §8 与
+本文件残留 2 都改成实话：非法迁移时**状态和降级原因**不变，但若当时还有一道有效的
+调度确认，它会被吊销、并留下回执；只有「已经没有东西可吊销」时文件才逐字节不变。
+
+**残留 3：测试期不再读取 `.env`。** `tests/test_rt032_contract_fidelity.py` 不再
+import pipeline，而是 AST 解析源码、**摘掉那一次 `load_local_env` 调用**、在
+`clear=True` 的空环境里 exec，并在加载后断言本进程环境未变；`load_local_env` 随后
+被替换成会直接抛断言的桩。用一份读别人 `.env` 的测试去证明产品不读 `.env`，不是测试，
+是同一个缺陷换了身衣服。已实测：注入哨兵 `CWORK_APP_KEY` 后跑完 62 条，环境不变、
+输出无哨兵、全程只 open 了 1 个文件且不是 `.env`。
+
+**残留 4：交接单 argv 逐值钉死。** 不再只比对旗标名集合，改为断言 argv **逐项逐序**
+等于 `["python3", "scripts/cwk_nightly_pipeline.py", "--config", <定位符>, "--run-name",
+"nightly-{{YYYYMMDD-HHMM}}", "--date", "{{YYYY-MM-DD}}"]`，并遍历**上游 argparse 里
+的每一个**选项，断言它及其 `--no-` 形式都不出现在 argv 任何位置。清单同样来自上游
+AST，不来自实现自己的常量。
+
+| 命令 | 结果 |
+| --- | --- |
+| `python3.11 -m py_compile`（4 个脚本 + 6 个 RT-032 测试文件） | 通过 |
+| `bash -n install.sh` | 通过 |
+| `python3.11 -m unittest tests.test_rt032_activation_state` | 53 passed |
+| `python3.11 -m unittest tests.test_rt032_activation_contract` | 80 passed |
+| `python3.11 -m unittest tests.test_rt032_activation_wizard` | 130 passed（+20） |
+| `python3.11 -m unittest tests.test_rt032_activation_integration` | 40 passed |
+| `python3.11 -m unittest tests.test_rt032_contract_fidelity` | 62 passed（+40，整文件重写） |
+| `python3.11 -m unittest tests.test_rt032_nonregular_inputs` | 26 passed（新增文件） |
+| 六个 RT-032 模块合并运行 | 391 passed（上轮 305） |
+| `python3.11 -m unittest tests.test_install_modes` | 67 passed（RT-031 四模式不回归） |
+| `python3.11 -m unittest tests.test_distribution` | 5 passed |
+| `python3.11 -m unittest tests.test_governance_audit` | 62 passed |
+| `python3.11 .aodw-next/06-project/governance-audit.py --root .` | 通过（613 个受跟踪文件） |
+| `bash .aodw-next/06-project/aodw-check.sh` | 通过（RT-028…RT-032 门禁全过） |
+| `git diff --check` | 通过（exit 0） |
+
+六条既有闭环单独复跑（94 passed）确认不回归：布尔/整数取值优先级含 `y`、符号链接与
+路径泄漏、门一致性、无审计的 `degraded_reason` 篡改、dir-fd 不跟随产物回读、
+discovery scope 闭合归一。
+
+治理边界未越：`scripts/cwk_atomic_file.py`（PR-001 冻结）与
+`scripts/cwk_nightly_pipeline.py`（RT-026 所有，ordinal 已用尽）**只读不改**；本轮
+改动全部落在 RT-032 自己拥有的三个脚本、RT-032 的测试、以及 RT-032 自己的文档里。
+真实 CWork/DocDB、定时任务、Gateway、远端与模型调用一律未触发。**仍未跑完整
+`make ci`**。
+
 ## 变更记录
 
 - 2026-09-02：根据用户批准的安装后使用路径，确定独立 RT；采用“AI 沟通 + 确定性状态/回执”的激活架构，并与 RT-031 安装接入职责分离。
@@ -394,6 +498,8 @@ schema 挡掉，只好删除——而同目录其余 8 个 fixture 都靠这个�
 - 2026-09-02：在 RT-031 冻结基线上完成集成。治理补登（`exact_set` 规则，`evolution_path=repo-standard-change`；不开伪 v2 槽位），GA-ORPHAN 清零；三个待议项全部落地——`propose-profile` 失效回报补齐并加可达回归、交接单改项目相对定位符并对无法安全表述的配置拒绝出单、脱敏闸门加宽到裸相对路径且不误伤 `read/write` 类词组；安装保持零副作用并输出 `CWK_ACTIVATION`，`doctor` 复用同一探针报 `activation`，Skill 新增激活参考、README/上手/引导/运维/迁移文档统一成一条路径。RT-031 四模式合同与 `NEXT_SESSION` 语义不回归。
 
 - 2026-09-02：整改终审的两个阻断项与四个残留项。执行合同按上游 nightly 的**真实**取值优先级重实现（三种优先级不统一：cap/回溯是配置优先，`backfill_enabled` 是环境优先，`sync_docdb` 是配置优先且默认 False），并新增行为等价 + 源码钉死的双向对拍；进一步发现定时任务只拿得到 `CWORK_APP_KEY`，故合同双次解析并标注来源，凡依赖当前 shell 的设置一律拒绝出交接单。只读探针与 doctor 对符号链接改为 lstat 不跟随、失败关闭、不吐 traceback/路径，安装仍非致命。`check-drift` 真漂移时显式吊销第二道确认（消除「要求重新确认」与「确认仍有效」并存的自相矛盾），迁移非法时一个字都不写（`pilot_failed` 不再被覆盖），凡落盘必带 revision/updated_at 痕迹。产物回读改为 dir-fd 不跟随，与写入对称。discovery `scope` 改闭合 schema，先校验归一再哈希，错误消息不回显调用方内容。
+
+- 2026-09-02：第六轮整改。执行合同的完备性改为从上游 AST 反推（41 配置键 / 41 环境键 / 全部 argparse 选项 / 五类取值优先级），实现漏键测试不会跟着漏；`{sync_docdb:false, wiki_sync:true}` 不再谎称「不发布」；`cloud_first` / `publish_cloud_query_catalog` 在四道门一律确认前失败关闭。顺带修掉交接单不校验命令行 `--config` 的问题——原先可以「确认合同 A、却把 B 排上去」。`_read_text` 换成只 open 一次的 `read_regular_path`，最后一条 lstat-then-open 的 TOCTOU 挂起窗口关闭，并以真子进程 + 真超时覆盖 readiness / doctor / 真实 install.sh / 向导读写与抢锁 / 产物回读 / 命令行输入的七种非常规形态。吊销第二道门补 `revoke-activation` 回执并消除 `cmd_status` 的无审计落盘；文档不再声称「一个字都不写」；对拍测试不再读 `.env`；交接单 argv 逐值逐序钉死。
 
 ## 遗留事项
 

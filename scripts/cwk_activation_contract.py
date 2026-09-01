@@ -136,32 +136,86 @@ def _as_int(value: Any, default: int) -> int:
 # 份**等价实现**，并由 tests/test_rt032_contract_fidelity.py 直接调用上游真函数
 # 做等价性对拍——上游一改，那组测试就红。
 #
-# 与上游 `env_bool` 逐字一致：只有这五个字面量算真，**其它任何取值都算假**，
-# 不存在「看不懂就回落到默认值」。少写一个 "y" 就会让合同在 CWK_SYNC_DOCDB=y
-# 时说「不发布」，而实际那晚会发布。
+# ── nightly 设置登记表 ──────────────────────────────────────────────────────
+#
+# 之前这里只有八个键。八个键不是「先支持一部分」，而是一个**会说假话的模型**：
+# `wiki_sync` 不在里面，于是配置 `{"sync_docdb": false, "wiki_sync": true}` 会渲染
+# 出一份写着「派生内容发布到 DocDB：关」的合同，哈希还与 `wiki_sync: false` 完全
+# 相同——而那一晚 nightly 会真的把 wiki/ 推上 DocDB。用户按那份合同点的「是」，
+# 覆盖不了实际发生的事。
+#
+# 所以登记表必须是**完整的**：nightly 认的每一个配置键都在这里，各自带上它真实的
+# 优先级、默认值和影响面。完整性不靠人记，靠三层：
+#
+#   1. 运行期：配置里出现登记表不认识的键 → 直接拒绝出合同（见 `_reject_unknown`）。
+#      用户永远不会在「有一个没人建模的开关正在生效」的情况下做确认。
+#   2. CI：tests/test_rt032_contract_fidelity.py 用 AST 从
+#      `scripts/cwk_nightly_pipeline.py` 里把 `config.get(...)` /
+#      `config_value(args, config, ...)` 的键名和 `os.environ.get("CWK_*")` 的变量名
+#      抠出来，与本表对拍。上游加一个键，那组测试就红——它不读本表来生成期望值。
+#   3. CI：同一组测试还把 `skill/templates/CONFIG.example.json` 的键与本表对拍，
+#      因为那是我们真正发给用户的模板。
+#
+# 优先级有**五种**，不是一种。这不是笔误，是上游 `config_value` 与 `env_bool` 混用
+# 的既有结果，合同的价值恰恰在于把它如实摊开：
+#
+#   config_env_default      config > env > 字面默认   （argparse 默认是 None 的标量）
+#   env_config_default      env > config > 默认       （BooleanOptionalAction 开关）
+#   sync_docdb              config 真值 > env > False （只有这一个键）
+#   env_first_scalar        env > config > 默认       （argparse 默认**本身读环境**）
+#   config_only_derived     没有环境层                （只有 wiki_mirror_root）
+#
+# `env_first_scalar` 最容易漏：`--ai-max-parallel` 的 argparse 默认是
+# `int(os.environ["CWK_AI_MAX_PARALLEL"]) if ... else None`，环境一设，`config_value`
+# 拿到的 args 值就不是 None，配置文件根本轮不上。把它按整数那一类算成
+# 「config 优先」会得到相反的答案。
+#
+# 这五个名字不是本模块的自述：`test_rt032_contract_fidelity` 里的分类器**只看上游
+# 语句的形状**，独立判出同一组名字再与本表对拍，对不上就红。所以这段注释即便有人
+# 改错，也不会变成一份没人发现的错误说明。
+
 NIGHTLY_ENV_TRUE = ("1", "true", "yes", "y", "on")
 
-# 被排期的任务只会拿到交接单 env_allowlist 里的变量（CWORK_APP_KEY），拿不到
-# 任何 CWK_* 开关。因此「当前 shell 里的 CWK_* 变量」和「排期后真实的环境」是
-# 两个环境，合同必须把两者是否等价说清楚。
-NIGHTLY_SETTING_KEYS = (
-    "detail_cap",
-    "continuation_cap",
-    "backfill_cap",
-    "backfill_page_size",
-    "backfill_enabled",
-    "source_completeness",
-    "source_completeness_lookback_days",
-    "sync_docdb",
-)
+# 被排期的任务只拿得到交接单 env_allowlist 里的变量。这既是「合同 vs 现实」比较的
+# 基准，也是 app_key 不会被误判成「依赖 shell」的原因——它本来就在白名单里。
+SCHEDULED_ENV_ALLOWLIST = ("CWORK_APP_KEY",)
+
+# 交接单 argv 恒为 `--config/--run-name/--date`，所以这些只走命令行的开关在被排期
+# 的那次运行里**恒为下面的值**。它们同样决定发布行为，必须写进合同：
+# `--sync-dry-run` 恒假，正是 `wiki_sync` 会真的上传而不是空跑的原因。
+NIGHTLY_CLI_ONLY_FIXED = {
+    "--source-dir": "unset (nightly collects live from CWork)",
+    "--no-publish-mirror": False,
+    "--sync-dry-run": False,
+    "--experimental-cloud-first": False,
+    "--experimental-cloud-query-catalog": False,
+}
+
+_UPSTREAM_MIRROR_ROOT = str(_PROJECT / "knowledge" / "工作协同镜像")
+_UPSTREAM_COLLECTION_STATE = str(_PROJECT / "state" / "collection-state.json")
 
 
 class NightlyConfigError(ValueError):
-    """配置里的取值会让 nightly 直接崩在启动阶段。
+    """配置里的取值会让 nightly 直接崩在启动阶段，或本模块无法如实建模。
 
     上游对整数是 `int(...)` 硬转、对 lookback 有 0..31 的范围检查，转不动就
     `ValueError`/`SystemExit`——那条被排期的命令根本跑不起来。合同不能替它编一个
     默认值糊过去，否则用户确认的是一份永远不会发生的运行。
+
+    登记表不认识的键也走这里：认不出就描述不了，描述不了就不能让用户确认。
+    """
+
+
+class UnschedulableNightlySetting(ValueError):
+    """配置开了一条**被排期的命令走不通**的路径。
+
+    目前只有两个：`cloud_first` 与 `publish_cloud_query_catalog`。上游
+    `enforce_cloud_pause()` 要求各自再加一个 `--experimental-*` 命令行开关才放行，
+    而交接单的 argv 只有 `--config/--run-name/--date`，给不出那个开关。于是那条被
+    排期的命令每晚都会在启动时 `SystemExit`。
+
+    不渲染合同、不出交接单：与其让用户确认一份「每晚定时失败」的自动化，不如当场
+    说清这条路现在是暂停的。
     """
 
 
@@ -174,8 +228,112 @@ class ScheduledEnvironmentMismatch(ValueError):
     """
 
 
+class _Setting:
+    """登记表的一行。"""
+
+    __slots__ = ("key", "kind", "precedence", "env_keys", "default", "impact")
+
+    def __init__(self, key, kind, precedence, env_keys, default, impact):
+        self.key = key
+        self.kind = kind
+        self.precedence = precedence
+        self.env_keys = env_keys
+        self.default = default
+        self.impact = impact
+
+
+def _d(value):
+    """把字面默认值包成与派生默认值同形的可调用对象。"""
+
+    return lambda _settings: value
+
+
+# 顺序有意义：派生默认值只能引用**排在自己前面**的键。
+# sync_docdb 必须早于 wiki_sync，sync_wiki 早于 wiki_compile 早于
+# wiki_topics_entities 早于 wiki_sync，mirror_root 早于 wiki_mirror_root。
+NIGHTLY_SETTINGS: tuple[_Setting, ...] = (
+    # —— 启动与身份 ——
+    _Setting("app_key", "secret", "env_first_scalar", ("CWORK_APP_KEY", "XG_BIZ_API_KEY"), _d(""), "startup"),
+    _Setting("history_run_name", "ident", "config_env_default", ("CWK_HISTORY_RUN_NAME",), _d(""), "sources"),
+    _Setting("owner_emp_id", "ident", "config_env_default", ("CWK_OWNER_EMP_ID",), _d(""), "processing"),
+    _Setting("owner_name", "opaque", "config_env_default", ("CWK_OWNER_NAME",), _d(""), "processing"),
+    # —— 来源读取 ——
+    _Setting("detail_cap", "int", "config_env_default", ("CWK_DETAIL_CAP",), _d(DEFAULT_DETAIL_CAP), "sources"),
+    _Setting("continuation_cap", "int", "config_env_default", ("CWK_CONTINUATION_CAP",), _d(DEFAULT_CONTINUATION_CAP), "sources"),
+    _Setting("backfill_enabled", "bool", "env_config_default", ("CWK_BACKFILL_ENABLED",), _d(True), "sources"),
+    _Setting("backfill_cap", "int", "config_env_default", ("CWK_BACKFILL_CAP",), _d(DEFAULT_BACKFILL_CAP), "sources"),
+    _Setting("backfill_page_size", "int", "config_env_default", ("CWK_BACKFILL_PAGE_SIZE",), _d(DEFAULT_BACKFILL_PAGE_SIZE), "sources"),
+    _Setting("collection_state_file", "path", "config_env_default", ("CWK_COLLECTION_STATE_FILE",), _d(_UPSTREAM_COLLECTION_STATE), "sources"),
+    _Setting("source_completeness", "bool", "env_config_default", ("CWK_SOURCE_COMPLETENESS",), _d(True), "sources"),
+    _Setting("source_completeness_lookback_days", "int", "config_env_default", ("CWK_SOURCE_COMPLETENESS_LOOKBACK_DAYS",), _d(DEFAULT_LOOKBACK_DAYS), "sources"),
+    _Setting("source_backfill_max_parallel", "int", "config_env_default", ("CWK_SOURCE_BACKFILL_MAX_PARALLEL",), _d(6), "sources"),
+    _Setting("relation_api_base_url", "url", "config_env_default", ("CWK_RELATION_API_BASE_URL",), _d("https://sg-al-cwork-web.mediportal.com.cn"), "sources"),
+    _Setting("relation_api_path", "ident", "config_env_default", ("CWK_RELATION_API_PATH",), _d(""), "sources"),
+    _Setting("relation_api_timeout_seconds", "int", "config_env_default", ("CWK_RELATION_API_TIMEOUT_SECONDS",), _d(30), "sources"),
+    # —— 产出位置 ——
+    _Setting("mirror_root", "path", "config_env_default", ("CWK_MIRROR_ROOT",), _d(_UPSTREAM_MIRROR_ROOT), "outputs"),
+    # —— AI 处理（会把记录内容发给外部模型服务）——
+    _Setting("ai_enabled", "bool", "env_config_default", ("CWK_AI_ENABLED",), _d(False), "processing"),
+    _Setting("ai_dry_run", "bool", "env_config_default", ("CWK_AI_DRY_RUN",), _d(False), "processing"),
+    _Setting("ai_record_model", "ident", "env_first_scalar", ("CWK_AI_RECORD_MODEL",), _d("newapi/BD-MiniMax"), "processing"),
+    _Setting("ai_cluster_model", "ident", "env_first_scalar", ("CWK_AI_CLUSTER_MODEL",), _d("newapi/BD-glm"), "processing"),
+    _Setting("ai_quality_model", "ident", "env_first_scalar", ("CWK_AI_QUALITY_MODEL",), _d("newapi/BD-glm"), "processing"),
+    _Setting("ai_max_parallel", "int", "env_first_scalar", ("CWK_AI_MAX_PARALLEL",), _d(4), "processing"),
+    _Setting("ai_timeout_seconds", "int", "env_first_scalar", ("CWK_AI_TIMEOUT_SECONDS",), _d(120), "processing"),
+    # —— 对外发布 ——
+    _Setting("sync_docdb", "bool", "sync_docdb", ("CWK_SYNC_DOCDB",), _d(False), "publication"),
+    _Setting("docdb_project_id", "ident", "config_env_default", ("CWK_DOCDB_PROJECT_ID",), _d(""), "publication"),
+    _Setting("docdb_root_file_id", "ident", "config_env_default", ("CWK_DOCDB_ROOT_FILE_ID",), _d(""), "publication"),
+    # —— Wiki 流水线：编译在本地，sync 是**第二条对外发布通道** ——
+    _Setting("sync_wiki", "bool", "env_config_default", ("CWK_SYNC_WIKI",), _d(False), "processing"),
+    _Setting("wiki_compile", "bool", "env_config_default", ("CWK_WIKI_COMPILE",), lambda s: bool(s["sync_wiki"]), "processing"),
+    _Setting("wiki_topics_entities", "bool", "env_config_default", ("CWK_WIKI_TOPICS_ENTITIES",), lambda s: bool(s["sync_wiki"] or s["wiki_compile"]), "processing"),
+    _Setting("wiki_sync", "bool", "env_config_default", ("CWK_WIKI_SYNC",), lambda s: bool(s["sync_docdb"] and (s["wiki_compile"] or s["wiki_topics_entities"])), "publication"),
+    _Setting("wiki_mirror_root", "path", "config_only_derived", (), lambda s: s["mirror_root"], "outputs"),
+    _Setting("wiki_model", "ident", "config_env_default", ("CWK_CLOUD_WIKI_MODEL",), _d("evan-openai/glm-5.3-flash"), "processing"),
+    _Setting("wiki_repair_model", "ident", "config_env_default", ("CWK_CLOUD_WIKI_REPAIR_MODEL",), _d("deepseek/deepseek-v4-flash"), "processing"),
+    _Setting("wiki_limit", "int", "config_env_default", ("CWK_WIKI_LIMIT",), _d(80), "processing"),
+    _Setting("wiki_max_parallel", "int", "config_env_default", ("CWK_WIKI_MAX_PARALLEL",), _d(1), "processing"),
+    _Setting("wiki_refine_fallbacks", "bool", "env_config_default", ("CWK_WIKI_REFINE_FALLBACKS",), _d(False), "processing"),
+    _Setting("wiki_timeout_seconds", "int", "config_env_default", ("CWK_WIKI_TIMEOUT_SECONDS",), _d(180), "processing"),
+    _Setting("wiki_best_effort", "bool", "env_config_default", ("CWK_WIKI_BEST_EFFORT",), _d(False), "processing"),
+    # —— 暂停中的实验路径：解析得出真值就拒绝 ——
+    _Setting("cloud_first", "bool", "env_config_default", ("CWK_CLOUD_FIRST",), _d(False), "publication"),
+    _Setting("publish_cloud_query_catalog", "bool", "env_config_default", ("CWK_PUBLISH_CLOUD_QUERY_CATALOG",), _d(False), "publication"),
+)
+
+NIGHTLY_SETTING_KEYS: tuple[str, ...] = tuple(s.key for s in NIGHTLY_SETTINGS)
+
+_SETTING_BY_KEY = {s.key: s for s in NIGHTLY_SETTINGS}
+
+# 交接单 argv 给不出解锁开关，这两条路径每晚都会在 `enforce_cloud_pause` 里退出。
+PAUSED_NIGHTLY_PATHS = ("cloud_first", "publish_cloud_query_catalog")
+
+# 同一份配置文件同时供 nightly 和激活向导读。这几个键只有向导认，nightly 的
+# `read_config` 会原样忽略它们，因此它们不改变夜跑行为，允许出现。
+#
+# `_comment` 在这里放行，而 `scope.json` 里同样的字段被拒——两者不矛盾：
+# scope 对象会被逐字写进发现报告、再被念给用户当作「你授权的范围」，自由文本进
+# 到那里就是一条直通用户同意语句的通道；配置文件里的注释既不进合同、也不进哈希、
+# 更不会被念出来，它只是留给写配置的人自己看的。
+ACTIVATION_CONFIG_KEYS = ("schedule_run_at_local", "schedule_timezone", "_comment")
+
+# 字符串取值的封闭词表。渲染出来的合同会被 Agent 读给用户听，所以任何要**原样**
+# 出现在里面的字符串都得先过一道白名单；过不了就拒绝，而不是「截断后照读」。
+_IDENT_VALUE = re.compile(r"\A[A-Za-z0-9._:@/+-]{0,128}\Z")
+_URL_VALUE = re.compile(
+    r"\Ahttps?://[A-Za-z0-9.-]{1,253}(:[0-9]{1,5})?(/[A-Za-z0-9._~%/-]{0,256})?\Z"
+)
+_MAX_PATH_LEN = 256
+
+
 def nightly_env_bool(env: Mapping[str, str], name: str) -> Optional[bool]:
-    """`cwk_nightly_pipeline.env_bool` 的等价实现（未设置返回 None）。"""
+    """`cwk_nightly_pipeline.env_bool` 的等价实现（未设置返回 None）。
+
+    与上游逐字一致：只有 :data:`NIGHTLY_ENV_TRUE` 这五个字面量算真，**其它任何
+    取值都算假**，不存在「看不懂就回落到默认值」。少写一个 "y" 就会让合同在
+    ``CWK_SYNC_DOCDB=y`` 时说「不发布」，而实际那晚会发布。
+    """
 
     value = env.get(name)
     if value is None:
@@ -186,6 +344,10 @@ def nightly_env_bool(env: Mapping[str, str], name: str) -> Optional[bool]:
 def _nightly_int(value: Any, *, where: str) -> int:
     """复刻上游的 `int(...)` 硬转，包括它会抛的那些异常。"""
 
+    if isinstance(value, bool):
+        # 上游 `int(True)` 会得到 1。合同里出现一个由 true 变出来的上限，
+        # 用户读到的是数字、写下的是布尔，两边对不上。当作配置错误。
+        raise NightlyConfigError(f"{where} is a boolean where an integer is required")
     try:
         return int(value)
     except (TypeError, ValueError) as exc:
@@ -195,67 +357,122 @@ def _nightly_int(value: Any, *, where: str) -> int:
         ) from exc
 
 
-def _resolve_nightly_int(
+def _check_text(value: Any, *, kind: str, where: str) -> str:
+    """字符串取值的封闭校验。不合格就拒，绝不「清洗后照用」。"""
+
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        raise NightlyConfigError(f"{where} must be a string")
+    if len(value) > _MAX_PATH_LEN:
+        raise NightlyConfigError(f"{where} is longer than {_MAX_PATH_LEN} characters")
+    if any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in value):
+        # 控制字符进不了合同：合同的 Markdown 会被念给用户听，换行和转义序列
+        # 足以伪造出「合同里另有一句话」的观感。
+        raise NightlyConfigError(f"{where} contains control characters")
+    if kind == "ident" and not _IDENT_VALUE.match(value):
+        raise NightlyConfigError(
+            f"{where} is not a plain identifier "
+            "(allowed: A-Z a-z 0-9 and . _ : @ / + -, at most 128 characters)"
+        )
+    if kind == "url" and value and not _URL_VALUE.match(value):
+        raise NightlyConfigError(f"{where} is not a plain http(s) URL")
+    return value
+
+
+def _resolve_one(
+    setting: _Setting,
     config: Mapping[str, Any],
     env: Mapping[str, str],
-    *,
-    key: str,
-    env_key: str,
-    default: int,
-) -> tuple[int, str]:
-    """上游 `int(config_value(args, config, key, os.environ.get(env_key, default)))`。
+    settings: Mapping[str, Any],
+) -> tuple[Any, str]:
+    """按这一行声明的优先级取值，返回 ``(值, 来源)``。"""
 
-    注意优先级：整数是 **config > env > 字面默认值**（env 只是 `config_value`
-    的默认值参数），与下面的布尔开关**不同**。这个不对称不是笔误，是上游的既有
-    行为；合同要描述现实，就得照抄。
+    key = setting.key
+    default = setting.default(settings)
+
+    if setting.precedence == "env_config_default":
+        # `env_bool(E) if 已设置 else bool(config.get(key, default))`
+        # 注意上游对配置值用的是 Python 真值而非解析：`{"wiki_sync": "false"}`
+        # 在上游是**真**。照抄，因为合同的价值在于把这种反直觉的配置如实摊开。
+        from_env = nightly_env_bool(env, setting.env_keys[0])
+        if from_env is not None:
+            return from_env, "env"
+        if key in config:
+            return bool(config[key]), "config"
+        return bool(default), "default"
+
+    if setting.precedence == "sync_docdb":
+        # `bool(config.get("sync_docdb", env_bool("CWK_SYNC_DOCDB") or False))`
+        # 这一条是 config > env > False，与上面的布尔开关**方向相反**。
+        if key in config:
+            return bool(config[key]), "config"
+        from_env = nightly_env_bool(env, "CWK_SYNC_DOCDB")
+        if from_env is not None:
+            return bool(from_env), "env"
+        return False, "default"
+
+    if setting.precedence == "config_only_derived":
+        # `config_value(args, config, key, <已解析的另一个键>)`，没有环境变量层。
+        if key in config:
+            return _coerce(setting, config[key], where=f"config.{key}"), "config"
+        return default, "default"
+
+    if setting.precedence == "env_first_scalar":
+        # argparse 的 default **本身读环境**，于是 `config_value` 拿到的 args 值
+        # 不是 None，配置文件根本轮不上。env > config > 默认。
+        for env_key in setting.env_keys:
+            raw = env.get(env_key)
+            if raw:
+                return _coerce(setting, raw, where=f"environment {env_key}"), "env"
+        if key in config:
+            return _coerce(setting, config[key], where=f"config.{key}"), "config"
+        return default, "default"
+
+    if setting.precedence == "config_env_default":
+        # `config_value(args, config, key, os.environ.get(E, <字面量>))`，
+        # args 默认是 None，所以 config > env > 字面量。
+        if key in config:
+            return _coerce(setting, config[key], where=f"config.{key}"), "config"
+        env_key = setting.env_keys[0]
+        if env_key in env:
+            return _coerce(setting, env[env_key], where=f"environment {env_key}"), "env"
+        return default, "default"
+
+    raise AssertionError(f"unknown precedence {setting.precedence!r}")
+
+
+def _coerce(setting: _Setting, value: Any, *, where: str) -> Any:
+    if setting.kind == "int":
+        return _nightly_int(value, where=where)
+    if setting.kind == "bool":
+        return bool(value)
+    if setting.kind == "secret":
+        if not isinstance(value, str):
+            raise NightlyConfigError(f"{where} must be a string")
+        return value
+    return _check_text(value, kind=setting.kind, where=where)
+
+
+def _reject_unknown(config: Mapping[str, Any]) -> None:
+    """配置里出现登记表不认识的键 → 拒绝出合同。
+
+    这是完整性的**运行期**那一层。上游哪天新增一个开关而本表没跟上，用户一旦在
+    配置里用了它，这里就当场停住；不会出现「合同说不发布、那个没人建模的键让它
+    发布了」的情况。
+
+    只报个数，不回显键名：键名是配置文件里的任意字符串，抄进错误消息就等于把它
+    转发给读这条消息的 Agent。用户对照 `skill/templates/CONFIG.example.json`
+    就能知道自己写了什么。
     """
 
-    if key in config:
-        return _nightly_int(config[key], where=f"config.{key}"), "config"
-    if env_key in env:
-        return _nightly_int(env[env_key], where=f"environment {env_key}"), "env"
-    return default, "default"
-
-
-def _resolve_nightly_flag(
-    config: Mapping[str, Any],
-    env: Mapping[str, str],
-    *,
-    key: str,
-    env_key: str,
-    default: bool,
-) -> tuple[bool, str]:
-    """上游 `env_bool(env_key) if 已设置 else bool(config.get(key, default))`。
-
-    布尔开关是 **env > config > 默认值**。另注意上游对配置值用的是 Python 真值
-    而非解析：`{"backfill_enabled": "false"}` 在上游是**真**。照抄，因为合同的
-    价值在于把这种反直觉的配置如实摊开给用户看，而不是替他猜意图。
-    """
-
-    from_env = nightly_env_bool(env, env_key)
-    if from_env is not None:
-        return from_env, "env"
-    if key in config:
-        return bool(config[key]), "config"
-    return bool(default), "default"
-
-
-def _resolve_nightly_sync_docdb(
-    config: Mapping[str, Any], env: Mapping[str, str]
-) -> tuple[bool, str]:
-    """上游 `bool(config.get("sync_docdb", env_bool("CWK_SYNC_DOCDB") or False))`。
-
-    这一条又是 **config > env > False**，与 backfill_enabled 相反。交接单的 argv
-    不带 `--sync-docdb`、不带 `--no-publish-mirror`、不带 `--cloud-first`，所以
-    命令行那一层恒为假，不参与。
-    """
-
-    if "sync_docdb" in config:
-        return bool(config["sync_docdb"]), "config"
-    from_env = nightly_env_bool(env, "CWK_SYNC_DOCDB")
-    if from_env is not None:
-        return bool(from_env), "env"
-    return False, "default"
+    unknown = [k for k in config if k not in _SETTING_BY_KEY and k not in ACTIVATION_CONFIG_KEYS]
+    if unknown:
+        raise NightlyConfigError(
+            f"config contains {len(unknown)} key(s) the activation contract does not "
+            "model; refusing to describe a nightly run whose behaviour it cannot "
+            "account for. Compare against skill/templates/CONFIG.example.json"
+        )
 
 
 def resolve_nightly_runtime(
@@ -263,38 +480,34 @@ def resolve_nightly_runtime(
 ) -> dict:
     """算出被排期的那条 nightly 命令实际会用的取值。
 
-    返回 ``{"settings": {...}, "sources": {setting: config|env|default}}``。
-    取值无效时抛 :class:`NightlyConfigError`——上游会崩，合同就不能假装它能跑。
+    返回 ``{"settings": {...}, "sources": {setting: config|env|default}}``，覆盖
+    登记表里的**每一个**键。
+
+    取值无效或本模块无法建模时抛 :class:`NightlyConfigError`；配置开了一条被排期
+    的命令走不通的路径时抛 :class:`UnschedulableNightlySetting`。两者都是 fail
+    closed：宁可不出合同，也不出一份与当晚实际行为不符的合同。
     """
+
+    if not isinstance(config, Mapping):
+        raise NightlyConfigError("config must be a JSON object")
+    _reject_unknown(config)
 
     env = env if env is not None else os.environ
     settings: dict[str, Any] = {}
     sources: dict[str, str] = {}
-
-    for key, env_key, default in (
-        ("detail_cap", "CWK_DETAIL_CAP", DEFAULT_DETAIL_CAP),
-        ("continuation_cap", "CWK_CONTINUATION_CAP", DEFAULT_CONTINUATION_CAP),
-        ("backfill_cap", "CWK_BACKFILL_CAP", DEFAULT_BACKFILL_CAP),
-        ("backfill_page_size", "CWK_BACKFILL_PAGE_SIZE", DEFAULT_BACKFILL_PAGE_SIZE),
-        (
-            "source_completeness_lookback_days",
-            "CWK_SOURCE_COMPLETENESS_LOOKBACK_DAYS",
-            DEFAULT_LOOKBACK_DAYS,
-        ),
-    ):
-        settings[key], sources[key] = _resolve_nightly_int(
-            config, env, key=key, env_key=env_key, default=default
+    for setting in NIGHTLY_SETTINGS:
+        settings[setting.key], sources[setting.key] = _resolve_one(
+            setting, config, env, settings
         )
 
-    for key, env_key, default in (
-        ("backfill_enabled", "CWK_BACKFILL_ENABLED", True),
-        ("source_completeness", "CWK_SOURCE_COMPLETENESS", True),
-    ):
-        settings[key], sources[key] = _resolve_nightly_flag(
-            config, env, key=key, env_key=env_key, default=default
+    # 凭据不进配置文件。它会被写进合同、进哈希、并被念给用户听；而交接单本来就
+    # 声明 CWORK_APP_KEY 由宿主环境提供，配置里再放一份只是多一个泄漏点。
+    if isinstance(config.get("app_key"), str) and config["app_key"]:
+        raise NightlyConfigError(
+            "config.app_key must be empty; the scheduled task receives the key "
+            "through the CWORK_APP_KEY environment variable instead, so a copy in "
+            "the config file only adds a place for it to leak"
         )
-
-    settings["sync_docdb"], sources["sync_docdb"] = _resolve_nightly_sync_docdb(config, env)
 
     lookback = settings["source_completeness_lookback_days"]
     if lookback < 0 or lookback > 31:
@@ -304,7 +517,67 @@ def resolve_nightly_runtime(
             "nightly command would refuse to start"
         )
 
+    for key in PAUSED_NIGHTLY_PATHS:
+        if settings[key]:
+            raise UnschedulableNightlySetting(
+                f"{key} is enabled, but the scheduled command is only given "
+                "--config/--run-name/--date and therefore cannot pass the matching "
+                "--experimental-* unlock that cwk_nightly_pipeline.enforce_cloud_pause "
+                "requires; every scheduled run would exit at startup. Turn it off "
+                "before asking anyone to confirm nightly automation"
+            )
+
     return {"settings": settings, "sources": sources}
+
+
+def render_nightly_settings(
+    settings: Mapping[str, Any], *, project_dir: Optional[Path] = None
+) -> dict:
+    """把解析结果变成**可以安全写进合同、可以念出来**的形状。
+
+    三条规则：
+
+    - 布尔和整数原样；
+    - `ident` / `url` / `path` 已经过封闭校验，原样（路径先相对化到项目目录，
+      不落宿主绝对路径）；
+    - `opaque`（人名）与 `secret`（凭据）**不回显取值**：只说「设了/没设」，
+      opaque 另附取值指纹，好让「值变了」依然会改变合同哈希。
+    """
+
+    root = Path(project_dir) if project_dir is not None else _PROJECT
+    rendered: dict[str, Any] = {}
+    for setting in NIGHTLY_SETTINGS:
+        value = settings[setting.key]
+        if setting.kind in ("int", "bool"):
+            rendered[setting.key] = value
+        elif setting.kind == "secret":
+            rendered[setting.key] = {"state": "set" if value else "unset"}
+        elif setting.kind == "opaque":
+            rendered[setting.key] = {
+                "state": "set" if value else "unset",
+                "fingerprint": (
+                    hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12]
+                    if value
+                    else None
+                ),
+            }
+        elif setting.kind == "path":
+            rendered[setting.key] = _render_path(str(value), root)
+        else:
+            rendered[setting.key] = value
+    return rendered
+
+
+def _render_path(value: str, root: Path) -> str:
+    """路径相对化。项目外的路径只留指纹——合同不带宿主绝对路径。"""
+
+    if not value:
+        return ""
+    try:
+        resolved = Path(value).expanduser().resolve()
+        return str(resolved.relative_to(root))
+    except (ValueError, OSError, RuntimeError):
+        return "<outside-project>:" + hashlib.sha256(value.encode("utf-8")).hexdigest()[:12]
 
 
 def upstream_collect_defaults(source: Path | str | None = None) -> dict[str, int]:
@@ -609,6 +882,7 @@ def build_execution_contract(
     run_at_local: str,
     timezone: str,
     generated_at: str,
+    project_dir: Optional[Path] = None,
 ) -> dict:
     """从**实际配置 + 实际环境**渲染每日执行合同。
 
@@ -628,8 +902,11 @@ def build_execution_contract(
     resolved = resolve_nightly_runtime(config, env)
     settings = resolved["settings"]
     sources = resolved["sources"]
-    # 被排期的任务看不到任何 CWK_* 变量，用空环境再算一次就是它真实的取值。
-    scheduled = resolve_nightly_runtime(config, {})["settings"]
+    # 被排期的任务只拿得到 env_allowlist 里的变量（CWORK_APP_KEY）。用那个子集
+    # 再算一次，就是它真实的取值——把整个环境清空是不对的，那会把「凭据来自
+    # 环境变量」误判成「依赖 shell」。
+    scheduled_env = {k: v for k, v in env.items() if k in SCHEDULED_ENV_ALLOWLIST}
+    scheduled = resolve_nightly_runtime(config, scheduled_env)["settings"]
     env_only = [key for key in NIGHTLY_SETTING_KEYS if settings[key] != scheduled[key]]
 
     caps = {
@@ -641,7 +918,20 @@ def build_execution_contract(
     backfill_enabled = settings["backfill_enabled"]
     source_completeness = settings["source_completeness"]
     sync_docdb = settings["sync_docdb"]
+    wiki_sync = settings["wiki_sync"]
     lookback = settings["source_completeness_lookback_days"]
+
+    # 发布通道有**两条**，不是一条。`sync_docdb` 推 daily/ 与 runs/，
+    # `wiki_sync` 推 wiki/，后者由 `if args.wiki_sync:` 独立触发，不需要
+    # `sync_docdb` 为真。合同以前只写前一条，于是 `{"sync_docdb": false,
+    # "wiki_sync": true}` 会被描述成「不发布」。
+    publication_targets = []
+    if sync_docdb:
+        publication_targets.append("docdb:daily_and_runs")
+    if wiki_sync:
+        publication_targets.append("docdb:wiki")
+    # 模型调用同样是「内容离开这台机器」。dry-run 时不会真的调。
+    ai_sends_content = bool(settings["ai_enabled"] and not settings["ai_dry_run"])
 
     contract = {
         "schema": EXECUTION_CONTRACT_SCHEMA,
@@ -657,12 +947,22 @@ def build_execution_contract(
             "source_completeness_enabled": source_completeness,
         },
         "caps": caps,
+        # 登记表里每一个键的解析结果。进哈希，所以任何一项变化都会作废旧确认。
+        "settings": render_nightly_settings(settings, project_dir=project_dir),
         "runtime_resolution": {
             "sources": dict(sources),
             # 交接单 argv 只有 --config/--run-name/--date，命令行那一层不参与取值。
             "resolved_for_argv": "config_run_name_date_only",
             "scheduled_environment_equivalent": not env_only,
             "settings_requiring_shell_environment": env_only,
+            "scheduled_environment_allowlist": list(SCHEDULED_ENV_ALLOWLIST),
+        },
+        "scheduled_invocation": {
+            "argv_options": ["--config", "--run-name", "--date"],
+            # 这些开关只走命令行，被排期的那次运行里恒为下面的值。
+            # `--sync-dry-run` 恒假正是「wiki_sync 会真的上传」的原因。
+            "cli_only_flags_fixed": dict(NIGHTLY_CLI_ONLY_FIXED),
+            "requires_environment": list(SCHEDULED_ENV_ALLOWLIST),
         },
         "detail_read_actions": list(DETAIL_READ_ACTIONS),
         "current_business_day_full_pagination": True,
@@ -670,12 +970,33 @@ def build_execution_contract(
         "outputs": list(OUTPUTS),
         "publishing": {
             "sync_docdb": sync_docdb,
+            "wiki_sync": wiki_sync,
+            "any_external_publication": bool(publication_targets),
+            "targets": publication_targets,
             "publishes_derived_only": True,
             "uploads_raw": False,
+            # 交接单 argv 不带 --sync-dry-run，所以发布是真的发布。
+            "dry_run": False,
+            # cloud_first / publish_cloud_query_catalog 在解析阶段就被拒了，
+            # 所以这两条恒假；写出来是为了让合同自己说清它为什么敢这么讲。
+            "cloud_query_catalog": False,
+            "cloud_first": False,
+        },
+        "wiki_pipeline": {
+            "sync_wiki": settings["sync_wiki"],
+            "compile": settings["wiki_compile"],
+            "topics_entities": settings["wiki_topics_entities"],
+            "sync_to_docdb": wiki_sync,
+        },
+        "ai_processing": {
+            "enabled": settings["ai_enabled"],
+            "dry_run": settings["ai_dry_run"],
+            "sends_content_to_model_service": ai_sends_content,
         },
         "raw_boundary": {
             "raw_is_local_and_authoritative": True,
             "raw_never_written_back": True,
+            # raw 上云只发生在 cloud_first 下，而 cloud_first 已被拒绝。
             "raw_never_uploaded": True,
         },
         "forbidden_actions": list(FORBIDDEN_ACTIONS),
@@ -727,6 +1048,8 @@ def render_contract_markdown(contract: Mapping[str, Any]) -> str:
     sources = contract["sources"]
     schedule = contract["schedule_intent"]
     publishing = contract["publishing"]
+    wiki = contract.get("wiki_pipeline") or {}
+    ai = contract.get("ai_processing") or {}
     lines = [
         "# CWK 每日执行合同",
         "",
@@ -752,16 +1075,40 @@ def render_contract_markdown(contract: Mapping[str, Any]) -> str:
         "",
         "## 产出与发布",
         f"- 产物：{', '.join(contract['outputs'])}",
-        f"- 派生内容发布到 DocDB：{'开' if publishing['sync_docdb'] else '关'}",
+        # 两条发布通道分开说。合在一句「发布：开/关」里，
+        # `sync_docdb: false, wiki_sync: true` 就会被念成「不发布」。
+        f"- daily/ 与 runs/ 发布到 DocDB：{'开' if publishing['sync_docdb'] else '关'}",
+        f"- wiki/ 发布到 DocDB：{'开' if publishing.get('wiki_sync') else '关'}"
+        + ("（由 wiki_sync 独立控制，不需要 sync_docdb 为真）" if publishing.get("wiki_sync") else ""),
+        f"- 本次是否有内容离开这台机器：{'是' if publishing.get('any_external_publication') else '否'}"
+        + (f"（目标：{', '.join(publishing.get('targets') or [])}）" if publishing.get("targets") else ""),
+        "- 发布是真发布，不是空跑（被排期的 argv 不带 --sync-dry-run）",
+        f"- AI 处理：{'开' if ai.get('enabled') else '关'}"
+        + ("（dry-run，不外发）" if ai.get("enabled") and ai.get("dry_run") else ""),
+        f"- 记录内容发送给外部模型服务：{'是' if ai.get('sends_content_to_model_service') else '否'}",
         "- raw 原文：只留在本地，不回写、不上传",
+        "",
+        "## Wiki 流水线",
+        f"- 编译摘要：{'开' if wiki.get('compile') else '关'}",
+        f"- 重建 topics/entities：{'开' if wiki.get('topics_entities') else '关'}",
+        f"- 同步 wiki/ 到 DocDB：{'开' if wiki.get('sync_to_docdb') else '关'}",
         "",
         "## 这些取值从哪里来",
     ]
     resolution = contract.get("runtime_resolution") or {}
+    rendered = contract.get("settings") or {}
+    origins = resolution.get("sources") or {}
+    # 逐条列出登记表里的**每一个**键，而不是挑几个。这一节存在的意义就是让
+    # 「这个数字/开关是哪来的」有一个不用猜的答案；漏掉一行，那一行就成了
+    # 合同里没人核对过的部分。
     for name in NIGHTLY_SETTING_KEYS:
-        origin = (resolution.get("sources") or {}).get(name)
-        if origin:
-            lines.append(f"- {name}：{_SOURCE_LABELS.get(origin, origin)}")
+        origin = origins.get(name)
+        if not origin:
+            continue
+        shown = rendered.get(name)
+        if isinstance(shown, dict):
+            shown = shown.get("state", "unset")
+        lines.append(f"- {name} = `{shown}` ← {_SOURCE_LABELS.get(origin, origin)}")
     needs_shell = list(resolution.get("settings_requiring_shell_environment") or [])
     if needs_shell:
         lines.extend(

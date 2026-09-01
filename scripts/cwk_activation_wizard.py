@@ -49,6 +49,7 @@ from cwk_activation_contract import (  # noqa: E402
     NightlyConfigError,
     ScheduledEnvironmentMismatch,
     ScopeSchemaError,
+    UnschedulableNightlySetting,
     build_discovery_report,
     build_execution_contract,
     build_scheduler_handoff,
@@ -83,6 +84,9 @@ from cwk_activation_state import (  # noqa: E402
     new_activation_id,
     new_confirmation_id,
     next_step_for,
+    read_regular_at,
+    read_regular_path,
+    record_gate_revocation,
     session,
 )
 from cwk_atomic_file import (  # noqa: E402
@@ -90,7 +94,6 @@ from cwk_atomic_file import (  # noqa: E402
     AtomicFileError,
     ContainmentError,
     LockUnavailable,
-    read_file,
     write_atomic,
 )
 from cwk_pr001_contracts import ContractError  # noqa: E402
@@ -233,14 +236,23 @@ def _read_text(path: Path, label: str) -> str:
     路径由调用方提供，可能指向目录、断链、无权限或已被移走的文件；这些都是
     **输入错误**，不是程序缺陷，所以在这里就地转成向导自己的错误类型，
     带 errno 名字但不带路径、不带文件内容。
+
+    走 `read_regular_path` 而不是 `is_file()` + `read_text()`：后者要两次系统
+    调用才读到内容，而这两次之间那个名字可以被换成 FIFO，于是 `read_text` 停在
+    `open` 上再也不返回。向导是被 Skill 和脚本以「一定会返回」为前提调用的，
+    永久挂住比报错难查得多。`read_regular_path` 只 open 一次并在同一个描述符上
+    判定，非常规文件当场拒绝，语义上仍然跟随符号链接（用户的输入文件放成软链
+    是他自己的事）。
     """
 
     try:
-        if not path.is_file():
-            raise WizardError(f"{label} not found or is not a regular file")
-        return path.read_text(encoding="utf-8")
-    except OSError as exc:
+        raw = read_regular_path(path)
+    except (FileNotFoundError, IsADirectoryError, NotADirectoryError, ContainmentError) as exc:
+        raise WizardError(f"{label} not found or is not a regular file") from exc
+    except (OSError, AtomicFileError) as exc:
         raise InputIOError(f"{label} could not be read ({errno_name(exc)})") from exc
+    try:
+        return raw.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise WizardError(f"{label} is not valid UTF-8 text") from exc
 
@@ -319,14 +331,15 @@ def _read_artifact(dir_fd: int, name: str, label: str) -> dict:
     目录的，读的时候却用普通 `Path` 打开，就等于承认「写的时候防符号链接、读的
     时候不防」——而**读**才是决定内容的一环：交接单和执行合同读出来什么，
     随后就按什么去比对哈希、去生成给宿主执行的 argv。所以这里同样锚在 dirfd 上，
-    经 `read_file` 的 O_NOFOLLOW 与常规文件检查；名字被换成符号链接、目录或带第二
-    条硬链接的文件时当场拒读，而不是顺着链接去读别处的内容。
+    经 `read_regular_at` 的 O_NOFOLLOW + O_NONBLOCK + fstat 检查；名字被换成符号
+    链接、目录、FIFO、设备或带第二条硬链接的文件时当场拒读，而不是顺着链接去读
+    别处的内容、更不会停在一个永远等不到写端的 FIFO 上。
 
     文件名是固定常量，路径不进错误消息。
     """
 
     try:
-        raw = read_file(dir_fd, name)
+        raw = read_regular_at(dir_fd, name)
     except FileNotFoundError as exc:
         raise WizardError(f"{label} not found; run the previous step first") from exc
     except ContainmentError as exc:
@@ -334,7 +347,7 @@ def _read_artifact(dir_fd: int, name: str, label: str) -> dict:
         # 这不是「还没生成」——是有人动过。fail closed，不跟随、不重写、不删除。
         raise WizardError(
             f"{label} is not the regular file this step wrote "
-            "(symlink, directory or extra hard link); refusing to read it"
+            "(symlink, directory, pipe, device or extra hard link); refusing to read it"
         ) from exc
     except AtomicFileError as exc:
         raise InputIOError(f"{label} could not be read: {redact_message(exc)}") from exc
@@ -454,6 +467,40 @@ def _commit_without_transition(sess: ActivationSession, state: dict, now: str) -
     sess.commit()
 
 
+def _commit_after_gate_loss(
+    sess: ActivationSession,
+    state: dict,
+    now: str,
+    gates: list[str],
+    *,
+    contract_sha256: Optional[str] = None,
+) -> None:
+    """落盘一次「第二道门没了，但没有迁移可写」的改动。
+
+    这是 `_commit_without_transition` 唯一该被替代的场合。撤销 activation 意味着
+    「用户答应过的每晚自动运行现在不作数了」，是本状态机最重的改动之一；只留
+    revision+1 和 updated_at，事后翻 history 会以为什么都没发生过，而这条记录恰恰
+    是「为什么又要重新确认一次」的唯一凭据。
+
+    只在没有迁移时补。有迁移的路径（`flag-drift`、`record-pilot-fail`）那条迁移
+    本身就是记录，两边都写就成了重复记账。
+
+    `contract_sha256` 传「相对哪份合同失效」的摘要：漂移时是**新算出来的**那份，
+    绑定过期时是状态里记着的那份。
+    """
+
+    if "activation" in gates:
+        record_gate_revocation(
+            state,
+            gate="activation",
+            now=now,
+            input_receipt_sha256=contract_sha256 or state.get("contract_sha256"),
+        )
+        sess.commit()
+    else:
+        _commit_without_transition(sess, state, now)
+
+
 def _merge_gates(*groups: list[str]) -> list[str]:
     """合并同一条命令里多批被作废的门，输出去重且顺序稳定的清单。
 
@@ -506,7 +553,10 @@ def cmd_status(args: argparse.Namespace) -> tuple[int, dict]:
         state = sess.state
         dropped = invalidate_stale_confirmations(state)
         if dropped:
-            _commit_without_transition(sess, state, now)
+            # `status` 名义上只读，但它确实会作废绑定原像已经对不上的确认，而那是
+            # 一次落盘的语义变更。第二道门被这样清掉时同样要留下可读的痕迹，
+            # 否则用户只会看到 next_step 又变回去了，却翻不出是哪一步、为什么。
+            _commit_after_gate_loss(sess, state, now, dropped)
         return EXIT_OK, _snapshot(state, healthy=True, invalidated_gates=dropped)
 
 
@@ -757,6 +807,7 @@ def cmd_schedule_handoff(args: argparse.Namespace) -> tuple[int, dict]:
 
     now = _resolve_now(args.now)
     config = _require_json(args.config, "--config")
+    run_at, tz = _schedule_intent(config)
     with session(args.state_dir) as sess:
         state, dropped = _prepare(sess)
         _require_grant(state, "activation")
@@ -768,6 +819,28 @@ def cmd_schedule_handoff(args: argparse.Namespace) -> tuple[int, dict]:
         if compute_contract_sha256(contract) != state["contract_sha256"]:
             raise IllegalTransition(
                 "stored execution contract does not match the confirmed contract hash"
+            )
+        # 交接单上写的是 `--config <这个路径>`，也就是说**被排期的那份配置是
+        # 现在传进来的这个**，不是当初确认时读的那个。所以光比对「盘上的合同
+        # 是否等于确认过的哈希」不够：那两者可以都对，而 `--config` 指向另一份
+        # 完全不同的配置。于是就地重算一次并要求相等——被确认的那句话，必须就是
+        # 今晚真会跑的那句话。
+        #
+        # 这一步顺带把「配置本身根本跑不起来」挡在门外：`cloud_first` 之类的
+        # 设置会在这里抛 UnschedulableNightlySetting，因为固定的 argv 递不出
+        # 对应的 --experimental-* 解锁。
+        current = build_execution_contract(
+            config=config,
+            env=os.environ,
+            profile_sha256=state["profile_sha256"],
+            run_at_local=run_at,
+            timezone=tz,
+            generated_at=now,
+        )
+        if compute_contract_sha256(current) != state["contract_sha256"]:
+            raise IllegalTransition(
+                "the config named on the command line does not resolve to the confirmed "
+                "contract; re-run check-drift and reconfirm before scheduling anything"
             )
         handoff = build_scheduler_handoff(
             contract=contract,
@@ -924,10 +997,18 @@ def cmd_check_drift(args: argparse.Namespace) -> tuple[int, dict]:
                 sess.commit()
             elif revoked or dropped:
                 # 已经在 DEGRADED / NEEDS_RECONFIRMATION：不再降级，也不改降级原因；
-                # 只有确认被吊销这一件事需要落盘，且必须带 revision 痕迹。
-                _commit_without_transition(sess, state, now)
+                # 只有确认被吊销这一件事需要落盘，并且要带上可读的痕迹。
+                # 上面 can_flag 那条分支已经用 flag-drift 迁移记过同一件事，
+                # 所以只在这里补，不两边都记。
+                _commit_after_gate_loss(
+                    sess,
+                    state,
+                    now,
+                    _merge_gates(dropped, revoked),
+                    contract_sha256=drift["current_contract_sha256"],
+                )
         elif dropped:
-            _commit_without_transition(sess, state, now)
+            _commit_after_gate_loss(sess, state, now, dropped)
         return (EXIT_DRIFT if drifted else EXIT_OK), _snapshot(
             state,
             invalidated_gates=_merge_gates(dropped, revoked),
@@ -1107,9 +1188,17 @@ def main(argv: Optional[list[str]] = None) -> int:
         # 文件、重算合同、重跑试跑，再来要交接单。
         payload = _failure(args.command, exc, "ScheduledEnvironmentMismatch")
         code = EXIT_REFUSED
+    except UnschedulableNightlySetting as exc:
+        # 配置开了一条被排期的命令走不通的路径（cloud_first /
+        # publish_cloud_query_catalog 需要 --experimental-* 解锁，而交接单的
+        # argv 给不出）。这不是「用法写错了」，是这条路现在不能被排期——
+        # 与其让用户确认一份每晚定时失败的自动化，不如当场拒绝。
+        payload = _failure(args.command, exc, "UnschedulableNightlySetting")
+        code = EXIT_REFUSED
     except NightlyConfigError as exc:
-        # 配置或环境里的 nightly 取值本身不合法（不是整数、超出范围）。
-        # 合同必须逐字复述今晚会发生什么，猜不出来就不写。
+        # 配置或环境里的 nightly 取值本身不合法（不是整数、超出范围、控制字符），
+        # 或出现了登记表不认识的键。合同必须逐字复述今晚会发生什么，
+        # 有一项讲不清就整份不写。
         payload = _failure(args.command, exc, "NightlyConfigError")
         code = EXIT_USAGE
     except ScopeSchemaError as exc:

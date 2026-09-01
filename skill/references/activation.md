@@ -259,12 +259,26 @@ Config or contract changed ⇒ exit code 5. Precisely what happens:
   `reconfirm_contract`. Re-walk from there.
 * **Unless the state is already `DEGRADED` or `NEEDS_RECONFIRMATION`.** Then
   the drift is still reported — exit code 5, `contract_drift.drifted` true —
-  but nothing is rewritten: an installation degraded by a failed pilot keeps
+  but the *state* does not move and the *reason* is not rewritten: an
+  installation degraded by a failed pilot keeps
   `degraded_reason_code: pilot_failed` and keeps `next_step: rerun_pilot`. Do
   not read this as "the drift was ignored". It means the record already says
   the installation is not trustworthy, and overwriting *why* would lose the
   more urgent reason. Report both: the pilot has not passed, and the config has
   since changed too.
+
+  Do not read it as "the file is untouched" either. If a scheduling consent was
+  still standing when the drift was noticed, it is revoked, and a revocation is
+  a change to the record, so it gets written down: `revision` goes up,
+  `updated_at` moves, and a `revoke-activation` entry is appended to `history`
+  naming the gate and the contract hash that the withdrawn yes had been bound
+  to. The file is byte-for-byte unchanged only when there was nothing left to
+  revoke — which is the usual case on this branch, because the command that
+  degraded the installation (a failed `record-pilot`) already took the consent
+  away on its own transition, and that transition is the receipt. Nothing is
+  revoked silently; nothing is recorded twice. The same applies to `status`,
+  which is otherwise read-only: if it is the first command to notice that the
+  binding has gone stale, it revokes and leaves the same receipt.
 
 The profile confirmation is left alone: the user's description of their own
 work did not change because a cap did.

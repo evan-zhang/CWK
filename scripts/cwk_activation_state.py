@@ -28,6 +28,8 @@ Refs: RT-032
 
 from __future__ import annotations
 
+import errno
+import fcntl
 import hashlib
 import hmac
 import json
@@ -36,6 +38,7 @@ import re
 import secrets
 import stat as stat_module
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator, Optional
 
@@ -48,14 +51,237 @@ from cwk_atomic_file import (  # noqa: E402
     FILE_MODE,
     AtomicFileError,
     ContainmentError,
+    LockUnavailable,
     cas_write,
     child_exists,
-    exclusive_lock,
-    open_dir_nofollow,
-    read_file,
     recover_orphans,
 )
 from cwk_pr001_contracts import canonical_json_bytes  # noqa: E402
+
+# ── 不阻塞的只读原语 ────────────────────────────────────────────────────────
+#
+# 为什么不直接用 `cwk_atomic_file` 的 `read_file` / `open_dir_nofollow` /
+# `exclusive_lock`：它们都在 `os.open()` 里**先打开、后 fstat**，而且没有
+# `O_NONBLOCK`。若状态目录里的 `activation.json`（或某个产物、或锁文件）被换成
+# 一个 FIFO，`os.open(name, O_RDONLY|O_NOFOLLOW)` 会一直等一个永远不会出现的
+# 写端——安装器、doctor、向导会**永久挂住**。挂住比报错更糟：它没有失败，所以
+# 没人会去看；而 install / doctor 是被别的脚本以「一定会返回」为前提调用的。
+#
+# 先 lstat 再 open 不能解决：lstat 与 open 之间那一瞬就是攻击窗口，而且窗口里
+# 的失败模式恰好是「永久阻塞」，不是「打开了错的东西」。唯一可靠的顺序是
+# **带 O_NONBLOCK 打开、再用 fstat 判定、不对就关掉**——FIFO 在 O_NONBLOCK 下
+# 立刻返回，字符设备不会在 open 里等载波，随后 fstat 会当场否掉它。
+#
+# `scripts/cwk_atomic_file.py` 是 PR-001 `managed_script_inventory` 里的
+# legacy_frozen_files（带 sha256 pin），RT-032 改它一个字节都属于越权，所以这里
+# 实现一份**只服务激活路径**的等价原语，并让异常类型与上游一致
+# （ContainmentError / FileNotFoundError），调用方的 except 分支不用改。
+MAX_ACTIVATION_FILE_BYTES = 4 * 1024 * 1024
+
+_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
+_DIRECTORY = getattr(os, "O_DIRECTORY", 0)
+_NONBLOCK = getattr(os, "O_NONBLOCK", 0)
+_CLOEXEC = getattr(os, "O_CLOEXEC", 0)
+
+
+def _validate_activation_leaf(name: str) -> None:
+    """叶子名必须是一个普通文件名，不是路径。"""
+
+    if not name or "/" in name or name in (".", "..") or "\x00" in name:
+        raise ContainmentError("invalid leaf name")
+
+
+def _reject_nonregular(fd: int, st: os.stat_result) -> None:
+    if not stat_module.S_ISREG(st.st_mode):
+        os.close(fd)
+        # 不说它究竟是 FIFO 还是设备还是目录：调用方要做的事一样（拒绝），
+        # 而具体类型是攻击者可控的信息，没必要回显。
+        raise ContainmentError("child is not a regular file; refusing to use it")
+
+
+def open_activation_dir_fd(path: Path | str) -> int:
+    """以 O_DIRECTORY|O_NOFOLLOW|O_NONBLOCK 打开目录并 fstat 复核。
+
+    与上游 `open_dir_nofollow` 的差别只有 `O_NONBLOCK`：即使内核没有在
+    `O_DIRECTORY` 上提前拒绝一个 FIFO，这里也不会停在 open 上。
+    """
+
+    flags = os.O_RDONLY | _NOFOLLOW | _DIRECTORY | _NONBLOCK | _CLOEXEC
+    try:
+        fd = os.open(os.fspath(path), flags)
+    except OSError as exc:
+        if exc.errno in (errno.ELOOP, errno.EMLINK):
+            raise ContainmentError("directory is a symlink; refusing to follow") from exc
+        if exc.errno == errno.ENOTDIR:
+            raise ContainmentError("path is not a directory") from exc
+        if exc.errno == errno.ENOENT:
+            raise ContainmentError("directory does not exist") from exc
+        raise AtomicFileError(f"cannot open directory ({exc.errno})", code="open") from exc
+    try:
+        st = os.fstat(fd)
+    except OSError as exc:
+        os.close(fd)
+        raise AtomicFileError(f"cannot stat directory ({exc.errno})", code="fstat") from exc
+    if not stat_module.S_ISDIR(st.st_mode):
+        os.close(fd)
+        raise ContainmentError("opened target is not a directory")
+    return fd
+
+
+def read_regular_at(dir_fd: int, name: str) -> bytes:
+    """读 ``dir_fd`` 下的一个常规文件，永不阻塞、永不跟随链接。
+
+    - ``FileNotFoundError``：名字不存在（与上游 `read_file` 同）；
+    - ``ContainmentError``：符号链接、目录、FIFO、设备、套接字、多条硬链接，
+      或超过 :data:`MAX_ACTIVATION_FILE_BYTES`。
+    """
+
+    _validate_activation_leaf(name)
+    flags = os.O_RDONLY | _NOFOLLOW | _NONBLOCK | _CLOEXEC
+    try:
+        fd = os.open(name, flags, dir_fd=dir_fd)
+    except OSError as exc:
+        if exc.errno == errno.ENOENT:
+            raise FileNotFoundError(name) from exc
+        if exc.errno in (errno.ELOOP, errno.EMLINK):
+            raise ContainmentError("child is a symlink; refusing to follow") from exc
+        if exc.errno in (errno.ENXIO, errno.EOPNOTSUPP, errno.ENODEV):
+            # 套接字、或没有写端的只写设备：open 直接拒绝，这已经证明它不是
+            # 我们写下的那个常规文件。
+            raise ContainmentError("child is not a regular file; refusing to use it") from exc
+        raise
+    try:
+        st = os.fstat(fd)
+    except OSError as exc:
+        os.close(fd)
+        raise AtomicFileError(f"cannot stat child ({exc.errno})", code="fstat") from exc
+    _reject_nonregular(fd, st)
+    try:
+        if st.st_nlink != 1:
+            raise ContainmentError("child has more than one hard link; refusing to read")
+        if st.st_size > MAX_ACTIVATION_FILE_BYTES:
+            raise ContainmentError("child is larger than the activation read limit")
+        chunks: list[bytes] = []
+        total = 0
+        while True:
+            try:
+                buf = os.read(fd, 65536)
+            except InterruptedError:
+                continue
+            except BlockingIOError:
+                # 常规文件不会给出 EAGAIN；真给了就说明它已经不是常规文件了。
+                raise ContainmentError("child is not a regular file; refusing to use it")
+            if not buf:
+                break
+            total += len(buf)
+            if total > MAX_ACTIVATION_FILE_BYTES:
+                raise ContainmentError("child is larger than the activation read limit")
+            chunks.append(buf)
+        return b"".join(chunks)
+    finally:
+        os.close(fd)
+
+
+def read_regular_path(path: Path | str) -> bytes:
+    """读一个**调用方给的**路径，永不阻塞。
+
+    和 :func:`read_regular_at` 的分工：那个守的是我们自己的私有状态目录，所以
+    连符号链接和第二条硬链接都不接受；这个守的是命令行上传进来的输入文件
+    （``--config`` / ``--pilot-report`` / ``--collection-receipt`` / ``--scope``），
+    用户把它放成软链或与别处同 inode 都是他自己的事，拒绝反而是我们越界。
+
+    因此这里**保留跟随符号链接**的既有语义，只关掉那个真正致命的性质：阻塞。
+    原实现是 ``path.is_file()`` 之后 ``path.read_text()``——两次系统调用之间
+    就是攻击窗口，而窗口里的失败模式恰好是「``open`` 永远不返回」。先 stat 再
+    open 挡不住这个，所以改成**只 open 一次**：带 ``O_NONBLOCK`` 打开，用同一个
+    描述符 ``fstat``，不是常规文件就当场关掉。判定和读取因此作用在同一个对象上，
+    中间没有可以被替换的缝。
+
+    - ``FileNotFoundError``：路径不存在或断链；
+    - ``ContainmentError``：FIFO、设备、套接字、目录，或超过读取上限；
+    - 其余 ``OSError``（权限等）原样抛出，由调用方转成脱敏输入错误。
+    """
+
+    flags = os.O_RDONLY | _NONBLOCK | _CLOEXEC
+    try:
+        fd = os.open(os.fspath(path), flags)
+    except OSError as exc:
+        if exc.errno in (errno.ENXIO, errno.EOPNOTSUPP, errno.ENODEV):
+            # 套接字，或没有对端的只写设备：open 自己就否了，不必等到 fstat。
+            raise ContainmentError("input is not a regular file; refusing to use it") from exc
+        raise
+    try:
+        st = os.fstat(fd)
+    except OSError as exc:
+        os.close(fd)
+        raise AtomicFileError(f"cannot stat input ({exc.errno})", code="fstat") from exc
+    _reject_nonregular(fd, st)
+    try:
+        if st.st_size > MAX_ACTIVATION_FILE_BYTES:
+            raise ContainmentError("input is larger than the activation read limit")
+        chunks: list[bytes] = []
+        total = 0
+        while True:
+            try:
+                buf = os.read(fd, 65536)
+            except InterruptedError:
+                continue
+            except BlockingIOError:
+                raise ContainmentError("input is not a regular file; refusing to use it")
+            if not buf:
+                break
+            total += len(buf)
+            if total > MAX_ACTIVATION_FILE_BYTES:
+                raise ContainmentError("input is larger than the activation read limit")
+            chunks.append(buf)
+        return b"".join(chunks)
+    finally:
+        os.close(fd)
+
+
+@contextmanager
+def activation_lock(dir_fd: int, name: str, *, blocking: bool = False) -> Iterator[int]:
+    """激活专用的排他锁：先确保锁文件是常规文件，再 flock。
+
+    上游 `exclusive_lock` 用 ``O_RDWR|O_CREAT|O_NOFOLLOW``（无 ``O_EXCL``、无
+    ``O_NONBLOCK``）。锁名被换成 FIFO 时那次 open 的行为随平台而定，最坏是永久
+    阻塞——而且是在**拿锁**这一步，连超时都没有。这里补上 ``O_NONBLOCK`` 并在
+    flock 之前 fstat 复核。
+    """
+
+    _validate_activation_leaf(name)
+    flags = os.O_RDWR | os.O_CREAT | _NOFOLLOW | _NONBLOCK | _CLOEXEC
+    try:
+        fd = os.open(name, flags, FILE_MODE, dir_fd=dir_fd)
+    except OSError as exc:
+        if exc.errno in (errno.ELOOP, errno.EMLINK):
+            raise ContainmentError("lock file is a symlink; refusing to follow") from exc
+        if exc.errno in (errno.ENXIO, errno.EOPNOTSUPP, errno.ENODEV):
+            raise ContainmentError("lock file is not a regular file") from exc
+        raise AtomicFileError(f"cannot open lock ({exc.errno})", code="lock") from exc
+    try:
+        st = os.fstat(fd)
+    except OSError as exc:
+        os.close(fd)
+        raise AtomicFileError(f"cannot stat lock ({exc.errno})", code="lock") from exc
+    _reject_nonregular(fd, st)
+    try:
+        op = fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB)
+        try:
+            fcntl.flock(fd, op)
+        except BlockingIOError as exc:
+            raise LockUnavailable("lock is held by another process") from exc
+        try:
+            os.fchmod(fd, FILE_MODE)
+        except OSError:
+            pass
+        yield fd
+    finally:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        except OSError:
+            pass
+        os.close(fd)
 
 # ── 常量 ────────────────────────────────────────────────────────────────────
 
@@ -104,6 +330,13 @@ EVENTS = (
     "pause",
     "resume",
     "flag-drift",
+    # 撤销一道确认，但**状态不变**。存在的理由：迁移表里没有
+    # (DEGRADED, flag-drift) 与 (NEEDS_RECONFIRMATION, flag-drift)，所以在这两个
+    # 状态下检测到漂移时，第二道门被撤销了却没有任何迁移可记。只靠 revision+1 和
+    # updated_at 留证，等于让「用户的排期授权被作废」这件事只体现在两个计数器上；
+    # 事后没人能从 history 里看出**哪道门、为什么、当时绑的是哪份回执**。
+    # 这是一条自环事件：from_state == to_state，不进 TRANSITIONS，只进 history。
+    "revoke-activation",
 )
 
 AUTHORIZATIONS = (
@@ -576,6 +809,57 @@ def apply_transition(
     return state
 
 
+def record_gate_revocation(
+    state: dict,
+    *,
+    gate: str,
+    now: str,
+    input_receipt_sha256: Optional[str] = None,
+) -> dict:
+    """记一条「撤销了某道确认，但状态没变」的自环回执。
+
+    只在**没有迁移可记**的时候用。有迁移时（例如 ACTIVE 遇到漂移会
+    `flag-drift` 进 NEEDS_RECONFIRMATION），那次迁移本身已经把语义变更写进
+    history 了，再补一条就是重复记账，会让「撤销发生过几次」这个问题有两个
+    答案。
+
+    ``input_receipt_sha256`` 传当时的绑定原像摘要（漂移时是**新的**
+    contract_sha256），这样 history 里那条记录自己就说清了「被撤销的授权
+    是相对哪份合同失效的」。
+
+    `gate` 只用于校验它确实是一道门；门名不进 history —— history 条目是封闭
+    schema，加字段就等于开了个自由文本口子。目前只有 activation 会走到这条
+    路径（另两道门的绑定原像不受漂移影响），事件名 `revoke-activation` 已经
+    把它说死了。
+    """
+
+    _check_enum(gate, GATES, "gate")
+    if gate != "activation":
+        raise ActivationContractError(
+            "revoke-activation only records the activation gate; "
+            "other gates have no no-transition revocation path"
+        )
+    current = state["state"]
+    _check_enum(current, STATES, "state.state")
+    state["revision"] = int(state["revision"]) + 1
+    state["updated_at"] = now
+    state["history"].append(
+        {
+            "at": now,
+            "from_state": current,
+            "to_state": current,
+            "event": "revoke-activation",
+            "authorization": "none",
+            "input_receipt_sha256": input_receipt_sha256,
+            "next_step": next_step_for(state),
+            "revision": state["revision"],
+        }
+    )
+    if len(state["history"]) > MAX_HISTORY:
+        del state["history"][: len(state["history"]) - MAX_HISTORY]
+    return state
+
+
 def next_step_for(state: dict) -> str:
     """给 AI 用的下一步提示。只回枚举 token，不回自由文本。"""
 
@@ -632,7 +916,7 @@ def open_state_dir(state_dir: Path | str = DEFAULT_STATE_DIR, *, create: bool = 
     if not path.is_dir():
         # 不回显路径：这条消息会原样进入给 Agent 的 JSON。
         raise ActivationError("activation state dir does not exist or is not a directory")
-    return open_dir_nofollow(path)
+    return open_activation_dir_fd(path)
 
 
 def read_state(dir_fd: int) -> tuple[Optional[dict], Optional[str], Optional[str]]:
@@ -648,10 +932,14 @@ def read_state(dir_fd: int) -> tuple[Optional[dict], Optional[str], Optional[str
     if not child_exists(dir_fd, STATE_FILE):
         return None, None, None
     try:
-        raw = read_file(dir_fd, STATE_FILE)
+        raw = read_regular_at(dir_fd, STATE_FILE)
+    except FileNotFoundError:
+        # `child_exists` 与这次 open 之间名字被删掉了。等价于「没有状态」。
+        return None, None, None
     except ContainmentError:
-        # 状态文件是符号链接、目录、或有第二条硬链接：`read_file` 用 O_NOFOLLOW
-        # 当场拒读。这不是「没有状态」——磁盘上确实有个东西占着这个名字，只是它
+        # 状态文件是符号链接、目录、FIFO、设备、或有第二条硬链接：
+        # `read_regular_at` 带 O_NONBLOCK 打开后由 fstat 当场否掉，绝不阻塞。
+        # 这不是「没有状态」——磁盘上确实有个东西占着这个名字，只是它
         # 不可信。返回原因码而不是抛，让上层一律 fail closed；文件一个字节都不动。
         return None, None, "state_file_not_contained"
     raw_sha = hashlib.sha256(raw).hexdigest()
@@ -824,11 +1112,11 @@ def readiness(state_dir: Path | str = DEFAULT_STATE_DIR) -> dict:
         return unreadable_readiness("state_dir_not_a_directory")
 
     try:
-        dir_fd = open_dir_nofollow(path)
+        dir_fd = open_activation_dir_fd(path)
     except (OSError, AtomicFileError):
-        # 目录在、但打不开（权限、竞态换成链接）。有东西，只是不可信。
-        # `open_dir_nofollow` 抛的是 AtomicFileError，不是 OSError——只 catch
-        # OSError 会让只读探针把 traceback 打到安装输出里。
+        # 目录在、但打不开（权限、竞态换成链接/FIFO）。有东西，只是不可信。
+        # `open_activation_dir_fd` 抛的是 AtomicFileError，不是 OSError——只
+        # catch OSError 会让只读探针把 traceback 打到安装输出里。
         return unreadable_readiness("state_dir_unreadable")
     try:
         state, _raw_sha, reason = read_state(dir_fd)
@@ -857,13 +1145,11 @@ def readiness(state_dir: Path | str = DEFAULT_STATE_DIR) -> dict:
 def session(state_dir: Path | str = DEFAULT_STATE_DIR, *, create: bool = False) -> Iterator[ActivationSession]:
     """上下文管理器：排他锁 + 孤儿临时文件清理 + 读状态。"""
 
-    from contextlib import contextmanager
-
     @contextmanager
     def _run() -> Iterator[ActivationSession]:
         dir_fd = open_state_dir(state_dir, create=create)
         try:
-            with exclusive_lock(dir_fd, LOCK_FILE, blocking=False):
+            with activation_lock(dir_fd, LOCK_FILE, blocking=False):
                 recover_orphans(dir_fd)
                 state, raw_sha, reason = read_state(dir_fd)
                 yield ActivationSession(dir_fd, state, raw_sha, reason)

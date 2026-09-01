@@ -17,6 +17,7 @@ import io
 import json
 import os
 import re
+import shutil
 import stat
 import sys
 import tempfile
@@ -73,6 +74,24 @@ class WizardTestCase(unittest.TestCase):
         payload = json.loads((FIXTURES / "config.json").read_text(encoding="utf-8"))
         payload.update(overrides)
         target = self.root / f"config-{len(list(self.root.glob('config-*.json')))}.json"
+        target.write_text(json.dumps(payload), encoding="utf-8")
+        return str(target)
+
+    def project_config_copy(self, **overrides) -> str:
+        """Like ``config_copy``, but somewhere ``schedule-handoff`` will accept.
+
+        The handoff refuses to describe a config outside the project, because
+        doing so would put an absolute host path into a document meant to be
+        handed to a scheduler. That refusal is deliberate and tested elsewhere;
+        tests that need a *varied* config on the scheduling path have to put it
+        inside the tree rather than route around the rule. Removed on cleanup,
+        so a crashed test cannot leave the working tree dirty.
+        """
+        holder = tempfile.mkdtemp(prefix=".rt032-config-", dir=PROJECT)
+        self.addCleanup(shutil.rmtree, holder, True)
+        payload = json.loads((FIXTURES / "config.json").read_text(encoding="utf-8"))
+        payload.update(overrides)
+        target = Path(holder) / "cwk-mirror.local.json"
         target.write_text(json.dumps(payload), encoding="utf-8")
         return str(target)
 
@@ -1038,14 +1057,42 @@ class DriftRevocationTests(WizardTestCase):
         self.assertTrue(payload["confirmations"]["activation"]["valid"])
         self.assertEqual((self.state_dir / S.STATE_FILE).read_bytes(), before)
 
+    def assert_revocation_receipt(self, before: dict, after: dict, *, contract_sha256: str):
+        """The shape a no-transition revocation has to leave behind.
+
+        A bumped ``revision`` and a fresh ``updated_at`` say *that* the record
+        changed. They do not say what changed, and revoking the second gate —
+        the user's yes to nightly automation — is among the heaviest things
+        this machine does. Read back later, ``revision 7 → 8`` with an unchanged
+        history is indistinguishable from a clock tick.
+
+        So the receipt has to name the gate, sit at the state it happened in,
+        and carry the contract digest the old consent lapsed *against*, without
+        inventing a transition the state machine does not have.
+        """
+
+        self.assertIsNone(after["confirmations"]["activation"])
+        self.assertEqual(after["revision"], before["revision"] + 1)
+        self.assertNotEqual(after["updated_at"], before["updated_at"])
+        self.assertEqual(after["state"], before["state"])
+        self.assertEqual(len(after["history"]), len(before["history"]) + 1)
+
+        entry = after["history"][-1]
+        self.assertEqual(entry["event"], "revoke-activation")
+        self.assertEqual(entry["from_state"], before["state"])
+        self.assertEqual(entry["to_state"], before["state"])
+        # Nobody authorised this; the facts moved underneath a standing grant.
+        self.assertEqual(entry["authorization"], "none")
+        self.assertEqual(entry["input_receipt_sha256"], contract_sha256)
+        self.assertEqual(entry["next_step"], S.next_step_for(after))
+
     def test_a_revocation_that_cannot_degrade_still_leaves_evidence(self):
         """Persisted change ⇒ audit trace, with no exception for this branch.
 
         Reconstruct the awkward middle case: already NEEDS_RECONFIRMATION (so
         ``flag-drift`` is illegal) but holding a live activation grant. The
-        grant must still be revoked, and because that is a semantic change to
-        the record it must carry a bumped revision and a new ``updated_at`` —
-        otherwise the file would change with nothing to say when it did or why.
+        grant must still be revoked, and the revocation must be legible in the
+        history afterwards rather than inferred from a revision number.
         """
 
         self.drift_from_active()
@@ -1062,14 +1109,126 @@ class DriftRevocationTests(WizardTestCase):
         after = self.read_state()
         self.assertEqual(code, W.EXIT_DRIFT)
         self.assertEqual(payload["invalidated_gates"], ["activation"])
-        self.assertIsNone(after["confirmations"]["activation"])
-        self.assertEqual(after["revision"], before["revision"] + 1)
-        self.assertNotEqual(after["updated_at"], before["updated_at"])
-        # No transition was invented to carry it: the state and the history
-        # length are exactly what they were.
-        self.assertEqual(after["state"], before["state"])
-        self.assertEqual(len(after["history"]), len(before["history"]))
         self.assertFalse(payload["flagged"])
+        self.assert_revocation_receipt(
+            before, after,
+            contract_sha256=payload["contract_drift"]["current_contract_sha256"],
+        )
+
+    def test_the_failed_pilot_walk_revokes_earlier_and_leaves_a_transition(self):
+        """PILOT_PASSED → confirm-activation → pilot FAIL → DEGRADED → check-drift.
+
+        Walking it shows *why* the no-transition branch is a guard and not the
+        normal route: the failing pilot writes a new receipt, the activation
+        grant is bound to the old one, so it is already gone by the time
+        ``check-drift`` runs. That revocation is not silent either — it rides
+        the ``record-pilot-fail`` transition, which is the whole reason the
+        self-loop receipt must *not* also be appended here.
+
+        Which leaves ``check-drift`` with nothing to persist. It still reports
+        the drift, and the record still says the more urgent thing: the pilot
+        has not passed.
+        """
+
+        self.stage_pilot()
+        self.run_cli("confirm-activation")
+        self.assertIsNotNone(self.read_state()["confirmations"]["activation"])
+
+        code, payload = self.run_cli(
+            "record-pilot",
+            "--config", self.fixture("config.json"),
+            "--nightly-manifest", self.fixture("nightly-manifest-degraded.json"),
+            "--acceptance", self.fixture("acceptance.json"),
+            "--collect-manifest", self.fixture("collect-manifest.json"),
+        )
+        self.assertEqual(code, W.EXIT_PILOT_FAILED)
+        self.assertIn("activation", payload["invalidated_gates"])
+        before = self.read_state()
+        self.assertEqual(before["state"], "DEGRADED")
+        self.assertEqual(before["degraded_reason_code"], "pilot_failed")
+        self.assertIsNone(before["confirmations"]["activation"])
+        # The evidence is the transition itself; no self-loop was added.
+        self.assertEqual(before["history"][-1]["event"], "record-pilot-fail")
+        self.assertNotIn(
+            "revoke-activation", [entry["event"] for entry in before["history"]]
+        )
+
+        code, payload = self.run_cli(
+            "check-drift", "--config", self.config_copy(detail_cap=11)
+        )
+        after = self.read_state()
+        self.assertEqual(code, W.EXIT_DRIFT, "drift is still reported")
+        self.assertTrue(payload["contract_drift"]["drifted"])
+        self.assertEqual(payload["invalidated_gates"], [])
+        self.assertFalse(payload["activation_authorization_revoked"])
+        self.assertEqual(payload["state"], "DEGRADED")
+        self.assertEqual(payload["degraded_reason_code"], "pilot_failed")
+        self.assertEqual(payload["next_step"], "rerun_pilot")
+        self.assertFalse(payload["flagged"])
+        self.assertEqual(after, before, "nothing left to revoke, so nothing written")
+
+    def test_a_stale_binding_noticed_by_status_also_leaves_evidence(self):
+        """The other no-transition revocation path: `status` itself.
+
+        ``status`` reads, but it also drops confirmations whose binding preimage
+        no longer matches — and that is a persisted semantic change. Without a
+        receipt the user sees ``next_step`` jump back to ``confirm_activation``
+        with nothing in the history to explain it.
+        """
+
+        self.stage_pilot()
+        self.run_cli("confirm-activation")
+        with S.session(self.state_dir) as sess:
+            state = sess.require_healthy()
+            state["contract_sha256"] = "c" * 64
+            W._commit_without_transition(sess, state, self.tick())
+        before = self.read_state()
+        self.assertIsNotNone(before["confirmations"]["activation"])
+
+        code, payload = self.run_cli("status")
+        after = self.read_state()
+        self.assertEqual(code, W.EXIT_OK)
+        self.assertEqual(payload["invalidated_gates"], ["activation"])
+        self.assert_revocation_receipt(before, after, contract_sha256="c" * 64)
+
+    def test_the_flag_drift_path_records_the_revocation_only_once(self):
+        """No double bookkeeping where a transition already says it.
+
+        From ACTIVE the drift is carried by a real ``flag-drift`` transition,
+        which is itself the audit record. Appending a second self-loop entry
+        for the same event would make one revocation look like two.
+        """
+
+        self.stage_active(config=self.fixture("config.json"))
+        before = self.read_state()
+        code, payload = self.run_cli(
+            "check-drift", "--config", self.config_copy(detail_cap=11)
+        )
+        after = self.read_state()
+        self.assertEqual(code, W.EXIT_DRIFT)
+        self.assertTrue(payload["flagged"])
+        self.assertEqual(payload["invalidated_gates"], ["activation"])
+        self.assertEqual(len(after["history"]), len(before["history"]) + 1)
+        self.assertEqual(after["history"][-1]["event"], "flag-drift")
+        self.assertNotIn(
+            "revoke-activation", [entry["event"] for entry in after["history"]]
+        )
+
+    def test_a_revocation_receipt_is_a_valid_state_document(self):
+        """The audit entry must survive the same validator as everything else."""
+
+        self.drift_from_active()
+        with S.session(self.state_dir) as sess:
+            state = sess.require_healthy()
+            W._grant(state, "activation", self.tick())
+            W._commit_without_transition(sess, state, self.tick())
+        self.run_cli("check-drift", "--config", self.config_copy(detail_cap=11))
+
+        code, payload = self.run_cli("status")
+        self.assertEqual(code, W.EXIT_OK)
+        self.assertTrue(payload["healthy"])
+        self.assertNotIn("integrity_reason", payload)
+        self.assertEqual(self.read_state()["history"][-1]["event"], "revoke-activation")
 
     def test_no_command_edits_the_degraded_reason_outside_a_transition(self):
         """A structural guard: the shortcut must stay unavailable by shape.
@@ -1942,6 +2101,259 @@ class BrokenOutputSinkTests(WizardTestCase):
         with redirect_stdout(buffer):
             W._silence_broken_stdout()
         self.assertEqual(buffer.getvalue(), "")
+
+
+class PublicationConsentWalkTests(WizardTestCase):
+    """The sentence the user actually confirms, checked through the CLI.
+
+    ``test_rt032_contract_fidelity`` proves the resolver agrees with the
+    pipeline. That is necessary and not sufficient: what a person consents to
+    is the *rendered contract* a wizard command printed, and what runs is the
+    argv a wizard command emitted. Those are separate artifacts, produced by
+    separate code paths, and either could drop the truth on the floor while the
+    resolver stayed correct.
+
+    So these walk the real commands. The property under test is one sentence:
+    **nobody may confirm "nothing leaves this machine" while nightly would
+    publish**, and no read-, publish- or startup-relevant setting may change
+    without either changing the hash their yes is bound to or being refused
+    outright.
+    """
+
+    def contract_for(self, **overrides) -> tuple[dict, str]:
+        """Drive ``render-contract`` and hand back what it showed the user.
+
+        Deliberately the payload, not a re-computation: the object asserted on
+        below is the one a person would have been read aloud.
+        """
+        config = self.config_copy(**overrides)
+        self.stage_profile()
+        code, payload = self.run_cli("render-contract", "--config", config)
+        self.assertEqual(code, W.EXIT_OK, payload)
+        return payload["contract"], W.compute_contract_sha256(payload["contract"])
+
+    # ── the reproduction from the review ──────────────────────────────────
+
+    def test_wiki_publishing_is_disclosed_even_when_docdb_sync_is_off(self):
+        """The exact config the review used to get a false "publishing is off".
+
+        Nightly's wiki sync hangs off ``if args.wiki_sync`` at the top level;
+        it does not ask about ``sync_docdb`` first. A contract that folded the
+        two into one "publishing" flag would tell the user nothing leaves the
+        machine, and then ship their Wiki pages to DocDB every night.
+        """
+        contract, _ = self.contract_for(sync_docdb=False, wiki_sync=True)
+        publishing = contract["publishing"]
+        self.assertFalse(publishing["sync_docdb"])
+        self.assertTrue(publishing["wiki_sync"])
+        self.assertTrue(publishing["any_external_publication"])
+        self.assertIn("docdb:wiki", publishing["targets"])
+        self.assertFalse(publishing["dry_run"], "the scheduled argv carries no --sync-dry-run")
+
+    def test_the_markdown_a_user_reads_says_wiki_leaves_the_machine(self):
+        """The JSON being right does not help if the prose contradicts it."""
+        config = self.config_copy(sync_docdb=False, wiki_sync=True)
+        self.stage_profile()
+        code, payload = self.run_cli("render-contract", "--config", config)
+        self.assertEqual(code, W.EXIT_OK)
+        markdown = payload["contract_markdown"]
+        self.assertIn("wiki/ 发布到 DocDB：开", markdown)
+        self.assertIn("本次是否有内容离开这台机器：是", markdown)
+
+    def test_turning_wiki_sync_off_and_on_are_not_the_same_confirmation(self):
+        """Same hash for both would mean a yes to one covers the other."""
+        _, on = self.contract_for(sync_docdb=False, wiki_sync=True)
+        self.setUp()
+        _, off = self.contract_for(sync_docdb=False, wiki_sync=False)
+        self.assertNotEqual(on, off)
+
+    def test_with_everything_off_the_contract_says_nothing_is_published(self):
+        """The honest "off" case, so the "on" assertions above mean something."""
+        contract, _ = self.contract_for(sync_docdb=False, wiki_sync=False)
+        publishing = contract["publishing"]
+        self.assertFalse(publishing["any_external_publication"])
+        self.assertEqual(publishing["targets"], [])
+
+    # ── the aliases that reach the same switch by another name ────────────
+
+    def test_the_sync_wiki_alias_changes_the_contract_the_user_signs(self):
+        """``sync_wiki`` is not ``wiki_sync``; it is the compile stage upstream.
+
+        It still changes what the run reads and produces, so it still has to
+        move the hash. Silently treating it as decoration is exactly the
+        "partial hand-maintained list" failure this pins shut.
+        """
+        _, plain = self.contract_for(sync_docdb=True)
+        self.setUp()
+        contract, aliased = self.contract_for(sync_docdb=True, sync_wiki=True)
+        self.assertNotEqual(plain, aliased)
+        # And the derivation is reported, not guessed: sync_wiki turns the
+        # compile stage on, which with sync_docdb turns publication on.
+        self.assertTrue(contract["wiki_pipeline"]["compile"])
+        self.assertTrue(contract["publishing"]["wiki_sync"])
+
+    def test_sync_wiki_without_docdb_sync_still_publishes_nothing(self):
+        """Upstream ANDs them. Over-reporting publication would be its own lie."""
+        contract, _ = self.contract_for(sync_wiki=True)
+        self.assertTrue(contract["wiki_pipeline"]["compile"])
+        self.assertFalse(contract["publishing"]["any_external_publication"])
+
+    # ── the settings that make the scheduled run unrunnable ───────────────
+
+    def test_cloud_first_is_refused_before_anyone_is_asked_to_confirm(self):
+        """``enforce_cloud_pause`` would kill every scheduled run at startup.
+
+        The scheduled argv is fixed at ``--config/--run-name/--date``, so it
+        can never carry ``--experimental-cloud-first``. Rendering a cheerful
+        contract for that config would ask someone to authorise a nightly job
+        that exits before it does anything — and then leave them believing
+        their mirror is current. Refusing early is the only honest answer.
+        """
+        config = self.config_copy(cloud_first=True)
+        self.stage_profile()
+        code, payload = self.run_cli("render-contract", "--config", config)
+        self.assertEqual(code, W.EXIT_REFUSED)
+        self.assertFalse(payload["ok"])
+        self.assertNotIn("contract", payload, "a refused contract must not be shown at all")
+
+    def test_the_cloud_query_catalog_is_refused_for_the_same_reason(self):
+        config = self.config_copy(publish_cloud_query_catalog=True)
+        self.stage_profile()
+        code, payload = self.run_cli("render-contract", "--config", config)
+        self.assertEqual(code, W.EXIT_REFUSED)
+        self.assertFalse(payload["ok"])
+
+    def test_a_refusal_names_the_setting_but_leaks_no_path(self):
+        """It has to be actionable. It still may not say where the file lives."""
+        config = self.config_copy(cloud_first=True)
+        self.stage_profile()
+        code, text = self.run_cli_raw("render-contract", "--config", config)
+        self.assertEqual(code, W.EXIT_REFUSED)
+        self.assertIn("cloud_first", text)
+        self.assert_no_absolute_path(text)
+
+    def test_an_unschedulable_setting_cannot_reach_the_pilot_gate_either(self):
+        """Every door, not just the first one.
+
+        ``record-pilot`` takes the same ``--config``. If only ``render-contract``
+        refused, the same bad config would walk in through the pilot and the
+        installation would end up bound to a contract nobody could render.
+        """
+        config = self.config_copy(cloud_first=True)
+        self.stage_profile()
+        code, payload = self.run_cli(
+            "record-pilot",
+            "--config", config,
+            "--nightly-manifest", self.fixture("nightly-manifest.json"),
+            "--acceptance", self.fixture("acceptance.json"),
+            "--collect-manifest", self.fixture("collect-manifest.json"),
+        )
+        self.assertEqual(code, W.EXIT_REFUSED)
+        self.assertFalse(payload["ok"])
+        self.assertEqual(self.read_state()["state"], "PROFILE_CONFIRMED", "no transition")
+
+    def test_the_handoff_refuses_an_unschedulable_config_too(self):
+        """The last door: nothing unschedulable may reach a scheduler.
+
+        The bad config is written *inside* the project on purpose. Out of tree
+        it would be refused for naming an absolute path, and the test would
+        pass without ever reaching the check it claims to cover.
+        """
+        self.stage_pilot(config=self.fixture("config.json"))
+        self.run_cli("confirm-activation")
+        bad = self.project_config_copy(cloud_first=True)
+        code, text = self.run_cli_raw("schedule-handoff", "--config", bad)
+        self.assertEqual(code, W.EXIT_REFUSED)
+        self.assertIn("cloud_first", text, "refused for the wrong reason")
+        self.assertFalse(json.loads(text)["ok"])
+
+    def test_the_handoff_refuses_a_config_that_is_not_the_confirmed_one(self):
+        """Found while closing the one above, and worse than it.
+
+        The handoff writes ``--config <the path given on this command line>``
+        into the argv a scheduler will run every night, but it was validating
+        the contract *stored on disk* — which of course still matched, because
+        it came from the good config. So a handoff could be bound to contract A
+        while pointing the nightly run at config B. Nobody had to be malicious:
+        two configs in a tree and one wrong tab-completion is enough.
+
+        The confirmed sentence and the sentence that will actually run have to
+        be the same sentence, so the config on the command line is re-resolved
+        here and required to match the hash the consent is bound to.
+        """
+        self.stage_pilot(config=self.fixture("config.json"))
+        self.run_cli("confirm-activation")
+
+        substitute = self.project_config_copy(sync_docdb=True, wiki_sync=True)
+        code, payload = self.run_cli("schedule-handoff", "--config", substitute)
+        self.assertEqual(code, W.EXIT_REFUSED)
+        self.assertFalse(payload["ok"])
+        self.assertIsNone(
+            self.read_state()["schedule_handoff_sha256"],
+            "a refused handoff must not be recorded as if it had been produced",
+        )
+        self.assertFalse((self.state_dir / W.SCHEDULER_HANDOFF_FILE).exists())
+
+    def test_the_handoff_still_succeeds_for_the_config_that_was_confirmed(self):
+        """The guard above must not have made the normal path unreachable."""
+        self.stage_pilot(config=self.fixture("config.json"))
+        self.run_cli("confirm-activation")
+        code, payload = self.run_cli(
+            "schedule-handoff", "--config", self.fixture("config.json")
+        )
+        self.assertEqual(code, W.EXIT_OK, payload)
+        self.assertEqual(
+            payload["handoff"]["contract_sha256"], self.read_state()["contract_sha256"]
+        )
+
+    def test_an_equivalent_config_at_another_path_is_accepted(self):
+        """The binding is to the contract, not to the filename.
+
+        A user may legitimately move or copy their config. What must match is
+        what it resolves to; requiring the same path would be a stricter rule
+        than the one consent was actually given under, and would send people
+        back through both gates for a rename.
+        """
+        self.stage_pilot(config=self.fixture("config.json"))
+        self.run_cli("confirm-activation")
+        twin = self.project_config_copy()  # same content, different location
+        code, payload = self.run_cli("schedule-handoff", "--config", twin)
+        self.assertEqual(code, W.EXIT_OK, payload)
+
+    # ── the whole point: consent has to come apart when the config does ───
+
+    def test_flipping_wiki_sync_under_a_live_activation_revokes_the_consent(self):
+        """End to end: a confirmed, scheduled installation, then wiki_sync on.
+
+        This is the reproduction stated as a user outcome rather than a hash
+        comparison. They said yes to a nightly run that published nothing. If
+        someone turns Wiki publication on afterwards, the old yes must stop
+        authorising anything before the next run.
+        """
+        quiet = self.project_config_copy(sync_docdb=False, wiki_sync=False)
+        self.stage_active(config=quiet)
+        self.assertEqual(self.read_state()["state"], "ACTIVE")
+
+        loud = self.project_config_copy(sync_docdb=False, wiki_sync=True)
+        code, payload = self.run_cli("check-drift", "--config", loud)
+        self.assertEqual(code, W.EXIT_DRIFT)
+        self.assertIn("activation", payload["invalidated_gates"])
+        self.assertEqual(self.read_state()["state"], "NEEDS_RECONFIRMATION")
+
+        # And the consequence that matters: nothing may be scheduled on it.
+        code, _ = self.run_cli("schedule-handoff", "--config", loud)
+        self.assertEqual(code, W.EXIT_REFUSED)
+
+    def test_making_a_live_installation_unschedulable_refuses_rather_than_drifts(self):
+        """Fail closed beats drift-report when the new config cannot run at all."""
+        self.stage_active(config=self.fixture("config.json"))
+        broken = self.config_copy(cloud_first=True)
+        code, payload = self.run_cli("check-drift", "--config", broken)
+        self.assertEqual(code, W.EXIT_REFUSED)
+        self.assertFalse(payload["ok"])
+        # A refusal is not a verdict about the installation, so it must not
+        # quietly downgrade one that is still running on the old config.
+        self.assertEqual(self.read_state()["state"], "ACTIVE")
 
 
 if __name__ == "__main__":
