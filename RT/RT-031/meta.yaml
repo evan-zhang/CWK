@@ -8,12 +8,13 @@ modules:
   - installation
   - skill-entrypoint
   - internal-distribution
-branch: null
-worktree: null
+  - sandbox-integration
+branch: feature/RT-031-openclaw-install-modes
+worktree: .claude/worktrees/RT-031-openclaw-install-modes
 tool: Codex
 owner: Codex
 created_at: 2026-09-01T07:25:37Z
-updated_at: 2026-09-01T08:02:00Z
+updated_at: 2026-09-01T12:27:42Z
 closed_at: null
 deferred_items_raised: []
 deferred_items_claimed: []
@@ -23,5 +24,6 @@ external_ids:
   other: null
 notes: >
   让已获授权的内部员工在自己的 OpenClaw Agent 上，用自己的工作协同 Key 与本地配置，
-  通过短小、可执行的步骤安装、自检并进行一次个人或获批团队目标的只读试跑；不触及
-  PR-001 受保护工作树、真实数据、生产调度或凭据。
+  通过短小、可执行的步骤安装、自检并进行一次个人或获批团队目标的只读试跑；续做阶段
+  补齐 sandbox / 非 sandbox、宿主管理 Skill / Workspace 自助 Skill / AGENTS.md 路由 /
+  仅安装核心程序四类接入模式。不触及 PR-001 受保护工作树、真实数据、生产调度或凭据。
