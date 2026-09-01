@@ -265,7 +265,7 @@ CC-1 的实现被自己的测试抓出过一个真漏洞：最初对 `ci.yml` �
 
 ## 8. 门会咬人的证据
 
-`tests/test_governance_audit.py`，56 个用例，全部在合成仓库上做**改坏 → 必须红**
+`tests/test_governance_audit.py`，62 个用例，全部在合成仓库上做**改坏 → 必须红**
 与**合规 → 必须绿**的双向验证。合成仓库先自证基线为绿
 （`TestSyntheticBaselineIsClean`），否则后面所有「改坏就红」的断言都没有意义。
 
@@ -280,7 +280,7 @@ CC-1 的实现被自己的测试抓出过一个真漏洞：最初对 `ci.yml` �
 | 冻结契约被动即红 | `TestUpstreamFrozenContracts` 两例 |
 | DI-001 续槽可用、不可越界、不可绕开仍有余量的 v1 | `TestContinuationSlots` 七例 |
 | DI-002 双向闭合 | `TestLegacyFamilyEvolution` 五例（含「假回执不能洗白漂移」） |
-| 补偿控制是真的 | `TestCompensatingControlsAreReal` 六例 |
+| 补偿控制是真的（含 CI 历史深度） | `TestCompensatingControlsAreReal` 十二例；checkout 缺失、`1`、字符串、仅注释或把 `0` 放在别的 step 都必须失败 |
 | 门自己也被管住 | `TestGateGovernsItself` 十例 |
 | 当前真实树确实全覆盖 | `TestRealRepository` 四例 |
 
@@ -296,7 +296,37 @@ CC-1 的实现被自己的测试抓出过一个真漏洞：最初对 `ci.yml` �
    `default_steward: "CWK maintainer"`。这 53 个文件里
    `cwk_ai_common.py`（模型允许清单）与 `cwk_cloud_wiki_compile.py`
    （默认模型字面量）已标为 `high_risk_members`，是否要指定具体的人或 RT 承接，
-   由用户决定。
+由用户决定。
+
+## 10. GitHub CI 的历史深度修复（RT-030 收尾）
+
+`origin/main` 的 GitHub Actions run `33406645370`（提交
+`16b4ee0`）在 2026-08-31 失败：2111 项中 18 项失败、10 项跳过。Actions 日志显示
+`actions/checkout@v4` 使用默认的 `fetch-depth: 1`。失败项全部属于
+`test_pr001_release_gate_validation` 的历史／as-of 解析路径；这不是产品运行路径问题。
+
+为避免把相关性当作根因，使用同一提交 `16b4ee0` 与字节相同的工作树做了只读对照，
+唯一变量是可达 Git 提交数：
+
+| 树 | 可达提交 | 命令 | 结果 |
+|---|---:|---|---|
+| `/tmp/rt030-repro/shallow` | 1 | `/opt/homebrew/bin/python3.11 -m unittest tests.test_pr001_release_gate_validation -v` | 182 项，18 失败，退出码 1，耗时 3144.016s |
+| `/tmp/rt030-repro/full` | 94 | 同上 | 182 项全过，退出码 0，耗时 3104.499s |
+
+浅树的 18 项失败与 GitHub 的失败数量及类别一致；局部签名、格式和拒绝性断言仍通过，
+需要回读祖先提交的授权、归档、委派根与版本索引断言失败。完整历史树以同一命令
+182 项全过。由此根因是 checkout 遗漏历史对象，而不是当前工作树字节、Python 或 KDF
+环境。
+
+修法是 checkout 的真实 step 加 `with: fetch-depth: 0`。这不是只靠注释约定：EX-001
+补偿控制新增 CC-4，governance-audit 对实际 `actions/checkout` step 做结构化轻解析，
+只接受该 step 内的裸数字 `fetch-depth: 0`。缺失、`1`、字符串、仅注释，以及把
+`fetch-depth: 0` 放在 setup step 的反向用例均必须报 `GA-CONTROL`；原有真实
+`run: make ci` 审核（CC-1）保留不变。
+
+这次按 `cwk-governance-repin-v1` 更新了 `.github/workflows/ci.yml` 与
+`governance-audit.py` 的受管 pin：先写 RT 理由和实现，再从实际文件计算 SHA-256，
+然后更新 manifest 并重跑审计；没有手填或伪造指纹。
 3. **RT-029 状态不一致**（本 RT 发现，未擅自改动）：
    `RT/index.yaml` 记 RT-029 为 `in-progress`，而 `RT/RT-029/meta.yaml` 记
    `completed`。这是历史记录的事实差异，属于 RT-029 的收口面，
