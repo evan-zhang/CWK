@@ -459,7 +459,7 @@ from pathlib import Path
 project = Path(sys.argv[1])
 sys.path.insert(0, str(project / "scripts"))
 try:
-    import cwk_activation_state as activation
+    import activation_state as activation
 
     print(activation.readiness(project / "state" / "activation")["status"].upper())
 except (ImportError, OSError, ValueError):

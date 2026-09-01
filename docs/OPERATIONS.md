@@ -12,8 +12,8 @@ handoff describing one; the host creates it, and the operator records the
 identifier the host assigned:
 
 ```bash
-python3 scripts/cwk_activation_wizard.py status
-python3 scripts/cwk_activation_wizard.py check-drift --config cwk-mirror.local.json
+python3 scripts/activation_wizard.py status
+python3 scripts/activation_wizard.py check-drift --config cwk-mirror.local.json
 ```
 
 `check-drift` is the operational command. Config or contract changed ⇒ the

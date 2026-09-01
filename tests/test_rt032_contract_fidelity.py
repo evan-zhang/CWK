@@ -5,7 +5,7 @@ night?". If it says "publishing: off" and the run publishes, the answer they
 gave was to a different question — the consent is void even though every gate
 was walked correctly. So "close enough" is not a passing grade here.
 
-``cwk_activation_contract`` cannot simply call into ``cwk_nightly_pipeline``:
+``activation_contract`` cannot simply call into ``cwk_nightly_pipeline``:
 that module lives under PR-001 script-evolution governance and is owned by
 another RT, and importing it executes ``load_local_env(PROJECT/'.env')`` at
 import time — which would pull credentials into the wizard's process merely
@@ -58,7 +58,7 @@ from unittest import mock
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "scripts"))
 
-import cwk_activation_contract as C  # noqa: E402
+import activation_contract as C  # noqa: E402
 
 PIPELINE_PATH = PROJECT / "scripts" / "cwk_nightly_pipeline.py"
 PIPELINE_SOURCE = PIPELINE_PATH.read_text(encoding="utf-8")
@@ -1530,7 +1530,7 @@ class ProjectEnvLocationTests(unittest.TestCase):
         ever started steering this too, an attacker-supplied directory could
         decide which file the user is shown a contract for.
         """
-        source = (PROJECT / "scripts" / "cwk_activation_wizard.py").read_text(
+        source = (PROJECT / "scripts" / "activation_wizard.py").read_text(
             encoding="utf-8"
         )
         self.assertNotIn("project_env_root", source)
@@ -2079,7 +2079,7 @@ class UpstreamCompositionPinTests(unittest.TestCase):
             self.main_source,
             "the nightly pipeline no longer resolves this setting the way the "
             "execution contract assumes; re-derive the copy in "
-            "cwk_activation_contract.resolve_nightly_runtime before touching this pin",
+            "activation_contract.resolve_nightly_runtime before touching this pin",
         )
 
     def test_integer_settings_still_take_config_over_environment(self):
@@ -2195,7 +2195,7 @@ class UpstreamCompositionPinTests(unittest.TestCase):
     def test_the_contract_module_still_refuses_to_import_the_pipeline(self):
         """This file loads a sanitized copy. The wizard's own modules may not."""
 
-        for name in ("cwk_activation_contract", "cwk_activation_state", "cwk_activation_wizard"):
+        for name in ("activation_contract", "activation_state", "activation_wizard"):
             with self.subTest(module=name):
                 source = (PROJECT / "scripts" / f"{name}.py").read_text(encoding="utf-8")
                 self.assertIsNone(

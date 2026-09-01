@@ -103,7 +103,7 @@ INSTALLED
 
 | 命令 | 结果 |
 | --- | --- |
-| `python3.11 -m py_compile scripts/cwk_activation_{state,contract,wizard}.py` | 通过 |
+| `python3.11 -m py_compile scripts/activation_{state,contract,wizard}.py` | 通过 |
 | `python3.11 -m unittest tests.test_rt032_activation_state` | 40 passed |
 | `python3.11 -m unittest tests.test_rt032_activation_contract` | 44 passed |
 | `python3.11 -m unittest tests.test_rt032_activation_wizard` | 45 passed |
@@ -138,7 +138,7 @@ INSTALLED
 
 | 命令 | 结果 |
 | --- | --- |
-| `python3.11 -m py_compile scripts/cwk_activation_{state,contract,wizard}.py` | 通过 |
+| `python3.11 -m py_compile scripts/activation_{state,contract,wizard}.py` | 通过 |
 | `python3.11 -m unittest tests.test_rt032_activation_state` | 40 passed |
 | `python3.11 -m unittest tests.test_rt032_activation_contract` | 52 passed |
 | `python3.11 -m unittest tests.test_rt032_activation_wizard` | 63 passed |
@@ -166,7 +166,7 @@ INSTALLED
    时返回 `EXIT_USAGE`，但 CPython 在解释器退出时**还会再 flush 一次** stdout：管道
    已断时那次 flush 会失败，把退出码改写成 **120** 并在 stderr 打印
    `Exception ignored in: <_io.TextIOWrapper …>`。也就是说
-   `cwk_activation_wizard … | head -1` 的真实退出码根本不在本模块承诺的 `EXIT_*` 里，
+   `activation_wizard … | head -1` 的真实退出码根本不在本模块承诺的 `EXIT_*` 里，
    Skill 无法解析。现按 CPython 对 SIGPIPE 的建议，把 stdout 的描述符改指
    `os.devnull` 后再返回，退出时那次 flush 落进空洞。实测：修复前进程退出码 120 +
    stderr 有噪声，修复后退出码 2、stderr 干净。测试用受控假 sink（首字节即断、
@@ -183,7 +183,7 @@ INSTALLED
 
 | 命令 | 结果 |
 | --- | --- |
-| `python3.11 -m py_compile scripts/cwk_activation_{state,contract,wizard}.py` | 通过 |
+| `python3.11 -m py_compile scripts/activation_{state,contract,wizard}.py` | 通过 |
 | `python3.11 -m unittest tests.test_rt032_activation_state` | 40 passed |
 | `python3.11 -m unittest tests.test_rt032_activation_contract` | 52 passed |
 | `python3.11 -m unittest tests.test_rt032_activation_wizard` | 83 passed（+20） |
@@ -234,14 +234,14 @@ NEEDS_RECONFIRMATION → propose-profile`，此时 activation 门本来仍然有
 `input/output error`、`pass/fail`、`yes/no/maybe`、`24/7` 一律保留。
 
 **5. 安装保持零副作用。** `install.sh` 在 `CWK_CORE_READY` 之后只增加一行
-`CWK_ACTIVATION=<状态>`：它调用 `cwk_activation_state.readiness()` 这个**只读探针**
+`CWK_ACTIVATION=<状态>`：它调用 `activation_state.readiness()` 这个**只读探针**
 （不 mkdir、不加锁、不写），装完仍然没有私有激活状态、没有任何定时任务。四种接入模式
 逐一验证过这一点；已有状态的字节不被改动；状态损坏时报 `UNREADABLE` 而**不是**
 `NOT_STARTED`——后者是唯一会让已排期的运行显得无辜的答案——但安装本身照常成功，
 否则用户没法靠重装脱困。
 
 **6. `doctor` 转述而不重算。** 新增 `activation` 检查项，直接复用
-`cwk_activation_state.readiness()`，不在 `cwk_doctor.py` 里重建状态表（已加静态断言
+`activation_state.readiness()`，不在 `cwk_doctor.py` 里重建状态表（已加静态断言
 钉住：doctor 源码里不得出现 `PILOT_PASSED` 之类的状态词）。模块从 doctor 自己的包目录
 导入，**绝不**从 `--project-dir` 导入——被检查的项目是数据，从里面 import Python 就把
 「检查」变成了「执行」（已加炸弹用例）。输出只有枚举、状态名和下一步，无路径/哈希/
@@ -314,7 +314,7 @@ AST/源码断言**钉住上游的组合方式**，上游一改就红在这里而
 「今晚会发布镜像」的合同点头，而实际那台机器上跑的是另一件事。
 
 **阻断 2：只读探针遇到符号链接必须失败关闭，且不吐 traceback / 绝对路径。**
-`cwk_activation_state.readiness()` 改为 lstat/不跟随判定，并同时接住 `OSError` 与
+`activation_state.readiness()` 改为 lstat/不跟随判定，并同时接住 `OSError` 与
 `AtomicFileError`/containment 失败（`cwk_atomic_file` 的 `open_dir_nofollow` 抛的是
 后者，不是 `OSError`——原来的 `except OSError` 接不住，异常会一路穿出去）。
 `cwk_doctor.py` 两处守卫同步加宽为 `except Exception` 并附理由；兜底负载改为调用新
@@ -590,6 +590,107 @@ scope schema、无错误回显与路径泄漏、RT-031 四模式、安装零副�
 2 个脚本、4 个测试文件与 2 份文档里。真实 CWork/DocDB、`.env`、凭据、定时任务、
 Gateway、远端一律未触发。**仍未跑完整 `make ci`**，按协调留给下一次独立复审之后。
 
+## 第八轮整改（完整 CI 的真实回归：71 个 PR-001 门禁失败）
+
+**这不是 runner 的问题。** 首次完整 `make ci` 被执行工具超时截断，但截断前的进度里已有
+71 个真实失败；在最小化净化环境与普通环境下都能独立复现。全部 71 条**共用同一个根因**：
+消息逐字相同（`missing v2 security owner scope for RT-017`），调用链逐帧相同
+（`setUp` → `materialize_valid_g6_world` → `materialize_security_receipts`
+→ `test_pr001_release_gate_validation.py:1453`）。没有第二个根因。分布在 7 个测试类里，
+按进度点排成 20 + 32 + 14 + 5 四簇，全部落在 `tests.test_pr001_release_gate_validation`
+这一个模块内（该模块 182 tests / 71 failures）。
+
+**根因：`scripts/cwk_*.py` 不是命名习惯，而是一张冻结安全清单的成员判据。**
+`tests/pr001_evidence_binding.py:1564` 处：
+
+```python
+actual_managed = {p for p in all_records if namespace.fullmatch(p) or p in explicit}
+if not actual_managed <= declared_managed:
+    return None  # a new managed script has no frozen owner/category
+```
+
+`namespace` 就是 `^scripts/cwk_[a-z0-9_]+\.py$`。而门禁夹具是
+`git clone --shared <本仓库>`——它把**真实仓库的 HEAD** 克隆进去，于是 RT-032 新增的三个
+`scripts/cwk_activation_*.py` 出现在 `all_records` 里，落在
+owner/central/legacy 三族之外，闭包判定失败关闭，`security_owner_scope_tree_sha256`
+返回 `None`，RT-017…026 的历史 owner-scope 快照全部拿不到摘要。实测确认：受跟踪文件中
+落在该命名空间内、却未被声明的路径**恰好只有那三个**（declared 102，actual 67，
+undeclared 3）。
+
+**GA-ORPHAN 清零并不等于进了 PR-001 的登记表。** 这是两道问不同问题的门：AODW 治理问
+「这个文件有没有主」，PR-001 问「这个文件在不在我冻结的集合里」。第六轮给
+`R-runtime-rt032-activation` 建的 exact_set 规则只回答了前一个问题——它的 rationale 甚至
+已经写明「这三个新文件不在该集合内」，但没人把这句话接到 PR-001 那道门上。往
+PR-001 登记表里加三行、或凭空开 v2 演化槽位，都是伪造别人冻结证据里的成员资格，不做。
+
+**修法：把三个模块移出那个保留命名空间。** 备选方案按「直接 CLI 调用 / 同级 import /
+`cwk_doctor.py` / 安装与分发复制 / py_compile 与构建覆盖 / Skill 与文档命令 / 治理
+exact-set 归属 / 路径隐私 / 测试」逐条评估，选 `scripts/activation_*.py`，因为它是唯一
+**零附带改动**的一条路：
+
+| 判据 | `scripts/activation_*.py`（选中） | `scripts/activation/` 子包 |
+| --- | --- | --- |
+| `.env` 根算式 `parents[1]` | **逐字不变**，与上游 `PROJECT` 仍同一算式 | 要改成 `parents[2]`，动到第七轮刚钉死的最敏感不变量 |
+| `py_compile scripts/*.py` | 自动覆盖 | 漏掉，Makefile 要改 |
+| Makefile（sha 已 pin） | 不用动，不用重新 pin | 要动要重新 pin |
+| `sys.path.insert(0, scripts)` 同级 import | 不变 | 不变 |
+| 分发复制 | `scripts/` 整目录，不变 | 不变 |
+| 直接 CLI | `python3 scripts/activation_wizard.py` | 包内直跑要额外处理 |
+
+先例是现成的：`scripts/cwk_wiki_batch_driver.sh` 本来就在 PR-001 命名空间之外、由 AODW
+清单直管。代价是打破了「`scripts/` 下全是 `cwk_` 前缀」这条不成文习惯——但把归属写进
+路径本身，比藏在一张别人的登记表里更容易看见。
+
+**迁移映射（三条，逐一改名，不留任何 `scripts/cwk_*.py` 兼容壳）：**
+
+| 旧路径 | 新路径 | 模块名 |
+| --- | --- | --- |
+| `scripts/cwk_activation_state.py` | `scripts/activation_state.py` | `activation_state` |
+| `scripts/cwk_activation_contract.py` | `scripts/activation_contract.py` | `activation_contract` |
+| `scripts/cwk_activation_wizard.py` | `scripts/activation_wizard.py` | `activation_wizard` |
+
+改名用 `git mv` 保留历史；引用是**统一前缀替换** `cwk_activation_` → `activation_`，
+因为全部 73 处引用无一例外都是这个前缀。覆盖 22 个文件：3 个脚本本体、`cwk_doctor.py`、
+`install.sh`、7 个测试、8 份文档/提示词、治理清单、以及本文件。改完
+`git grep cwk_activation` 为空。
+
+**新增回归（`ManagedScriptNamespaceTests`，5 条，落在 RT-032 自己的套件里）：** 直接调
+PR-001 **真实的** `_security_managed_inventory_parts` 解析登记表，再拿 `git ls-files`
+（与夹具看到的已提交内容同源，未跟踪文件本来就进不了克隆）对拍——不抄它的规则。四条分别
+断言：没有任何受跟踪文件进了该命名空间却未被声明；RT-032 的三个模块都在命名空间之外且
+确实存在；治理清单的 exact_set 与实际文件集合**逐条相等**（再加第四个模块必须显式登记，
+不会被吸收，因为 `scripts/` 是 exact-only 区、不许用前缀规则）；没有任何受跟踪文件还写着
+迁移前的模块名（needle 运行时拼出来，否则这份要描述迁移的文件会把自己搜出来）。
+**已做反向验证**：临时 `git add` 一个 `scripts/cwk_rt032_probe_delete_me.py`，第一条当场
+变红并点名该文件，移除后恢复绿；证明它咬得住，不是恒真断言。
+
+未削弱任何 PR-001 断言，未改动 PR-001/RT-026 的策略、登记表或测试，未调整任何预期清单
+计数。
+
+| 命令 | 结果 |
+| --- | --- |
+| 决定性首个失败（`DelegatedFamilyCanonicalReuseTests.test_capability_sequence_two_needs_archive_link_and_fresh_probe`） | 迁移前 FAIL → 迁移后 **1 passed** |
+| `python3.11 -m unittest tests.test_pr001_release_gate_validation` | 迁移前 182 tests / **71 failures** → 迁移后 **182 passed / 0 failures** |
+| `python3.11 -m py_compile scripts/*.py` | 通过（glob 自动覆盖三个改名模块） |
+| `bash -n install.sh` | 通过 |
+| `python3.11 -m unittest tests.test_rt032_activation_state` | 53 passed |
+| `python3.11 -m unittest tests.test_rt032_activation_contract` | 80 passed |
+| `python3.11 -m unittest tests.test_rt032_activation_wizard` | 143 passed |
+| `python3.11 -m unittest tests.test_rt032_activation_integration` | 45 passed（+5 新回归） |
+| `python3.11 -m unittest tests.test_rt032_contract_fidelity` | 109 passed |
+| `python3.11 -m unittest tests.test_rt032_nonregular_inputs` | 31 passed |
+| 六个 RT-032 模块合并运行 | 461 passed（上轮 456，+5） |
+| `python3.11 -m unittest tests.test_install_modes` | 67 passed（RT-031 四模式不回归） |
+| `python3.11 -m unittest tests.test_distribution tests.test_governance_audit` | 67 passed |
+| `python3.11 .aodw-next/06-project/governance-audit.py --root .` | 通过（613 个受跟踪文件） |
+| `bash .aodw-next/06-project/aodw-check.sh` | 通过 |
+| `git diff --check` | 通过（exit 0） |
+
+第七轮及更早的全部性质原样保留：`.env` 有效运行时模型（`parents[1]` 未动）、41 个行为
+设置、`contract_sha256` 与漂移、非阻塞读、闭合 scope schema、激活状态机、RT-031 四模式、
+安装零副作用。**本阶段仍未跑完整 `make ci`**，按要求留给下一次独立复审之后。NB-1…NB-5
+不在本阶段实现，仍记为非阻断待办。
+
 ## 变更记录
 
 - 2026-09-02：根据用户批准的安装后使用路径，确定独立 RT；采用“AI 沟通 + 确定性状态/回执”的激活架构，并与 RT-031 安装接入职责分离。
@@ -617,6 +718,18 @@ Gateway、远端一律未触发。**仍未跑完整 `make ci`**，按协调留�
   而不是永久挂住。`.env` 位置不接受任何外部输入，并由 AST 对拍钉死。对拍预言机改为驱动
   上游函数本身（`os` 打影子、跑完断言本进程环境未变），合同类套件一律指向空临时目录，
   测试全程不碰真实 `.env`。
+
+- 2026-09-02：第八轮整改（完整 CI 的真实回归）。首次完整 `make ci` 暴露 71 个真实失败，
+  全部同一根因：`scripts/cwk_*.py` 是 PR-001 冻结安全清单的成员判据，而不是命名习惯；
+  RT-032 新增的三个模块落在 owner/central/legacy 三族之外，使
+  `_security_scope_snapshot` 的闭包判定失败关闭，RT-017…026 的历史 owner-scope 摘要
+  全部取不到。GA-ORPHAN 清零回答的是「有没有主」，与 PR-001 的「在不在冻结集合里」
+  是两道门。修法是把三个模块移出保留命名空间——`cwk_activation_*` → `activation_*`，
+  仍留在 `scripts/` 下，因此 `.env` 根算式 `parents[1]`、`py_compile scripts/*.py`
+  覆盖、Makefile 的 sha pin、同级 import 与分发复制全部不用动；不留任何
+  `scripts/cwk_*.py` 兼容壳。73 处引用统一前缀替换，覆盖 22 个文件。新增
+  `ManagedScriptNamespaceTests` 直接调 PR-001 真实解析器对拍并做过反向验证。
+  未削弱 PR-001 断言，未改其策略/登记表/测试。
 
 ## 遗留事项
 

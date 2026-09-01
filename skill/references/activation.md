@@ -5,7 +5,7 @@ are two different acts. This reference covers the second one.
 
 The conversation is yours to drive. **The judgement is not.** Every decision
 that changes whether CWK may run automatically is made by
-`scripts/cwk_activation_wizard.py`: the state machine, the two human gates,
+`scripts/activation_wizard.py`: the state machine, the two human gates,
 the daily contract and its drift, the pilot verdict, and the scheduler handoff.
 You read its JSON and explain it. You never assert an outcome it did not emit.
 
@@ -39,7 +39,7 @@ the conversation. Do not ask the user which step they are on.
 
 ```bash
 cd "${CWK_PROJECT_DIR:-/workspace/CWK}"
-python3 scripts/cwk_activation_wizard.py status
+python3 scripts/activation_wizard.py status
 ```
 
 `state` is `UNINITIALIZED` before `init`. `next_step` is one of a fixed set of
@@ -96,7 +96,7 @@ small JSON document with exactly four keys and nothing else:
 Show it to them in full and get an explicit yes.
 
 ```bash
-python3 scripts/cwk_activation_wizard.py confirm-discovery --scope-file scope.json
+python3 scripts/activation_wizard.py confirm-discovery --scope-file scope.json
 ```
 
 Any fifth key is refused, including a comment field. This is deliberate: the
@@ -119,7 +119,7 @@ to work around.
 Discovery reads run artifacts the user already has. It does not call CWork.
 
 ```bash
-python3 scripts/cwk_activation_wizard.py record-discovery \
+python3 scripts/activation_wizard.py record-discovery \
   --scope-file scope.json \
   --collect-manifest runs/<run>/collect-manifest.json \
   --nightly-manifest runs/<run>/nightly-pipeline-manifest.json \
@@ -138,13 +138,13 @@ collaborators, reporting rhythm, primary lanes. Every claim must be traceable
 to something in the report. If the evidence is thin, say so and propose less.
 
 ```bash
-python3 scripts/cwk_activation_wizard.py propose-profile --profile-file profile.json
+python3 scripts/activation_wizard.py propose-profile --profile-file profile.json
 ```
 
 Present it as a proposal and invite correction. Then, and only then:
 
 ```bash
-python3 scripts/cwk_activation_wizard.py confirm-profile
+python3 scripts/activation_wizard.py confirm-profile
 ```
 
 ## 4. The daily execution contract — read it out loud
@@ -153,7 +153,7 @@ Before asking anyone to accept nightly automation, show them exactly what the
 nightly run will do. Render it and walk through it:
 
 ```bash
-python3 scripts/cwk_activation_wizard.py render-contract --config cwk-mirror.local.json
+python3 scripts/activation_wizard.py render-contract --config cwk-mirror.local.json
 ```
 
 The payload carries both the machine contract and a Markdown rendering. Cover
@@ -192,7 +192,7 @@ Run one real read-only nightly pass by the project's normal command, then hand
 its receipts to the gate:
 
 ```bash
-python3 scripts/cwk_activation_wizard.py record-pilot \
+python3 scripts/activation_wizard.py record-pilot \
   --config cwk-mirror.local.json \
   --nightly-manifest runs/<run>/nightly-pipeline-manifest.json \
   --acceptance runs/<run>/ACCEPTANCE-RESULT.json \
@@ -214,13 +214,13 @@ Do not roll this into the profile confirmation. Do not treat "the pilot looks
 good" as a yes.
 
 ```bash
-python3 scripts/cwk_activation_wizard.py confirm-activation
+python3 scripts/activation_wizard.py confirm-activation
 ```
 
 ## 7. Handoff — the host creates the task, not the repository
 
 ```bash
-python3 scripts/cwk_activation_wizard.py schedule-handoff --config cwk-mirror.local.json
+python3 scripts/activation_wizard.py schedule-handoff --config cwk-mirror.local.json
 ```
 
 The handoff describes the task: cadence, local run time, timezone, the exact
@@ -245,7 +245,7 @@ Give the handoff to the user. They create the task with their own host
 mechanism. When they report back the identifier the host assigned:
 
 ```bash
-python3 scripts/cwk_activation_wizard.py record-schedule \
+python3 scripts/activation_wizard.py record-schedule \
   --external-system openclaw --external-task-id <id-from-the-host>
 ```
 
@@ -255,7 +255,7 @@ must not claim it does.
 ## 8. Living with it
 
 ```bash
-python3 scripts/cwk_activation_wizard.py check-drift --config cwk-mirror.local.json
+python3 scripts/activation_wizard.py check-drift --config cwk-mirror.local.json
 ```
 
 Config or contract changed ⇒ exit code 5. "Config" here includes the project

@@ -29,9 +29,9 @@ from unittest import mock
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "scripts"))
 
-import cwk_activation_contract as C  # noqa: E402
-import cwk_activation_state as S  # noqa: E402
-import cwk_activation_wizard as W  # noqa: E402
+import activation_contract as C  # noqa: E402
+import activation_state as S  # noqa: E402
+import activation_wizard as W  # noqa: E402
 import cwk_atomic_file as A  # noqa: E402
 
 FIXTURES = PROJECT / "tests" / "fixtures" / "activation"
@@ -1986,7 +1986,7 @@ class FailingSink(io.StringIO):
 class BrokenOutputSinkTests(WizardTestCase):
     """stdout itself can fail. That is still a failure, and still quiet.
 
-    `cwk_activation_wizard … | head -1` closes the pipe under the wizard.
+    `activation_wizard … | head -1` closes the pipe under the wizard.
     The contract for that case: never claim success, never print a traceback,
     never leak a private path, and never hand back an exit code outside the
     documented set — including the interpreter's own 120 for "error flushing
@@ -2004,7 +2004,7 @@ class BrokenOutputSinkTests(WizardTestCase):
         self.assertEqual(code, W.EXIT_USAGE)
         self.assertNotEqual(code, W.EXIT_OK, "a lost payload is never a success")
         self.assertEqual(stderr, "", "nothing is printed on the side channel")
-        for marker in ("Traceback", 'File "', "BrokenPipeError", "cwk_activation_wizard.py"):
+        for marker in ("Traceback", 'File "', "BrokenPipeError", "activation_wizard.py"):
             self.assertNotIn(marker, emitted)
         self.assertNotIn(str(self.root), emitted)
         self.assertNotIn(str(self.state_dir), emitted)

@@ -49,12 +49,12 @@ Skill 根通常是只读保护挂载——不要尝试写入、改权限或改�
 不报路径、哈希或业务内容）。
 
 激活由你主动发起对话来推进，但**判定不归你管**：状态机、两道人工确认、每日执行
-合同与其漂移、试跑门禁、调度交接，全部由 `scripts/cwk_activation_wizard.py`
+合同与其漂移、试跑门禁、调度交接，全部由 `scripts/activation_wizard.py`
 决定。你读它的 JSON 并解释，不替它下结论。
 
 ```bash
 cd "${CWK_PROJECT_DIR:-/workspace/CWK}"
-python3 scripts/cwk_activation_wizard.py status
+python3 scripts/activation_wizard.py status
 ```
 
 按返回的 `next_step` 决定这一轮谈什么，不要问用户「我们走到哪一步了」。顺序是：

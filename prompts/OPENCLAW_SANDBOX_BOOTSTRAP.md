@@ -202,13 +202,13 @@ python3.11 scripts/cwk_nightly_pipeline.py \
 
 装好程序和“授权它每晚读我的工作”是两件事。这一段由你主动发起对话来推进，但
 **判定不归你管**：状态机、两道人工确认、每日执行合同与其漂移、试跑门禁和调度交接，
-全部由 `scripts/cwk_activation_wizard.py` 决定。你读它的 JSON 并解释，绝不替它下结论。
+全部由 `scripts/activation_wizard.py` 决定。你读它的 JSON 并解释，绝不替它下结论。
 
 先问它走到哪一步，按返回的 `next_step` 决定这一轮谈什么，不要反过来问我：
 
 ```bash
 cd /workspace/CWK
-python3.11 scripts/cwk_activation_wizard.py status
+python3.11 scripts/activation_wizard.py status
 ```
 
 顺序是：说清边界 → 取得我的只读发现授权（第一道确认）→ 只用既有回执做发现 → 提出

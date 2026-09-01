@@ -200,9 +200,9 @@
       "domain": "runtime",
       "kind": "exact_set",
       "paths": [
-        "scripts/cwk_activation_contract.py",
-        "scripts/cwk_activation_state.py",
-        "scripts/cwk_activation_wizard.py"
+        "scripts/activation_contract.py",
+        "scripts/activation_state.py",
+        "scripts/activation_wizard.py"
       ],
       "owner": "RT-032",
       "management_domain": "cwk-governance-v1",

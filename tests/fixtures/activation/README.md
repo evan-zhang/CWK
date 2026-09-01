@@ -7,7 +7,7 @@ environment variable and a placeholder that is self-evidently not a key.
 
 Most fixtures say so in their own `_comment` field. `scope.json` cannot: the
 authorized visible scope is a **closed schema** (`normalize_scope` in
-`scripts/cwk_activation_contract.py`) that accepts exactly four keys and
+`scripts/activation_contract.py`) that accepts exactly four keys and
 rejects any fifth, including a comment.
 
 That is not an oversight to route around. The scope object is written verbatim

@@ -44,7 +44,7 @@ _PROJECT = Path(__file__).resolve().parents[1]
 if str(_PROJECT / "scripts") not in sys.path:
     sys.path.insert(0, str(_PROJECT / "scripts"))
 
-from cwk_activation_contract import (  # noqa: E402
+from activation_contract import (  # noqa: E402
     ConfigLocatorError,
     NightlyConfigError,
     ProjectEnvironmentError,
@@ -64,7 +64,7 @@ from cwk_activation_contract import (  # noqa: E402
     render_contract_markdown,
     validate_schedule_receipt,
 )
-from cwk_activation_state import (  # noqa: E402
+from activation_state import (  # noqa: E402
     ActivationContractError,
     ActivationError,
     ActivationSession,
@@ -1026,7 +1026,7 @@ def cmd_check_drift(args: argparse.Namespace) -> tuple[int, dict]:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="cwk_activation_wizard",
+        prog="activation_wizard",
         description="CWK 激活向导的确定性后端（状态机 / 确认 / 合同 / 试跑 / 调度交接）",
     )
     parser.add_argument(

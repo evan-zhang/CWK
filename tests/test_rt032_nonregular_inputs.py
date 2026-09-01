@@ -51,8 +51,8 @@ PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "scripts"))
 sys.path.insert(0, str(PROJECT / "tests"))
 
-import cwk_activation_state as S  # noqa: E402
-import cwk_activation_wizard as W  # noqa: E402
+import activation_state as S  # noqa: E402
+import activation_wizard as W  # noqa: E402
 from test_install_modes import InstallerFixture, _make_available  # noqa: E402
 
 FIXTURES = PROJECT / "tests" / "fixtures" / "activation"
@@ -228,7 +228,7 @@ READINESS_SNIPPET = """
 import json, sys
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
-import cwk_activation_state as activation
+import activation_state as activation
 print(json.dumps(activation.readiness(Path(sys.argv[2]))))
 """
 
@@ -392,7 +392,7 @@ class WizardLivenessTests(DeadlineMixin, unittest.TestCase):
     def wizard(self, *args: str, label: str = ""):
         return self.run_deadline(
             [
-                sys.executable, str(PROJECT / "scripts" / "cwk_activation_wizard.py"),
+                sys.executable, str(PROJECT / "scripts" / "activation_wizard.py"),
                 "--state-dir", str(self.state_dir), *args,
             ],
             label=label or " ".join(args),
@@ -506,7 +506,7 @@ class ArtifactReadLivenessTests(DeadlineMixin, unittest.TestCase):
     def wizard(self, *args: str, label: str = ""):
         return self.run_deadline(
             [
-                sys.executable, str(PROJECT / "scripts" / "cwk_activation_wizard.py"),
+                sys.executable, str(PROJECT / "scripts" / "activation_wizard.py"),
                 "--state-dir", str(self.state_dir), "--now", self.tick(), *args,
             ],
             label=label or " ".join(args),
@@ -604,7 +604,7 @@ class CallerInputLivenessTests(DeadlineMixin, unittest.TestCase):
     def wizard(self, *args: str, label: str = ""):
         return self.run_deadline(
             [
-                sys.executable, str(PROJECT / "scripts" / "cwk_activation_wizard.py"),
+                sys.executable, str(PROJECT / "scripts" / "activation_wizard.py"),
                 "--state-dir", str(self.state_dir), *args,
             ],
             label=label or " ".join(args),
@@ -675,7 +675,7 @@ PROJECT_ENV_SNIPPET = """
 import json, sys
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
-import cwk_activation_contract as contract
+import activation_contract as contract
 try:
     layer = contract.read_project_env(Path(sys.argv[2]))
 except contract.ProjectEnvironmentError as exc:

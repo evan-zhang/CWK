@@ -34,8 +34,8 @@ PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "scripts"))
 sys.path.insert(0, str(PROJECT / "tests"))
 
-import cwk_activation_state as S  # noqa: E402
-import cwk_activation_wizard as W  # noqa: E402
+import activation_state as S  # noqa: E402
+import activation_wizard as W  # noqa: E402
 import cwk_doctor  # noqa: E402
 from test_install_modes import InstallerFixture, _make_available  # noqa: E402
 
@@ -127,7 +127,7 @@ class InstallSideEffectTests(unittest.TestCase):
         confirming things on the user's behalf.
         """
         source = (PROJECT / "install.sh").read_text(encoding="utf-8")
-        self.assertNotIn("cwk_activation_wizard", source)
+        self.assertNotIn("activation_wizard", source)
         for verb in ("init", "confirm-discovery", "confirm-activation",
                      "record-schedule", "schedule-handoff"):
             self.assertNotIn("activation_wizard.py %s" % verb, source)
@@ -292,14 +292,14 @@ class DoctorActivationTests(unittest.TestCase):
     def test_the_doctor_does_not_re_implement_the_verdict(self) -> None:
         """One owner for the schema, or the two will drift apart."""
         source = (PROJECT / "scripts" / "cwk_doctor.py").read_text(encoding="utf-8")
-        self.assertIn("import cwk_activation_state", source)
+        self.assertIn("import activation_state", source)
         self.assertNotIn("STATE_READINESS", source)
         for token in ("PILOT_PASSED", "NEEDS_RECONFIRMATION", "confirm_activation"):
             self.assertNotIn(token, source)
 
     def test_the_probe_never_imports_python_from_the_inspected_project(self) -> None:
         """A project directory is data. Importing out of it would execute it."""
-        (self.project / "scripts" / "cwk_activation_state.py").write_text(
+        (self.project / "scripts" / "activation_state.py").write_text(
             "raise SystemExit('this must never be executed')\n", encoding="utf-8"
         )
         entry = self.check("activation", self.run_doctor())
@@ -440,7 +440,7 @@ class ActivationDialogueContractTests(unittest.TestCase):
     def test_the_skill_points_at_the_reference_instead_of_restating_it(self) -> None:
         self.assertIn("references/activation.md", self.skill)
         # The procedure lives in one place; the Skill stays a map, not a copy.
-        self.assertLess(self.skill.count("cwk_activation_wizard.py"), 4)
+        self.assertLess(self.skill.count("activation_wizard.py"), 4)
 
     def test_the_skill_separates_installing_from_authorising(self) -> None:
         self.assertIn("CWK_ACTIVATION", self.skill)
@@ -454,7 +454,7 @@ class ActivationDialogueContractTests(unittest.TestCase):
         self.assertIn("init", self.reference)
 
     def test_every_wizard_subcommand_is_documented(self) -> None:
-        source = (PROJECT / "scripts" / "cwk_activation_wizard.py").read_text(
+        source = (PROJECT / "scripts" / "activation_wizard.py").read_text(
             encoding="utf-8"
         )
         commands = set(re.findall(r'add_parser\(\s*"([a-z-]+)"', source))
@@ -587,6 +587,146 @@ class UserPathCoherenceTests(unittest.TestCase):
                 text = self.read(relative)
                 self.assertIn("state/activation", text)
                 self.assertIn("NOT_STARTED", text)
+
+
+class ManagedScriptNamespaceTests(unittest.TestCase):
+    """RT-032 may not put a file into PR-001's closed script namespace.
+
+    ``scripts/cwk_*.py`` is not a naming convention — it is the membership
+    predicate of a frozen security inventory. PR-001's owner-scope snapshot
+    enumerates every repository path matching that pattern and fails closed
+    unless each one already belongs to a declared owner, central-ABI or legacy
+    family. A file this RT adds belongs to none of them, so merely *existing*
+    under that name turned 71 PR-001 release-gate tests red — none of which
+    mention RT-032, which is what made it expensive to diagnose.
+
+    Clearing GA-ORPHAN in the AODW ownership manifest does not help: that gate
+    asks "does this file have an owner", PR-001 asks "is this file in my frozen
+    set". Both must hold, and only one of them did.
+
+    The boundary is therefore asserted here, in RT-032's own suite, against
+    PR-001's real inventory parser rather than a transcription of its rules.
+    The alternatives — adding these files to PR-001's registry, or opening a v2
+    evolution slot for them — would be forging membership in another RT's
+    frozen evidence.
+    """
+
+    NAMESPACE = re.compile(r"^scripts/cwk_[a-z0-9_]+\.py$")
+    RT032_MODULES = (
+        "scripts/activation_contract.py",
+        "scripts/activation_state.py",
+        "scripts/activation_wizard.py",
+    )
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        import subprocess
+
+        import pr001_evidence_binding as binding
+
+        registry = json.loads(
+            (
+                PROJECT
+                / "PR"
+                / "PR-001-multitenant-knowledge-spaces"
+                / "contracts"
+                / "security"
+                / "security_gate_registry_v1.json"
+            ).read_text(encoding="utf-8")
+        )
+        parts = binding._security_managed_inventory_parts(registry)
+        if parts is None:  # pragma: no cover - would mean PR-001 itself broke
+            raise AssertionError("PR-001's managed script inventory no longer parses")
+        legacy, owner_paths, central_paths, _shared = parts
+        cls.declared = set(legacy) | set(owner_paths) | set(central_paths)
+        cls.tracked = subprocess.run(
+            ["git", "ls-files"],
+            cwd=str(PROJECT),
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.split()
+
+    def test_no_tracked_file_enters_the_namespace_without_being_declared(self):
+        """The exact predicate PR-001 evaluates, evaluated here first."""
+
+        actual = {path for path in self.tracked if self.NAMESPACE.fullmatch(path)}
+        self.assertEqual(
+            sorted(actual - self.declared),
+            [],
+            "these files match PR-001's frozen namespace but belong to no "
+            "declared owner/central/legacy family; while they exist, PR-001's "
+            "owner-scope snapshot fails closed for every historical RT",
+        )
+
+    def test_this_rt_owns_no_file_inside_that_namespace(self):
+        """Stated as RT-032's own promise, not only as a global invariant."""
+
+        for path in self.RT032_MODULES:
+            with self.subTest(path=path):
+                self.assertIsNone(self.NAMESPACE.fullmatch(path))
+                self.assertTrue((PROJECT / path).is_file())
+
+    def test_the_ownership_manifest_claims_exactly_the_modules_that_exist(self):
+        """A fourth module added later must be registered, not absorbed.
+
+        ``scripts/`` is an exact-only zone, so this rule may not become a
+        prefix. Pinning the set here means a new activation module fails this
+        test instead of silently arriving unowned.
+        """
+        manifest = json.loads(
+            (
+                PROJECT
+                / ".aodw-next"
+                / "06-project"
+                / "governance"
+                / "code-ownership-manifest.json"
+            ).read_text(encoding="utf-8")
+        )
+        rule = next(
+            item
+            for item in manifest["rules"]
+            if item.get("id") == "R-runtime-rt032-activation"
+        )
+        self.assertEqual(rule["kind"], "exact_set")
+        self.assertEqual(sorted(rule["paths"]), sorted(self.RT032_MODULES))
+
+    # The RT record has to print the old→new migration map, and a decision
+    # record that cannot name what it moved is not a record. Every *other*
+    # tracked file — imports, installer, doctor, docs, Skill commands — must be
+    # clean, because there the old name is either a broken import or an
+    # instruction that tells a user to run a file that no longer exists.
+    MIGRATION_HISTORY_DOC = "RT/RT-032/rt-lite.md"
+
+    def test_no_tracked_file_still_names_the_retired_modules(self):
+        """The migration has to be total; a stale import is a broken product.
+
+        The needle is assembled at runtime rather than written out, so that
+        this file — which has to describe the migration in prose — is not
+        itself the hit the search reports.
+        """
+        needle = "cwk_" + "activation_"
+        stale = []
+        for relative in self.tracked:
+            if relative == self.MIGRATION_HISTORY_DOC:
+                continue
+            try:
+                text = (PROJECT / relative).read_text(encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                continue
+            if needle in text:
+                stale.append(relative)
+        self.assertEqual(stale, [], "these files still name the pre-migration modules")
+
+    def test_the_migration_map_is_actually_recorded_where_it_is_exempted(self):
+        """The exemption must not become a place stale names hide unnoticed."""
+
+        text = (PROJECT / self.MIGRATION_HISTORY_DOC).read_text(encoding="utf-8")
+        for path in self.RT032_MODULES:
+            with self.subTest(path=path):
+                old = path.replace("scripts/", "scripts/cwk_", 1)
+                self.assertIn(old, text, "the old path is not documented")
+                self.assertIn(path, text, "the new path is not documented")
 
 
 if __name__ == "__main__":  # pragma: no cover

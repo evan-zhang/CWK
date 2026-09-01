@@ -78,7 +78,7 @@ class InstallerFixture:
         # RT-032: the installer and the doctor both probe activation readiness.
         # Real modules, not stubs -- a stub would make "no side effects" vacuous.
         for name in (
-            "cwk_activation_state.py",
+            "activation_state.py",
             "cwk_atomic_file.py",
             "cwk_pr001_contracts.py",
         ):

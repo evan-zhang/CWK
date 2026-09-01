@@ -28,7 +28,7 @@ from pathlib import Path
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "scripts"))
 
-import cwk_activation_contract as C  # noqa: E402
+import activation_contract as C  # noqa: E402
 
 FIXTURES = PROJECT / "tests" / "fixtures" / "activation"
 NOW = "2026-01-01T00:00:00Z"
@@ -80,7 +80,7 @@ class UpstreamDefaultPinningTests(unittest.TestCase):
     def test_the_contract_module_never_imports_the_collector(self):
         """Importing the collector to read a default would risk collecting."""
 
-        source = (PROJECT / "scripts" / "cwk_activation_contract.py").read_text(
+        source = (PROJECT / "scripts" / "activation_contract.py").read_text(
             encoding="utf-8"
         )
         for banned in ("import cwk_collect_live", "import cwk_nightly_pipeline"):

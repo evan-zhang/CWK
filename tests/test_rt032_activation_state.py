@@ -22,7 +22,7 @@ from pathlib import Path
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "scripts"))
 
-import cwk_activation_state as S  # noqa: E402
+import activation_state as S  # noqa: E402
 import cwk_atomic_file as A  # noqa: E402
 
 NOW = "2026-01-01T00:00:00Z"

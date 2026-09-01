@@ -101,10 +101,10 @@ CWK 需要 Python 3.10+（推荐 3.11），当前项目只依赖 Python 标准�
 不会替使用者做第二件事：装完之后不存在私有激活状态，没有任何定时任务，
 `CWK_ACTIVATION=NOT_STARTED`。
 
-激活由一段有状态的对话推进，判定则由 `scripts/cwk_activation_wizard.py` 独占：
+激活由一段有状态的对话推进，判定则由 `scripts/activation_wizard.py` 独占：
 
 ```bash
-python3.11 scripts/cwk_activation_wizard.py status
+python3.11 scripts/activation_wizard.py status
 ```
 
 它输出当前状态和唯一的下一步。整条路径要求**两次相互独立的人工确认**：一次授权

@@ -225,11 +225,11 @@ python3.11 scripts/cwk_nightly_pipeline.py \
 跑通第 6 步只证明程序能用，不代表任何东西被授权每晚自动执行。到这里
 `CWK_ACTIVATION` 仍是 `NOT_STARTED`。
 
-激活是一段有状态的对话，判定由 `scripts/cwk_activation_wizard.py` 独占：
+激活是一段有状态的对话，判定由 `scripts/activation_wizard.py` 独占：
 
 ```bash
 cd /workspace/CWK
-python3.11 scripts/cwk_activation_wizard.py status
+python3.11 scripts/activation_wizard.py status
 ```
 
 按它给出的唯一下一步走，不要问使用者「我们走到哪一步了」。这条路径上有**两次相互

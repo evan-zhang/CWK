@@ -108,7 +108,7 @@ ACTIVATION_STATE_REL = Path("state") / "activation"
 def activation_readiness(project: Path) -> dict[str, Any]:
     """Ask the activation module how far this installation has got.
 
-    The judgement is not re-implemented here. ``cwk_activation_state`` owns the
+    The judgement is not re-implemented here. ``activation_state`` owns the
     closed schema and the fail-closed read path; the doctor only relays what it
     says, which is why a schema change cannot make these two disagree.
 
@@ -121,7 +121,7 @@ def activation_readiness(project: Path) -> dict[str, Any]:
     if str(package) not in sys.path:
         sys.path.insert(0, str(package))
     try:
-        import cwk_activation_state as activation
+        import activation_state as activation
     except Exception:  # noqa: BLE001 - a probe must never abort an install
         # The script package is incomplete, or the module will not load at all
         # (a truncated copy raises SyntaxError, not ImportError). Either way no

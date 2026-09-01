@@ -36,7 +36,7 @@ _PROJECT = Path(__file__).resolve().parents[1]
 if str(_PROJECT / "scripts") not in sys.path:
     sys.path.insert(0, str(_PROJECT / "scripts"))
 
-from cwk_activation_state import read_regular_path  # noqa: E402
+from activation_state import read_regular_path  # noqa: E402
 from cwk_atomic_file import AtomicFileError, ContainmentError  # noqa: E402
 from cwk_pr001_contracts import canonical_json_bytes  # noqa: E402
 

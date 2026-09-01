@@ -156,11 +156,11 @@ Markdown/HTML。仅当目标为已批准的个人或团队 DocDB、且第 4 步�
 到这里程序装好了，但没有任何东西被授权每晚自动跑。**装好 ≠ 授权**：安装从不创建
 私有激活状态，也从不建定时任务。
 
-激活是一段有状态的对话，判定由 `scripts/cwk_activation_wizard.py` 独占——它决定状态
+激活是一段有状态的对话，判定由 `scripts/activation_wizard.py` 独占——它决定状态
 机、两道人工确认、每日执行合同及其漂移、试跑门禁和调度交接：
 
 ```bash
-python3.11 scripts/cwk_activation_wizard.py status
+python3.11 scripts/activation_wizard.py status
 ```
 
 按它给出的唯一下一步走。这条路径上有**两次相互独立的确认**：先授权只读发现；很久
