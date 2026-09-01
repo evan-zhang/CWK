@@ -9,7 +9,8 @@
 2. `build_execution_contract` / `compute_contract_sha256`：从真实配置渲染
    每日执行合同，并给出稳定摘要。配置一变，摘要就变，已有确认随之失效。
 3. `evaluate_pilot`：只读 nightly manifest、验收回执与采集回执判定试跑。
-   任何一项不达标都只能进 DEGRADED，进不了 PILOT_PASSED。
+   任何一项不达标——包括**根本没给采集回执**——都只能进 DEGRADED，
+   进不了 PILOT_PASSED。
 4. `build_scheduler_handoff` / `validate_schedule_receipt`：产出机器可读的调度
    交接，并校验宿主回填的外部任务标识。
 
@@ -499,6 +500,123 @@ def render_contract_markdown(contract: Mapping[str, Any]) -> str:
 
 # ── 3. 试跑门禁 ─────────────────────────────────────────────────────────────
 
+# 采集回执必须真的长这样才算「有回执」。字段取自 scripts/cwk_collect_live.py
+# 实际写出的 collect-manifest.json；缺字段或类型不对 = 这不是采集器的回执，
+# 按缺证处理，不按「大概可以」处理。
+COLLECT_RECEIPT_SHAPE: tuple[tuple[str, str], ...] = (
+    ("daily_source_complete", "bool"),
+    ("daily_source_failure_count", "int"),
+    ("written_count", "int"),
+    ("errors", "list"),
+    ("mutating_commands_called", "list"),
+)
+
+
+def _shape_ok(value: Any, kind: str) -> bool:
+    if kind == "bool":
+        return isinstance(value, bool)
+    if kind == "int":
+        return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+    if kind == "list":
+        return isinstance(value, list)
+    return False
+
+
+def verify_collect_receipt(collect_manifest: Optional[Mapping[str, Any]]) -> dict:
+    """核验采集回执，并抽出要进哈希的既核事实。
+
+    「有没有给」「形状对不对」「本身成没成功」三件事分开判，任何一件不成立
+    都不给 PASS。**省略参数不是中立的**：没有采集回执就无法声称当天来源完整，
+    所以省略等价于缺证，而不是「这一项不适用」。
+
+    返回值整体会被绑进试跑回执的哈希，其中 ``receipt_sha256`` 是采集回执
+    文档自身的摘要——换一份采集证据，试跑回执的哈希必然改变，因而当时
+    基于旧证据做出的第二道确认自动作废。
+    """
+
+    if collect_manifest is None:
+        return {
+            "present": False,
+            "shape_valid": False,
+            "success": False,
+            "problems": ["collect_receipt_omitted"],
+            "receipt_sha256": None,
+            "verified": None,
+        }
+    if not isinstance(collect_manifest, Mapping):
+        return {
+            "present": True,
+            "shape_valid": False,
+            "success": False,
+            "problems": ["collect_receipt_not_an_object"],
+            "receipt_sha256": None,
+            "verified": None,
+        }
+
+    problems: list[str] = []
+    for name, kind in COLLECT_RECEIPT_SHAPE:
+        if name not in collect_manifest:
+            problems.append(f"collect_receipt_missing_{name}")
+        elif not _shape_ok(collect_manifest[name], kind):
+            problems.append(f"collect_receipt_bad_{name}")
+    shape_valid = not problems
+
+    receipt_sha256 = sha256_of_json(dict(collect_manifest))
+
+    if not shape_valid:
+        return {
+            "present": True,
+            "shape_valid": False,
+            "success": False,
+            "problems": problems,
+            "receipt_sha256": receipt_sha256,
+            "verified": None,
+        }
+
+    verified = {
+        "daily_source_complete": collect_manifest["daily_source_complete"],
+        "daily_source_failure_count": collect_manifest["daily_source_failure_count"],
+        "written_count": collect_manifest["written_count"],
+        "error_count": len(collect_manifest["errors"]),
+        "mutating_command_count": len(collect_manifest["mutating_commands_called"]),
+    }
+    if verified["daily_source_complete"] is not True:
+        problems.append("collect_receipt_daily_source_incomplete")
+    if verified["daily_source_failure_count"] != 0:
+        problems.append("collect_receipt_has_source_failures")
+    if verified["error_count"] != 0:
+        problems.append("collect_receipt_has_errors")
+    if verified["mutating_command_count"] != 0:
+        problems.append("collect_receipt_called_mutating_commands")
+
+    return {
+        "present": True,
+        "shape_valid": True,
+        "success": not problems,
+        "problems": problems,
+        "receipt_sha256": receipt_sha256,
+        "verified": verified,
+    }
+
+
+def _evidence_sha256(document: Optional[Mapping[str, Any]]) -> Optional[str]:
+    """证据文档自身的摘要；没给就是 None（缺证也是一个要进哈希的事实）。"""
+
+    if document is None:
+        return None
+    return sha256_of_json(dict(document))
+
+
+def _mutating_calls(document: Any) -> list:
+    """回执自称调用过的写操作。非对象、缺字段当空；非列表的真值当一次调用。"""
+
+    if not isinstance(document, Mapping):
+        return []
+    value = document.get("mutating_commands_called")
+    if isinstance(value, (list, tuple)):
+        return list(value)
+    return [] if not value else [value]
+
 
 def evaluate_pilot(
     *,
@@ -513,18 +631,27 @@ def evaluate_pilot(
     全部谓词必须为真才 PASS。任何一项不达标，结果就是 FAIL，
     调用方只能把状态推进到 DEGRADED——`PILOT_PASSED` 在迁移表里
     根本无法从 FAIL 回执到达。
+
+    三份证据（nightly manifest、验收回执、采集回执）**都是必需的**，
+    并且它们各自的文档摘要都进回执哈希：换证据必然换回执，绑在旧回执上的
+    第二道确认随之失效。
     """
 
-    nightly = nightly_manifest or {}
-    accept = acceptance or {}
-    collect = collect_manifest or {}
+    nightly = nightly_manifest if isinstance(nightly_manifest, Mapping) else {}
+    accept = acceptance if isinstance(acceptance, Mapping) else {}
 
     checks = accept.get("checks")
     checks = checks if isinstance(checks, dict) else {}
 
+    collect_check = verify_collect_receipt(collect_manifest)
+    collect_verified = collect_check["verified"] or {}
+
     predicates: dict[str, bool] = {
         "nightly_manifest_present": nightly_manifest is not None,
         "acceptance_present": acceptance is not None,
+        "collect_receipt_present": collect_check["present"],
+        "collect_receipt_shape_valid": collect_check["shape_valid"],
+        "collect_receipt_success": collect_check["success"],
         "nightly_overall_pass": nightly.get("overall_pass") is True,
         "nightly_content_quality_pass": nightly.get("content_quality_pass") is True,
         "nightly_not_degraded": nightly.get("degraded") is not True,
@@ -536,12 +663,12 @@ def evaluate_pilot(
         "acceptance_no_failures": not (accept.get("failures") or []),
         "acceptance_all_checks_pass": bool(checks) and all(bool(v) for v in checks.values()),
         "acceptance_a4_ok": accept.get("A4_status") in {"PASS", "PASS_LOW_VOLUME"},
-        "no_mutating_commands": not (nightly.get("mutating_commands_called") or [])
-        and not (accept.get("mutating_commands_called") or [])
-        and not (collect.get("mutating_commands_called") or []),
+        # 缺回执时这一条必然为假：没有证据就不能声称当天来源完整。
+        "daily_source_complete": collect_verified.get("daily_source_complete") is True,
+        "no_mutating_commands": not _mutating_calls(nightly_manifest)
+        and not _mutating_calls(acceptance)
+        and not _mutating_calls(collect_manifest),
     }
-    if collect_manifest is not None:
-        predicates["daily_source_complete"] = collect.get("daily_source_complete") is True
 
     failed = sorted(name for name, ok in predicates.items() if not ok)
     receipt = {
@@ -551,6 +678,12 @@ def evaluate_pilot(
         "result": "PASS" if not failed else "FAIL",
         "predicates": predicates,
         "failed_predicates": failed,
+        "collection_receipt": collect_check,
+        "evidence": {
+            "nightly_manifest_sha256": _evidence_sha256(nightly_manifest),
+            "acceptance_sha256": _evidence_sha256(acceptance),
+            "collect_manifest_sha256": collect_check["receipt_sha256"],
+        },
         "run_name": nightly.get("run_name"),
         "business_date": nightly.get("date"),
         "processed_count": _as_int(nightly.get("processed_count"), 0),

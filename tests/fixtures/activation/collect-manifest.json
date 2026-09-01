@@ -7,5 +7,6 @@
   "pending_count": 0,
   "daily_source_complete": true,
   "daily_source_failure_count": 0,
+  "errors": [],
   "mutating_commands_called": []
 }

@@ -11,16 +11,20 @@
 - 每道门的确认都绑定当时的事实哈希，事实一变确认自动失效；
 - 状态文件是闭合 schema，没有任何自由文本字段，凭据与业务正文写不进去；
 - 状态目录 0700、文件 0600，写入走 CAS + 原子重命名；
+- 试跑必须同时出示 nightly manifest、验收回执和采集回执，缺一不可；
 - 本仓库**不创建、不修改、不删除任何定时任务**，也不调用 OpenClaw/Gateway/cron
   接口。调度只产出一张交接单，由用户在宿主侧执行后回填外部任务标识。
 
-每个子命令向 stdout 输出**一个** JSON 对象，供 Skill 直接消费。
-退出码见 ``EXIT_*``。
+每个子命令向 stdout 输出**一个** JSON 对象，供 Skill 直接消费；失败也一样，
+包括输入/持久化的 I/O 失败，**任何路径都不会以 traceback 形式漏出去**。
+错误消息统一经 ``redact_message`` 抹掉路径样式片段并截断，因此不会夹带
+绝对路径、凭据或文件正文。退出码见 ``EXIT_*``。
 """
 
 from __future__ import annotations
 
 import argparse
+import errno
 import json
 import os
 import re
@@ -74,12 +78,13 @@ from cwk_atomic_file import (  # noqa: E402
     LockUnavailable,
     write_atomic,
 )
+from cwk_pr001_contracts import ContractError  # noqa: E402
 
 # ── 退出码 ──────────────────────────────────────────────────────────────────
 
 EXIT_OK = 0
 EXIT_USAGE = 2
-"""用法错误、输入缺失、schema 违约、状态文件损坏。"""
+"""用法错误、输入缺失、schema 违约、状态文件损坏、输入/持久化 I/O 失败。"""
 EXIT_REFUSED = 3
 """非法迁移或缺少有效的人工确认。"""
 EXIT_PILOT_FAILED = 4
@@ -104,9 +109,20 @@ _RUN_AT = re.compile(r"\A(?:[01]\d|2[0-3]):[0-5]\d\Z")
 _TIMEZONE = re.compile(r"\A[A-Za-z][A-Za-z0-9+_-]{0,31}(?:/[A-Za-z0-9+_-]{1,32}){0,2}\Z")
 _TIMESTAMP = re.compile(r"\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\Z")
 
+# 错误消息里凡是「以 /、~/、./、../ 开头的一段」都当路径抹掉。前面是单词字符的
+# 斜杠（read/write 这种）不算路径，不会被误伤。
+_PATH_LIKE = re.compile(r"(?<![A-Za-z0-9_])(?:~|\.{1,2})?/[^\s'\",;)\]]*")
+MAX_ERROR_CHARS = 240
+
 
 class WizardError(ActivationError):
     """CLI 层的输入错误。"""
+
+    exit_code = EXIT_USAGE
+
+
+class InputIOError(WizardError):
+    """读输入或写状态时的 I/O 失败（权限、类型、断链等）。"""
 
     exit_code = EXIT_USAGE
 
@@ -118,6 +134,32 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def errno_name(exc: OSError) -> str:
+    """把 OSError 归一成 errno 名字。它是稳定的机器可读符号，且不含路径。"""
+
+    code = getattr(exc, "errno", None)
+    if isinstance(code, int):
+        return errno.errorcode.get(code, f"E{code}")
+    return "EUNKNOWN"
+
+
+def redact_message(text: Any) -> str:
+    """错误消息的最后一道闸。
+
+    错误文本会原样进入给 Agent 的 JSON，因此绝不能夹带绝对路径、文件内容
+    或超长片段。这里统一抹掉路径样式的片段、压掉控制字符并截断长度；
+    上游消息即使将来写得不小心，也不会把私有路径漏出去。
+    """
+
+    raw = str(text)
+    cleaned = _PATH_LIKE.sub("<redacted-path>", raw)
+    cleaned = "".join(" " if (ord(ch) < 0x20 or ord(ch) == 0x7F) else ch for ch in cleaned)
+    cleaned = " ".join(cleaned.split())
+    if len(cleaned) > MAX_ERROR_CHARS:
+        cleaned = cleaned[: MAX_ERROR_CHARS - 1] + "…"
+    return cleaned
+
+
 def _resolve_now(value: Optional[str]) -> str:
     if value is None:
         return utc_now()
@@ -126,19 +168,39 @@ def _resolve_now(value: Optional[str]) -> str:
     return value
 
 
-def _require_json(path: Optional[str], label: str) -> dict:
-    if not path:
-        raise WizardError(f"{label} is required")
-    resolved = Path(path)
-    if not resolved.is_file():
-        raise WizardError(f"{label} not found: {resolved}")
+def _read_text(path: Path, label: str) -> str:
+    """读一个调用方给的文件。
+
+    路径由调用方提供，可能指向目录、断链、无权限或已被移走的文件；这些都是
+    **输入错误**，不是程序缺陷，所以在这里就地转成向导自己的错误类型，
+    带 errno 名字但不带路径、不带文件内容。
+    """
+
     try:
-        parsed = json.loads(resolved.read_text(encoding="utf-8"))
-    except (ValueError, UnicodeDecodeError) as exc:
-        raise WizardError(f"{label} is not valid JSON: {exc}") from exc
+        if not path.is_file():
+            raise WizardError(f"{label} not found or is not a regular file")
+        return path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise InputIOError(f"{label} could not be read ({errno_name(exc)})") from exc
+    except UnicodeDecodeError as exc:
+        raise WizardError(f"{label} is not valid UTF-8 text") from exc
+
+
+def _parse_json_object(text: str, label: str) -> dict:
+    try:
+        parsed = json.loads(text)
+    except ValueError as exc:
+        # JSONDecodeError 只报位置，不回显内容；仍走一遍 redact。
+        raise WizardError(f"{label} is not valid JSON: {redact_message(exc)}") from exc
     if not isinstance(parsed, dict):
         raise WizardError(f"{label} must be a JSON object")
     return parsed
+
+
+def _require_json(path: Optional[str], label: str) -> dict:
+    if not path:
+        raise WizardError(f"{label} is required")
+    return _parse_json_object(_read_text(Path(path), label), label)
 
 
 def _optional_json(path: Optional[str], label: str) -> Optional[dict]:
@@ -176,13 +238,21 @@ def _write_artifact(dir_fd: int, name: str, payload: Any) -> str:
 
 
 def _read_artifact(state_dir: Path, name: str, label: str) -> dict:
+    """读回自己写在状态目录里的产物。文件名是固定常量，路径不进错误消息。"""
+
     path = Path(state_dir) / name
-    if not path.is_file():
-        raise WizardError(f"{label} not found; run the previous step first ({path})")
     try:
-        parsed = json.loads(path.read_text(encoding="utf-8"))
-    except (ValueError, UnicodeDecodeError) as exc:
-        raise WizardError(f"{label} is corrupt: {exc}") from exc
+        if not path.is_file():
+            raise WizardError(f"{label} not found; run the previous step first")
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise InputIOError(f"{label} could not be read ({errno_name(exc)})") from exc
+    except UnicodeDecodeError as exc:
+        raise WizardError(f"{label} is corrupt: not valid UTF-8 text") from exc
+    try:
+        parsed = json.loads(text)
+    except ValueError as exc:
+        raise WizardError(f"{label} is corrupt: {redact_message(exc)}") from exc
     if not isinstance(parsed, dict):
         raise WizardError(f"{label} must be a JSON object")
     return parsed
@@ -740,9 +810,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("record-pilot", help="判定一次只读试跑")
     p.add_argument("--config", required=True)
-    p.add_argument("--nightly-manifest")
-    p.add_argument("--acceptance")
-    p.add_argument("--collect-manifest")
+    # 三份证据都是试跑门的必要输入。故意不设 argparse required：少给证据不是
+    # 用法错误，而是**这次试跑不通过**——它必须留下一张写明缺什么的 FAIL 回执，
+    # 而不是一句用法提示。
+    p.add_argument("--nightly-manifest", help="nightly 运行回执（缺则试跑判 FAIL）")
+    p.add_argument("--acceptance", help="验收回执（缺则试跑判 FAIL）")
+    p.add_argument("--collect-manifest", help="采集回执（缺则试跑判 FAIL）")
     p.set_defaults(func=cmd_record_pilot)
 
     sub.add_parser(
@@ -787,29 +860,67 @@ def _exit_code_for(exc: Exception) -> int:
     return EXIT_USAGE
 
 
+def _failure(command: str, message: str, kind: str, **extra: Any) -> dict:
+    """错误负载的唯一构造点：消息一律过 redact，形状对 Agent 稳定。"""
+
+    return {
+        "ok": False,
+        "command": command,
+        "error": redact_message(message),
+        "error_kind": kind,
+        **extra,
+    }
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
         code, payload = args.func(args)
     except LockUnavailable:
-        payload = {
-            "ok": False,
-            "error": "another activation command is already running (state dir is locked)",
-            "error_kind": "LockUnavailable",
-        }
+        payload = _failure(
+            args.command,
+            "another activation command is already running (state dir is locked)",
+            "LockUnavailable",
+        )
         code = EXIT_USAGE
     except AtomicFileError as exc:
         # CAS 冲突 / 容器越界等：一律不重试、不覆盖，交回给调用方。
-        payload = {"ok": False, "error": str(exc), "error_kind": type(exc).__name__}
+        payload = _failure(args.command, exc, type(exc).__name__)
         code = EXIT_USAGE
     except ActivationError as exc:
         code = _exit_code_for(exc)
-        payload = {"ok": False, "error": str(exc), "error_kind": type(exc).__name__}
+        payload = _failure(args.command, exc, type(exc).__name__)
+    except ContractError as exc:
+        # 输入 JSON 无法规范化（超安全范围的数字、非字符串键、NFC 键冲突等）：
+        # 这是调用方给的数据不合格，不是程序缺陷。
+        payload = _failure(
+            args.command,
+            f"input JSON cannot be canonicalised: {exc}",
+            "ContractError",
+        )
+        code = EXIT_USAGE
+    except OSError as exc:
+        # 输入文件或状态目录的 I/O 失败（权限、目录/断链、磁盘、ENOSPC…）。
+        # 只报 errno 名字：不报路径、不报文件内容。状态写入是 CAS + 原子重命名，
+        # 因此这里失败意味着状态没有被推进。
+        payload = _failure(
+            args.command,
+            f"input or state I/O failed ({errno_name(exc)}); "
+            "the command was aborted and the activation state was not advanced",
+            "IOFailure",
+            errno=errno_name(exc),
+        )
+        code = EXIT_USAGE
     else:
         payload = {"ok": code == EXIT_OK, "command": args.command, **payload}
-    json.dump(payload, sys.stdout, ensure_ascii=False, indent=2, sort_keys=True)
-    sys.stdout.write("\n")
+    try:
+        json.dump(payload, sys.stdout, ensure_ascii=False, indent=2, sort_keys=True)
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+    except OSError:
+        # 下游先关掉管道之类：没有能力再报告，但不留 traceback，也不谎报成功。
+        return EXIT_USAGE
     return code
 
 

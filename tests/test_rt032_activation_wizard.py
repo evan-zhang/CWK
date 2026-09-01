@@ -53,12 +53,16 @@ class WizardTestCase(unittest.TestCase):
         self.clock += 1
         return f"2026-01-01T00:{self.clock // 60:02d}:{self.clock % 60:02d}Z"
 
-    def run_cli(self, *args: str) -> tuple[int, dict]:
+    def run_cli_raw(self, *args: str) -> tuple[int, str]:
         argv = ["--state-dir", str(self.state_dir), "--now", self.tick(), *args]
         buffer = io.StringIO()
         with redirect_stdout(buffer):
             code = W.main(argv)
-        return code, json.loads(buffer.getvalue())
+        return code, buffer.getvalue()
+
+    def run_cli(self, *args: str) -> tuple[int, dict]:
+        code, text = self.run_cli_raw(*args)
+        return code, json.loads(text)
 
     def fixture(self, name: str) -> str:
         return str(FIXTURES / name)
@@ -74,6 +78,13 @@ class WizardTestCase(unittest.TestCase):
         payload = json.loads((FIXTURES / "scope.json").read_text(encoding="utf-8"))
         payload.update(overrides)
         target = self.root / f"scope-{len(list(self.root.glob('scope-*.json')))}.json"
+        target.write_text(json.dumps(payload), encoding="utf-8")
+        return str(target)
+
+    def collect_copy(self, **overrides) -> str:
+        payload = json.loads((FIXTURES / "collect-manifest.json").read_text(encoding="utf-8"))
+        payload.update(overrides)
+        target = self.root / f"collect-{len(list(self.root.glob('collect-*.json')))}.json"
         target.write_text(json.dumps(payload), encoding="utf-8")
         return str(target)
 
@@ -360,6 +371,101 @@ class PilotGateAttackTests(WizardTestCase):
                 self.assertIn(code, (W.EXIT_REFUSED, W.EXIT_SCHEDULE_CONFLICT))
         self.assertEqual(self.read_state()["state"], "DEGRADED")
 
+    def test_omitting_the_collection_receipt_cannot_pass(self):
+        """Leaving the argument off is missing evidence, not a neutral choice."""
+
+        self.stage_profile()
+        code, payload = self.run_cli(
+            "record-pilot",
+            "--config",
+            self.fixture("config.json"),
+            "--nightly-manifest",
+            self.fixture("nightly-manifest.json"),
+            "--acceptance",
+            self.fixture("acceptance.json"),
+        )
+        self.assertEqual(code, W.EXIT_PILOT_FAILED)
+        self.assertEqual(payload["state"], "DEGRADED")
+        self.assertEqual(payload["pilot_receipt"]["result"], "FAIL")
+        self.assertIn("collect_receipt_present", payload["pilot_receipt"]["failed_predicates"])
+        self.assertIn("daily_source_complete", payload["pilot_receipt"]["failed_predicates"])
+        # And the missing evidence is named in the receipt, not just implied.
+        self.assertIn(
+            "collect_receipt_omitted", payload["pilot_receipt"]["collection_receipt"]["problems"]
+        )
+
+    def test_a_pilot_without_a_collection_receipt_cannot_be_activated(self):
+        self.stage_profile()
+        self.run_cli(
+            "record-pilot",
+            "--config",
+            self.fixture("config.json"),
+            "--nightly-manifest",
+            self.fixture("nightly-manifest.json"),
+            "--acceptance",
+            self.fixture("acceptance.json"),
+        )
+        code, _ = self.run_cli("confirm-activation")
+        self.assertEqual(code, W.EXIT_REFUSED)
+        self.assertEqual(self.read_state()["state"], "DEGRADED")
+
+    def test_a_missing_collection_receipt_file_is_a_usage_error(self):
+        """Naming a file that is not there is a different failure from omitting it."""
+
+        self.stage_profile()
+        code, payload = self.run_cli(
+            "record-pilot",
+            "--config",
+            self.fixture("config.json"),
+            "--nightly-manifest",
+            self.fixture("nightly-manifest.json"),
+            "--acceptance",
+            self.fixture("acceptance.json"),
+            "--collect-manifest",
+            str(self.root / "no-such-manifest.json"),
+        )
+        self.assertEqual(code, W.EXIT_USAGE)
+        self.assertIn("not found", payload["error"])
+        self.assertEqual(self.read_state()["state"], "PROFILE_CONFIRMED")
+
+    def test_a_collection_receipt_of_the_wrong_shape_cannot_pass(self):
+        self.stage_profile()
+        broken = self.root / "broken-collect.json"
+        broken.write_text(json.dumps({"daily_source_complete": "yes"}), encoding="utf-8")
+        code, payload = self.run_cli(
+            "record-pilot",
+            "--config",
+            self.fixture("config.json"),
+            "--nightly-manifest",
+            self.fixture("nightly-manifest.json"),
+            "--acceptance",
+            self.fixture("acceptance.json"),
+            "--collect-manifest",
+            str(broken),
+        )
+        self.assertEqual(code, W.EXIT_PILOT_FAILED)
+        self.assertEqual(payload["state"], "DEGRADED")
+        self.assertIn(
+            "collect_receipt_shape_valid", payload["pilot_receipt"]["failed_predicates"]
+        )
+
+    def test_a_failed_collection_run_cannot_pass(self):
+        self.stage_profile()
+        code, payload = self.run_cli(
+            "record-pilot",
+            "--config",
+            self.fixture("config.json"),
+            "--nightly-manifest",
+            self.fixture("nightly-manifest.json"),
+            "--acceptance",
+            self.fixture("acceptance.json"),
+            "--collect-manifest",
+            self.collect_copy(daily_source_complete=False, daily_source_failure_count=2),
+        )
+        self.assertEqual(code, W.EXIT_PILOT_FAILED)
+        self.assertEqual(payload["state"], "DEGRADED")
+        self.assertIn("collect_receipt_success", payload["pilot_receipt"]["failed_predicates"])
+
     def test_a_later_clean_pilot_recovers_from_degraded(self):
         self.stage_pilot(nightly="nightly-manifest-degraded.json")
         code, payload = self.run_cli(
@@ -393,8 +499,13 @@ class ConfirmationAttackTests(WizardTestCase):
         }
         self.assertEqual(len(set(bound.values())), 3)
 
-    def test_rerunning_the_pilot_invalidates_the_activation_confirmation(self):
-        """A new pilot result is new evidence; the old acceptance no longer applies."""
+    def test_rerunning_the_pilot_on_new_evidence_invalidates_the_confirmation(self):
+        """New collection evidence is a new fact; the old acceptance lapses.
+
+        The second pilot still passes, so nothing here is a failure the user
+        would notice — that is exactly the case where a stale confirmation
+        would be dangerous.
+        """
 
         self.stage_pilot()
         self.run_cli("confirm-activation")
@@ -408,8 +519,11 @@ class ConfirmationAttackTests(WizardTestCase):
             self.fixture("nightly-manifest.json"),
             "--acceptance",
             self.fixture("acceptance.json"),
+            "--collect-manifest",
+            self.collect_copy(written_count=19),
         )
         self.assertEqual(code, W.EXIT_OK)
+        self.assertEqual(payload["pilot_receipt"]["result"], "PASS")
         self.assertFalse(payload["confirmations"]["activation"]["valid"])
         self.assertEqual(payload["next_step"], "confirm_activation")
 
@@ -417,6 +531,32 @@ class ConfirmationAttackTests(WizardTestCase):
             "record-schedule", "--external-system", "openclaw", "--external-task-id", "t1"
         )
         self.assertEqual(code, W.EXIT_REFUSED)
+
+    def test_rerunning_the_pilot_on_identical_evidence_changes_nothing(self):
+        """The receipt is a function of the evidence, so re-reading it is a no-op.
+
+        This is the flip side of the test above: the confirmation survives only
+        because every fact it was bound to is byte-for-byte the same one.
+        """
+
+        self.stage_pilot()
+        self.run_cli("confirm-activation")
+        first = self.read_state()["pilot_receipt_sha256"]
+
+        code, payload = self.run_cli(
+            "record-pilot",
+            "--config",
+            self.fixture("config.json"),
+            "--nightly-manifest",
+            self.fixture("nightly-manifest.json"),
+            "--acceptance",
+            self.fixture("acceptance.json"),
+            "--collect-manifest",
+            self.fixture("collect-manifest.json"),
+        )
+        self.assertEqual(code, W.EXIT_OK)
+        self.assertEqual(payload["hashes"]["pilot_receipt_sha256"], first)
+        self.assertTrue(payload["confirmations"]["activation"]["valid"])
 
     def test_redoing_discovery_invalidates_the_profile_confirmation(self):
         self.stage_profile()
@@ -584,6 +724,153 @@ class StateIntegrityAttackTests(WizardTestCase):
             code, payload = self.run_cli("status")
         self.assertEqual(code, W.EXIT_USAGE)
         self.assertEqual(payload["error_kind"], "LockUnavailable")
+
+
+class InputAndPersistenceFailureTests(WizardTestCase):
+    """Broken paths are input errors, not crashes.
+
+    Every one of these used to leave a Python traceback on stderr, which both
+    breaks the "one JSON object per command" contract the Skill relies on and
+    prints the absolute path of a private state directory.
+    """
+
+    def assert_no_absolute_path(self, text: str) -> None:
+        self.assertNotIn(str(self.root), text)
+        self.assertNotIn(str(self.state_dir), text)
+        self.assertNotIn(str(PROJECT), text)
+
+    def test_a_state_dir_that_is_really_a_file_fails_closed(self):
+        self.state_dir.write_text("not a directory", encoding="utf-8")
+        code, text = self.run_cli_raw("init")
+        payload = json.loads(text)
+        self.assertEqual(code, W.EXIT_USAGE)
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["error_kind"], "IOFailure")
+        self.assertEqual(payload["errno"], "EEXIST")
+        self.assert_no_absolute_path(text)
+        self.assertEqual(self.state_dir.read_text(encoding="utf-8"), "not a directory")
+
+    def test_a_symlinked_state_dir_is_refused(self):
+        real = self.root / "elsewhere"
+        real.mkdir(mode=0o700)
+        self.state_dir.symlink_to(real)
+        code, text = self.run_cli_raw("init")
+        payload = json.loads(text)
+        self.assertEqual(code, W.EXIT_USAGE)
+        self.assertEqual(payload["error_kind"], "ContainmentError")
+        self.assert_no_absolute_path(text)
+        self.assertEqual(list(real.iterdir()), [], "nothing was written through the symlink")
+
+    def test_a_dangling_symlink_state_dir_fails_closed(self):
+        self.state_dir.symlink_to(self.root / "nowhere")
+        code, text = self.run_cli_raw("init")
+        payload = json.loads(text)
+        self.assertEqual(code, W.EXIT_USAGE)
+        self.assertEqual(payload["error_kind"], "IOFailure")
+        self.assert_no_absolute_path(text)
+        self.assertFalse((self.root / "nowhere").exists())
+
+    def test_a_missing_state_dir_is_reported_without_the_path(self):
+        code, text = self.run_cli_raw("status")
+        payload = json.loads(text)
+        self.assertEqual(code, W.EXIT_USAGE)
+        self.assertIn("does not exist", payload["error"])
+        self.assert_no_absolute_path(text)
+
+    @unittest.skipIf(hasattr(os, "geteuid") and os.geteuid() == 0, "root ignores file modes")
+    def test_an_unreadable_input_file_is_reported_without_the_path(self):
+        self.run_cli("init")
+        blocked = self.root / "blocked.json"
+        blocked.write_text(json.dumps({"mirror_kind": "personal"}), encoding="utf-8")
+        blocked.chmod(0o000)
+        self.addCleanup(blocked.chmod, 0o600)
+        code, text = self.run_cli_raw("confirm-discovery", "--scope-file", str(blocked))
+        payload = json.loads(text)
+        self.assertEqual(code, W.EXIT_USAGE)
+        self.assertEqual(payload["error_kind"], "InputIOError")
+        self.assertIn("EACCES", payload["error"])
+        self.assert_no_absolute_path(text)
+        self.assertEqual(self.read_state()["state"], "INSTALLED")
+
+    def test_a_directory_passed_as_an_input_file_is_refused(self):
+        self.run_cli("init")
+        code, text = self.run_cli_raw("confirm-discovery", "--scope-file", str(self.root))
+        payload = json.loads(text)
+        self.assertEqual(code, W.EXIT_USAGE)
+        self.assertIn("not found", payload["error"])
+        self.assert_no_absolute_path(text)
+
+    def test_a_dangling_symlink_input_file_is_refused(self):
+        self.run_cli("init")
+        link = self.root / "scope-link.json"
+        link.symlink_to(self.root / "gone.json")
+        code, text = self.run_cli_raw("confirm-discovery", "--scope-file", str(link))
+        payload = json.loads(text)
+        self.assertEqual(code, W.EXIT_USAGE)
+        self.assertIn("not found", payload["error"])
+        self.assert_no_absolute_path(text)
+
+    def test_input_file_contents_are_never_echoed_back(self):
+        self.run_cli("init")
+        secret = self.root / "secret.json"
+        secret.write_text("{ CWORK_APP_KEY: sk-fixture-not-a-real-key", encoding="utf-8")
+        code, text = self.run_cli_raw("confirm-discovery", "--scope-file", str(secret))
+        self.assertEqual(code, W.EXIT_USAGE)
+        self.assertNotIn("sk-fixture-not-a-real-key", text)
+        self.assertNotIn("CWORK_APP_KEY", text)
+        self.assert_no_absolute_path(text)
+
+    def test_input_json_that_cannot_be_canonicalised_is_a_usage_error(self):
+        """A number outside the safe integer range is bad input, not a crash."""
+
+        self.run_cli("init")
+        unsafe = self.root / "unsafe.json"
+        unsafe.write_text('{"mirror_kind": "personal", "n": 9007199254740993}', encoding="utf-8")
+        code, text = self.run_cli_raw("confirm-discovery", "--scope-file", str(unsafe))
+        payload = json.loads(text)
+        self.assertEqual(code, W.EXIT_USAGE)
+        self.assertEqual(payload["error_kind"], "ContractError")
+        self.assert_no_absolute_path(text)
+        self.assertEqual(self.read_state()["state"], "INSTALLED")
+
+    def test_a_corrupt_artifact_is_reported_without_the_path(self):
+        self.stage_pilot()
+        self.run_cli("confirm-activation")
+        self.run_cli("schedule-handoff", "--config", self.fixture("config.json"))
+        (self.state_dir / W.SCHEDULER_HANDOFF_FILE).write_text("{ broken", encoding="utf-8")
+        code, text = self.run_cli_raw(
+            "record-schedule", "--external-system", "openclaw", "--external-task-id", "t1"
+        )
+        payload = json.loads(text)
+        self.assertEqual(code, W.EXIT_USAGE)
+        self.assertIn("corrupt", payload["error"])
+        self.assert_no_absolute_path(text)
+
+    def test_every_failure_still_emits_exactly_one_json_object(self):
+        self.state_dir.write_text("not a directory", encoding="utf-8")
+        for args in (
+            ("init",),
+            ("status",),
+            ("confirm-discovery", "--scope-file", self.fixture("scope.json")),
+            ("record-pilot", "--config", self.fixture("config.json")),
+        ):
+            with self.subTest(command=args[0]):
+                code, text = self.run_cli_raw(*args)
+                payload = json.loads(text)
+                self.assertNotEqual(code, W.EXIT_OK)
+                self.assertFalse(payload["ok"])
+                self.assertEqual(payload["command"], args[0])
+                self.assertIn("error_kind", payload)
+                self.assertEqual(text.count("\n}"), 1)
+                self.assert_no_absolute_path(text)
+
+    def test_redaction_strips_a_path_but_keeps_the_sentence(self):
+        message = W.redact_message(f"scope file {self.root}/scope.json is unreadable")
+        self.assertNotIn(str(self.root), message)
+        self.assertIn("<redacted-path>", message)
+        self.assertIn("is unreadable", message)
+        # A slash inside a word is not a path and must survive untouched.
+        self.assertEqual(W.redact_message("read/write mismatch"), "read/write mismatch")
 
 
 class PrivacyTests(WizardTestCase):

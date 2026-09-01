@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -66,11 +67,29 @@ class UpstreamDefaultPinningTests(unittest.TestCase):
     def test_lookback_matches_upstream_pipeline_default(self):
         self.assertEqual(C.upstream_lookback_default(), C.DEFAULT_LOOKBACK_DAYS)
 
-    def test_parsers_do_not_execute_upstream_modules(self):
-        """Static parsing only — importing the collector would try to collect."""
+    def test_the_contract_module_never_imports_the_collector(self):
+        """Importing the collector to read a default would risk collecting."""
 
-        self.assertNotIn("cwk_collect_live", sys.modules)
-        self.assertNotIn("cwk_nightly_pipeline", sys.modules)
+        source = (PROJECT / "scripts" / "cwk_activation_contract.py").read_text(
+            encoding="utf-8"
+        )
+        for banned in ("import cwk_collect_live", "import cwk_nightly_pipeline"):
+            self.assertNotIn(banned, source)
+
+    def test_parsing_does_not_execute_the_parsed_file(self):
+        """Hand the parser a file that explodes if executed; it must still parse."""
+
+        with tempfile.TemporaryDirectory() as tmp:
+            bomb = Path(tmp) / "bomb.py"
+            bomb.write_text(
+                "raise SystemExit('this module must never be executed')\n"
+                "parser.add_argument('--detail-cap', type=int, default=41)\n"
+                "parser.add_argument('--continuation-cap', type=int, default=42)\n",
+                encoding="utf-8",
+            )
+            found = C.upstream_collect_defaults(bomb)
+        self.assertEqual(found["detail_cap"], 41)
+        self.assertEqual(found["continuation_cap"], 42)
 
 
 class DiscoveryReportTests(unittest.TestCase):
@@ -314,6 +333,105 @@ class PilotGateTests(unittest.TestCase):
     def test_missing_evidence_fails(self):
         self.assertEqual(self.evaluate(nightly_manifest=None)["result"], "FAIL")
         self.assertEqual(self.evaluate(acceptance=None)["result"], "FAIL")
+        self.assertEqual(self.evaluate(collect_manifest=None)["result"], "FAIL")
+
+    def test_an_omitted_collection_receipt_cannot_pass(self):
+        """Not passing the argument at all is missing evidence, not a waiver.
+
+        `evaluate_pilot` gives `collect_manifest` a default, so an omitted
+        argument must be caught by a predicate rather than by the signature.
+        """
+
+        receipt = C.evaluate_pilot(
+            nightly_manifest=self.nightly,
+            acceptance=self.acceptance,
+            bound_contract_sha256=self.contract_sha,
+            generated_at=NOW,
+        )
+        self.assertEqual(receipt["result"], "FAIL")
+        for predicate in ("collect_receipt_present", "daily_source_complete"):
+            self.assertIn(predicate, receipt["failed_predicates"])
+        self.assertEqual(
+            receipt["collection_receipt"]["problems"], ["collect_receipt_omitted"]
+        )
+        self.assertIsNone(receipt["collection_receipt"]["verified"])
+
+    def test_daily_source_completeness_is_never_assumed(self):
+        """Without a receipt there is no basis for claiming the day is complete."""
+
+        for manifest in (None, {}, {"daily_source_complete": True}):
+            with self.subTest(manifest=manifest):
+                receipt = self.evaluate(collect_manifest=manifest)
+                self.assertEqual(receipt["result"], "FAIL")
+
+    def test_a_collection_receipt_of_the_wrong_shape_cannot_pass(self):
+        cases = {
+            "not_an_object": [],
+            "missing_field": {k: v for k, v in load("collect-manifest.json").items()
+                              if k != "written_count"},
+            "string_instead_of_bool": dict(load("collect-manifest.json"),
+                                           daily_source_complete="true"),
+            "negative_count": dict(load("collect-manifest.json"), written_count=-1),
+            "errors_not_a_list": dict(load("collect-manifest.json"), errors="none"),
+        }
+        for name, manifest in cases.items():
+            with self.subTest(case=name):
+                receipt = self.evaluate(collect_manifest=manifest)
+                self.assertEqual(receipt["result"], "FAIL")
+                self.assertIn("collect_receipt_shape_valid", receipt["failed_predicates"])
+                self.assertIsNone(receipt["collection_receipt"]["verified"])
+
+    def test_a_collection_run_that_did_not_succeed_cannot_pass(self):
+        cases = {
+            "incomplete_day": {"daily_source_complete": False},
+            "source_failures": {"daily_source_failure_count": 1},
+            "collector_errors": {"errors": ["fixture-lane-timeout"]},
+            "mutating_calls": {"mutating_commands_called": ["markRead"]},
+        }
+        for name, mutation in cases.items():
+            with self.subTest(case=name):
+                receipt = self.evaluate(collect_manifest={**self.collect, **mutation})
+                self.assertEqual(receipt["result"], "FAIL")
+                self.assertIn("collect_receipt_success", receipt["failed_predicates"])
+                self.assertTrue(receipt["collection_receipt"]["problems"])
+
+    def test_verified_collection_facts_are_bound_into_the_receipt(self):
+        receipt = self.evaluate()
+        checked = receipt["collection_receipt"]
+        self.assertTrue(checked["present"] and checked["shape_valid"] and checked["success"])
+        self.assertEqual(
+            checked["verified"],
+            {
+                "daily_source_complete": True,
+                "daily_source_failure_count": 0,
+                "written_count": self.collect["written_count"],
+                "error_count": 0,
+                "mutating_command_count": 0,
+            },
+        )
+        self.assertEqual(
+            receipt["evidence"]["collect_manifest_sha256"], checked["receipt_sha256"]
+        )
+
+    def test_new_evidence_moves_the_receipt_hash_even_when_the_verdict_holds(self):
+        """Otherwise a confirmation bound to the old receipt would survive it."""
+
+        baseline = self.evaluate()
+        variants = {
+            "collect": {"collect_manifest": dict(self.collect, written_count=19)},
+            "nightly": {"nightly_manifest": dict(self.nightly, processed_count=19)},
+            "acceptance": {"acceptance": dict(self.acceptance, raw_count=19)},
+        }
+        for name, override in variants.items():
+            with self.subTest(evidence=name):
+                receipt = self.evaluate(**override)
+                self.assertEqual(receipt["result"], "PASS")
+                self.assertNotEqual(receipt["receipt_sha256"], baseline["receipt_sha256"])
+
+    def test_the_receipt_hash_is_a_function_of_the_evidence(self):
+        first = self.evaluate()
+        again = self.evaluate(generated_at="2030-12-31T23:59:59Z")
+        self.assertEqual(again["receipt_sha256"], first["receipt_sha256"])
 
     def test_a_single_bad_predicate_fails_the_gate(self):
         cases = [

@@ -615,7 +615,8 @@ def open_state_dir(state_dir: Path | str = DEFAULT_STATE_DIR, *, create: bool = 
     if create:
         path.mkdir(mode=DIRECTORY_MODE, parents=True, exist_ok=True)
     if not path.is_dir():
-        raise ActivationError(f"activation state dir does not exist: {path}")
+        # 不回显路径：这条消息会原样进入给 Agent 的 JSON。
+        raise ActivationError("activation state dir does not exist or is not a directory")
     return open_dir_nofollow(path)
 
 

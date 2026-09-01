@@ -115,6 +115,39 @@ INSTALLED
 真实 CWork/DocDB、cron、Gateway、远端与模型调用均未触发；全部证据来自
 `tests/fixtures/activation/` 的脱敏样例。
 
+### 2026-09-02（第二轮）：独立审阅阻断项整改
+
+独立审阅在零重叠核心上判出两个阻断项，本轮修完并加回归；范围仍不含安装/Skill/文档/治理。
+
+1. **试跑门禁对采集回执改为失败关闭。** 原实现只在"给了采集回执"时才检查日采完整性，
+   因此**不给**采集回执反而能通过。现把回执存在性、形状合法性、运行成功三条拆成独立
+   显式判据，四种情况一律进不了 `PILOT_PASSED`：完全不传、文件缺失/不可读、形状非法、
+   采集本身没成功。同时把校验出的回执事实与三份证据的哈希一起绑进试跑回执的
+   `receipt_sha256`，证据一变哈希就变，旧的第二道确认自动作废。
+2. **CLI 边界补错误处理。** `main` 原先会让 OSError 家族的输入/持久化失败以 traceback
+   逃逸。现在按既有退出码契约收口为 JSON 输出，消息统一脱敏（抹掉路径样式片段、控制
+   字符，截断到 240 字符），绝不回显绝对路径或文件内容；`ContractError`（不可规范化的
+   JSON 数值）同样映射为用法错误。**没有**兜底 `except Exception`，程序 bug 仍然暴露。
+3. **保留并提交测试加固。** `tests/test_rt032_activation_contract.py` 原先用
+   `sys.modules` 断言"没导入采集器"，在全仓库单进程发现下会被先导入采集器的
+   `tests.test_collection_incremental` 污染而误报。改为静态源码断言 + "解析不执行被解析
+   文件"的炸弹用例，语义更强且不依赖进程状态。
+
+顺带的最小相邻修正：状态目录缺失的报错不再回显路径；采集回执 fixture 补上真实采集器
+会输出的 `errors` 字段（现属必需形状）。
+
+| 命令 | 结果 |
+| --- | --- |
+| `python3.11 -m py_compile scripts/cwk_activation_{state,contract,wizard}.py` | 通过 |
+| `python3.11 -m unittest tests.test_rt032_activation_state` | 40 passed |
+| `python3.11 -m unittest tests.test_rt032_activation_contract` | 52 passed |
+| `python3.11 -m unittest tests.test_rt032_activation_wizard` | 63 passed |
+| 三个模块合并运行 | 155 passed |
+| `python3.11 -m unittest tests.test_collection_incremental tests.test_rt032_activation_contract` | 80 passed（同进程、采集器先导入的顺序，验证第 3 项） |
+| `git diff --check` | 通过（exit 0） |
+| `bash .aodw-next/06-project/aodw-check.sh --root .` | 通过（仅剩本机 skill 未安装的告警） |
+| `python3.11 .aodw-next/06-project/governance-audit.py --root .` | 仍为既有 GA-ORPHAN ×3，无新增发现 |
+
 ## 待集成项（治理声明，本轮按协调要求不落盘）
 
 并行协调要求本轮不修改 `code-ownership-manifest.json`、`script-evolution-v2.json`
@@ -142,7 +175,8 @@ GA-ORPHAN: scripts/cwk_activation_wizard.py
 
 - 2026-09-02：根据用户批准的安装后使用路径，确定独立 RT；采用“AI 沟通 + 确定性状态/回执”的激活架构，并与 RT-031 安装接入职责分离。
 - 2026-09-02：实现零重叠确定性核心并通过定向测试；治理归属声明按并行协调要求转为待集成项。
-- 2026-09-02：迁移表补 `(PILOT_PASSED, record-pilot-pass) -> PILOT_PASSED` 自环。重跑一次通过的试跑本身安全，但会产出新回执，从而作废旧的第二道确认——把这条安全性质变成可观测行为，而不是藏在一次拒绝背后。
+- 2026-09-02：迁移表补 `(PILOT_PASSED, record-pilot-pass) -> PILOT_PASSED` 自环。重跑一次通过的试跑本身安全：回执是内容寻址的，**证据变了**才会产出新回执并作废旧的第二道确认，证据一模一样则回执哈希不变、确认继续有效。（初版记录写成"重跑必然作废"，与实现不符，已按实际行为更正；两种情形都已加回归测试。）
+- 2026-09-02：整改独立审阅的两个阻断项——试跑门禁对采集回执改为失败关闭并把回执事实绑进哈希；CLI 边界收口 OSError/ContractError 为脱敏 JSON 与既有退出码。测试加固保留并提交。
 
 ## 遗留事项
 
