@@ -58,13 +58,30 @@ CWK。按[内部小团队上手](docs/INTERNAL_DISTRIBUTION.md)依次完成前�
 ```bash
 git clone https://github.com/evan-zhang/CWK.git
 cd CWK
-PYTHON=python3.11 ./install.sh --install-skill
+PYTHON=python3.11 ./install.sh
 ```
 
-安装只创建本机私有模板、运行脱敏 smoke，并为当前 OpenClaw 用户建立 Skill 链接；不会
-读取 CWork、写入 DocDB、创建 cron 或修改 Agent 配置。每人必须使用自己的 `.env`、
-工作协同 Key、`cwk-mirror.local.json` 和本机 Agent；不要复制 Evan 或其他同事的
-`.env`、`knowledge/`、`raw/`、`runs/`、`state/` 或历史镜像。
+核心安装只创建本机私有模板（新建时 `0600`，已存在不覆盖）并运行脱敏 smoke，成功时
+输出 `CWK_CORE_READY`；不会读取 CWork、写入 DocDB、创建 cron，也不会修改 Agent、
+Gateway 或宿主配置，更不需要 `openclaw` CLI。
+
+OpenClaw 接入是**独立且显式**的一步，默认不做，四选一：
+
+```bash
+PYTHON=python3.11 ./install.sh --integration workspace-skill --workspace <可写 Workspace>
+PYTHON=python3.11 ./install.sh --integration host-skill      # 受保护 Skill 根，交运维注册
+PYTHON=python3.11 ./install.sh --integration router --workspace <Workspace>
+PYTHON=python3.11 ./install.sh --integration none            # 只要程序
+```
+
+一个 Agent 只启用一种模式，安装器会强制这一点：检测到另一种模式已存在时报
+`OPENCLAW_INTEGRATION_CONFLICT` 并停下，不写文件，`--force` 也不放行混装。安装器会
+输出 `OPENCLAW_DISCOVERY=UNVERIFIED`——文件到位不等于运行时一定发现并加载了 Skill，
+请在 Agent 里实际确认。旧的 `--install-skill` 仍然可用并保留原有保护，只是会打印迁移
+提示，详见[内部小团队上手](docs/INTERNAL_DISTRIBUTION.md)。
+
+每人必须使用自己的 `.env`、工作协同 Key、`cwk-mirror.local.json` 和本机 Agent；
+不要复制 Evan 或其他同事的 `.env`、`knowledge/`、`raw/`、`runs/`、`state/` 或历史镜像。
 
 在云端 sandbox（`/workspace` 跨会话持久）里让 OpenClaw Agent 自助安装，改看
 [云端 sandbox 上手](docs/SANDBOX_ONBOARDING.md)；可直接复制给 Agent 的中文提示词在
@@ -93,15 +110,22 @@ PYTHON=python3.11 ./install.sh
 
 This creates `cwk-mirror.local.json` if missing, compiles scripts, and runs the sanitized smoke test.
 
-3. For an internal OpenClaw installation, use the explicit Skill-link option:
+3. For an internal OpenClaw installation, pick exactly one integration mode:
 
 ```bash
-PYTHON=python3.11 ./install.sh --install-skill
+PYTHON=python3.11 ./install.sh --integration workspace-skill --workspace <writable workspace>
+PYTHON=python3.11 ./install.sh --integration host-skill
+PYTHON=python3.11 ./install.sh --integration router --workspace <workspace>
+PYTHON=python3.11 ./install.sh --integration none
 ```
 
-This does not collect business data, write DocDB, create cron jobs, or modify
-an Agent. See [internal distribution](docs/INTERNAL_DISTRIBUTION.md) for the
-per-user authorization and trial procedure.
+None of these collect business data, write DocDB, create cron jobs, or modify an
+Agent, a Gateway, or a host control plane. `host-skill` writes nothing at all: it
+prints `SKILL_REGISTRATION_REQUIRES_HOST_ADMIN`, the source path in the current
+execution environment, and a Workspace-relative mapping when available, so an
+operator can resolve the real host path and register it for one Agent. See
+[internal distribution](docs/INTERNAL_DISTRIBUTION.md) for the per-user
+authorization and trial procedure.
 
 4. Check local requirements for live operation:
 
@@ -133,9 +157,11 @@ cp .env.example .env
 
 Then fill `CWORK_APP_KEY` plus the matching `CWK_OWNER_EMP_ID` / `CWK_OWNER_NAME`. Keep `CWK_DOCDB_PROJECT_ID` and `CWK_DOCDB_ROOT_FILE_ID` empty unless you are intentionally writing to a specific shared knowledge-base folder.
 
-`cwk_nightly_pipeline.py` automatically loads the gitignored project `.env` and never overrides variables already exported by the parent process.
+`cwk_nightly_pipeline.py` automatically loads the gitignored project `.env` and never overrides variables already exported by the parent process. `scripts/cwk_doctor.py` reads the same file with a minimal dotenv parser — it never executes the file as shell, and it reports only `configured` / `missing`, never a value, prefix, hash, or reversible fragment. There is no need to `source .env` before running doctor.
 
-For one-off shell usage, exporting the key is enough:
+`.env` is parsed, never sourced, so it accepts plain `KEY=value` lines only. An `export KEY=value` line is ignored by the nightly pipeline and by doctor alike — doctor will report such a key as `missing` rather than claiming a readiness the runtime does not have.
+
+For one-off shell usage, exporting the key in your shell is enough:
 
 ```bash
 export CWORK_APP_KEY=***

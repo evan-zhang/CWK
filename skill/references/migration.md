@@ -34,6 +34,19 @@ Do not treat all setup values as one credential. The default personal deployment
 
 The runtime Agent also needs local access to `cms-cwork-workflow` and `cms-docdb`. If auth is resolved through `cms-auth-skills` instead of `CWORK_APP_KEY`, set `CWK_SENDER_ID` and `CWK_ACCOUNT_ID` for the target user/account.
 
+`scripts/cwk_doctor.py` searches several Skill roots (`$HOME/.openclaw/skills`,
+`$HOME/.agents/skills`, `<workspace>/skills`, `<workspace>/.agents/skills`, and
+OpenClaw's read-only sandbox materialization root
+`<workspace>/.openclaw/sandbox-skills/skills`) and works with `HOME=/`. When the
+CWK clone is outside the Agent Workspace, set `CWK_WORKSPACE_DIR` to that
+Workspace. Point `CWK_SKILL_ROOTS` at an extra root, or set
+`CMS_CWORK_WORKFLOW_DIR` /
+`CMS_AUTH_SKILL_DIR` /
+`CMS_DOCDB_SKILL_DIR` for one exact directory. These are directory paths, never
+credentials. Doctor reads the project `.env` with a minimal dotenv parser: it
+never executes the file and reports only `configured` / `missing`, so never run
+`source .env` or `cat .env`.
+
 `K` numbers are not required for CWK setup. They are archive/report identifiers from separate knowledge workflows.
 
 ## Setup

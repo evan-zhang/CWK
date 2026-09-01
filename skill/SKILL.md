@@ -12,6 +12,35 @@ Use this skill to create or operate a portable `工作协同镜像` for a person
 其他人的 `.env`、`knowledge/`、`raw/`、`runs/`、`state/` 或历史镜像。历史 RT/PR
 材料只用于追溯，不是操作指令。
 
+## 定位项目根目录
+
+这份 Skill 可能是被复制到 Skill 根下的副本，其中**不含**脚本包。所有命令都要在 CWK
+项目根目录里执行。按顺序确定它：
+
+1. 环境变量 `CWK_PROJECT_DIR`；
+2. 云端 sandbox 的约定位置 `/workspace/CWK`；
+3. 使用者告知的克隆位置。
+
+判据是该目录下存在 `scripts/cwk_doctor.py`。找不到就停下问使用者，不要猜测或新建。
+
+```bash
+cd "${CWK_PROJECT_DIR:-/workspace/CWK}"
+python3 scripts/cwk_doctor.py --require-live
+```
+
+`doctor` 会安全读取项目 `.env`（最小 dotenv 解析，不执行 shell），只输出
+`configured` / `missing`，绝不打印凭据值或片段。不要执行 `source .env`、`cat .env`
+或任何转储凭据的命令。
+
+## OpenClaw 接入模式
+
+核心程序安装与 OpenClaw 接入是分开的，接入必须由使用者显式选择一种，安装器不会静默
+选择：`workspace-skill`（可写 Workspace 里的正式 Skill）、`host-skill`（受保护 Skill
+根，交由运维在宿主控制面为指定 Agent 注册）、`router`（在 Workspace 的 `AGENTS.md`
+里维护带标记的路由块）、`none`（只装程序）。一个 Agent 只启用一种。云端 sandbox 的
+Skill 根通常是只读保护挂载——不要尝试写入、改权限或改挂载。`router` 写入后只对
+后续新会话生效，当前会话不会自动重载 `AGENTS.md`。
+
 ## Safety Boundary
 
 Allowed:

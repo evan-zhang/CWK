@@ -87,6 +87,12 @@ OPENCLAW_INTEGRATION=NONE
 SKILL_REGISTRATION_REQUIRES_HOST_ADMIN
 ```
 
+“一个 Agent 只启用一种模式”不只是文档约定，安装器必须强制：装 `workspace-skill` 前
+检查目标 Workspace 的 `AGENTS.md` 是否已有受管路由块，装 `router` 前检查目标 Skill 根
+是否已有正式 Skill；命中时输出 `OPENCLAW_INTEGRATION_CONFLICT` 与
+`CWK_EXISTING_INTEGRATION=...`、退出码 3、不写任何文件。`--force` 的语义严格限定为
+“替换同一种模式下已存在的目标”，不得放行混装，也不得自动拆除另一种模式。
+
 `doctor` 只报告凭据“已配置 / 缺失”，永不打印值、前缀、哈希或可逆片段；读取 `.env`
 时使用最小 dotenv 解析，不执行 shell 内容。
 
@@ -135,14 +141,84 @@ SKILL_REGISTRATION_REQUIRES_HOST_ADMIN
     PR-001 定向测试；
   - `make governance-audit`、`make aodw-check`、`make ci`、`git diff --check`；
   - 敏感文件、私有配置和运行产物扫描。
-- 对照成功标准的结果：待方案门通过并实现后填写；当前只完成方案和证据核对。
+- 对照成功标准的结果（2026-09-01，定向验证，未跑全量 `make ci`）：
+  - 四种模式在隔离的临时 Workspace 中逐一通过；只读 Skill 根下核心安装仍
+    `CWK_CORE_READY`，host handoff 状态正确，router 只写指定 `AGENTS.md`。
+  - router 连跑两次不重复、保留原有内容；半块 / 重复块 / 反序标记均拒绝写入。
+  - Workspace Skill 只复制公开 `skill/`，目标已存在时拒绝覆盖。
+  - `HOME=/` 且公司 Skill 只在物化根时，`doctor --require-live` 能找到。
+  - `.env` 含占位值时输出只有 configured / missing，占位值及其前缀均不出现。
+  - 新建私有配置 mode 为 `0600`；已有文件的内容与权限不被改写。
+  - 已跑：`bash -n install.sh`、`python3.11 -m py_compile`、
+    `tests.test_install_modes`（67 项）、`tests.test_distribution` +
+    `tests.test_governance_audit` + `tests.test_pr001_script_evolution_guard`
+    （314 项，1 skip）、`make governance-audit`（591 文件）、`make aodw-check`、
+    `git diff --check`。
+  - **未跑**：全量 `make ci`。收口前需要由编排方补一次绿的全量运行，本条在那之前
+    不得被当作“CI 已绿”。
+
+### 收口前评审的整改（2026-09-01）
+
+独立只读评审提出 5 个阻塞项，均已在同一 worktree 内修复并补定向测试：
+
+- **B1 安装期 doctor 校验错项目**：`install.sh` 调用 `cwk_doctor.py` 时未固定项目根，
+  继承来的 `CWK_PROJECT_DIR` 若指向另一个合法检出，安装门就会给错误的对象放行。
+  现改为显式传 `--project-dir "$PROJECT_DIR"`，并加了“继承变量指向别的检出时仍校验
+  本检出”的回归测试。
+- **B2 自检与运行时 dotenv 语义分歧**：`doctor` 曾接受 `export KEY=value`，而
+  `cwk_nightly_pipeline.load_local_env` 不接受，会出现“自检说已配置、实跑读不到”。
+  按最小改动原则移除 `doctor` 侧的 `export ` 兼容（不动 `cwk_nightly_pipeline.py`
+  这个 PR-001 owner surface），并补三项测试：解析层拒绝、`export` 形式的 Key 报
+  `missing` 且输出不含占位值、以及读源码文本（不导入、不执行）的解析器一致性守卫。
+- **B3 私有文件创建不原子**：旧实现先 `: > "$target"` 再写模板，模板缺失或读失败会
+  留下 0 字节 `.env`，而后续安装“已存在则保留”会把这个空壳一直保留下去。现改为
+  `umask 077` 下同盘 `mktemp` 暂存、`chmod 600`、再用 `ln` 原子激活（EEXIST 时保留
+  既有文件），失败与信号中断都清理暂存，不留残留。
+- **B4 Workspace Skill 目录跨 uid 不可见**：`mktemp -d` 是 `0700`、`cp -R` 又受调用方
+  umask 影响，原子改名后的 Skill 目录可能只有安装者能进，以别的账号运行的 Agent 发现
+  不了。现在保留原子暂存的同时，把暂存树调成与仓库公开 `skill/` 一致的
+  `a+rX,go-w` / 目录 `0755`，并对本次新建的 `skills/` 父目录同样处理；测试在
+  `umask 077` 下断言最终 mode。
+- **B5 RT 记录与实际状态不符**：即本节与上面的验证结果，只记录真实做过的验证，明确
+  标注全量 CI 尚未运行。
+
+同批修掉的合同 / 安全问题（评审列为非阻塞但影响正确性）：
+
+- 双向强制“一个 Agent 一种模式”，`--force` 不再能静默造出混装状态，也不做破坏性
+  自动切换；冲突时零写入、退出码 3。
+- 路由块在写入前校验渲染结果恰好一对起止标记（`AGENTS_ROUTER_TEMPLATE_INVALID`）。
+- 非 UTF-8 的 `AGENTS.md` 变成稳定的 `AGENTS_ROUTER_UNREADABLE` 失败，不再抛
+  traceback，文件逐字节保留。
+- 拒绝把文件系统根 `/` 和 CWK 项目根本身当作自助安装的 Workspace 边界。
+- 暂存 / 临时产物在普通失败和 INT/TERM/HUP 下都清理。
+
+### 治理决定
+
+- `prompts/CWK_AGENTS_ROUTER.md`（新增）由现有归属规则 `R-docs-prompts` 覆盖
+  （前缀 `prompts/`、owner RT-031、演化路径 `repo-standard-change`），`prompts/` 不是
+  exact-only 区；`make governance-audit` 在含该文件时通过（591 个受跟踪文件）。因此
+  **不新增也不修改任何共享治理清单**，只在本 RT 记录该判断。
+- `install.sh`、`scripts/cwk_doctor.py`、`Makefile` 均未被 PR-001 的
+  `legacy_frozen_files` 以 sha256 钉死，本次改动落在 RT-026 声明的 owner surface 内，
+  相关定向测试（`test_pr001_script_evolution_guard`）全绿，未改写任何历史合同。
+- 文档里的宿主 `openclaw skills install <path> --as <slug> --agent <id>` 与
+  `openclaw skills info <name> --agent <id>` 已对照本机安装的 OpenClaw 2026.8.1
+  `skills` CLI 文档核实存在，未使用未记载的参数，故保留原样、无需删改。
 
 ## 变更记录
 
 - 2026-09-01：根据真实多 Agent sandbox 审计，将 RT-031 从“文档型最小上手”续做为
   “核心安装 + 四种 OpenClaw 接入模式”的完整安装合同；尚未修改业务代码。
+- 2026-09-01：实现核心安装与四种接入模式、`doctor` 多根发现与安全 dotenv 读取、
+  路由模板与四入口文档统一，并完成上述收口前评审整改。全量 `make ci` 待编排方运行。
 
 ## 遗留事项
 
-- 暂无。实现中若发现 OpenClaw 版本差异或 PR-001 冻结 owner surface 需要独立治理，
-  先作为本 RT 阻塞报告，不用改写历史合同或扩大范围来绕过。
+- 全量 `make ci` 尚未运行，收口前必须补一次绿的全量运行。
+- `make doctor` 目标仍未传 `--project-dir`；`Makefile` 在 CWK 项目根执行时行为正确，
+  本次按“最小改动、不扩大 owner surface”未改。若之后要让 `make doctor` 也免疫继承来的
+  `CWK_PROJECT_DIR`，单独提 RT。
+- 评审提出的其余非阻塞项按约定未在本轮展开：Skill 复制包含未跟踪文件、历史规范文档、
+  路径显示归一化。已评估为不影响安全边界与本 RT 验收目标，留待需要时单独立项。
+- 实现中若发现 OpenClaw 版本差异或 PR-001 冻结 owner surface 需要独立治理，先作为本 RT
+  阻塞报告，不用改写历史合同或扩大范围来绕过。
