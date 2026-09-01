@@ -15,7 +15,11 @@ jobs:
     # 但不要给到 GitHub 默认的 6 小时——真挂住时应该在两个多小时内被看见。
     timeout-minutes: 150
     steps:
+      # PR-001 的 release gate 会按 as-of commit 解析历史证据；默认 depth=1
+      # 会让同一份工作树缺失祖先提交而把历史判为不可验证。
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           # 仓库的 Python 版本闸在 scripts/cwk_doctor.py（MIN_PYTHON = 3.10），

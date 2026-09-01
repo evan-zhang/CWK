@@ -810,6 +810,62 @@ def _workflow_runs_make_ci(text: str) -> bool:
     return False
 
 
+def _workflow_has_full_history_checkout(text: str) -> bool:
+    """确认真正的 checkout step 请求了完整历史。
+
+    PR-001 的 release gate 会按提交历史解析 as-of 证据。GitHub Actions 的
+    checkout 默认 ``fetch-depth: 1``，工作树字节即使相同，也会缺少解析所需的
+    祖先对象。因此只接受 *checkout 所在的同一个 step* 中、值为裸数字 ``0`` 的
+    ``fetch-depth``。注释、别的 step，或把 0 写成字符串都不构成这个控制。
+
+    这里有意只解析本仓库使用的 steps 子集，而不是对全文搜字符串：全文搜索会把
+    注释或 setup-python step 中的同名字段误当成 checkout 配置。
+    """
+    lines = text.splitlines()
+    index = 0
+    while index < len(lines):
+        start = re.match(r"^(\s*)-\s+", lines[index])
+        if not start:
+            index += 1
+            continue
+        step_indent = len(start.group(1))
+        step_lines = [lines[index]]
+        index += 1
+        while index < len(lines):
+            candidate = lines[index]
+            next_step = re.match(r"^(\s*)-\s+", candidate)
+            if next_step and len(next_step.group(1)) == step_indent:
+                break
+            if candidate.strip() and len(candidate) - len(candidate.lstrip()) < step_indent:
+                break
+            step_lines.append(candidate)
+            index += 1
+
+        uses_checkout = any(
+            re.match(r"^\s*(?:-\s+)?uses:\s*actions/checkout@[^\s#]+\s*(?:#.*)?$", line)
+            for line in step_lines
+        )
+        if not uses_checkout:
+            continue
+
+        # ``fetch-depth: 0`` 必须是 checkout step 的 with 区内的 YAML 数字。
+        in_with = False
+        with_indent = 0
+        for line in step_lines[1:]:
+            if re.match(r"^\s*with:\s*(?:#.*)?$", line):
+                in_with = True
+                with_indent = len(line) - len(line.lstrip())
+                continue
+            if in_with:
+                indent = len(line) - len(line.lstrip())
+                if line.strip() and indent <= with_indent:
+                    in_with = False
+                    continue
+                if re.match(r"^\s*fetch-depth:\s*0\s*(?:#.*)?$", line):
+                    return True
+    return False
+
+
 def check_exceptions(root: Path, manifest: dict, result: AuditResult, today: _dt.date) -> None:
     exceptions = manifest.get("exceptions", [])
     for exc in exceptions:
@@ -863,6 +919,14 @@ def verify_compensating_controls(
                     f"例外 {eid} 的补偿控制 {cid} 失效："
                     ".github/workflows/ci.yml 没有任何 run: 步骤在执行 make ci。"
                     "DI-003 之所以可接受，前提就是 CI 是权威门。",
+                )
+        elif cid == "CC-4":
+            if not _workflow_has_full_history_checkout(ci_text):
+                result.error(
+                    "GA-CONTROL",
+                    f"例外 {eid} 的补偿控制 {cid} 失效："
+                    ".github/workflows/ci.yml 的 actions/checkout step 没有 "
+                    "literal numeric fetch-depth: 0。PR-001 历史证据无法在浅克隆中验证。",
                 )
         elif cid == "CC-2":
             recipe = " ".join(targets.get("ci", []))

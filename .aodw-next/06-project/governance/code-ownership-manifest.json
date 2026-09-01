@@ -219,7 +219,7 @@
       "sensitive": true,
       "pin": {
         "mode": "100644",
-        "sha256": "2a81038e465adfbb805385f3571b9a5b77f0371df4ba49661224808fcce9784a"
+        "sha256": "e43e6f3806ba8e93d6884b646b2f74eea5f21cfdc653b6bd4f993637f169db6c"
       },
       "owner": "RT-030",
       "management_domain": "cwk-governance-v1",
@@ -371,7 +371,7 @@
       "sensitive": true,
       "pin": {
         "mode": "100644",
-        "sha256": "dfe8bed12d5fcda8ad9c9e5a695169fb109f2da40786199f9f6e3c6cba4ff907"
+        "sha256": "00aa46570bce53f8b8b033302e1c53c1ecfaafa9d7af424af9e0b9a530cbce56"
       },
       "owner": "RT-030",
       "management_domain": "cwk-governance-v1",
@@ -466,6 +466,11 @@
           "id": "CC-1",
           "claim": "GitHub CI 是权威门，且它执行的就是 make ci",
           "verified_by": "governance-audit 解析 .github/workflows/ci.yml，断言其运行命令为 make ci"
+        },
+        {
+          "id": "CC-4",
+          "claim": "GitHub checkout 保留 PR-001 as-of 解析所需的完整提交历史",
+          "verified_by": "governance-audit 解析真正的 actions/checkout step，断言其 with.fetch-depth 是 literal numeric 0；缺失、1、字符串、注释或别的 step 都不算"
         },
         {
           "id": "CC-2",

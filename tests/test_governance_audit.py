@@ -646,6 +646,69 @@ class TestCompensatingControlsAreReal(GovernanceAuditTestBase):
         self.assertFalse(result.ok)
         self.assertIn("GA-CONTROL", result.error_codes())
 
+    def test_checkout_without_fetch_depth_zero_fails(self) -> None:
+        workflow = self.repo.root / ".github/workflows/ci.yml"
+        text = workflow.read_text(encoding="utf-8").replace("fetch-depth: 0", "fetch-depth: 1")
+        workflow.write_text(text, encoding="utf-8")
+        result = self.repo.audit()
+        self.assertFalse(result.ok)
+        self.assertIn("GA-CONTROL", result.error_codes())
+
+    def test_checkout_with_missing_fetch_depth_fails(self) -> None:
+        workflow = self.repo.root / ".github/workflows/ci.yml"
+        text = workflow.read_text(encoding="utf-8").replace(
+            "        with:\n          fetch-depth: 0\n", ""
+        )
+        workflow.write_text(text, encoding="utf-8")
+        result = self.repo.audit()
+        self.assertFalse(result.ok)
+        self.assertIn("GA-CONTROL", result.error_codes())
+
+    def test_fetch_depth_comment_does_not_satisfy_the_control(self) -> None:
+        self.assertFalse(
+            ga._workflow_has_full_history_checkout(
+                "jobs:\n"
+                "  smoke:\n"
+                "    steps:\n"
+                "      # fetch-depth: 0\n"
+                "      - uses: actions/checkout@v4\n"
+                "        with:\n"
+                "          fetch-depth: 1\n"
+            )
+        )
+
+    def test_fetch_depth_in_wrong_step_does_not_satisfy_the_control(self) -> None:
+        self.assertFalse(
+            ga._workflow_has_full_history_checkout(
+                "jobs:\n"
+                "  smoke:\n"
+                "    steps:\n"
+                "      - uses: actions/checkout@v4\n"
+                "      - uses: actions/setup-python@v5\n"
+                "        with:\n"
+                "          fetch-depth: 0\n"
+            )
+        )
+
+    def test_fetch_depth_must_be_literal_numeric_zero(self) -> None:
+        self.assertFalse(
+            ga._workflow_has_full_history_checkout(
+                "jobs:\n"
+                "  smoke:\n"
+                "    steps:\n"
+                "      - uses: actions/checkout@v4\n"
+                "        with:\n"
+                "          fetch-depth: '0'\n"
+            )
+        )
+
+    def test_real_checkout_requests_full_history(self) -> None:
+        self.assertTrue(
+            ga._workflow_has_full_history_checkout(
+                (REPO_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+            )
+        )
+
     def test_comment_mentioning_make_ci_does_not_satisfy_the_control(self) -> None:
         """注释里写着 make ci 不算数——只认 run: 里真的在跑。
 
