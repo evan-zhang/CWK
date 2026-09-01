@@ -79,6 +79,7 @@ _REPRESENTATIVE_TRACKED = (
     "AGENTS.md",
     "skill/SKILL.md",
     "docs/DESIGN.md",
+    "prompts/OPENCLAW_SANDBOX_BOOTSTRAP.md",
     "specs/技术方案.md",
     "tasks/开发任务.md",
     "reports/交付验证报告.md",

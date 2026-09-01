@@ -66,6 +66,11 @@ PYTHON=python3.11 ./install.sh --install-skill
 工作协同 Key、`cwk-mirror.local.json` 和本机 Agent；不要复制 Evan 或其他同事的
 `.env`、`knowledge/`、`raw/`、`runs/`、`state/` 或历史镜像。
 
+在云端 sandbox（`/workspace` 跨会话持久）里让 OpenClaw Agent 自助安装，改看
+[云端 sandbox 上手](docs/SANDBOX_ONBOARDING.md)；可直接复制给 Agent 的中文提示词在
+[sandbox 引导提示词](prompts/OPENCLAW_SANDBOX_BOOTSTRAP.md)。两份文档共用同一套安装与
+自检命令，安装与本地自检之外的真实试跑必须先获得使用者明确确认。
+
 CWK 需要 Python 3.10+（推荐 3.11），当前项目只依赖 Python 标准库，因此无需安装
 第三方包、lockfile 或包发布体系。实际 CWork 试跑还需要本机已有
 `cms-cwork-workflow` 和 `cms-auth-skills`；只有选择向个人或已批准的团队 DocDB 写派生产物

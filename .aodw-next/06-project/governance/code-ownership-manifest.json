@@ -314,6 +314,16 @@
       "rationale": "设计、运行、迁移与安全说明。"
     },
     {
+      "id": "R-docs-prompts",
+      "domain": "docs_governance",
+      "kind": "prefix",
+      "prefix": "prompts/",
+      "owner": "RT-031",
+      "management_domain": "repo-docs",
+      "evolution_path": "repo-standard-change",
+      "rationale": "交给外部 Agent 原样复制执行的上手提示词。与 docs/ 同属说明性材料，但单独放一个目录，好让「这段文本会被直接执行」一眼可见；命令口径仍以 docs/ 下的对应文档与仓库代码为准。"
+    },
+    {
       "id": "R-docs-specs",
       "domain": "docs_governance",
       "kind": "prefix",

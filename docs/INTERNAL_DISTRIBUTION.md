@@ -4,6 +4,11 @@
 建立个人镜像，或向已批准的团队 DocDB 目标发布派生产物。CWK 不是共享 Evan 现有镜像、
 配置或授权的安装包。
 
+本文覆盖**本机安装**。若要装进 `/workspace` 持久的云端 sandbox，改看
+[云端 sandbox 上手](SANDBOX_ONBOARDING.md)；要把整件事交给云端 OpenClaw Agent 自助
+完成，把[sandbox 引导提示词](../prompts/OPENCLAW_SANDBOX_BOOTSTRAP.md)整段发给它。
+两条路径共用同一套安装、自检与试跑命令，不要混着照做。
+
 ## 1. 前置条件
 
 - 私有仓库访问权；Python 3.10+（建议 3.11）。项目当前只使用 Python 标准库，无需
