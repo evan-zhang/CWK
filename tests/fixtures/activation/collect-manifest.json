@@ -1,0 +1,11 @@
+{
+  "_comment": "RT-032 sanitized fixture. Synthetic read-only collection manifest.",
+  "candidate_count": 41,
+  "selected_daily_count": 12,
+  "selected_backfill_count": 6,
+  "written_count": 18,
+  "pending_count": 0,
+  "daily_source_complete": true,
+  "daily_source_failure_count": 0,
+  "mutating_commands_called": []
+}

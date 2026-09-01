@@ -1,0 +1,27 @@
+{
+  "_comment": "RT-032 sanitized fixture. Synthetic passing acceptance result.",
+  "overall_pass": true,
+  "A4_status": "PASS",
+  "raw_count": 18,
+  "lane_counts": {
+    "inbox": 5,
+    "pending": 4,
+    "outbox": 3,
+    "unread": 3,
+    "todo_pending": 3
+  },
+  "relation_items": 22,
+  "unique_relation_pairs": 14,
+  "strong_relations": 9,
+  "suspected_relations": 3,
+  "recurring_topic_proposals": 2,
+  "failures": [],
+  "checks": {
+    "A1": true,
+    "A2": true,
+    "A3": true,
+    "A4": true,
+    "A5": true
+  },
+  "mutating_commands_called": []
+}

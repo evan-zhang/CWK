@@ -1,0 +1,12 @@
+{
+  "_comment": "RT-032 sanitized fixture. No credentials, no real endpoints.",
+  "schedule_run_at_local": "02:30",
+  "schedule_timezone": "Asia/Shanghai",
+  "detail_cap": 60,
+  "continuation_cap": 15,
+  "backfill_cap": 20,
+  "backfill_page_size": 20,
+  "backfill_enabled": true,
+  "sync_docdb": false,
+  "source_completeness_lookback_days": 2
+}

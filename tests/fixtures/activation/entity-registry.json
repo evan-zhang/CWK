@@ -1,0 +1,24 @@
+{
+  "_comment": "RT-032 sanitized fixture. Only entries carrying a real decision count as confirmed.",
+  "entries": [
+    {
+      "entry_id": "fixture-entry-1",
+      "canonical_display": "fixture-entity-a",
+      "members": [
+        "fixture-entity-a",
+        "fixture-entity-a-alias"
+      ],
+      "decided_by": "fixture-reviewer",
+      "decided_at": "2026-01-01T00:00:00Z"
+    },
+    {
+      "entry_id": "fixture-entry-2",
+      "canonical_display": "fixture-entity-c",
+      "members": [
+        "fixture-entity-c"
+      ],
+      "decided_by": null,
+      "decided_at": null
+    }
+  ]
+}

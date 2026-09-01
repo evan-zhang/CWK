@@ -1,0 +1,13 @@
+{
+  "_comment": "RT-032 sanitized fixture. Synthetic passing nightly run manifest.",
+  "run_name": "fixture-nightly-20260101-0230",
+  "date": "2026-01-01",
+  "processed_count": 18,
+  "source_completeness_lookback_days": 2,
+  "overall_pass": true,
+  "content_quality_pass": true,
+  "degraded": false,
+  "sync_failures": [],
+  "source_completeness_failures": [],
+  "mutating_commands_called": []
+}

@@ -1,0 +1,17 @@
+{
+  "_comment": "RT-032 sanitized fixture. Synthetic failing nightly run manifest.",
+  "run_name": "fixture-nightly-20260101-0230",
+  "date": "2026-01-01",
+  "processed_count": 3,
+  "source_completeness_lookback_days": 2,
+  "overall_pass": false,
+  "content_quality_pass": false,
+  "degraded": true,
+  "sync_failures": [
+    "fixture-sync-failure"
+  ],
+  "source_completeness_failures": [
+    "fixture-lane-gap"
+  ],
+  "mutating_commands_called": []
+}

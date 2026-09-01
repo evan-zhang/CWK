@@ -1,0 +1,17 @@
+{
+  "_comment": "RT-032 sanitized fixture. Synthetic business profile proposal.",
+  "proposal_only": true,
+  "recurring_topics": [
+    "fixture-topic-alpha",
+    "fixture-topic-beta"
+  ],
+  "frequent_collaborators": [
+    "fixture-person-1",
+    "fixture-person-2"
+  ],
+  "reporting_rhythm": "weekly",
+  "primary_lanes": [
+    "inbox",
+    "pending"
+  ]
+}

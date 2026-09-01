@@ -94,12 +94,58 @@ INSTALLED
 
 ## 验证记录
 
-待实现后填写真实命令、结果与回执；不得用预期结果代替。
+### 2026-09-02：零重叠确定性核心（与 RT-031 并行，未接入安装/Skill 层）
+
+本轮只实现与 RT-031 无路径重叠的部分：激活状态机与私有持久化、只读发现与业务画像
+计算、执行合同与哈希漂移、试跑门禁、调度交接与回执校验，以及对应的脱敏测试。
+`install.sh`、`scripts/cwk_doctor.py`、`skill/SKILL.md`、上手文档与 RT-031 的测试
+一律未改动，也未引入 RT-031 的提交。
+
+| 命令 | 结果 |
+| --- | --- |
+| `python3.11 -m py_compile scripts/cwk_activation_{state,contract,wizard}.py` | 通过 |
+| `python3.11 -m unittest tests.test_rt032_activation_state` | 40 passed |
+| `python3.11 -m unittest tests.test_rt032_activation_contract` | 44 passed |
+| `python3.11 -m unittest tests.test_rt032_activation_wizard` | 45 passed |
+| 三个模块合并运行 | 129 passed |
+| `git diff --check` | 通过（exit 0） |
+| `bash .aodw-next/06-project/aodw-check.sh --root .` | 通过（补登 `RT/index.yaml` 后；仅剩本机 skill 未安装的告警） |
+| `python3.11 .aodw-next/06-project/governance-audit.py --root .` | **未通过：GA-ORPHAN ×3**，见下方待集成项 |
+
+真实 CWork/DocDB、cron、Gateway、远端与模型调用均未触发；全部证据来自
+`tests/fixtures/activation/` 的脱敏样例。
+
+## 待集成项（治理声明，本轮按协调要求不落盘）
+
+并行协调要求本轮不修改 `code-ownership-manifest.json`、`script-evolution-v2.json`
+及任何 PR-001 登记/receipt，因此下列声明只登记不执行。由于 `R-runtime-pr001-managed-scripts`
+是**委派的封闭集合**（rationale 明确：新增 `scripts/cwk_*.py` 不在声明集合内即判孤儿），
+在补登前 `make governance-audit` 必然红：
+
+```
+GA-ORPHAN: scripts/cwk_activation_contract.py
+GA-ORPHAN: scripts/cwk_activation_state.py
+GA-ORPHAN: scripts/cwk_activation_wizard.py
+```
+
+补登内容（待 RT-031 冻结、治理文件解冻后执行）：
+
+1. 在 `code-ownership-manifest.json` 的 `rules` 中新增一条 `kind: exact_set` 规则，
+   owner=RT-032，domain=runtime，覆盖上述三个文件；`scripts/` 是 exact-only 区，
+   不能靠前缀规则吸收。
+2. 确认是否需要在 `script-evolution-v2.json` 登记演化路径；三个文件均为新增运行时
+   脚本，不改动既有受管脚本的行为面。
+3. `tests/` 不是 exact-only 区，`tests/test_rt032_activation_*.py` 与
+   `tests/fixtures/activation/` **无需**新增规则——本轮审计对这 15 个文件零发现，已验证。
 
 ## 变更记录
 
 - 2026-09-02：根据用户批准的安装后使用路径，确定独立 RT；采用“AI 沟通 + 确定性状态/回执”的激活架构，并与 RT-031 安装接入职责分离。
+- 2026-09-02：实现零重叠确定性核心并通过定向测试；治理归属声明按并行协调要求转为待集成项。
+- 2026-09-02：迁移表补 `(PILOT_PASSED, record-pilot-pass) -> PILOT_PASSED` 自环。重跑一次通过的试跑本身安全，但会产出新回执，从而作废旧的第二道确认——把这条安全性质变成可观测行为，而不是藏在一次拒绝背后。
 
 ## 遗留事项
 
-- 无。
+- 治理归属补登见上方「待集成项」，需在治理文件解冻后完成，否则 `make ci` 持续红。
+- Skill 入口、上手文档与 `install.sh` 接入层尚未实现，等 RT-031 冻结提交后再做；
+  届时须保证 `host-skill`、`workspace-skill`、`router`、`none` 四种接入模式不回归。

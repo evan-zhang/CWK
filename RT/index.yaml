@@ -195,3 +195,8 @@ entries:
   status: in-progress
   profile: Spec-Lite
   created: 2026-09-01
+- id: RT-032
+  title: CWK AI 激活向导与自动运行编排
+  status: in-progress
+  profile: Spec-Lite
+  created: 2026-09-01

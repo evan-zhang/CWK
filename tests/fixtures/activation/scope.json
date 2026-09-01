@@ -1,0 +1,13 @@
+{
+  "_comment": "RT-032 sanitized fixture. Synthetic scope only; no real CWork data.",
+  "mirror_kind": "personal",
+  "subject_ref": "fixture-user-a",
+  "authorized_lanes": [
+    "inbox",
+    "pending",
+    "outbox",
+    "unread",
+    "todo_pending"
+  ],
+  "read_only": true
+}

@@ -1,0 +1,25 @@
+{
+  "_comment": "RT-032 sanitized fixture. Synthetic entity surfaces and candidate families.",
+  "entities": [
+    {
+      "normalized": "fixture-entity-a",
+      "aliases": [
+        "fixture-entity-a-alias"
+      ],
+      "family_id": "fam-1"
+    },
+    {
+      "normalized": "fixture-entity-b",
+      "aliases": [],
+      "family_id": "fam-1"
+    },
+    {
+      "normalized": "fixture-entity-c",
+      "aliases": [
+        "fixture-entity-c-alias-1",
+        "fixture-entity-c-alias-2"
+      ],
+      "family_id": "fam-2"
+    }
+  ]
+}
