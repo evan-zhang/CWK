@@ -148,6 +148,52 @@ INSTALLED
 | `bash .aodw-next/06-project/aodw-check.sh --root .` | 通过（仅剩本机 skill 未安装的告警） |
 | `python3.11 .aodw-next/06-project/governance-audit.py --root .` | 仍为既有 GA-ORPHAN ×3，无新增发现 |
 
+### 2026-09-02（第三轮）：接入前定向加固
+
+范围仍是 RT-032 零重叠三脚本 + 对应测试，未触碰 RT-031、治理/PR-001、`install.sh`、
+`cwk_doctor.py`、`skill/`、上手文档、cron/Gateway/远端。
+
+1. **`record-pilot` 的失效回报补齐。** 一条命令可能作废两批确认：进门时清掉本来就
+   过期的，写入新的合同/试跑回执之后再清掉刚被这条命令弄过期的。原实现只回报第一批，
+   于是「换了采集证据重跑试跑」这条最危险的路径会返回
+   `invalidated_gates: []`，同一份负载里 `next_step` 却是 `confirm_activation`——
+   Agent 会照字面告诉用户「什么都没失效」，然后解释不了那个多出来的确认。
+   现在两批并集回报（去重、按 `GATES` 固定顺序）。**状态迁移与 `next_step` 本来就是
+   对的，没有改动**；这是纯可观测性修复。两侧都加了回归：作废时必须报出
+   `["activation"]`，未作废时必须是 `[]`（不能喊狼来了），FAIL 重跑时既报门也照常
+   落 `DEGRADED`。
+2. **stdout 自身写不出去的路径收口。** 原实现在 `json.dump`/`flush` 抛 `OSError`
+   时返回 `EXIT_USAGE`，但 CPython 在解释器退出时**还会再 flush 一次** stdout：管道
+   已断时那次 flush 会失败，把退出码改写成 **120** 并在 stderr 打印
+   `Exception ignored in: <_io.TextIOWrapper …>`。也就是说
+   `cwk_activation_wizard … | head -1` 的真实退出码根本不在本模块承诺的 `EXIT_*` 里，
+   Skill 无法解析。现按 CPython 对 SIGPIPE 的建议，把 stdout 的描述符改指
+   `os.devnull` 后再返回，退出时那次 flush 落进空洞。实测：修复前进程退出码 120 +
+   stderr 有噪声，修复后退出码 2、stderr 干净。测试用受控假 sink（首字节即断、
+   写到一半断、只在 flush 断、`ENOSPC`）与一条真实断管道验证，全部在进程内完成，
+   不起子进程。**没有加兜底 `except Exception`**：假 sink 抛 `RuntimeError` 时
+   仍必须原样抛出，程序缺陷不被吞掉。
+3. **把 I/O 契约写成断言。** 读不到输入文件、写不进状态目录属于**用法失败**，不是
+   业务判定：命令中止，状态文件逐字节不变，不进 `DEGRADED`，也不追加任何迁移回执——
+   因为压根没产生过试跑结论。当前实现本来就是这样（`_write_artifact`/`cas_write` 都在
+   `apply_transition` 之前，失败即整条命令中止），本轮**没有改这个行为**，只是把它
+   固定成测试和模块文档：缺文件、传目录、非 JSON、非对象、以及注入的 `ENOSPC`/`EROFS`
+   持久化失败，五种情况都断言「状态原样 + 无迁移记录 + `degraded_reason_code` 仍为
+   null」。
+
+| 命令 | 结果 |
+| --- | --- |
+| `python3.11 -m py_compile scripts/cwk_activation_{state,contract,wizard}.py` | 通过 |
+| `python3.11 -m unittest tests.test_rt032_activation_state` | 40 passed |
+| `python3.11 -m unittest tests.test_rt032_activation_contract` | 52 passed |
+| `python3.11 -m unittest tests.test_rt032_activation_wizard` | 83 passed（+20） |
+| 三个模块合并运行 | 175 passed |
+| `python3.11 -m unittest tests.test_collection_incremental tests.test_rt032_activation_contract` | 80 passed（同进程、采集器先导入） |
+| 抽掉两处修复重跑新增用例 | 6 项如期变红，证明是真回归而非同义反复 |
+| `git diff --check` | 通过（exit 0） |
+| `bash .aodw-next/06-project/aodw-check.sh --root .` | 通过 |
+| `python3.11 .aodw-next/06-project/governance-audit.py --root .` | 仍为既有 GA-ORPHAN ×3，无新增发现 |
+
 ## 待集成项（治理声明，本轮按协调要求不落盘）
 
 并行协调要求本轮不修改 `code-ownership-manifest.json`、`script-evolution-v2.json`
@@ -171,12 +217,37 @@ GA-ORPHAN: scripts/cwk_activation_wizard.py
 3. `tests/` 不是 exact-only 区，`tests/test_rt032_activation_*.py` 与
    `tests/fixtures/activation/` **无需**新增规则——本轮审计对这 15 个文件零发现，已验证。
 
+## 接入前待议项（本轮按协调要求只记录，不改代码）
+
+三条都已实测复现，都不阻塞本轮验证，但接入 Skill/文档层之前要有结论：
+
+1. **交接单里的配置路径是调用方原样给的绝对路径。** `build_scheduler_handoff` 用
+   `config_path=str(args.config)` 直接进 `command_spec.argv`，因此
+   `schedule-handoff` 的**成功**负载会把绝对路径回显给 Agent（实测：fixture 的
+   绝对路径出现在返回的 JSON 里）。这和错误路径的脱敏姿态不一致。它同时进
+   `handoff_sha256`，所以改成项目根相对路径会改变交接单哈希、作废已有的第二道确认——
+   这正是要跟接入层一起决定的：宿主要在什么工作目录下执行这条 argv。
+   现有的 `assert_no_absolute_path` 只覆盖失败负载，成功负载没有这条断言。
+2. **`redact_message` 只认「以 `/`、`~/`、`./`、`../` 开头」的片段。** 裸相对路径
+   （实测 `state/activation/activation.json` 原样穿过）不会被抹。当前所有错误消息都是
+   固定文案 + errno，不含裸相对路径，所以现在不漏；但这是靠调用点自觉，不是靠闸门。
+   要不要把闸门加宽，取决于接入层会往错误消息里塞什么。加宽有误伤代价——
+   `read/write mismatch` 这类词组不能被当成路径（已有回归钉住）。
+3. **同一个失效回报缺陷在 `propose-profile` 里也可达，本轮按范围**未**修。**
+   路径：`ACTIVE → check-drift 判出合同漂移 → NEEDS_RECONFIRMATION`（此时
+   activation 门仍有效）`→ propose-profile` 换新画像。实测该命令作废了 `profile` 与
+   `activation` 两道门，却回报 `invalidated_gates: []`。修法与 `record-pilot` 完全相同：
+   接住第二次 `invalidate_stale_confirmations` 的返回值，用 `_merge_gates` 并进负载。
+   `confirm-discovery` / `record-discovery` 里有同样的写法，但按迁移表推不出「进门时
+   该门已有有效确认」的状态，属不可达，可一并改成统一写法或留白。
+
 ## 变更记录
 
 - 2026-09-02：根据用户批准的安装后使用路径，确定独立 RT；采用“AI 沟通 + 确定性状态/回执”的激活架构，并与 RT-031 安装接入职责分离。
 - 2026-09-02：实现零重叠确定性核心并通过定向测试；治理归属声明按并行协调要求转为待集成项。
 - 2026-09-02：迁移表补 `(PILOT_PASSED, record-pilot-pass) -> PILOT_PASSED` 自环。重跑一次通过的试跑本身安全：回执是内容寻址的，**证据变了**才会产出新回执并作废旧的第二道确认，证据一模一样则回执哈希不变、确认继续有效。（初版记录写成"重跑必然作废"，与实现不符，已按实际行为更正；两种情形都已加回归测试。）
 - 2026-09-02：整改独立审阅的两个阻断项——试跑门禁对采集回执改为失败关闭并把回执事实绑进哈希；CLI 边界收口 OSError/ContractError 为脱敏 JSON 与既有退出码。测试加固保留并提交。
+- 2026-09-02：接入前定向加固。`record-pilot` 的 `invalidated_gates` 改为回报本条命令作废的全部门（原先漏掉写入新回执后才失效的那批，导致「成功但什么都没失效」与 `next_step: confirm_activation` 自相矛盾）；stdout 断管道时把描述符改指 devnull，进程退出码从解释器的 120 收回到约定的 2 且 stderr 不再有噪声；并把「输入/持久化失败不进 DEGRADED、不写迁移回执」这条既有行为固定成测试与模块文档。交接单绝对路径、裸相对路径脱敏、`propose-profile` 的同类失效回报缺陷记入「接入前待议项」，本轮不动。
 
 ## 遗留事项
 

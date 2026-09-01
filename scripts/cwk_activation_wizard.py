@@ -19,6 +19,13 @@
 包括输入/持久化的 I/O 失败，**任何路径都不会以 traceback 形式漏出去**。
 错误消息统一经 ``redact_message`` 抹掉路径样式片段并截断，因此不会夹带
 绝对路径、凭据或文件正文。退出码见 ``EXIT_*``。
+连 stdout 自身写不出去（下游关了管道、盘满）也只是安静地返回非零：不谎报成功、
+不留 traceback、也不会退化成解释器的 120。
+
+**输入/持久化失败与降级是两件事。** 读不到输入文件、写不进状态目录属于**用法
+失败**：命令中止，激活状态原样不动，既不进 `DEGRADED` 也不写任何迁移回执——
+因为压根没有产生过试跑判定或业务结论，没有什么可降级的。只有真的算出了一张
+FAIL 的试跑回执，才会落到 `DEGRADED`。
 """
 
 from __future__ import annotations
@@ -327,6 +334,20 @@ def _prepare(sess: ActivationSession) -> tuple[dict, list[str]]:
     return state, dropped
 
 
+def _merge_gates(*groups: list[str]) -> list[str]:
+    """合并同一条命令里多批被作废的门，输出去重且顺序稳定的清单。
+
+    一条命令可能作废两次确认：进门时先清掉本来就过期的，写入新事实之后再清掉
+    刚刚被这条命令弄过期的。回报给 Agent 的必须是这条命令**总共**作废了哪些门，
+    否则用户会看到「什么都没失效」，而下一步却在要求重新确认。
+    """
+
+    seen: set[str] = set()
+    for group in groups:
+        seen.update(group)
+    return [gate for gate in GATES if gate in seen]
+
+
 # ── 子命令 ──────────────────────────────────────────────────────────────────
 
 
@@ -541,7 +562,9 @@ def cmd_record_pilot(args: argparse.Namespace) -> tuple[int, dict]:
 
         state["contract_sha256"] = contract_sha
         state["pilot_receipt_sha256"] = receipt["receipt_sha256"]
-        invalidate_stale_confirmations(state)
+        # 新的合同/试跑回执可能刚刚让第二道确认失效。这一批必须并进回报，
+        # 否则成功负载会说「没有确认被作废」，而 next_step 同时要求重新确认。
+        dropped_by_receipt = invalidate_stale_confirmations(state)
 
         passed = receipt["result"] == "PASS"
         if passed:
@@ -567,7 +590,7 @@ def cmd_record_pilot(args: argparse.Namespace) -> tuple[int, dict]:
         sess.commit()
         payload = _snapshot(
             state,
-            invalidated_gates=dropped,
+            invalidated_gates=_merge_gates(dropped, dropped_by_receipt),
             pilot_receipt=receipt,
             contract_sha256=contract_sha,
         )
@@ -860,6 +883,36 @@ def _exit_code_for(exc: Exception) -> int:
     return EXIT_USAGE
 
 
+def _silence_broken_stdout() -> None:
+    """stdout 已经写不动之后，让解释器退出时的那次 flush 无事可做。
+
+    CPython 在退出时会再 flush 一次 ``sys.stdout``。管道已断时那次 flush 会失败，
+    结果是 stderr 上出现 ``Exception ignored in: <_io.TextIOWrapper …>`` 并把进程
+    退出码改写成 120——既不是本模块承诺的任何一个 ``EXIT_*``，也违背了「失败也只
+    输出一个 JSON 对象、不留 traceback」的约定。
+
+    所以按 CPython 文档对 SIGPIPE 的建议，把 stdout 的文件描述符改指 os.devnull：
+    退出时的 flush 落进空洞，退出码保持 ``main`` 的返回值。**只**动 stdout 自己的
+    描述符；stdout 没有描述符（比如测试里换成了内存缓冲）就什么也不做。
+    这里吞掉异常是有意的：此时已经没有任何可用的报告渠道了。
+    """
+
+    try:
+        fileno = sys.stdout.fileno()
+    except (AttributeError, ValueError, OSError):
+        return
+    try:
+        devnull = os.open(os.devnull, os.O_WRONLY)
+    except OSError:
+        return
+    try:
+        os.dup2(devnull, fileno)
+    except OSError:
+        pass
+    finally:
+        os.close(devnull)
+
+
 def _failure(command: str, message: str, kind: str, **extra: Any) -> dict:
     """错误负载的唯一构造点：消息一律过 redact，形状对 Agent 稳定。"""
 
@@ -919,7 +972,10 @@ def main(argv: Optional[list[str]] = None) -> int:
         sys.stdout.write("\n")
         sys.stdout.flush()
     except OSError:
-        # 下游先关掉管道之类：没有能力再报告，但不留 traceback，也不谎报成功。
+        # 下游先关掉管道、或者盘满：已经没有渠道报告这件事了。
+        # 但绝不留 traceback、绝不谎报成功——输出丢了就是失败，退出码非零。
+        # 状态早已在上面 CAS 落盘，这里只是没能把回执讲给调用方听。
+        _silence_broken_stdout()
         return EXIT_USAGE
     return code
 

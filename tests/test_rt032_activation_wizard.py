@@ -12,6 +12,7 @@ repository never creates a scheduled task.
 
 from __future__ import annotations
 
+import errno
 import io
 import json
 import os
@@ -19,7 +20,7 @@ import stat
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
@@ -585,6 +586,134 @@ class ConfirmationAttackTests(WizardTestCase):
         self.assertEqual(code, W.EXIT_REFUSED)
 
 
+class InvalidatedGateReportingTests(WizardTestCase):
+    """`invalidated_gates` must name what *this* command invalidated.
+
+    A command can drop a confirmation twice over: once on entry, for grants
+    that were already stale, and again after it writes new facts of its own.
+    Reporting only the first batch produces the worst kind of success payload
+    — one that says "nothing lapsed" while `next_step` asks the user to
+    confirm again. An AI reading that field would tell the user the pilot
+    changed nothing and then be unable to explain the extra question.
+    """
+
+    def confirmed_pilot(self):
+        """A passing pilot whose second confirmation is in place."""
+
+        self.stage_pilot()
+        _, payload = self.run_cli("confirm-activation")
+        self.assertTrue(payload["confirmations"]["activation"]["valid"])
+
+    def test_a_pilot_on_new_evidence_reports_the_gate_it_invalidated(self):
+        self.confirmed_pilot()
+        code, payload = self.run_cli(
+            "record-pilot",
+            "--config",
+            self.fixture("config.json"),
+            "--nightly-manifest",
+            self.fixture("nightly-manifest.json"),
+            "--acceptance",
+            self.fixture("acceptance.json"),
+            "--collect-manifest",
+            self.collect_copy(written_count=19),
+        )
+        self.assertEqual(code, W.EXIT_OK)
+        self.assertEqual(payload["pilot_receipt"]["result"], "PASS")
+        # The point of this test: the payload names the lapsed gate.
+        self.assertEqual(payload["invalidated_gates"], ["activation"])
+        # …and stays consistent with the rest of the same payload.
+        self.assertFalse(payload["confirmations"]["activation"]["granted"])
+        self.assertFalse(payload["confirmations"]["activation"]["valid"])
+        self.assertEqual(payload["next_step"], "confirm_activation")
+        self.assertEqual(payload["state"], "PILOT_PASSED")
+
+    def test_a_pilot_on_identical_evidence_reports_no_invalidation(self):
+        """The other half of the contract: it must not cry wolf either."""
+
+        self.confirmed_pilot()
+        code, payload = self.run_cli(
+            "record-pilot",
+            "--config",
+            self.fixture("config.json"),
+            "--nightly-manifest",
+            self.fixture("nightly-manifest.json"),
+            "--acceptance",
+            self.fixture("acceptance.json"),
+            "--collect-manifest",
+            self.fixture("collect-manifest.json"),
+        )
+        self.assertEqual(code, W.EXIT_OK)
+        self.assertEqual(payload["invalidated_gates"], [])
+        self.assertTrue(payload["confirmations"]["activation"]["valid"])
+        self.assertEqual(payload["next_step"], "emit_scheduler_handoff")
+
+    def test_the_first_pilot_invalidates_nothing(self):
+        self.stage_profile()
+        code, payload = self.run_cli(
+            "record-pilot",
+            "--config",
+            self.fixture("config.json"),
+            "--nightly-manifest",
+            self.fixture("nightly-manifest.json"),
+            "--acceptance",
+            self.fixture("acceptance.json"),
+            "--collect-manifest",
+            self.fixture("collect-manifest.json"),
+        )
+        self.assertEqual(code, W.EXIT_OK)
+        self.assertEqual(payload["invalidated_gates"], [])
+        self.assertEqual(payload["next_step"], "confirm_activation")
+
+    def test_a_failing_rerun_reports_the_gate_and_still_degrades(self):
+        """Reporting the lapse must not disturb the FAIL verdict itself."""
+
+        self.confirmed_pilot()
+        code, payload = self.run_cli(
+            "record-pilot",
+            "--config",
+            self.fixture("config.json"),
+            "--nightly-manifest",
+            self.fixture("nightly-manifest-degraded.json"),
+            "--acceptance",
+            self.fixture("acceptance.json"),
+            "--collect-manifest",
+            self.fixture("collect-manifest.json"),
+        )
+        self.assertEqual(code, W.EXIT_PILOT_FAILED)
+        self.assertEqual(payload["invalidated_gates"], ["activation"])
+        self.assertEqual(payload["state"], "DEGRADED")
+        self.assertEqual(payload["degraded_reason_code"], "pilot_failed")
+        self.assertEqual(payload["next_step"], "rerun_pilot")
+
+    def test_reported_gates_are_always_known_tokens(self):
+        self.confirmed_pilot()
+        _, payload = self.run_cli(
+            "record-pilot",
+            "--config",
+            self.config_copy(detail_cap=7),
+            "--nightly-manifest",
+            self.fixture("nightly-manifest.json"),
+            "--acceptance",
+            self.fixture("acceptance.json"),
+            "--collect-manifest",
+            self.fixture("collect-manifest.json"),
+        )
+        gates = payload["invalidated_gates"]
+        self.assertTrue(set(gates) <= set(S.GATES))
+        self.assertEqual(len(gates), len(set(gates)), "no gate is reported twice")
+        self.assertEqual(gates, [g for g in S.GATES if g in set(gates)], "stable order")
+        # A changed contract hash also lapses the second confirmation.
+        self.assertIn("activation", gates)
+
+    def test_merge_keeps_the_union_deduplicated_and_ordered(self):
+        self.assertEqual(W._merge_gates([], []), [])
+        self.assertEqual(W._merge_gates(["activation"], ["activation"]), ["activation"])
+        self.assertEqual(
+            W._merge_gates(["activation"], ["discovery", "profile"]),
+            ["discovery", "profile", "activation"],
+        )
+
+
 class ScheduleAttackTests(WizardTestCase):
     def test_recording_a_schedule_requires_a_handoff(self):
         self.stage_pilot()
@@ -864,6 +993,102 @@ class InputAndPersistenceFailureTests(WizardTestCase):
                 self.assertEqual(text.count("\n}"), 1)
                 self.assert_no_absolute_path(text)
 
+    # ── the intended I/O contract, stated as assertions ────────────────────
+    #
+    # Reading an input file or writing the state directory can fail for
+    # reasons that say nothing about the user's data: a typo in a path, a
+    # read-only volume, a full disk. None of that is a verdict about the
+    # nightly run, so none of it may look like one. The wizard aborts, the
+    # activation state stays byte-for-byte as it was, and no transition
+    # receipt is appended — DEGRADED is reserved for a real FAIL receipt.
+
+    def assert_state_untouched(self, before_bytes: bytes, before: dict) -> None:
+        after_bytes = (self.state_dir / S.STATE_FILE).read_bytes()
+        self.assertEqual(after_bytes, before_bytes, "the state file was rewritten")
+        after = json.loads(after_bytes.decode("utf-8"))
+        self.assertEqual(after["state"], before["state"])
+        self.assertEqual(after["revision"], before["revision"])
+        self.assertEqual(len(after["history"]), len(before["history"]))
+        self.assertIsNone(after["degraded_reason_code"])
+        self.assertNotEqual(after["state"], "DEGRADED")
+
+    def pilot_argv(self, config: str) -> tuple[str, ...]:
+        return (
+            "record-pilot",
+            "--config",
+            config,
+            "--nightly-manifest",
+            self.fixture("nightly-manifest.json"),
+            "--acceptance",
+            self.fixture("acceptance.json"),
+            "--collect-manifest",
+            self.fixture("collect-manifest.json"),
+        )
+
+    def test_an_unreadable_input_is_a_usage_failure_not_a_degradation(self):
+        self.stage_profile()
+        before_bytes = (self.state_dir / S.STATE_FILE).read_bytes()
+        before = self.read_state()
+        code, text = self.run_cli_raw(*self.pilot_argv(str(self.root / "gone.json")))
+        payload = json.loads(text)
+        self.assertEqual(code, W.EXIT_USAGE)
+        self.assertNotEqual(code, W.EXIT_PILOT_FAILED)
+        self.assertFalse(payload["ok"])
+        self.assertNotIn("pilot_receipt", payload)
+        self.assert_no_absolute_path(text)
+        self.assert_state_untouched(before_bytes, before)
+        self.assertEqual(self.read_state()["state"], "PROFILE_CONFIRMED")
+
+    def test_a_failure_to_persist_records_no_verdict(self):
+        """A full disk at commit time must not be mistaken for a bad run."""
+
+        self.stage_profile()
+        before_bytes = (self.state_dir / S.STATE_FILE).read_bytes()
+        before = self.read_state()
+        boom = OSError(errno.ENOSPC, "No space left on device")
+        with mock.patch.object(S, "cas_write", side_effect=boom):
+            code, text = self.run_cli_raw(*self.pilot_argv(self.fixture("config.json")))
+        payload = json.loads(text)
+        self.assertEqual(code, W.EXIT_USAGE)
+        self.assertEqual(payload["error_kind"], "IOFailure")
+        self.assertEqual(payload["errno"], "ENOSPC")
+        self.assert_no_absolute_path(text)
+        self.assert_state_untouched(before_bytes, before)
+
+    def test_a_failure_to_write_an_artifact_records_no_verdict(self):
+        self.stage_profile()
+        before_bytes = (self.state_dir / S.STATE_FILE).read_bytes()
+        before = self.read_state()
+        boom = OSError(errno.EROFS, "Read-only file system")
+        with mock.patch.object(W, "write_atomic", side_effect=boom):
+            code, text = self.run_cli_raw(*self.pilot_argv(self.fixture("config.json")))
+        payload = json.loads(text)
+        self.assertEqual(code, W.EXIT_USAGE)
+        self.assertEqual(payload["errno"], "EROFS")
+        self.assert_no_absolute_path(text)
+        self.assert_state_untouched(before_bytes, before)
+
+    def test_no_usage_failure_ever_enters_degraded(self):
+        self.stage_profile()
+        before_bytes = (self.state_dir / S.STATE_FILE).read_bytes()
+        before = self.read_state()
+        not_json = self.root / "not-json.json"
+        not_json.write_text("{ still not json", encoding="utf-8")
+        an_array = self.root / "array.json"
+        an_array.write_text("[1, 2, 3]", encoding="utf-8")
+        for label, config in (
+            ("missing file", str(self.root / "absent.json")),
+            ("a directory", str(self.root)),
+            ("not json", str(not_json)),
+            ("not an object", str(an_array)),
+        ):
+            with self.subTest(config=label):
+                code, text = self.run_cli_raw(*self.pilot_argv(config))
+                self.assertEqual(code, W.EXIT_USAGE)
+                self.assertFalse(json.loads(text)["ok"])
+                self.assert_no_absolute_path(text)
+                self.assert_state_untouched(before_bytes, before)
+
     def test_redaction_strips_a_path_but_keeps_the_sentence(self):
         message = W.redact_message(f"scope file {self.root}/scope.json is unreadable")
         self.assertNotIn(str(self.root), message)
@@ -978,6 +1203,174 @@ class OutputContractTests(WizardTestCase):
         )
         self.assertEqual(code, W.EXIT_USAGE)
         self.assertIn("not found", payload["error"])
+
+
+class FailingSink(io.StringIO):
+    """A stdout stand-in that fails the way a closed pipe or a full disk does.
+
+    Deterministic on purpose: no subprocess, no real pipe timing, no reliance
+    on how much the caller happened to buffer.
+    """
+
+    def __init__(self, exc: BaseException, *, after: int = 0, on_flush: bool = False):
+        super().__init__()
+        self.exc = exc
+        self.after = after
+        self.on_flush = on_flush
+        self.write_calls = 0
+        self.flush_calls = 0
+
+    def write(self, text):  # type: ignore[override]
+        self.write_calls += 1
+        if not self.on_flush and self.write_calls > self.after:
+            raise self.exc
+        return super().write(text)
+
+    def flush(self):  # type: ignore[override]
+        self.flush_calls += 1
+        if self.on_flush:
+            raise self.exc
+        return super().flush()
+
+
+class BrokenOutputSinkTests(WizardTestCase):
+    """stdout itself can fail. That is still a failure, and still quiet.
+
+    `cwk_activation_wizard … | head -1` closes the pipe under the wizard.
+    The contract for that case: never claim success, never print a traceback,
+    never leak a private path, and never hand back an exit code outside the
+    documented set — including the interpreter's own 120 for "error flushing
+    stdout at exit".
+    """
+
+    def run_with_sink(self, sink, *args: str) -> tuple[int, str]:
+        argv = ["--state-dir", str(self.state_dir), "--now", self.tick(), *args]
+        stderr = io.StringIO()
+        with redirect_stdout(sink), redirect_stderr(stderr):
+            code = W.main(argv)
+        return code, stderr.getvalue()
+
+    def assert_clean_failure(self, code: int, stderr: str, emitted: str) -> None:
+        self.assertEqual(code, W.EXIT_USAGE)
+        self.assertNotEqual(code, W.EXIT_OK, "a lost payload is never a success")
+        self.assertEqual(stderr, "", "nothing is printed on the side channel")
+        for marker in ("Traceback", 'File "', "BrokenPipeError", "cwk_activation_wizard.py"):
+            self.assertNotIn(marker, emitted)
+        self.assertNotIn(str(self.root), emitted)
+        self.assertNotIn(str(self.state_dir), emitted)
+        self.assertNotIn(str(PROJECT), emitted)
+
+    def test_a_pipe_that_breaks_mid_payload_fails_quietly(self):
+        self.run_cli("init")
+        sink = FailingSink(BrokenPipeError(errno.EPIPE, "Broken pipe"), after=3)
+        code, stderr = self.run_with_sink(sink, "status")
+        self.assert_clean_failure(code, stderr, sink.getvalue())
+        self.assertGreater(sink.write_calls, 3, "the break happened while writing")
+
+    def test_a_pipe_that_breaks_on_the_first_write_fails_quietly(self):
+        self.run_cli("init")
+        sink = FailingSink(BrokenPipeError(errno.EPIPE, "Broken pipe"))
+        code, stderr = self.run_with_sink(sink, "status")
+        self.assert_clean_failure(code, stderr, sink.getvalue())
+        self.assertEqual(sink.getvalue(), "", "not a single byte escaped")
+
+    def test_a_pipe_that_breaks_on_the_final_flush_fails_quietly(self):
+        self.run_cli("init")
+        sink = FailingSink(BrokenPipeError(errno.EPIPE, "Broken pipe"), on_flush=True)
+        code, stderr = self.run_with_sink(sink, "status")
+        self.assert_clean_failure(code, stderr, sink.getvalue())
+        self.assertEqual(sink.flush_calls, 1)
+
+    def test_a_full_disk_on_stdout_behaves_the_same(self):
+        """EPIPE is not special-cased; any write failure is handled alike."""
+
+        self.run_cli("init")
+        sink = FailingSink(OSError(errno.ENOSPC, "No space left on device"), after=2)
+        code, stderr = self.run_with_sink(sink, "status")
+        self.assert_clean_failure(code, stderr, sink.getvalue())
+
+    def test_a_command_that_would_have_succeeded_still_exits_nonzero(self):
+        """The state advanced, but the caller never heard about it."""
+
+        self.stage_profile()
+        sink = FailingSink(BrokenPipeError(errno.EPIPE, "Broken pipe"), after=1)
+        code, stderr = self.run_with_sink(
+            sink,
+            "record-pilot",
+            "--config",
+            self.fixture("config.json"),
+            "--nightly-manifest",
+            self.fixture("nightly-manifest.json"),
+            "--acceptance",
+            self.fixture("acceptance.json"),
+            "--collect-manifest",
+            self.fixture("collect-manifest.json"),
+        )
+        self.assert_clean_failure(code, stderr, sink.getvalue())
+        # The verdict itself was committed before the output was attempted,
+        # so a re-read shows it; the exit code just refuses to vouch for it.
+        self.assertEqual(self.read_state()["state"], "PILOT_PASSED")
+
+    def test_an_already_failing_command_also_stays_nonzero(self):
+        self.state_dir.mkdir(mode=0o700, parents=True)
+        sink = FailingSink(BrokenPipeError(errno.EPIPE, "Broken pipe"), after=1)
+        code, stderr = self.run_with_sink(sink, "confirm-profile")
+        self.assert_clean_failure(code, stderr, sink.getvalue())
+
+    def test_a_broken_pipe_on_an_error_payload_leaks_nothing(self):
+        self.run_cli("init")
+        secret = self.root / "secret.json"
+        secret.write_text("{ CWORK_APP_KEY: sk-fixture-not-a-real-key", encoding="utf-8")
+        sink = FailingSink(BrokenPipeError(errno.EPIPE, "Broken pipe"), after=6)
+        code, stderr = self.run_with_sink(
+            sink, "confirm-discovery", "--scope-file", str(secret)
+        )
+        self.assert_clean_failure(code, stderr, sink.getvalue())
+        self.assertNotIn("sk-fixture-not-a-real-key", sink.getvalue())
+        self.assertNotIn("CWORK_APP_KEY", sink.getvalue())
+
+    def test_a_programmer_bug_in_the_output_sink_still_surfaces(self):
+        """Only OSError is absorbed. A real defect must not be swallowed."""
+
+        self.run_cli("init")
+        sink = FailingSink(RuntimeError("this is a bug, not a broken pipe"), after=1)
+        argv = ["--state-dir", str(self.state_dir), "--now", self.tick(), "status"]
+        with redirect_stdout(sink):
+            with self.assertRaises(RuntimeError):
+                W.main(argv)
+
+    def test_a_broken_real_pipe_is_neutralised_before_the_exit_flush(self):
+        """CPython flushes stdout again at exit; that flush must not blow up.
+
+        Left alone it prints "Exception ignored in: <_io.TextIOWrapper …>"
+        and rewrites the exit status to 120 — neither of which is one of this
+        module's exit codes, and neither of which the Skill can parse.
+        """
+
+        self.run_cli("init")
+        read_fd, write_fd = os.pipe()
+        os.close(read_fd)  # the downstream reader is gone before we write
+        stream = os.fdopen(write_fd, "w", encoding="utf-8")
+        self.addCleanup(stream.close)
+        stderr = io.StringIO()
+        argv = ["--state-dir", str(self.state_dir), "--now", self.tick(), "status"]
+        with redirect_stdout(stream), redirect_stderr(stderr):
+            code = W.main(argv)
+        self.assertEqual(code, W.EXIT_USAGE)
+        self.assertEqual(stderr.getvalue(), "")
+        # The descriptor now points at the void, so the interpreter's own
+        # exit-time flush has nothing left to fail on.
+        self.assertTrue(stat.S_ISCHR(os.fstat(write_fd).st_mode))
+        stream.write("x")
+        stream.flush()  # would raise BrokenPipeError without the fix
+
+    def test_neutralising_a_stream_without_a_descriptor_is_a_no_op(self):
+        """In-memory stdout has no fileno; the guard must not crash on it."""
+
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            W._silence_broken_stdout()
+        self.assertEqual(buffer.getvalue(), "")
 
 
 if __name__ == "__main__":
