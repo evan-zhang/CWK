@@ -190,3 +190,8 @@ entries:
   status: in-progress
   profile: Spec-Lite
   created: 2026-08-31
+- id: RT-031
+  title: CWK 内部小团队最小上手
+  status: in-progress
+  profile: Spec-Lite
+  created: 2026-09-01

@@ -25,7 +25,7 @@
 ## 验证
 
 - 要跑的检查 / 要点的界面路径：临时隔离副本执行 `install.sh --install-skill`；检查生成私有模板、Skill 链接与脱敏 smoke；运行 Markdown/链接/空白检查、相关单测、`git diff --check`。
-- 对照成功标准的结果：隔离副本以 Python 3.11、临时 HOME 和独立 skills 目录安装通过；生成 `.env`、`cwk-mirror.local.json`、正确的 Skill 链接和 smoke 的 Markdown/HTML。`tests/test_distribution.py`、RT-031 门禁、治理审计和空白检查通过。全仓 AODW 自检在未改动的基线脚本中因第 91 行把中文分号写入 shell 变量展开而失败；主工作树的相同基线复现，未纳入本 RT 修复。
+- 对照成功标准的结果：隔离副本以 Python 3.11、临时 HOME 和独立 skills 目录安装通过；生成 `.env`、`cwk-mirror.local.json`、正确的 Skill 链接和 smoke 的 Markdown/HTML。`tests/test_distribution.py`、RT-031 门禁、治理审计和空白检查通过。RT-031 已登记在索引，`LC_ALL=C make aodw-check` 通过；当前 UTF-8 locale 下不带环境覆盖的同一命令会在未改动脚本第 91 行把中文分号纳入变量名而 exit 2，此 locale 敏感性未纳入本 RT 修复。
 
 ## 变更记录
 

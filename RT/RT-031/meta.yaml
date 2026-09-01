@@ -8,12 +8,12 @@ modules:
   - installation
   - skill-entrypoint
   - internal-distribution
-branch: agent/cwk-internal-team-onboarding
-worktree: .worktrees/openclaw-worktree-cwk-internal-team-onboarding
+branch: null
+worktree: null
 tool: Codex
 owner: Codex
 created_at: 2026-09-01T07:25:37Z
-updated_at: 2026-09-01T07:25:37Z
+updated_at: 2026-09-01T08:02:00Z
 closed_at: null
 deferred_items_raised: []
 deferred_items_claimed: []
