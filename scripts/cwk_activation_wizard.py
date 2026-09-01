@@ -46,6 +46,9 @@ if str(_PROJECT / "scripts") not in sys.path:
 
 from cwk_activation_contract import (  # noqa: E402
     ConfigLocatorError,
+    NightlyConfigError,
+    ScheduledEnvironmentMismatch,
+    ScopeSchemaError,
     build_discovery_report,
     build_execution_contract,
     build_scheduler_handoff,
@@ -55,6 +58,7 @@ from cwk_activation_contract import (  # noqa: E402
     contract_drift,
     detect_schedule_drift,
     evaluate_pilot,
+    normalize_scope,
     render_contract_markdown,
     validate_schedule_receipt,
 )
@@ -70,6 +74,7 @@ from cwk_activation_state import (  # noqa: E402
     StateIntegrityError,
     UNINITIALIZED,
     apply_transition,
+    can_transition,
     compute_binding_sha256,
     current_binding,
     default_state,
@@ -83,7 +88,9 @@ from cwk_activation_state import (  # noqa: E402
 from cwk_atomic_file import (  # noqa: E402
     FILE_MODE,
     AtomicFileError,
+    ContainmentError,
     LockUnavailable,
+    read_file,
     write_atomic,
 )
 from cwk_pr001_contracts import ContractError  # noqa: E402
@@ -261,6 +268,22 @@ def _optional_json(path: Optional[str], label: str) -> Optional[dict]:
     return _require_json(path, label)
 
 
+def _require_scope(path: Optional[str], label: str = "--scope-file") -> dict:
+    """读入范围文件并**立刻**收敛成闭合 schema。
+
+    第一道门确认的就是这个对象，而它随后会被写进发现报告、再由 AI 念给用户听。
+    先归一再使用，意味着：多余的键、自由文本的 subject_ref、不认识的 lane、
+    `read_only: false` 都在算哈希之前被拒，绝不会有「用户确认过一份包含任意
+    字段的对象」这种事。归一是幂等的，所以下游拿到的和这里算哈希的是同一份。
+    """
+
+    raw = _require_json(path, label)
+    try:
+        return normalize_scope(raw)
+    except ScopeSchemaError as exc:
+        raise WizardError(f"{label} rejected: {exc}") from exc
+
+
 def _schedule_intent(config: dict) -> tuple[str, str]:
     """执行合同里的调度意图**只**来自配置文件。
 
@@ -289,16 +312,36 @@ def _write_artifact(dir_fd: int, name: str, payload: Any) -> str:
     return receipt.sha256
 
 
-def _read_artifact(state_dir: Path, name: str, label: str) -> dict:
-    """读回自己写在状态目录里的产物。文件名是固定常量，路径不进错误消息。"""
+def _read_artifact(dir_fd: int, name: str, label: str) -> dict:
+    """读回自己写在状态目录里的产物。
 
-    path = Path(state_dir) / name
+    读法必须与写法对称。产物是 `_write_artifact` 用 dirfd + 原子重命名写进 0700
+    目录的，读的时候却用普通 `Path` 打开，就等于承认「写的时候防符号链接、读的
+    时候不防」——而**读**才是决定内容的一环：交接单和执行合同读出来什么，
+    随后就按什么去比对哈希、去生成给宿主执行的 argv。所以这里同样锚在 dirfd 上，
+    经 `read_file` 的 O_NOFOLLOW 与常规文件检查；名字被换成符号链接、目录或带第二
+    条硬链接的文件时当场拒读，而不是顺着链接去读别处的内容。
+
+    文件名是固定常量，路径不进错误消息。
+    """
+
     try:
-        if not path.is_file():
-            raise WizardError(f"{label} not found; run the previous step first")
-        text = path.read_text(encoding="utf-8")
+        raw = read_file(dir_fd, name)
+    except FileNotFoundError as exc:
+        raise WizardError(f"{label} not found; run the previous step first") from exc
+    except ContainmentError as exc:
+        # 目录里确实有个东西占着这个名字，但它不是我们写下的那个常规文件。
+        # 这不是「还没生成」——是有人动过。fail closed，不跟随、不重写、不删除。
+        raise WizardError(
+            f"{label} is not the regular file this step wrote "
+            "(symlink, directory or extra hard link); refusing to read it"
+        ) from exc
+    except AtomicFileError as exc:
+        raise InputIOError(f"{label} could not be read: {redact_message(exc)}") from exc
     except OSError as exc:
         raise InputIOError(f"{label} could not be read ({errno_name(exc)})") from exc
+    try:
+        text = raw.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise WizardError(f"{label} is corrupt: not valid UTF-8 text") from exc
     try:
@@ -379,6 +422,38 @@ def _prepare(sess: ActivationSession) -> tuple[dict, list[str]]:
     return state, dropped
 
 
+def _revoke_gate(state: dict, gate: str) -> list[str]:
+    """显式吊销一道门的确认，返回实际被吊销的门（没有就是空表）。
+
+    与 `invalidate_stale_confirmations` 的区别值得说清楚：那个函数处理的是
+    「绑定的事实变了，所以确认自动对不上」；这个函数处理的是「事实没变，但我们
+    刚刚发现这份确认不该再算数」——漂移就是这种情况。合同漂移时状态里记的
+    `contract_sha256` 仍是旧的那个，绑定哈希照样对得上，所以自动失效那条路
+    根本不会触发；不显式吊销，就会出现「下一步要求重新确认，同一份负载却说
+    第二道确认依然有效」的自相矛盾。
+    """
+
+    confirmations = state.get("confirmations") or {}
+    if confirmations.get(gate) is None:
+        return []
+    confirmations[gate] = None
+    return [gate]
+
+
+def _commit_without_transition(sess: ActivationSession, state: dict, now: str) -> None:
+    """没有状态迁移、但确实改动了持久内容时，唯一允许的落盘方式。
+
+    「磁盘上的语义变了、revision 却没动」是不可接受的：外部只能靠 revision 和
+    history 判断自己看到的是不是最新的事实，一次无声的改写会让所有基于 revision
+    的比较得出错误结论。没有迁移可写进 history 时，至少要推进 revision 和
+    updated_at，让这次改动留下痕迹。
+    """
+
+    state["revision"] = int(state["revision"]) + 1
+    state["updated_at"] = now
+    sess.commit()
+
+
 def _merge_gates(*groups: list[str]) -> list[str]:
     """合并同一条命令里多批被作废的门，输出去重且顺序稳定的清单。
 
@@ -413,6 +488,7 @@ def cmd_init(args: argparse.Namespace) -> tuple[int, dict]:
 
 
 def cmd_status(args: argparse.Namespace) -> tuple[int, dict]:
+    now = _resolve_now(args.now)
     with session(args.state_dir) as sess:
         if sess.integrity_reason is not None:
             return EXIT_USAGE, {
@@ -430,13 +506,13 @@ def cmd_status(args: argparse.Namespace) -> tuple[int, dict]:
         state = sess.state
         dropped = invalidate_stale_confirmations(state)
         if dropped:
-            sess.commit()
+            _commit_without_transition(sess, state, now)
         return EXIT_OK, _snapshot(state, healthy=True, invalidated_gates=dropped)
 
 
 def cmd_confirm_discovery(args: argparse.Namespace) -> tuple[int, dict]:
     now = _resolve_now(args.now)
-    scope = _require_json(args.scope_file, "--scope-file")
+    scope = _require_scope(args.scope_file)
     with session(args.state_dir) as sess:
         state, dropped = _prepare(sess)
         state["discovery_scope_sha256"] = compute_scope_sha256(scope)
@@ -465,7 +541,7 @@ def cmd_confirm_discovery(args: argparse.Namespace) -> tuple[int, dict]:
 
 def cmd_record_discovery(args: argparse.Namespace) -> tuple[int, dict]:
     now = _resolve_now(args.now)
-    scope = _require_json(args.scope_file, "--scope-file")
+    scope = _require_scope(args.scope_file)
     collect = _optional_json(args.collect_manifest, "--collect-manifest")
     nightly = _optional_json(args.nightly_manifest, "--nightly-manifest")
     acceptance = _optional_json(args.acceptance, "--acceptance")
@@ -688,7 +764,7 @@ def cmd_schedule_handoff(args: argparse.Namespace) -> tuple[int, dict]:
             raise IllegalTransition(
                 f"scheduler handoff requires PILOT_PASSED, current state is {state['state']}"
             )
-        contract = _read_artifact(args.state_dir, EXECUTION_CONTRACT_FILE, "execution contract")
+        contract = _read_artifact(sess.dir_fd, EXECUTION_CONTRACT_FILE, "execution contract")
         if compute_contract_sha256(contract) != state["contract_sha256"]:
             raise IllegalTransition(
                 "stored execution contract does not match the confirmed contract hash"
@@ -708,9 +784,7 @@ def cmd_schedule_handoff(args: argparse.Namespace) -> tuple[int, dict]:
         # schedule_handoff_sha256，并在随后的 record-schedule 里作为
         # input_receipt_sha256 进入历史。
         state["schedule_handoff_sha256"] = handoff["handoff_sha256"]
-        state["revision"] = int(state["revision"]) + 1
-        state["updated_at"] = now
-        sess.commit()
+        _commit_without_transition(sess, state, now)
         return EXIT_OK, _snapshot(
             state,
             invalidated_gates=dropped,
@@ -727,7 +801,7 @@ def cmd_record_schedule(args: argparse.Namespace) -> tuple[int, dict]:
     with session(args.state_dir) as sess:
         state, dropped = _prepare(sess)
         _require_grant(state, "activation")
-        handoff = _read_artifact(args.state_dir, SCHEDULER_HANDOFF_FILE, "scheduler handoff")
+        handoff = _read_artifact(sess.dir_fd, SCHEDULER_HANDOFF_FILE, "scheduler handoff")
         if handoff.get("handoff_sha256") != state["schedule_handoff_sha256"]:
             raise ScheduleConflict("stored handoff does not match the one recorded in state")
         check = validate_schedule_receipt(
@@ -790,6 +864,19 @@ def cmd_check_drift(args: argparse.Namespace) -> tuple[int, dict]:
     """比对当前配置算出的合同与状态记录，并核对外部调度标识。
 
     发现未知任务只如实报告，绝不代替用户删除或覆盖。
+
+    真的漂移了就一定会做两件事，且顺序固定：
+
+    1. **吊销第二道确认**。漂移意味着「用户当初点头同意的那件事」和「今晚实际会
+       发生的那件事」已经不是同一件；此时状态里记的 `contract_sha256` 还是旧的，
+       绑定哈希照样对得上，自动失效那条路不会触发，所以必须显式吊销——否则
+       负载会一边说 `next_step: reconfirm_contract`，一边说 activation 门依然
+       有效。这两句话不能同时为真。
+    2. **能降级就降级，不能降级就什么都不改**。已经在 DEGRADED /
+       NEEDS_RECONFIRMATION 里时 `flag-drift` 不合法，那就不写迁移；也**不**
+       顺手改 `degraded_reason_code`——那会是一条既没有迁移记录、也没人授权的
+       语义变更。凡是落盘的改动都走 `_commit_without_transition`，至少带上
+       revision 与 updated_at 的痕迹。
     """
 
     now = _resolve_now(args.now)
@@ -815,11 +902,16 @@ def cmd_check_drift(args: argparse.Namespace) -> tuple[int, dict]:
         )
         drifted = bool(drift["drifted"] or schedule["drifted"])
         flagged = False
+        revoked: list[str] = []
         if drifted:
-            state["degraded_reason_code"] = (
-                "contract_drift" if drift["drifted"] else "schedule_id_unknown"
-            )
-            try:
+            # 先问再改：迁移合不合法必须在动状态之前就知道，否则「改了再回滚」
+            # 会在异常路径上留下半截改动，而它照样会被下面的 commit 写进磁盘。
+            can_flag = can_transition(state["state"], "flag-drift")
+            revoked = _revoke_gate(state, "activation")
+            if can_flag:
+                state["degraded_reason_code"] = (
+                    "contract_drift" if drift["drifted"] else "schedule_id_unknown"
+                )
                 apply_transition(
                     state,
                     event="flag-drift",
@@ -829,18 +921,20 @@ def cmd_check_drift(args: argparse.Namespace) -> tuple[int, dict]:
                     next_step="reconfirm_contract",
                 )
                 flagged = True
-            except IllegalTransition:
-                # 已经在 DEGRADED / NEEDS_RECONFIRMATION 这类状态里，无需再降级。
-                flagged = False
-            sess.commit()
+                sess.commit()
+            elif revoked or dropped:
+                # 已经在 DEGRADED / NEEDS_RECONFIRMATION：不再降级，也不改降级原因；
+                # 只有确认被吊销这一件事需要落盘，且必须带 revision 痕迹。
+                _commit_without_transition(sess, state, now)
         elif dropped:
-            sess.commit()
+            _commit_without_transition(sess, state, now)
         return (EXIT_DRIFT if drifted else EXIT_OK), _snapshot(
             state,
-            invalidated_gates=dropped,
+            invalidated_gates=_merge_gates(dropped, revoked),
             contract_drift=drift,
             schedule_drift=schedule,
             flagged=flagged,
+            activation_authorization_revoked=bool(revoked),
             destructive_action_taken=False,
         )
 
@@ -1007,6 +1101,22 @@ def main(argv: Optional[list[str]] = None) -> int:
         # 也不退化成把绝对路径塞进负载。用户改配置位置后重跑即可。
         payload = _failure(args.command, exc, "ConfigLocatorError")
         code = EXIT_REFUSED
+    except ScheduledEnvironmentMismatch as exc:
+        # 合同里有一项取值来自当前 shell 的环境变量，而定时任务拿不到它。
+        # 出交接单就等于承诺一件今晚不会发生的事，所以宁可拒绝：把值搬进配置
+        # 文件、重算合同、重跑试跑，再来要交接单。
+        payload = _failure(args.command, exc, "ScheduledEnvironmentMismatch")
+        code = EXIT_REFUSED
+    except NightlyConfigError as exc:
+        # 配置或环境里的 nightly 取值本身不合法（不是整数、超出范围）。
+        # 合同必须逐字复述今晚会发生什么，猜不出来就不写。
+        payload = _failure(args.command, exc, "NightlyConfigError")
+        code = EXIT_USAGE
+    except ScopeSchemaError as exc:
+        # 授权可见范围不符合闭合 schema。绝不把调用方给的任意对象当成
+        # 「用户确认过的范围」转发下去。
+        payload = _failure(args.command, exc, "ScopeSchemaError")
+        code = EXIT_USAGE
     except ContractError as exc:
         # 输入 JSON 无法规范化（超安全范围的数字、非字符串键、NFC 键冲突等）：
         # 这是调用方给的数据不合格，不是程序缺陷。

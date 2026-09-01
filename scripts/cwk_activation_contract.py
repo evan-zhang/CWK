@@ -124,16 +124,187 @@ def _as_int(value: Any, default: int) -> int:
         return default
 
 
-def _as_bool(value: Any, default: bool) -> bool:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        low = value.strip().lower()
-        if low in {"1", "true", "yes", "on"}:
-            return True
-        if low in {"0", "false", "no", "off"}:
-            return False
-    return default
+# ── nightly 运行时取值：与 cwk_nightly_pipeline 逐条对齐 ────────────────────
+#
+# 合同必须描述**那条被排期的命令实际会做什么**，不是「大致会做什么」。交接单里
+# 的 argv 固定为 `--config <cfg> --run-name <n> --date <d>`，没有别的开关，所以
+# 这里只需要复刻 nightly 在**没有其它命令行参数**时的取值规则。
+#
+# 为什么不把上游 nightly 模块导进来复用它的函数：那个模块在导入时就会执行
+# `load_local_env(PROJECT/'.env')`，把 .env 里的东西塞进本进程的环境变量。
+# 激活向导绝不能因为「渲染一份合同」而顺手把凭据读进自己的进程。所以这里重写一
+# 份**等价实现**，并由 tests/test_rt032_contract_fidelity.py 直接调用上游真函数
+# 做等价性对拍——上游一改，那组测试就红。
+#
+# 与上游 `env_bool` 逐字一致：只有这五个字面量算真，**其它任何取值都算假**，
+# 不存在「看不懂就回落到默认值」。少写一个 "y" 就会让合同在 CWK_SYNC_DOCDB=y
+# 时说「不发布」，而实际那晚会发布。
+NIGHTLY_ENV_TRUE = ("1", "true", "yes", "y", "on")
+
+# 被排期的任务只会拿到交接单 env_allowlist 里的变量（CWORK_APP_KEY），拿不到
+# 任何 CWK_* 开关。因此「当前 shell 里的 CWK_* 变量」和「排期后真实的环境」是
+# 两个环境，合同必须把两者是否等价说清楚。
+NIGHTLY_SETTING_KEYS = (
+    "detail_cap",
+    "continuation_cap",
+    "backfill_cap",
+    "backfill_page_size",
+    "backfill_enabled",
+    "source_completeness",
+    "source_completeness_lookback_days",
+    "sync_docdb",
+)
+
+
+class NightlyConfigError(ValueError):
+    """配置里的取值会让 nightly 直接崩在启动阶段。
+
+    上游对整数是 `int(...)` 硬转、对 lookback 有 0..31 的范围检查，转不动就
+    `ValueError`/`SystemExit`——那条被排期的命令根本跑不起来。合同不能替它编一个
+    默认值糊过去，否则用户确认的是一份永远不会发生的运行。
+    """
+
+
+class ScheduledEnvironmentMismatch(ValueError):
+    """合同取值依赖当前 shell 的 CWK_* 变量，而被排期的任务拿不到它们。
+
+    交接单的 env_allowlist 只有 CWORK_APP_KEY。若某个设置是靠 shell 环境变量
+    才成立的，宿主那条任务会解析出**另一个值**，于是用户确认的合同与实际夜跑
+    不是同一件事。fail closed：不出交接单，请用户把值写进配置文件。
+    """
+
+
+def nightly_env_bool(env: Mapping[str, str], name: str) -> Optional[bool]:
+    """`cwk_nightly_pipeline.env_bool` 的等价实现（未设置返回 None）。"""
+
+    value = env.get(name)
+    if value is None:
+        return None
+    return value.strip().lower() in NIGHTLY_ENV_TRUE
+
+
+def _nightly_int(value: Any, *, where: str) -> int:
+    """复刻上游的 `int(...)` 硬转，包括它会抛的那些异常。"""
+
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise NightlyConfigError(
+            f"{where} is not an integer; the scheduled nightly command would abort "
+            "before it started, so no contract can describe it"
+        ) from exc
+
+
+def _resolve_nightly_int(
+    config: Mapping[str, Any],
+    env: Mapping[str, str],
+    *,
+    key: str,
+    env_key: str,
+    default: int,
+) -> tuple[int, str]:
+    """上游 `int(config_value(args, config, key, os.environ.get(env_key, default)))`。
+
+    注意优先级：整数是 **config > env > 字面默认值**（env 只是 `config_value`
+    的默认值参数），与下面的布尔开关**不同**。这个不对称不是笔误，是上游的既有
+    行为；合同要描述现实，就得照抄。
+    """
+
+    if key in config:
+        return _nightly_int(config[key], where=f"config.{key}"), "config"
+    if env_key in env:
+        return _nightly_int(env[env_key], where=f"environment {env_key}"), "env"
+    return default, "default"
+
+
+def _resolve_nightly_flag(
+    config: Mapping[str, Any],
+    env: Mapping[str, str],
+    *,
+    key: str,
+    env_key: str,
+    default: bool,
+) -> tuple[bool, str]:
+    """上游 `env_bool(env_key) if 已设置 else bool(config.get(key, default))`。
+
+    布尔开关是 **env > config > 默认值**。另注意上游对配置值用的是 Python 真值
+    而非解析：`{"backfill_enabled": "false"}` 在上游是**真**。照抄，因为合同的
+    价值在于把这种反直觉的配置如实摊开给用户看，而不是替他猜意图。
+    """
+
+    from_env = nightly_env_bool(env, env_key)
+    if from_env is not None:
+        return from_env, "env"
+    if key in config:
+        return bool(config[key]), "config"
+    return bool(default), "default"
+
+
+def _resolve_nightly_sync_docdb(
+    config: Mapping[str, Any], env: Mapping[str, str]
+) -> tuple[bool, str]:
+    """上游 `bool(config.get("sync_docdb", env_bool("CWK_SYNC_DOCDB") or False))`。
+
+    这一条又是 **config > env > False**，与 backfill_enabled 相反。交接单的 argv
+    不带 `--sync-docdb`、不带 `--no-publish-mirror`、不带 `--cloud-first`，所以
+    命令行那一层恒为假，不参与。
+    """
+
+    if "sync_docdb" in config:
+        return bool(config["sync_docdb"]), "config"
+    from_env = nightly_env_bool(env, "CWK_SYNC_DOCDB")
+    if from_env is not None:
+        return bool(from_env), "env"
+    return False, "default"
+
+
+def resolve_nightly_runtime(
+    config: Mapping[str, Any], env: Optional[Mapping[str, str]] = None
+) -> dict:
+    """算出被排期的那条 nightly 命令实际会用的取值。
+
+    返回 ``{"settings": {...}, "sources": {setting: config|env|default}}``。
+    取值无效时抛 :class:`NightlyConfigError`——上游会崩，合同就不能假装它能跑。
+    """
+
+    env = env if env is not None else os.environ
+    settings: dict[str, Any] = {}
+    sources: dict[str, str] = {}
+
+    for key, env_key, default in (
+        ("detail_cap", "CWK_DETAIL_CAP", DEFAULT_DETAIL_CAP),
+        ("continuation_cap", "CWK_CONTINUATION_CAP", DEFAULT_CONTINUATION_CAP),
+        ("backfill_cap", "CWK_BACKFILL_CAP", DEFAULT_BACKFILL_CAP),
+        ("backfill_page_size", "CWK_BACKFILL_PAGE_SIZE", DEFAULT_BACKFILL_PAGE_SIZE),
+        (
+            "source_completeness_lookback_days",
+            "CWK_SOURCE_COMPLETENESS_LOOKBACK_DAYS",
+            DEFAULT_LOOKBACK_DAYS,
+        ),
+    ):
+        settings[key], sources[key] = _resolve_nightly_int(
+            config, env, key=key, env_key=env_key, default=default
+        )
+
+    for key, env_key, default in (
+        ("backfill_enabled", "CWK_BACKFILL_ENABLED", True),
+        ("source_completeness", "CWK_SOURCE_COMPLETENESS", True),
+    ):
+        settings[key], sources[key] = _resolve_nightly_flag(
+            config, env, key=key, env_key=env_key, default=default
+        )
+
+    settings["sync_docdb"], sources["sync_docdb"] = _resolve_nightly_sync_docdb(config, env)
+
+    lookback = settings["source_completeness_lookback_days"]
+    if lookback < 0 or lookback > 31:
+        # 上游 `raise SystemExit(...)`：命令启动即失败。
+        raise NightlyConfigError(
+            "source_completeness_lookback_days must be between 0 and 31; the scheduled "
+            "nightly command would refuse to start"
+        )
+
+    return {"settings": settings, "sources": sources}
 
 
 def upstream_collect_defaults(source: Path | str | None = None) -> dict[str, int]:
@@ -192,10 +363,87 @@ def upstream_lookback_default(source: Path | str | None = None) -> Optional[int]
 # ── 1. 只读发现与业务画像 ───────────────────────────────────────────────────
 
 
-def compute_scope_sha256(scope: Mapping[str, Any]) -> str:
-    """授权可见范围的稳定摘要（第一道确认绑定的对象）。"""
+SCOPE_MIRROR_KINDS = ("personal", "team")
+SCOPE_LANES = DAILY_LANES + BACKFILL_LANES
+SCOPE_KEYS = ("mirror_kind", "subject_ref", "authorized_lanes", "read_only")
+# 主体标识是个**标识符**，不是一句话：不留空格，也就不留自由文本的位置。
+_SCOPE_SUBJECT_REF = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._:@-]{0,63}\Z")
 
-    return hashlib.sha256(_SCOPE_DOMAIN + canonical_json_bytes(dict(scope))).hexdigest()
+
+class ScopeSchemaError(ValueError):
+    """范围文件不符合闭合 schema。"""
+
+
+def normalize_scope(scope: Any) -> dict:
+    """把第一道门要确认的「授权可见范围」收敛成闭合 schema。
+
+    为什么必须闭合：这个对象会被原样写进 `discovery-report.json`，再由 AI 念给
+    用户听。任何自由文本字段都是一条直通 Agent 上下文的注入通道，而它偏偏又是
+    「用户到底授权了什么」的权威表述。所以只认四个字段、四种类型，多一个键就
+    拒绝——宁可让调用方改文件，也不把调用方给的任意对象转发出去。
+
+    lane 顺序会被归一到固定次序，因此同一份授权不会因为书写顺序不同而算出两个
+    哈希、把第一道确认无端作废。错误消息只说键名与允许值，不回显调用方内容。
+    """
+
+    if not isinstance(scope, Mapping):
+        raise ScopeSchemaError("scope must be a JSON object")
+    keys = set(scope)
+    missing = sorted(set(SCOPE_KEYS) - keys)
+    extra = len(keys - set(SCOPE_KEYS))
+    if missing or extra:
+        # 缺的键名可以直说，那是 schema 自己的词表；多出来的**只报个数**。键名
+        # 是调用方写的字符串，把它抄进错误消息就等于把任意文本转发给读这条消息
+        # 的 AI——而这个函数存在的理由正是不做这种转发。用户想知道自己多写了
+        # 什么，对照后半句列出的四个允许键即可。
+        raise ScopeSchemaError(
+            f"scope keys mismatch missing={missing} unexpected_key_count={extra}; "
+            f"the only allowed keys are {list(SCOPE_KEYS)}"
+        )
+
+    mirror_kind = scope["mirror_kind"]
+    if mirror_kind not in SCOPE_MIRROR_KINDS:
+        raise ScopeSchemaError(f"scope.mirror_kind must be one of {list(SCOPE_MIRROR_KINDS)}")
+
+    subject_ref = scope["subject_ref"]
+    if not isinstance(subject_ref, str) or not _SCOPE_SUBJECT_REF.match(subject_ref):
+        raise ScopeSchemaError(
+            "scope.subject_ref must be a short identifier "
+            "([A-Za-z0-9][A-Za-z0-9._:@-]{0,63}); it is not a free-text field"
+        )
+
+    lanes = scope["authorized_lanes"]
+    if not isinstance(lanes, list) or not lanes:
+        raise ScopeSchemaError("scope.authorized_lanes must be a non-empty list")
+    if len(lanes) > len(SCOPE_LANES):
+        raise ScopeSchemaError("scope.authorized_lanes has more entries than there are lanes")
+    for lane in lanes:
+        if not isinstance(lane, str) or lane not in SCOPE_LANES:
+            raise ScopeSchemaError(f"scope.authorized_lanes may only contain {list(SCOPE_LANES)}")
+    if len(set(lanes)) != len(lanes):
+        raise ScopeSchemaError("scope.authorized_lanes contains a duplicate lane")
+
+    if scope["read_only"] is not True:
+        # 只读不是一个可以谈判的选项：范围文件声称别的，就不是这个产品的范围。
+        raise ScopeSchemaError("scope.read_only must be literally true")
+
+    return {
+        "mirror_kind": mirror_kind,
+        "subject_ref": subject_ref,
+        "authorized_lanes": [lane for lane in SCOPE_LANES if lane in set(lanes)],
+        "read_only": True,
+    }
+
+
+def compute_scope_sha256(scope: Mapping[str, Any]) -> str:
+    """授权可见范围的稳定摘要（第一道确认绑定的对象）。
+
+    先归一再哈希：确认绑定的必须是校验过的闭合对象，而不是调用方递进来的原物。
+    """
+
+    return hashlib.sha256(
+        _SCOPE_DOMAIN + canonical_json_bytes(normalize_scope(scope))
+    ).hexdigest()
 
 
 def compute_profile_sha256(profile: Mapping[str, Any]) -> str:
@@ -313,7 +561,9 @@ def build_discovery_report(
             "counts reflect only the currently authorized visible scope and the stated "
             "discovery date range; they are not a claim about the whole organisation"
         ),
-        "authorized_visible_scope": dict(scope),
+        # 归一后的闭合对象，不是调用方原物：报告要被 AI 念给用户，不能替任意
+        # 输入当传声筒。
+        "authorized_visible_scope": normalize_scope(scope),
         "business_date_range": {
             "end": nightly.get("date"),
             "late_data_lookback_days": lookback,
@@ -360,45 +610,38 @@ def build_execution_contract(
     timezone: str,
     generated_at: str,
 ) -> dict:
-    """从**实际配置**渲染每日执行合同。
+    """从**实际配置 + 实际环境**渲染每日执行合同。
 
-    取值优先级与 nightly pipeline 的 `config_value` 对齐（去掉 CLI 一层）：
-    config > 环境变量 > 默认值。
+    取值规则不是本模块自己发明的，而是 `cwk_nightly_pipeline` 在
+    `--config/--run-name/--date` 这条固定 argv 下的真实行为（见
+    :func:`resolve_nightly_runtime`）：整数是 config > env > 默认，布尔开关里
+    `backfill_enabled` / `source_completeness` 是 env > config > 默认，而
+    `sync_docdb` 又回到 config > env > False。合同照抄这份不对称，因为它描述的
+    是现实，不是理想。
+
+    额外记录两件事：每个取值**来自哪一层**，以及**去掉 shell 里的 CWK_* 变量后
+    结果是否相同**。后者决定交接单能不能出——被排期的任务只拿得到 CWORK_APP_KEY。
     """
 
     env = env if env is not None else os.environ
 
-    def resolve_int(config_key: str, env_key: str, default: int) -> int:
-        if config_key in config:
-            return _as_int(config.get(config_key), default)
-        if env_key in env:
-            return _as_int(env.get(env_key), default)
-        return default
-
-    def resolve_bool(config_key: str, env_key: str, default: bool) -> bool:
-        if config_key in config:
-            return _as_bool(config.get(config_key), default)
-        if env_key in env:
-            return _as_bool(env.get(env_key), default)
-        return default
+    resolved = resolve_nightly_runtime(config, env)
+    settings = resolved["settings"]
+    sources = resolved["sources"]
+    # 被排期的任务看不到任何 CWK_* 变量，用空环境再算一次就是它真实的取值。
+    scheduled = resolve_nightly_runtime(config, {})["settings"]
+    env_only = [key for key in NIGHTLY_SETTING_KEYS if settings[key] != scheduled[key]]
 
     caps = {
-        "detail_cap": resolve_int("detail_cap", "CWK_DETAIL_CAP", DEFAULT_DETAIL_CAP),
-        "continuation_cap": resolve_int(
-            "continuation_cap", "CWK_CONTINUATION_CAP", DEFAULT_CONTINUATION_CAP
-        ),
-        "backfill_cap": resolve_int("backfill_cap", "CWK_BACKFILL_CAP", DEFAULT_BACKFILL_CAP),
-        "backfill_page_size": resolve_int(
-            "backfill_page_size", "CWK_BACKFILL_PAGE_SIZE", DEFAULT_BACKFILL_PAGE_SIZE
-        ),
+        "detail_cap": settings["detail_cap"],
+        "continuation_cap": settings["continuation_cap"],
+        "backfill_cap": settings["backfill_cap"],
+        "backfill_page_size": settings["backfill_page_size"],
     }
-    backfill_enabled = resolve_bool("backfill_enabled", "CWK_BACKFILL_ENABLED", True)
-    sync_docdb = resolve_bool("sync_docdb", "CWK_SYNC_DOCDB", False)
-    lookback = resolve_int(
-        "source_completeness_lookback_days",
-        "CWK_SOURCE_COMPLETENESS_LOOKBACK_DAYS",
-        DEFAULT_LOOKBACK_DAYS,
-    )
+    backfill_enabled = settings["backfill_enabled"]
+    source_completeness = settings["source_completeness"]
+    sync_docdb = settings["sync_docdb"]
+    lookback = settings["source_completeness_lookback_days"]
 
     contract = {
         "schema": EXECUTION_CONTRACT_SCHEMA,
@@ -409,8 +652,18 @@ def build_execution_contract(
             "backfill_lanes": list(BACKFILL_LANES) if backfill_enabled else [],
             "backfill_enabled": backfill_enabled,
             "backfill_rotation": "round_robin",
+            # 补采关掉时 late_data_lookback_days 那一趟根本不会跑，所以这个开关
+            # 必须和天数一起出现，否则合同会声称一个不存在的回溯范围。
+            "source_completeness_enabled": source_completeness,
         },
         "caps": caps,
+        "runtime_resolution": {
+            "sources": dict(sources),
+            # 交接单 argv 只有 --config/--run-name/--date，命令行那一层不参与取值。
+            "resolved_for_argv": "config_run_name_date_only",
+            "scheduled_environment_equivalent": not env_only,
+            "settings_requiring_shell_environment": env_only,
+        },
         "detail_read_actions": list(DETAIL_READ_ACTIONS),
         "current_business_day_full_pagination": True,
         "late_data_lookback_days": lookback,
@@ -460,6 +713,13 @@ def contract_drift(contract: Mapping[str, Any], recorded_sha256: Optional[str]) 
     }
 
 
+_SOURCE_LABELS = {
+    "config": "配置文件",
+    "env": "当前 shell 的环境变量",
+    "default": "上游默认值",
+}
+
+
 def render_contract_markdown(contract: Mapping[str, Any]) -> str:
     """给人读的合同复述。内容全部来自合同对象，不另写文案。"""
 
@@ -486,15 +746,34 @@ def render_contract_markdown(contract: Mapping[str, Any]) -> str:
         "",
         "## 完整性",
         "- 当前业务日：完整分页",
-        f"- 迟到数据回看：前 {contract['late_data_lookback_days']} 个业务日",
+        f"- 来源完整性补采：{'开' if sources.get('source_completeness_enabled') else '关'}",
+        f"- 迟到数据回看：前 {contract['late_data_lookback_days']} 个业务日"
+        + ("" if sources.get("source_completeness_enabled") else "（补采已关，本项不生效）"),
         "",
         "## 产出与发布",
         f"- 产物：{', '.join(contract['outputs'])}",
         f"- 派生内容发布到 DocDB：{'开' if publishing['sync_docdb'] else '关'}",
         "- raw 原文：只留在本地，不回写、不上传",
         "",
-        "## 绝不执行的动作",
+        "## 这些取值从哪里来",
     ]
+    resolution = contract.get("runtime_resolution") or {}
+    for name in NIGHTLY_SETTING_KEYS:
+        origin = (resolution.get("sources") or {}).get(name)
+        if origin:
+            lines.append(f"- {name}：{_SOURCE_LABELS.get(origin, origin)}")
+    needs_shell = list(resolution.get("settings_requiring_shell_environment") or [])
+    if needs_shell:
+        lines.extend(
+            [
+                "",
+                "> 警告：以下取值来自当前 shell 的 CWK_* 环境变量，而被排期的任务"
+                "只会拿到 CWORK_APP_KEY，届时会解析出**另一个值**："
+                + "、".join(needs_shell)
+                + "。把它们写进配置文件后重新渲染，否则不会出交接单。",
+            ]
+        )
+    lines.extend(["", "## 绝不执行的动作"])
     lines.extend(f"- {action}" for action in contract["forbidden_actions"])
     return "\n".join(lines) + "\n"
 
@@ -799,8 +1078,19 @@ def build_scheduler_handoff(
 
     配置位置以项目相对定位符表述，绝对路径既不进负载也不进 `handoff_sha256`；
     无法安全表述时抛 `ConfigLocatorError`，不出交接单。
+
+    合同若依赖当前 shell 的 CWK_* 变量，同样拒绝出单（`ScheduledEnvironmentMismatch`）：
+    env_allowlist 只有 CWORK_APP_KEY，宿主那条任务复现不出这份合同。
     """
 
+    resolution = contract.get("runtime_resolution") or {}
+    needs_shell = list(resolution.get("settings_requiring_shell_environment") or [])
+    if needs_shell:
+        raise ScheduledEnvironmentMismatch(
+            "the contract depends on shell environment variables the scheduled task will "
+            f"not receive ({', '.join(sorted(needs_shell))}); move those values into the "
+            "config file, re-render the contract and re-run the pilot"
+        )
     locator = build_config_locator(config_path=config_path, project_root=project_root)
     schedule = contract["schedule_intent"]
     handoff = {

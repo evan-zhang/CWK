@@ -277,6 +277,113 @@ NEEDS_RECONFIRMATION → propose-profile`，此时 activation 门本来仍然有
 占位值；激活证据全部来自 `tests/fixtures/activation/`。**未跑完整 `make ci`**，按协调
 留给独立审阅后的最终一次冻结 CI。
 
+### 2026-09-02（第五轮）：终审两阻断 + 四残留整改
+
+针对 `040c29f` 的独立终审提出两个阻断项与四个残留项，本轮逐条闭环。
+
+**阻断 1：执行合同必须精确描述 nightly 的运行时行为。** 逐行读了
+`cwk_nightly_pipeline.main()` 的取值组合，发现优先级**不是统一的**，原合同按一套
+规则描述全部设置，因此会在真实配置下说错话：
+
+| 设置 | 上游实际优先级 |
+| --- | --- |
+| 四个 cap / page size / 回溯天数 | 配置 > 环境变量 > 字面默认 |
+| `backfill_enabled`、来源完整性 | 环境变量 > 配置 > True |
+| `sync_docdb` | 配置 > 环境变量 > False |
+
+布尔真值集合是 `{"1","true","yes","y","on"}`（含 `"y"`），其余一律 False 而**不是**
+「没设置」；配置里的布尔走 Python 真值性，故 `"sync_docdb": "false"` 在上游是**真**。
+这些语义现在由 `resolve_nightly_runtime` 忠实重实现，合同里每一项都带 `sources`
+标注取值来源。
+
+未把上游函数直接 import 复用，有硬理由：`cwk_nightly_pipeline.py` 属 PR-001 受管、
+RT-026 所有，v1 演化槽位已用尽，从 RT-032 改它就是伪演化路径；且该模块**导入即执行**
+`load_local_env(PROJECT/'.env')`，会把 `.env` 灌进本进程环境变量——向导绝不能碰。
+因此改用双向钉死：新增 `tests/test_rt032_contract_fidelity.py`，一面用上游自己的
+`env_bool` / `config_value` 重组出期望值做**行为等价**对拍（22 组具名用例，含
+`CWK_SYNC_DOCDB=y`、配置 false + 环境 1、整数冲突、18 种布尔拼写 × 3 个变量），一面用
+AST/源码断言**钉住上游的组合方式**，上游一改就红在这里而不是悄悄让合同说谎。
+
+顺带查出一个终审措辞之外的更深问题：**即使合同正确读了当前环境，它描述的仍不是那个
+定时任务将要跑的东西**——交接单的 argv 只有 `--config/--run-name/--date`，
+`env_allowlist` 只有 `CWORK_APP_KEY`，任务根本看不见任何 `CWK_*`。故合同改为**解析
+两次**（真实环境 vs 空环境）并输出 `runtime_resolution`：
+`scheduled_environment_equivalent` 与 `settings_requiring_shell_environment`；Markdown
+渲染带警告块；`build_scheduler_handoff` 在该列表非空时直接抛
+`ScheduledEnvironmentMismatch` 以 `EXIT_REFUSED` **拒绝出单**——否则用户会对着一份
+「今晚会发布镜像」的合同点头，而实际那台机器上跑的是另一件事。
+
+**阻断 2：只读探针遇到符号链接必须失败关闭，且不吐 traceback / 绝对路径。**
+`cwk_activation_state.readiness()` 改为 lstat/不跟随判定，并同时接住 `OSError` 与
+`AtomicFileError`/containment 失败（`cwk_atomic_file` 的 `open_dir_nofollow` 抛的是
+后者，不是 `OSError`——原来的 `except OSError` 接不住，异常会一路穿出去）。
+`cwk_doctor.py` 两处守卫同步加宽为 `except Exception` 并附理由；兜底负载改为调用新
+公开的 `unreadable_readiness()`，词表只有一个主人，不再抄第二遍。测试覆盖目录符号
+链接、状态文件符号链接、悬空链接、二次硬链接、目录位置是普通文件、状态文件是目录、
+chmod 000：每条都断言受害文件字节未变、链接仍是链接、没有创建任何状态、reason 落在
+封闭词表内、负载里没有路径；并在 doctor 与**真实 `install.sh`** 两侧断言这仍是
+**告警而非错误**、退出码 0、`CWK_ACTIVATION=UNREADABLE` 而非 `NOT_STARTED`。
+
+**残留 1：check-drift 的负载语义与文档对齐。** 漂移是拿新配置重算后与状态里记的
+`contract_sha256` 比对，**不会改写**那个哈希，所以绑定哈希照样对得上、自动失效那条路
+不会触发。原实现因此产出自相矛盾的负载：`next_step: reconfirm_contract` 与
+`activation.valid: true` 同时为真。现在真漂移时**显式吊销第二道确认**（新增
+`_revoke_gate`），并落盘；`schedule-handoff` / `record-schedule` / `resume` 在此之后
+一律 `EXIT_REFUSED`。`skill/references/activation.md` §8 改写成与之逐字对应。
+
+**残留 2：`flag-drift` 非法时不得偷改 `degraded_reason_code`。** 改为**先问再改**：
+`can_transition()` 前置判定（新增于状态模块），迁移非法就一个字都不写——尤其不写
+降级原因。否则一次「试跑失败后跑了 check-drift」会把 `pilot_failed` 覆盖成
+`contract_drift`，既无迁移记录也无授权，而使用者该做的 `rerun_pilot` 就再也推不出来
+了。凡是落盘的改动都走 `_commit_without_transition`（`revision` +1、刷新
+`updated_at`），保证「持久化的语义变更必有审计痕迹」没有例外分支；`cmd_status` /
+`cmd_schedule_handoff` 的无迁移提交一并纳入。回归已加：`pilot_failed -> drift check`
+断言状态文件**字节不变**。
+
+**残留 3：产物回读改为与写入对称的 dir-fd / 不跟随读。** `_read_artifact` 走
+`read_file(dir_fd, name)`，符号链接、目录、多一条硬链接一律拒绝，且「被换成链接」与
+「本来就不存在」给不同答案——后者才该提示「先跑上一步」。测试用**与真品字节一致**的
+诱饵：哈希校验本来会通过，只有不跟随读能拦住。另加结构性守卫，禁止任何函数再用
+`(state_dir / X_FILE).read_text()` 绕过这唯一入口。
+
+**残留 4：discovery `scope` 先按闭合 schema 校验归一，再哈希/上报。** 只认四个键、
+四种类型，`subject_ref` 必须是标识符（`[A-Za-z0-9][A-Za-z0-9._:@-]{0,63}`，因此空格、
+换行、控制字符、BiDi 覆盖字符、超长一律出局），`read_only` 必须**字面 true**，lane 顺序
+归一后再哈希（同一份授权换个写法不会白白作废第一道门）。理由是这个对象会被原样写进
+发现报告、再由 AI 念给用户听——任何自由文本叶子都是直通 Agent 上下文的注入通道，而它
+偏偏是「用户到底授权了什么」的权威表述。写这组测试时自己抓到一处漏网：键名不匹配的
+错误消息会**回显调用方写的键名**，等于把任意文本转发给读这条消息的 AI；已改成只报
+个数（缺的键名可以说，那是 schema 自己的词表）。
+
+副作用及其补偿：`tests/fixtures/activation/scope.json` 原有的 `_comment` 标注键被闭合
+schema 挡掉，只好删除——而同目录其余 8 个 fixture 都靠这个键声明自己是脱敏合成数据，
+少这一条会让「这份『用户授权了什么』的样例不是真人」这个事实无处可查。故新增
+`tests/fixtures/activation/README.md` 承接该目录的来源声明，并写明 `scope.json` 为何
+不能内联标注；同时加测试钉住：目录里每个 fixture 要么自带 `_comment`，要么被 README
+逐名交代，否则新加的 fixture 可能悄悄没有任何来源证据。
+
+| 命令 | 结果 |
+| --- | --- |
+| `python3.11 -m py_compile`（4 个脚本 + 5 个 RT-032 测试文件） | 通过 |
+| `bash -n install.sh` | 通过 |
+| `python3.11 -m unittest tests.test_rt032_activation_state` | 53 passed（+13） |
+| `python3.11 -m unittest tests.test_rt032_activation_contract` | 80 passed（+17） |
+| `python3.11 -m unittest tests.test_rt032_activation_wizard` | 110 passed（+16） |
+| `python3.11 -m unittest tests.test_rt032_activation_integration` | 40 passed（+9） |
+| `python3.11 -m unittest tests.test_rt032_contract_fidelity` | 22 passed（新增文件） |
+| 五个 RT-032 模块合并运行 | 305 passed（上轮 228） |
+| `python3.11 -m unittest tests.test_install_modes` | 67 passed（RT-031 基线不回归） |
+| `python3.11 -m unittest tests.test_distribution` | 5 passed |
+| `python3.11 -m unittest tests.test_governance_audit` | 62 passed |
+| `python3.11 .aodw-next/06-project/governance-audit.py --root .` | 通过（612 个受跟踪文件，GA-ORPHAN 清零） |
+| `bash .aodw-next/06-project/aodw-check.sh` | 通过（RT-028…RT-032 门禁全过；仅剩本机 skill 未安装的告警） |
+| `git diff --check` | 通过（exit 0） |
+
+真实 CWork/DocDB、定时任务、Gateway、远端与模型调用一律未触发。对拍测试全程用
+`mock.patch.dict(os.environ, ..., clear=True)` 清空环境，本机 shell 里存在的
+`CWORK_APP_KEY` 既未读取也未打印。**仍未跑完整 `make ci`**，按协调留给独立复审通过后
+的最终一次冻结 CI。
+
 ## 变更记录
 
 - 2026-09-02：根据用户批准的安装后使用路径，确定独立 RT；采用“AI 沟通 + 确定性状态/回执”的激活架构，并与 RT-031 安装接入职责分离。
@@ -286,10 +393,17 @@ NEEDS_RECONFIRMATION → propose-profile`，此时 activation 门本来仍然有
 - 2026-09-02：接入前定向加固。`record-pilot` 的 `invalidated_gates` 改为回报本条命令作废的全部门（原先漏掉写入新回执后才失效的那批，导致「成功但什么都没失效」与 `next_step: confirm_activation` 自相矛盾）；stdout 断管道时把描述符改指 devnull，进程退出码从解释器的 120 收回到约定的 2 且 stderr 不再有噪声；并把「输入/持久化失败不进 DEGRADED、不写迁移回执」这条既有行为固定成测试与模块文档。交接单绝对路径、裸相对路径脱敏、`propose-profile` 的同类失效回报缺陷记入「接入前待议项」，本轮不动。
 - 2026-09-02：在 RT-031 冻结基线上完成集成。治理补登（`exact_set` 规则，`evolution_path=repo-standard-change`；不开伪 v2 槽位），GA-ORPHAN 清零；三个待议项全部落地——`propose-profile` 失效回报补齐并加可达回归、交接单改项目相对定位符并对无法安全表述的配置拒绝出单、脱敏闸门加宽到裸相对路径且不误伤 `read/write` 类词组；安装保持零副作用并输出 `CWK_ACTIVATION`，`doctor` 复用同一探针报 `activation`，Skill 新增激活参考、README/上手/引导/运维/迁移文档统一成一条路径。RT-031 四模式合同与 `NEXT_SESSION` 语义不回归。
 
+- 2026-09-02：整改终审的两个阻断项与四个残留项。执行合同按上游 nightly 的**真实**取值优先级重实现（三种优先级不统一：cap/回溯是配置优先，`backfill_enabled` 是环境优先，`sync_docdb` 是配置优先且默认 False），并新增行为等价 + 源码钉死的双向对拍；进一步发现定时任务只拿得到 `CWORK_APP_KEY`，故合同双次解析并标注来源，凡依赖当前 shell 的设置一律拒绝出交接单。只读探针与 doctor 对符号链接改为 lstat 不跟随、失败关闭、不吐 traceback/路径，安装仍非致命。`check-drift` 真漂移时显式吊销第二道确认（消除「要求重新确认」与「确认仍有效」并存的自相矛盾），迁移非法时一个字都不写（`pilot_failed` 不再被覆盖），凡落盘必带 revision/updated_at 痕迹。产物回读改为 dir-fd 不跟随，与写入对称。discovery `scope` 改闭合 schema，先校验归一再哈希，错误消息不回显调用方内容。
+
 ## 遗留事项
 
-- 完整 `make ci` 本轮**未跑**，按协调留给独立审阅通过后的最终一次冻结 CI（验收标准
+- 完整 `make ci` 本轮**未跑**，按协调留给独立复审通过后的最终一次冻结 CI（验收标准
   第 7 条尚未闭合）。
+- `resolve_nightly_runtime` 是对 `cwk_nightly_pipeline.main()` 取值逻辑的**忠实重
+  实现**，不是共享的同一份代码。上游属 PR-001 受管、RT-026 所有且 v1 演化槽位已用尽，
+  从本 RT 改它或凭空开 v2 槽位都是伪演化路径；`import` 复用又会触发它模块级的
+  `load_local_env`。当前靠 `tests/test_rt032_contract_fidelity.py` 的行为对拍与源码
+  断言防漂移——上游一改就红。真正的单一真相源要等 RT-026 侧有正当演化入口时再合并。
 - `record-schedule` 只登记使用者说自己建过的宿主任务，**不验证**该任务真的存在——
   这是刻意的边界（仓库不碰宿主调度面），但意味着「`ACTIVE` 且宿主任务已被删」这种
   状态只能靠 `check-drift` 在下一次人工检查时暴露，不会自己报警。

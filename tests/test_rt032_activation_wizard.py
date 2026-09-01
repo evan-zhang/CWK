@@ -100,6 +100,13 @@ class WizardTestCase(unittest.TestCase):
     def read_state(self) -> dict:
         return json.loads((self.state_dir / S.STATE_FILE).read_text(encoding="utf-8"))
 
+    def assert_no_absolute_path(self, text: str) -> None:
+        """No output, success or failure, may name where any of this lives."""
+
+        self.assertNotIn(str(self.root), text)
+        self.assertNotIn(str(self.state_dir), text)
+        self.assertNotIn(str(PROJECT), text)
+
     # ── staged progress ────────────────────────────────────────────────────
 
     def stage_discovery(self):
@@ -724,13 +731,15 @@ class InvalidatedGateReportingTests(WizardTestCase):
     # ── the same defect, reachable through propose-profile ─────────────────
 
     def drifted_from_active(self):
-        """ACTIVE → contract drift → NEEDS_RECONFIRMATION, second gate intact.
+        """ACTIVE → contract drift → NEEDS_RECONFIRMATION.
 
-        Drift is flagged by comparing a *new* config against the recorded
-        contract hash; it does not rewrite that hash. So the activation grant
-        — bound to (contract, profile, pilot receipt) — survives the drift and
-        is still valid when the user comes back to re-propose a profile. That
-        is what makes the next command's report load-bearing.
+        Drift is detected by comparing a *new* config against the recorded
+        contract hash; it does not rewrite that hash. So nothing the activation
+        grant is bound to has changed, and the automatic "the facts moved, so
+        the confirmation lapsed" rule cannot fire. That is exactly why
+        ``check-drift`` has to revoke the grant explicitly: otherwise the same
+        payload would say ``next_step: reconfirm_contract`` and
+        ``activation.valid: true``, which cannot both be true.
         """
 
         config = self.fixture("config.json")
@@ -740,12 +749,29 @@ class InvalidatedGateReportingTests(WizardTestCase):
         )
         self.assertEqual(code, W.EXIT_DRIFT)
         self.assertEqual(payload["state"], "NEEDS_RECONFIRMATION")
-        self.assertEqual(payload["invalidated_gates"], [])
-        self.assertTrue(payload["confirmations"]["activation"]["valid"])
+        self.assertEqual(payload["invalidated_gates"], ["activation"])
+        self.assertTrue(payload["activation_authorization_revoked"])
+        self.assertFalse(payload["confirmations"]["activation"]["valid"])
         self.assertTrue(payload["confirmations"]["profile"]["valid"])
+
+    def regrant_activation(self):
+        """Put the second gate back by hand, to keep an old regression alive.
+
+        ``check-drift`` now revokes it, so the state it used to leave behind is
+        no longer reachable through the CLI. The defect that state exposed —
+        ``propose-profile`` reporting only the first batch of lapsed gates — is
+        still worth pinning, so reconstruct the situation directly instead of
+        deleting the test along with the path that produced it.
+        """
+
+        with S.session(self.state_dir) as sess:
+            state = sess.require_healthy()
+            W._grant(state, "activation", self.tick())
+            W._commit_without_transition(sess, state, self.tick())
 
     def test_reproposing_a_profile_after_drift_reports_the_gates_it_invalidated(self):
         self.drifted_from_active()
+        self.regrant_activation()
         code, payload = self.run_cli(
             "propose-profile", "--profile-file", self.profile_copy(reporting_rhythm="daily")
         )
@@ -761,6 +787,7 @@ class InvalidatedGateReportingTests(WizardTestCase):
 
     def test_reproposing_the_same_profile_after_drift_does_not_cry_wolf(self):
         self.drifted_from_active()
+        self.regrant_activation()
         code, payload = self.run_cli(
             "propose-profile", "--profile-file", self.fixture("profile.json")
         )
@@ -897,6 +924,178 @@ class DriftAttackTests(WizardTestCase):
         self.assertTrue(drift["contract_drift"]["drifted"])
 
 
+class DriftRevocationTests(WizardTestCase):
+    """What drift *does* to the standing authorization, not just what it reports.
+
+    Drift means the thing the user said yes to and the thing tonight's run
+    would actually do have come apart. The recorded ``contract_sha256`` is
+    still the old one, so every binding hash still matches and the automatic
+    "the facts moved, so the grant lapsed" rule cannot fire. Unless
+    ``check-drift`` revokes the grant on purpose, a drifted installation keeps
+    a live activation authorization — and the payload says so in the same
+    breath as it asks the user to reconfirm.
+    """
+
+    def drift_from_active(self, **overrides):
+        self.stage_active(config=self.fixture("config.json"))
+        return self.run_cli(
+            "check-drift", "--config", self.config_copy(**(overrides or {"detail_cap": 11}))
+        )
+
+    def test_the_payload_never_asks_to_reconfirm_a_still_valid_grant(self):
+        """The self-contradiction the review found, pinned as one assertion."""
+
+        code, payload = self.drift_from_active()
+        self.assertEqual(code, W.EXIT_DRIFT)
+        self.assertEqual(payload["next_step"], "reconfirm_contract")
+        self.assertFalse(payload["confirmations"]["activation"]["valid"])
+        self.assertFalse(payload["confirmations"]["activation"]["granted"])
+        self.assertTrue(payload["activation_authorization_revoked"])
+        self.assertEqual(payload["invalidated_gates"], ["activation"])
+
+    def test_the_revocation_is_persisted_not_merely_printed(self):
+        """A payload-only revocation would be undone by the next command."""
+
+        self.drift_from_active()
+        self.assertIsNone(self.read_state()["confirmations"]["activation"])
+        _, status = self.run_cli("status")
+        self.assertFalse(status["confirmations"]["activation"]["valid"])
+
+    def test_scheduling_is_refused_after_drift(self):
+        """The reason the revocation matters: nothing may be scheduled on it.
+
+        ``record-schedule`` is the last step before a real nightly task starts
+        reading someone's work. Reaching it on a stale grant is the failure
+        this whole gate exists to prevent.
+        """
+
+        self.drift_from_active()
+        for command in (
+            ("schedule-handoff", "--config", self.fixture("config.json")),
+            ("record-schedule", "--external-system", "openclaw",
+             "--external-task-id", "host-task-2"),
+            ("resume",),
+        ):
+            with self.subTest(command=command[0]):
+                code, _ = self.run_cli(*command)
+                self.assertEqual(code, W.EXIT_REFUSED)
+
+    def test_a_drift_check_after_a_failed_pilot_rewrites_nothing(self):
+        """The `pilot_failed -> drift check` regression.
+
+        In DEGRADED the ``flag-drift`` transition is not legal. The tempting
+        shortcut is to set ``degraded_reason_code`` anyway and let the illegal
+        transition fail afterwards — which would overwrite *why* the
+        installation is degraded with no transition and no authorization behind
+        it. The record would then say ``contract_drift`` while the actual
+        reason, a pilot that did not pass, has been erased; the operator's next
+        move (`rerun_pilot`) would no longer follow from what they can see.
+        """
+
+        self.stage_profile()
+        code, _ = self.run_cli(
+            "record-pilot",
+            "--config", self.fixture("config.json"),
+            "--nightly-manifest", self.fixture("nightly-manifest-degraded.json"),
+            "--acceptance", self.fixture("acceptance.json"),
+            "--collect-manifest", self.fixture("collect-manifest.json"),
+        )
+        self.assertEqual(code, W.EXIT_PILOT_FAILED)
+        before = (self.state_dir / S.STATE_FILE).read_bytes()
+
+        code, payload = self.run_cli(
+            "check-drift", "--config", self.config_copy(detail_cap=11)
+        )
+        self.assertEqual(code, W.EXIT_DRIFT, "drift is still reported")
+        self.assertTrue(payload["contract_drift"]["drifted"])
+        # …but the record is untouched: same state, same reason, same bytes.
+        self.assertEqual(payload["state"], "DEGRADED")
+        self.assertEqual(payload["degraded_reason_code"], "pilot_failed")
+        self.assertEqual(payload["next_step"], "rerun_pilot")
+        self.assertFalse(payload["flagged"])
+        self.assertEqual(payload["invalidated_gates"], [])
+        self.assertEqual((self.state_dir / S.STATE_FILE).read_bytes(), before)
+
+    def test_a_repeated_drift_check_does_not_keep_bumping_the_record(self):
+        """Once revoked, there is nothing left to persist. Read-only means it."""
+
+        self.drift_from_active()
+        before = (self.state_dir / S.STATE_FILE).read_bytes()
+        code, payload = self.run_cli(
+            "check-drift", "--config", self.config_copy(detail_cap=11)
+        )
+        self.assertEqual(code, W.EXIT_DRIFT)
+        self.assertEqual(payload["invalidated_gates"], [])
+        self.assertFalse(payload["activation_authorization_revoked"])
+        self.assertEqual((self.state_dir / S.STATE_FILE).read_bytes(), before)
+
+    def test_a_clean_drift_check_writes_nothing_at_all(self):
+        self.stage_active(config=self.fixture("config.json"))
+        before = (self.state_dir / S.STATE_FILE).read_bytes()
+        code, payload = self.run_cli("check-drift", "--config", self.fixture("config.json"))
+        self.assertEqual(code, W.EXIT_OK)
+        self.assertFalse(payload["contract_drift"]["drifted"])
+        self.assertTrue(payload["confirmations"]["activation"]["valid"])
+        self.assertEqual((self.state_dir / S.STATE_FILE).read_bytes(), before)
+
+    def test_a_revocation_that_cannot_degrade_still_leaves_evidence(self):
+        """Persisted change ⇒ audit trace, with no exception for this branch.
+
+        Reconstruct the awkward middle case: already NEEDS_RECONFIRMATION (so
+        ``flag-drift`` is illegal) but holding a live activation grant. The
+        grant must still be revoked, and because that is a semantic change to
+        the record it must carry a bumped revision and a new ``updated_at`` —
+        otherwise the file would change with nothing to say when it did or why.
+        """
+
+        self.drift_from_active()
+        with S.session(self.state_dir) as sess:
+            state = sess.require_healthy()
+            W._grant(state, "activation", self.tick())
+            W._commit_without_transition(sess, state, self.tick())
+        before = self.read_state()
+        self.assertIsNotNone(before["confirmations"]["activation"])
+
+        code, payload = self.run_cli(
+            "check-drift", "--config", self.config_copy(detail_cap=11)
+        )
+        after = self.read_state()
+        self.assertEqual(code, W.EXIT_DRIFT)
+        self.assertEqual(payload["invalidated_gates"], ["activation"])
+        self.assertIsNone(after["confirmations"]["activation"])
+        self.assertEqual(after["revision"], before["revision"] + 1)
+        self.assertNotEqual(after["updated_at"], before["updated_at"])
+        # No transition was invented to carry it: the state and the history
+        # length are exactly what they were.
+        self.assertEqual(after["state"], before["state"])
+        self.assertEqual(len(after["history"]), len(before["history"]))
+        self.assertFalse(payload["flagged"])
+
+    def test_no_command_edits_the_degraded_reason_outside_a_transition(self):
+        """A structural guard: the shortcut must stay unavailable by shape.
+
+        The defect was an assignment sitting outside the block that decides
+        whether the transition is legal. Pin the property rather than the one
+        line: wherever a command writes ``degraded_reason_code``, an
+        ``apply_transition`` call has to be reachable in the same branch.
+        """
+
+        source = Path(W.__file__).read_text(encoding="utf-8")
+        bodies = re.split(r"\ndef (cmd_[a-z_]+)\(", source)
+        writers = []
+        for name, body in zip(bodies[1::2], bodies[2::2]):
+            if 'state["degraded_reason_code"] =' not in body:
+                continue
+            writers.append(name)
+            self.assertIn("apply_transition(", body, f"{name} rewrites the degraded "
+                          "reason with no transition to authorise it")
+        self.assertEqual(
+            writers, ["cmd_record_pilot", "cmd_check_drift"],
+            "a new command writes degraded_reason_code; check it cannot do so "
+            "on a path where the transition is illegal",
+        )
+
+
 class StateIntegrityAttackTests(WizardTestCase):
     def test_a_corrupt_state_file_fails_closed_and_is_not_repaired(self):
         self.run_cli("init")
@@ -952,11 +1151,6 @@ class InputAndPersistenceFailureTests(WizardTestCase):
     breaks the "one JSON object per command" contract the Skill relies on and
     prints the absolute path of a private state directory.
     """
-
-    def assert_no_absolute_path(self, text: str) -> None:
-        self.assertNotIn(str(self.root), text)
-        self.assertNotIn(str(self.state_dir), text)
-        self.assertNotIn(str(PROJECT), text)
 
     def test_a_state_dir_that_is_really_a_file_fails_closed(self):
         self.state_dir.write_text("not a directory", encoding="utf-8")
@@ -1040,15 +1234,36 @@ class InputAndPersistenceFailureTests(WizardTestCase):
         self.assert_no_absolute_path(text)
 
     def test_input_json_that_cannot_be_canonicalised_is_a_usage_error(self):
-        """A number outside the safe integer range is bad input, not a crash."""
+        """A number outside the safe integer range is bad input, not a crash.
+
+        Demonstrated on the profile, which is deliberately *not* a closed
+        schema — it is the user's own description of their work, so it has to
+        stay open-ended. The scope cannot reach this path any more (see the
+        next test): it is closed, and a closed schema rejects the file before
+        anything gets canonicalised. Both answers are usage errors; the
+        difference is only how early the refusal happens.
+        """
+
+        self.stage_discovery()
+        unsafe = self.root / "unsafe.json"
+        unsafe.write_text('{"topics": ["x"], "n": 9007199254740993}', encoding="utf-8")
+        code, text = self.run_cli_raw("propose-profile", "--profile-file", str(unsafe))
+        payload = json.loads(text)
+        self.assertEqual(code, W.EXIT_USAGE)
+        self.assertEqual(payload["error_kind"], "ContractError")
+        self.assert_no_absolute_path(text)
+        self.assertEqual(self.read_state()["state"], "READY_FOR_DISCOVERY")
+
+    def test_a_scope_with_an_unsafe_number_is_refused_by_the_closed_schema(self):
+        """The same file, refused earlier and more specifically."""
 
         self.run_cli("init")
-        unsafe = self.root / "unsafe.json"
+        unsafe = self.root / "unsafe-scope.json"
         unsafe.write_text('{"mirror_kind": "personal", "n": 9007199254740993}', encoding="utf-8")
         code, text = self.run_cli_raw("confirm-discovery", "--scope-file", str(unsafe))
         payload = json.loads(text)
         self.assertEqual(code, W.EXIT_USAGE)
-        self.assertEqual(payload["error_kind"], "ContractError")
+        self.assertIn("keys mismatch", payload["error"])
         self.assert_no_absolute_path(text)
         self.assertEqual(self.read_state()["state"], "INSTALLED")
 
@@ -1064,6 +1279,8 @@ class InputAndPersistenceFailureTests(WizardTestCase):
         self.assertEqual(code, W.EXIT_USAGE)
         self.assertIn("corrupt", payload["error"])
         self.assert_no_absolute_path(text)
+
+
 
     def test_every_failure_still_emits_exactly_one_json_object(self):
         self.state_dir.write_text("not a directory", encoding="utf-8")
@@ -1186,6 +1403,161 @@ class InputAndPersistenceFailureTests(WizardTestCase):
         self.assertIn("is unreadable", message)
         # A slash inside a word is not a path and must survive untouched.
         self.assertEqual(W.redact_message("read/write mismatch"), "read/write mismatch")
+
+
+class ArtifactReadbackTests(WizardTestCase):
+    """Reading an artifact back must be as no-follow as writing it was.
+
+    ``record-schedule`` and ``render-contract`` re-read files the wizard wrote
+    itself. Writes already go through the dir-fd/no-follow path, but an
+    ordinary ``Path.read_text`` on the way back would undo that: swap the
+    artifact for a symlink between the two steps and the wizard reads whatever
+    the attacker chose, then binds a real scheduled task to it. The state
+    directory is 0700, so this is not the first line of defence — it is the one
+    that holds when a process already inside the account tries it.
+    """
+
+    def staged_handoff(self) -> None:
+        self.stage_pilot()
+        self.run_cli("confirm-activation")
+        code, _ = self.run_cli("schedule-handoff", "--config", self.fixture("config.json"))
+        self.assertEqual(code, W.EXIT_OK)
+
+    def plant_decoy(self, name: str, payload: dict) -> Path:
+        """A well-formed artifact that simply lives outside the state directory."""
+
+        decoy = self.root / name
+        decoy.write_text(json.dumps(payload), encoding="utf-8")
+        return decoy
+
+    def test_a_symlinked_scheduler_handoff_is_refused(self):
+        self.staged_handoff()
+        target = self.state_dir / W.SCHEDULER_HANDOFF_FILE
+        genuine = json.loads(target.read_text(encoding="utf-8"))
+        decoy = self.plant_decoy("decoy-handoff.json", genuine)
+        target.unlink()
+        target.symlink_to(decoy)
+
+        code, text = self.run_cli_raw(
+            "record-schedule", "--external-system", "openclaw", "--external-task-id", "t1"
+        )
+        payload = json.loads(text)
+        self.assertEqual(code, W.EXIT_USAGE)
+        self.assertIn("symlink", payload["error"])
+        self.assert_no_absolute_path(text)
+        # Refused, not followed: no schedule was recorded off the decoy.
+        self.assertIsNone(self.read_state()["schedule"])
+        self.assertTrue(target.is_symlink())
+
+    def test_a_symlinked_execution_contract_is_refused(self):
+        """The other readback, one step earlier in the same chain.
+
+        ``schedule-handoff`` re-reads the contract it wrote and checks its hash
+        against the one the user confirmed. Following a link here would hand
+        the *decoy's* text to that hash check — and if it ever matched, the
+        handoff a host is about to turn into a real nightly task would be built
+        from a file nobody confirmed.
+        """
+
+        self.stage_pilot()
+        self.run_cli("confirm-activation")
+        target = self.state_dir / W.EXECUTION_CONTRACT_FILE
+        decoy = self.plant_decoy(
+            "decoy-contract.json", json.loads(target.read_text(encoding="utf-8"))
+        )
+        target.unlink()
+        target.symlink_to(decoy)
+
+        code, text = self.run_cli_raw(
+            "schedule-handoff", "--config", self.fixture("config.json")
+        )
+        payload = json.loads(text)
+        self.assertEqual(code, W.EXIT_USAGE)
+        self.assertIn("symlink", payload["error"])
+        self.assert_no_absolute_path(text)
+        # The decoy is byte-identical to the genuine artifact, so the hash
+        # check would have passed. Only the no-follow read stops this.
+        self.assertFalse((self.state_dir / W.SCHEDULER_HANDOFF_FILE).exists())
+
+    def test_a_dangling_artifact_symlink_is_not_read_as_missing(self):
+        """"Not there" and "replaced by a link" call for different answers.
+
+        Reporting a dangling link as absent would tell the user to re-run the
+        previous step, quietly papering over the fact that something rewrote
+        the state directory.
+        """
+
+        self.staged_handoff()
+        target = self.state_dir / W.SCHEDULER_HANDOFF_FILE
+        target.unlink()
+        target.symlink_to(self.root / "nowhere.json")
+
+        code, text = self.run_cli_raw(
+            "record-schedule", "--external-system", "openclaw", "--external-task-id", "t1"
+        )
+        payload = json.loads(text)
+        self.assertEqual(code, W.EXIT_USAGE)
+        self.assertIn("symlink", payload["error"])
+        self.assertNotIn("not found", payload["error"])
+
+    def test_a_hard_linked_artifact_is_refused(self):
+        """A second name for the same inode is a second writer for it."""
+
+        self.staged_handoff()
+        target = self.state_dir / W.SCHEDULER_HANDOFF_FILE
+        os.link(target, self.root / "second-name.json")
+
+        code, text = self.run_cli_raw(
+            "record-schedule", "--external-system", "openclaw", "--external-task-id", "t1"
+        )
+        payload = json.loads(text)
+        self.assertEqual(code, W.EXIT_USAGE)
+        self.assertIn("hard link", payload["error"])
+        self.assert_no_absolute_path(text)
+
+    def test_an_artifact_replaced_by_a_directory_is_refused(self):
+        self.staged_handoff()
+        target = self.state_dir / W.SCHEDULER_HANDOFF_FILE
+        target.unlink()
+        target.mkdir()
+
+        code, text = self.run_cli_raw(
+            "record-schedule", "--external-system", "openclaw", "--external-task-id", "t1"
+        )
+        payload = json.loads(text)
+        self.assertEqual(code, W.EXIT_USAGE)
+        self.assert_no_absolute_path(text)
+        self.assertIsNone(self.read_state()["schedule"])
+
+    def test_a_genuinely_absent_artifact_still_says_so(self):
+        """The refusals above must not swallow the ordinary "run step N first"."""
+
+        self.stage_pilot()
+        self.run_cli("confirm-activation")
+        code, payload = self.run_cli(
+            "record-schedule", "--external-system", "openclaw", "--external-task-id", "t1"
+        )
+        self.assertEqual(code, W.EXIT_USAGE)
+        self.assertIn("not found", payload["error"])
+
+    def test_no_artifact_is_read_through_an_ordinary_path_open(self):
+        """Structural guard: the readback has exactly one door.
+
+        Writes are already dir-fd based. If a future command reaches for
+        ``(state_dir / NAME).read_text()`` the asymmetry comes straight back,
+        and it would pass every functional test in this file.
+        """
+
+        source = Path(W.__file__).read_text(encoding="utf-8")
+        bodies = re.split(r"\ndef ([a-z_]+)\(", source)
+        for name, body in zip(bodies[1::2], bodies[2::2]):
+            if name == "_read_artifact":
+                continue
+            with self.subTest(function=name):
+                self.assertNotRegex(
+                    body, r"_FILE\s*\)\s*\.(read_text|read_bytes|open)\(",
+                    f"{name} reads a state artifact through a plain path",
+                )
 
 
 class RedactionTests(unittest.TestCase):

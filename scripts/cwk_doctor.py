@@ -122,9 +122,11 @@ def activation_readiness(project: Path) -> dict[str, Any]:
         sys.path.insert(0, str(package))
     try:
         import cwk_activation_state as activation
-    except ImportError:
-        # The script package is incomplete. ``project_scripts`` already reports
-        # that as an error; do not claim anything about activation.
+    except Exception:  # noqa: BLE001 - a probe must never abort an install
+        # The script package is incomplete, or the module will not load at all
+        # (a truncated copy raises SyntaxError, not ImportError). Either way no
+        # owner is available to answer, so claim nothing about activation --
+        # ``project_scripts`` already reports a broken package as an error.
         return {
             "status": "unavailable",
             "state": None,
@@ -135,15 +137,18 @@ def activation_readiness(project: Path) -> dict[str, Any]:
         }
     try:
         result = activation.readiness(project / ACTIVATION_STATE_REL)
-    except OSError:
-        return {
-            "status": "unreadable",
-            "state": None,
-            "state_present": True,
-            "healthy": False,
-            "next_step": None,
-            "integrity_reason": "state_unreadable",
-        }
+    except Exception:  # noqa: BLE001 - see below
+        # Deliberately total, for two reasons that both outrank tidiness.
+        # First, this runs inside ``install.sh``: a probe that raises would
+        # abort the very reinstall the user is running in order to repair
+        # things. Second, a traceback would print the host paths this module
+        # exists to keep out of its output. ``state/activation`` can be
+        # unreadable in ways that surface from different layers as different
+        # exception types (symlinked, chmod 000, replaced by a device node);
+        # enumerating them here would be a list that silently rots, whereas the
+        # closed answer does not. The verdict still comes from the owning
+        # module, so the status / integrity_reason vocabulary is never copied.
+        result = activation.unreadable_readiness()
     return {key: value for key, value in result.items() if key != "schema"}
 
 

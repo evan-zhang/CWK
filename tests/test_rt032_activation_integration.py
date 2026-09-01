@@ -27,7 +27,7 @@ import re
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 PROJECT = Path(__file__).resolve().parents[1]
@@ -159,6 +159,30 @@ class InstallSideEffectTests(unittest.TestCase):
         self.assertEqual(self.statuses(result.stdout), ["UNREADABLE"])
         self.assertNotIn("NOT_STARTED", result.stdout)
 
+    def test_a_symlinked_record_is_reported_without_failing_the_install(self) -> None:
+        """The hostile shape, end to end, through the real ``install.sh``.
+
+        This is the same non-fatal contract as the corrupt record above, but
+        for the case where following the path would read something outside the
+        project. The install has to finish -- reinstalling is how a user
+        repairs this -- while the status refuses to say ``NOT_STARTED``.
+        """
+        victim = self.tmp / "victim"
+        build_state(victim, ("init",))
+        before = (victim / S.STATE_FILE).read_bytes()
+        (self.project / "state").mkdir(parents=True)
+        self.state_dir.symlink_to(victim, target_is_directory=True)
+
+        result = self.fixture.run()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("CWK_CORE_READY", result.stdout)
+        self.assertEqual(self.statuses(result.stdout), ["UNREADABLE"])
+        self.assertNotIn("NOT_STARTED", result.stdout)
+        self.assertNotIn("Traceback", result.stdout + result.stderr)
+        self.assertNotIn(str(victim), result.stdout)
+        self.assertTrue(self.state_dir.is_symlink())
+        self.assertEqual((victim / S.STATE_FILE).read_bytes(), before)
+
     def test_the_status_line_carries_nothing_but_an_enum(self) -> None:
         build_state(self.state_dir, ("init",))
         result = self.fixture.run()
@@ -281,6 +305,108 @@ class DoctorActivationTests(unittest.TestCase):
         entry = self.check("activation", self.run_doctor())
         self.assertEqual(entry["value"], "not_started")
 
+    def plant_victim(self) -> Path:
+        """A real, healthy record somewhere the state directory must not reach.
+
+        Every symlink test below points the state path at this. It stands in
+        for whatever the attacker actually wants read or rewritten -- another
+        user's activation record, a key file, ``/etc/passwd``. The test asserts
+        its bytes afterwards, so "refused" means refused rather than
+        "happened to produce the same status".
+        """
+        victim = self.project.parent / "victim"
+        build_state(victim, ("init",))
+        return victim
+
+    def test_a_symlinked_state_directory_is_refused_without_following_it(self) -> None:
+        """``state/activation`` being a link is a claim the doctor must not honour.
+
+        Following it would let anything that can create one symlink in the
+        project decide which file the installer and the doctor read -- and,
+        since the wizard writes through the same path, which file the next
+        confirmation overwrites. The probe answers ``unreadable``: not
+        ``in_progress`` (which would launder the victim's record into this
+        installation's status) and not ``not_started`` (the one answer that
+        makes an unauthorised nightly run look innocent).
+        """
+        victim = self.plant_victim()
+        before = (victim / S.STATE_FILE).read_bytes()
+        self.state_dir.parent.mkdir(parents=True)
+        self.state_dir.symlink_to(victim, target_is_directory=True)
+
+        result = self.run_doctor()
+        entry = self.check("activation", result)
+        self.assertFalse(entry["ok"])
+        self.assertEqual(entry["value"], "unreadable")
+        self.assertEqual(entry["integrity_reason"], "state_dir_symlink")
+        self.assertTrue(result["activation"]["state_present"])
+        self.assertFalse(result["activation"]["healthy"])
+        self.assertIsNone(result["activation"]["state"])
+        # The link was reported, not walked, and the target is untouched.
+        self.assertTrue(self.state_dir.is_symlink())
+        self.assertEqual((victim / S.STATE_FILE).read_bytes(), before)
+
+    def test_a_symlinked_state_file_is_refused_without_following_it(self) -> None:
+        """The same attack one level down, where the directory looks ordinary."""
+        victim = self.plant_victim()
+        before = (victim / S.STATE_FILE).read_bytes()
+        self.state_dir.mkdir(parents=True)
+        (self.state_dir / S.STATE_FILE).symlink_to(victim / S.STATE_FILE)
+
+        result = self.run_doctor()
+        entry = self.check("activation", result)
+        self.assertFalse(entry["ok"])
+        self.assertEqual(entry["value"], "unreadable")
+        self.assertIn(entry["integrity_reason"], S.READINESS_INTEGRITY_REASONS)
+        self.assertIsNone(result["activation"]["state"])
+        self.assertTrue((self.state_dir / S.STATE_FILE).is_symlink())
+        self.assertEqual((victim / S.STATE_FILE).read_bytes(), before)
+
+    def test_a_hostile_record_never_leaks_a_path_or_a_traceback(self) -> None:
+        """Failing closed is only half of it; failing *quietly* is the other half.
+
+        The doctor's output goes to an Agent and into install transcripts. An
+        exception escaping this probe would print the absolute host paths the
+        module exists to withhold, so the refusal has to be as silent as the
+        success.
+        """
+        victim = self.plant_victim()
+        self.state_dir.parent.mkdir(parents=True)
+        self.state_dir.symlink_to(victim, target_is_directory=True)
+
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            result = self.run_doctor()
+        blob = json.dumps(result["activation"], ensure_ascii=False)
+        for text in (blob, stdout.getvalue(), stderr.getvalue()):
+            self.assertNotIn("Traceback", text)
+            self.assertNotIn(str(self.project), text)
+            self.assertNotIn(str(victim), text)
+        self.assertNotIn("/", blob)
+
+    def test_a_hostile_record_warns_but_does_not_break_the_install_checks(self) -> None:
+        """Same non-fatal contract as a corrupt record: the user must be able
+        to reinstall their way out. An error here would block the repair."""
+        victim = self.plant_victim()
+        self.state_dir.parent.mkdir(parents=True)
+        self.state_dir.symlink_to(victim, target_is_directory=True)
+
+        result = self.run_doctor()
+        self.assertTrue(any("activation" in text for text in result["warnings"]))
+        self.assertNotIn("activation", " ".join(result["errors"]))
+        self.assertTrue(self.check("project_scripts", result)["ok"])
+
+    def test_probing_a_hostile_record_creates_nothing(self) -> None:
+        """A refusal must not leave behind the directory it refused to trust."""
+        self.state_dir.parent.mkdir(parents=True)
+        self.state_dir.symlink_to(self.project.parent / "absent", True)
+
+        self.run_doctor()
+        self.assertTrue(self.state_dir.is_symlink())
+        self.assertFalse((self.project.parent / "absent").exists())
+        self.assertEqual(sorted(p.name for p in self.state_dir.parent.iterdir()),
+                         ["activation"])
+
     def test_activation_status_uses_only_the_enumerated_vocabulary(self) -> None:
         for steps, expected in (
             ((), "not_started"),
@@ -367,6 +493,44 @@ class ActivationDialogueContractTests(unittest.TestCase):
     def test_the_unhealthy_state_is_not_repaired_by_starting_over(self) -> None:
         self.assertIn("healthy: false", self.reference)
         self.assertIn("do not re-`init` over it", self.reference)
+
+    def test_the_drift_section_names_what_drift_actually_does(self) -> None:
+        """The reference is the AI's script; a stale script is a wrong answer.
+
+        Drift revokes the scheduling consent and, when the record is already
+        degraded, deliberately rewrites nothing. Both halves have to be in the
+        document, or the AI will improvise the part it cannot see — most likely
+        by telling the user everything is fine because no state changed.
+        """
+
+        for phrase in (
+            "activation_authorization_revoked",
+            "invalidated_gates",
+            "reconfirm_contract",
+            "already `DEGRADED`",
+            "pilot_failed",
+            "rerun_pilot",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, self.reference)
+
+    def test_the_scope_section_states_the_closed_schema(self) -> None:
+        """A schema the AI cannot see is a schema it will help the user violate."""
+
+        for phrase in ("mirror_kind", "subject_ref", "authorized_lanes",
+                       "read_only", "Any fifth key is refused"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, self.reference)
+
+    def test_the_contract_section_explains_where_values_come_from(self) -> None:
+        """Reading the contract aloud is the consent moment; provenance is part
+        of what is being consented to."""
+
+        self.assertIn("CWK_", self.reference)
+        self.assertIn("CWORK_APP_KEY", self.reference)
+        for phrase in ("precedence", "warning block", "refused"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, self.reference)
 
 
 class UserPathCoherenceTests(unittest.TestCase):

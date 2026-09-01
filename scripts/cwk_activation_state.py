@@ -31,8 +31,10 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import os
 import re
 import secrets
+import stat as stat_module
 import sys
 from pathlib import Path
 from typing import Any, Iterator, Optional
@@ -44,6 +46,8 @@ if str(_PROJECT / "scripts") not in sys.path:
 from cwk_atomic_file import (  # noqa: E402
     DIRECTORY_MODE,
     FILE_MODE,
+    AtomicFileError,
+    ContainmentError,
     cas_write,
     child_exists,
     exclusive_lock,
@@ -511,6 +515,17 @@ def default_state(*, activation_id: str, now: str) -> dict:
     return validate_state(state)
 
 
+def can_transition(current: str, event: str) -> bool:
+    """(状态, 事件) 是否在迁移表里。
+
+    存在的意义是让调用方**先问再改**：先改状态再靠捕获 `IllegalTransition` 回滚，
+    会在异常路径上留下已经写进内存、随后被一起提交的半截改动——那正是「没有回执
+    的语义变更」。问一句就能避免。
+    """
+
+    return event in EVENTS and (current, event) in TRANSITIONS
+
+
 def next_state_for(current: str, event: str) -> str:
     """查迁移表；查不到就是非法跳转，直接 fail closed。"""
 
@@ -632,7 +647,13 @@ def read_state(dir_fd: int) -> tuple[Optional[dict], Optional[str], Optional[str
 
     if not child_exists(dir_fd, STATE_FILE):
         return None, None, None
-    raw = read_file(dir_fd, STATE_FILE)
+    try:
+        raw = read_file(dir_fd, STATE_FILE)
+    except ContainmentError:
+        # 状态文件是符号链接、目录、或有第二条硬链接：`read_file` 用 O_NOFOLLOW
+        # 当场拒读。这不是「没有状态」——磁盘上确实有个东西占着这个名字，只是它
+        # 不可信。返回原因码而不是抛，让上层一律 fail closed；文件一个字节都不动。
+        return None, None, "state_file_not_contained"
     raw_sha = hashlib.sha256(raw).hexdigest()
     try:
         parsed = json.loads(raw.decode("utf-8"), object_pairs_hook=_strict_object)
@@ -705,6 +726,19 @@ READINESS_STATUSES = (
     "unreadable",
 )
 
+# `integrity_reason` 的封闭词表。安装器与 doctor 会把它原样打印，所以它必须是
+# 枚举，不能是异常消息——异常消息里会有路径和 errno 细节。
+READINESS_INTEGRITY_REASONS = (
+    "state_dir_not_a_directory",
+    "state_dir_symlink",
+    "state_dir_unreadable",
+    "state_file_not_contained",
+    "state_unreadable",
+    "state_unparseable",
+    "state_schema_unknown",
+    "state_schema_invalid",
+)
+
 _STATE_READINESS = {
     "INSTALLED": "in_progress",
     "READY_FOR_DISCOVERY": "in_progress",
@@ -716,6 +750,29 @@ _STATE_READINESS = {
     "NEEDS_RECONFIRMATION": "needs_reconfirmation",
     "DEGRADED": "degraded",
 }
+
+
+def unreadable_readiness(reason: str = "state_unreadable") -> dict:
+    """私有状态存在但不可信时唯一的答案形状。
+
+    ``reason`` 必须来自 :data:`READINESS_INTEGRITY_REASONS`；不明来源一律收敛成
+    ``state_unreadable``，免得异常文本顺着这条路漏进面向 Agent 的输出。
+
+    对外公开是为了让 doctor 这类只读探针在自己的兜底分支里也能给出**同一个**
+    答案，而不用把 `status`/`integrity_reason` 的词表抄第二遍——抄一遍就意味着
+    将来会有两份不一致的词表。
+    """
+
+    if reason not in READINESS_INTEGRITY_REASONS:
+        reason = "state_unreadable"
+    return _readiness(
+        "unreadable",
+        state=None,
+        state_present=True,
+        healthy=False,
+        next_step=None,
+        integrity_reason=reason,
+    )
 
 
 def _readiness(status: str, **extra: Any) -> dict:
@@ -749,45 +806,39 @@ def readiness(state_dir: Path | str = DEFAULT_STATE_DIR) -> dict:
     """
 
     path = Path(state_dir)
-    if not path.is_dir():
+    try:
+        entry = path.lstat()
+    except FileNotFoundError:
         return _readiness("not_started")
+    except OSError:
+        # 路径存在与否都问不出来（父目录无权限等）。不猜「没激活过」。
+        return unreadable_readiness("state_dir_unreadable")
+
+    if stat_module.S_ISLNK(entry.st_mode):
+        # 状态目录是个符号链接。`open_dir_nofollow` 会拒绝跟随，但更重要的是：
+        # 这个位置本该是安装时用 0700 建出来的私有目录，被换成链接本身就是一条
+        # 「有人动过」的事实。绝不跟过去，也绝不当成「还没开始」——后者是唯一会
+        # 让一条已经在跑的排期显得清白的答案。
+        return unreadable_readiness("state_dir_symlink")
+    if not stat_module.S_ISDIR(entry.st_mode):
+        return unreadable_readiness("state_dir_not_a_directory")
+
     try:
         dir_fd = open_dir_nofollow(path)
-    except OSError:
-        # 目录在、但打不开（权限、被换成符号链接）。有东西，只是不可信。
-        return _readiness(
-            "unreadable",
-            state=None,
-            state_present=True,
-            healthy=False,
-            next_step=None,
-            integrity_reason="state_dir_unreadable",
-        )
+    except (OSError, AtomicFileError):
+        # 目录在、但打不开（权限、竞态换成链接）。有东西，只是不可信。
+        # `open_dir_nofollow` 抛的是 AtomicFileError，不是 OSError——只 catch
+        # OSError 会让只读探针把 traceback 打到安装输出里。
+        return unreadable_readiness("state_dir_unreadable")
     try:
         state, _raw_sha, reason = read_state(dir_fd)
-    except OSError:
-        return _readiness(
-            "unreadable",
-            state=None,
-            state_present=True,
-            healthy=False,
-            next_step=None,
-            integrity_reason="state_unreadable",
-        )
+    except (OSError, AtomicFileError):
+        return unreadable_readiness("state_unreadable")
     finally:
-        import os as _os
-
-        _os.close(dir_fd)
+        os.close(dir_fd)
 
     if reason is not None:
-        return _readiness(
-            "unreadable",
-            state=None,
-            state_present=True,
-            healthy=False,
-            next_step=None,
-            integrity_reason=reason,
-        )
+        return unreadable_readiness(reason)
     if state is None:
         return _readiness("not_started")
 
@@ -817,8 +868,6 @@ def session(state_dir: Path | str = DEFAULT_STATE_DIR, *, create: bool = False) 
                 state, raw_sha, reason = read_state(dir_fd)
                 yield ActivationSession(dir_fd, state, raw_sha, reason)
         finally:
-            import os as _os
-
-            _os.close(dir_fd)
+            os.close(dir_fd)
 
     return _run()

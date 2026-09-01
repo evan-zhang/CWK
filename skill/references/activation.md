@@ -84,12 +84,31 @@ Then `init`. It creates only the private state record — no reads, no tasks.
 ## 1. Gate one — read-only discovery consent
 
 Write a scope file with the user, describing what they are authorising. It is a
-small JSON document: mirror kind, subject reference, the CWork lanes in scope,
-and `read_only: true`. Show it to them in full and get an explicit yes.
+small JSON document with exactly four keys and nothing else:
+
+| key | value |
+| --- | --- |
+| `mirror_kind` | `personal` or `team` |
+| `subject_ref` | a short identifier: `[A-Za-z0-9][A-Za-z0-9._:@-]{0,63}` |
+| `authorized_lanes` | a non-empty list of known CWork lane names, no duplicates |
+| `read_only` | literally `true` |
+
+Show it to them in full and get an explicit yes.
 
 ```bash
 python3 scripts/cwk_activation_wizard.py confirm-discovery --scope-file scope.json
 ```
+
+Any fifth key is refused, including a comment field. This is deliberate: the
+scope object is written into the discovery report and read back to the user as
+the authoritative statement of what they authorised, so it must not carry a
+free-text field that some other process could write and you would then read
+aloud as if the user had said it. `subject_ref` is an identifier, not a
+sentence, for the same reason. If a file is refused, fix the file — do not
+work around the schema.
+
+Lane order does not matter; it is normalised before hashing, so re-running with
+the same lanes written differently will not void the gate.
 
 The confirmation is bound to the hash of that exact scope. Widen the scope
 later and the consent voids itself — that is the intended behaviour, not a bug
@@ -143,6 +162,19 @@ whether publishing is on. The contract is computed from the *actual* config —
 if the user disagrees with something in it, change the config, not the
 explanation.
 
+Every setting also says where its value came from: the config file, a `CWK_*`
+variable in the current shell, or the built-in default. Read that out too. The
+precedence is not uniform — for the caps and the lookback the config file wins
+over the environment, for `backfill_enabled` the environment wins over the
+config — so "where did this number come from" is a real question, not a
+formality.
+
+The rendering carries a warning block when a value comes from the current shell
+rather than the config. A scheduled task inherits almost nothing from your
+shell, so such a value would be true when you read it out and false at 02:30.
+Move it into the config file before continuing; the handoff in step 7 refuses
+until you do.
+
 ## 5. Pilot — one read-only pass, scored by the gate
 
 Run one real read-only nightly pass by the project's normal command, then hand
@@ -189,6 +221,15 @@ project root itself (`CWK_PROJECT_DIR`, verified by `scripts/cwk_doctor.py`).
 If the config sits outside the project directory the handoff is refused rather
 than filled in with a host path. Move the config into the project and retry.
 
+The handoff is also refused if any setting in the contract currently comes from
+a `CWK_*` variable in your shell. The scheduled task is given the config
+locator, the run name and the date, and one environment variable name
+(`CWORK_APP_KEY`) — nothing else. So a shell-sourced setting would make the
+contract the user agreed to differ from the run that actually happens, and the
+difference would be invisible to both of you. The refusal names the settings;
+move each one into the config file, re-render the contract, and have the user
+look at it again before asking for consent.
+
 Give the handoff to the user. They create the task with their own host
 mechanism. When they report back the identifier the host assigned:
 
@@ -206,9 +247,30 @@ must not claim it does.
 python3 scripts/cwk_activation_wizard.py check-drift --config cwk-mirror.local.json
 ```
 
-Config or contract changed ⇒ exit code 5, confirmations void, state
-`NEEDS_RECONFIRMATION`. Re-walk from the step `next_step` names. An unknown
-scheduled task is reported, never deleted — tell the user and let them decide.
+Config or contract changed ⇒ exit code 5. Precisely what happens:
+
+* **The scheduling consent is revoked.** `invalidated_gates` contains
+  `activation` and `activation_authorization_revoked` is true. Drift means the
+  thing the user agreed to and the thing tonight's run would do have come
+  apart, so the old yes no longer covers it. Nothing may be scheduled or
+  resumed until they say yes again to the new contract; `schedule-handoff`,
+  `record-schedule` and `resume` all refuse until then.
+* **The state becomes `NEEDS_RECONFIRMATION`,** and `next_step` is
+  `reconfirm_contract`. Re-walk from there.
+* **Unless the state is already `DEGRADED` or `NEEDS_RECONFIRMATION`.** Then
+  the drift is still reported — exit code 5, `contract_drift.drifted` true —
+  but nothing is rewritten: an installation degraded by a failed pilot keeps
+  `degraded_reason_code: pilot_failed` and keeps `next_step: rerun_pilot`. Do
+  not read this as "the drift was ignored". It means the record already says
+  the installation is not trustworthy, and overwriting *why* would lose the
+  more urgent reason. Report both: the pilot has not passed, and the config has
+  since changed too.
+
+The profile confirmation is left alone: the user's description of their own
+work did not change because a cap did.
+
+An unknown scheduled task is reported, never deleted — tell the user and let
+them decide.
 
 `pause` stops automation on the user's word; `resume` restores it. Neither
 touches the external task, so a paused mirror still needs the host-side task

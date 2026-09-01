@@ -423,5 +423,162 @@ class NextStepTests(unittest.TestCase):
         self.assertEqual(S.next_step_for(state), "emit_scheduler_handoff")
 
 
+class ReadinessProbeTests(unittest.TestCase):
+    """``readiness`` is called by the installer and by the doctor.
+
+    Three properties, all load-bearing and all easy to lose:
+
+    * it never writes — being asked how far activation has got must not create
+      the private directory, because the directory existing is itself a claim;
+    * it never raises — it runs inside ``install.sh``, so an exception would
+      abort the reinstall a user runs to repair things, and the traceback would
+      print the host paths this module exists to keep out of its output;
+    * it never answers "not started" for a state it merely could not read. That
+      is the one answer that would make an already-scheduled nightly run look
+      innocent.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.dir = self.root / "activation"
+
+    def stage(self) -> Path:
+        with S.session(self.dir, create=True) as sess:
+            sess.state = S.default_state(activation_id=S.new_activation_id(), now=NOW)
+            sess.commit()
+        return self.dir / S.STATE_FILE
+
+    def assert_closed_answer(self, payload: dict, reason: str):
+        self.assertEqual(payload["status"], "unreadable")
+        self.assertFalse(payload["healthy"])
+        self.assertTrue(payload["state_present"])
+        self.assertIsNone(payload["state"])
+        self.assertIsNone(payload["next_step"])
+        self.assertEqual(payload["integrity_reason"], reason)
+        self.assertIn(reason, S.READINESS_INTEGRITY_REASONS)
+        # Nothing derived from the host: the whole payload is enum, bool, null.
+        blob = json.dumps(payload, ensure_ascii=False)
+        self.assertNotIn(str(self.root), blob)
+        self.assertNotIn("/", blob.replace("cwk.activation_readiness.v1", ""))
+
+    # ── the reported blocker: a symlink in place of the state ──────────────
+
+    def test_a_symlinked_state_directory_is_refused_without_following_it(self):
+        victim = self.root / "victim"
+        victim.mkdir()
+        decoy = victim / S.STATE_FILE
+        decoy.write_text("victim bytes", encoding="utf-8")
+        before = decoy.read_bytes()
+        self.dir.symlink_to(victim, target_is_directory=True)
+
+        payload = S.readiness(self.dir)
+
+        self.assert_closed_answer(payload, "state_dir_symlink")
+        # The victim was neither read into the answer nor touched.
+        self.assertEqual(decoy.read_bytes(), before)
+        self.assertTrue(self.dir.is_symlink())
+
+    def test_a_symlinked_state_file_is_refused_without_following_it(self):
+        self.dir.mkdir(mode=0o700)
+        victim = self.root / "secrets.json"
+        victim.write_text('{"schema": "cwk.activation_state.v1"}', encoding="utf-8")
+        before = victim.read_bytes()
+        (self.dir / S.STATE_FILE).symlink_to(victim)
+
+        payload = S.readiness(self.dir)
+
+        self.assert_closed_answer(payload, "state_file_not_contained")
+        self.assertEqual(victim.read_bytes(), before)
+        self.assertTrue((self.dir / S.STATE_FILE).is_symlink())
+
+    def test_a_dangling_state_file_symlink_is_not_read_as_absent(self):
+        """A broken link still means someone put something there."""
+
+        self.dir.mkdir(mode=0o700)
+        (self.dir / S.STATE_FILE).symlink_to(self.root / "gone.json")
+        self.assert_closed_answer(S.readiness(self.dir), "state_file_not_contained")
+
+    def test_a_state_file_with_a_second_hard_link_is_refused(self):
+        target = self.stage()
+        os.link(target, self.root / "shadow.json")
+        self.assert_closed_answer(S.readiness(self.dir), "state_file_not_contained")
+
+    def test_a_regular_file_where_the_directory_belongs_is_refused(self):
+        self.dir.write_text("not a directory", encoding="utf-8")
+        self.assert_closed_answer(S.readiness(self.dir), "state_dir_not_a_directory")
+
+    def test_a_state_file_that_is_a_directory_is_refused(self):
+        self.dir.mkdir(mode=0o700)
+        (self.dir / S.STATE_FILE).mkdir()
+        self.assert_closed_answer(S.readiness(self.dir), "state_file_not_contained")
+
+    @unittest.skipIf(os.geteuid() == 0, "root bypasses directory permissions")
+    def test_an_unreadable_directory_is_refused_rather_than_guessed(self):
+        self.stage()
+        os.chmod(self.dir, 0o000)
+        self.addCleanup(os.chmod, self.dir, 0o700)
+        self.assert_closed_answer(S.readiness(self.dir), "state_dir_unreadable")
+
+    # ── the probe writes nothing, ever ─────────────────────────────────────
+
+    def test_an_absent_directory_reads_as_not_started_and_is_not_created(self):
+        payload = S.readiness(self.dir)
+        self.assertEqual(payload["status"], "not_started")
+        self.assertTrue(payload["healthy"])
+        self.assertFalse(payload["state_present"])
+        self.assertFalse(self.dir.exists())
+
+    def test_probing_a_healthy_state_leaves_every_byte_alone(self):
+        target = self.stage()
+        before = target.read_bytes()
+        listing_before = sorted(p.name for p in self.dir.iterdir())
+
+        payload = S.readiness(self.dir)
+
+        self.assertEqual(payload["status"], "in_progress")
+        self.assertEqual(payload["state"], "INSTALLED")
+        self.assertEqual(target.read_bytes(), before)
+        self.assertEqual(sorted(p.name for p in self.dir.iterdir()), listing_before)
+
+    def test_the_probe_does_not_take_the_wizard_lock(self):
+        """A running wizard command must not make the doctor go red."""
+
+        with S.session(self.dir, create=True) as sess:
+            sess.state = S.default_state(activation_id=S.new_activation_id(), now=NOW)
+            sess.commit()
+            payload = S.readiness(self.dir)
+        self.assertEqual(payload["status"], "in_progress")
+
+    # ── every failure is one of the enumerated answers ─────────────────────
+
+    def test_an_unknown_reason_is_collapsed_into_the_closed_vocabulary(self):
+        payload = S.unreadable_readiness("something the installer must never print")
+        self.assertEqual(payload["integrity_reason"], "state_unreadable")
+        self.assertIn(payload["integrity_reason"], S.READINESS_INTEGRITY_REASONS)
+
+    def test_every_read_state_reason_is_answerable_by_the_probe(self):
+        """The two vocabularies must not drift apart."""
+
+        for reason in ("state_unparseable", "state_schema_unknown", "state_schema_invalid",
+                       "state_file_not_contained"):
+            with self.subTest(reason=reason):
+                self.assertIn(reason, S.READINESS_INTEGRITY_REASONS)
+
+    def test_no_input_makes_the_probe_raise(self):
+        """Sampled broadly, because the caller has no way to recover from a raise."""
+
+        self.dir.mkdir(mode=0o700)
+        target = self.dir / S.STATE_FILE
+        for content in (b"{ broken", b"", b"\x00\x01\x02", b"[]", b"null",
+                        json.dumps({"schema": "nope"}).encode("utf-8")):
+            with self.subTest(content=content[:8]):
+                target.write_bytes(content)
+                payload = S.readiness(self.dir)
+                self.assertIn(payload["status"], S.READINESS_STATUSES)
+                self.assertFalse(payload["healthy"])
+
+
 if __name__ == "__main__":
     unittest.main()
