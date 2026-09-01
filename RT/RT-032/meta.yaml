@@ -1,0 +1,28 @@
+id: RT-032
+title: CWK AI 激活向导与自动运行编排
+type: Feature
+profile: Spec-Lite
+execution_mode: collaborative
+status: created
+modules:
+  - activation-wizard
+  - discovery-profile
+  - execution-contract
+  - scheduling
+  - skill-entrypoint
+branch: null
+worktree: null
+tool: codex
+owner: Codex
+created_at: 2026-09-01T16:06:13Z
+updated_at: 2026-09-01T16:06:13Z
+closed_at: null
+external_ids:
+  jira: null
+  github: null
+  other: null
+notes: >
+  在 CWK 安装接入完成后，由 AI 引导使用者完成只读发现、候选业务画像确认、每日执行合同、
+  一次试跑验收和定时启用；所有自动执行均须建立在明确授权与可审计状态之上。本 RT 只在
+  本地功能分支实现和验证，不访问真实 CWork/DocDB，不创建或修改生产计划任务、Gateway、
+  远端机器、凭据或全局 OpenClaw 配置。
