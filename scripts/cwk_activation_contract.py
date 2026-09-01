@@ -30,13 +30,27 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Any, Mapping, Optional
+from typing import Any, Mapping, NamedTuple, Optional
 
 _PROJECT = Path(__file__).resolve().parents[1]
 if str(_PROJECT / "scripts") not in sys.path:
     sys.path.insert(0, str(_PROJECT / "scripts"))
 
+from cwk_activation_state import read_regular_path  # noqa: E402
+from cwk_atomic_file import AtomicFileError, ContainmentError  # noqa: E402
 from cwk_pr001_contracts import canonical_json_bytes  # noqa: E402
+
+# 上游 `cwk_nightly_pipeline` 在**模块体**里就会执行
+# `load_local_env(PROJECT / ".env")`，其中 `PROJECT = Path(__file__).resolve().parents[1]`。
+# 本模块与它同住 `scripts/`，所以这里的 `_PROJECT` 与它的 `PROJECT` 是同一个算式、
+# 同一个目录——不是 cwd，也不是配置文件所在的目录。
+#
+# `_PROJECT_ENV_ROOT` 单独起一个名字，是为了让「该读哪个项目根的 .env」这件事有一个
+# **单一**的落点：既不受 `project_dir`（那是渲染时相对化路径用的）影响，也不受任何
+# 环境变量或命令行开关影响。可被外部改写的「.env 在哪」本身就是一个漏洞面——
+# 指错地方就等于给用户看一份描述别处配置的合同。
+_PROJECT_ENV_ROOT = _PROJECT
+PROJECT_ENV_FILE = ".env"
 
 DISCOVERY_REPORT_SCHEMA = "cwk.activation_discovery_report.v1"
 EXECUTION_CONTRACT_SCHEMA = "cwk.activation_execution_contract.v1"
@@ -173,6 +187,15 @@ def _as_int(value: Any, default: int) -> int:
 # 这五个名字不是本模块的自述：`test_rt032_contract_fidelity` 里的分类器**只看上游
 # 语句的形状**，独立判出同一组名字再与本表对拍，对不上就红。所以这段注释即便有人
 # 改错，也不会变成一份没人发现的错误说明。
+#
+# 上面所有「env」都不是单指 shell。上游的模块体里有一行
+# `load_local_env(PROJECT / ".env")`，它在任何设置被解析**之前**执行，用
+# `os.environ.setdefault` 把项目根那个 gitignore 掉的 `.env` 填进进程环境。于是环境
+# 层其实是两层叠出来的：**shell > 项目 `.env`**（同名时 shell 赢，因为
+# setdefault 不覆盖）。这一层过去完全不在合同里，`.env` 因此成了一条无人看管的通
+# 道——改一行就能打开对外发布，而合同哈希、漂移检查、调度等价性判断全都不动。
+# 见 `read_project_env` / `merge_runtime_env`：合并只发生在环境层内部，各键原本
+# 排第几不变（config 优先的键，依旧在合并后的有效环境之前）。
 
 NIGHTLY_ENV_TRUE = ("1", "true", "yes", "y", "on")
 
@@ -225,6 +248,20 @@ class ScheduledEnvironmentMismatch(ValueError):
     交接单的 env_allowlist 只有 CWORK_APP_KEY。若某个设置是靠 shell 环境变量
     才成立的，宿主那条任务会解析出**另一个值**，于是用户确认的合同与实际夜跑
     不是同一件事。fail closed：不出交接单，请用户把值写进配置文件。
+    """
+
+
+class ProjectEnvironmentError(ValueError):
+    """项目根下有一个 `.env`，但本模块没法**如实**把它算进今晚的行为里。
+
+    上游在 import 阶段就 `load_local_env(PROJECT / ".env")`，那一步的失败模式全都
+    发生在 nightly 做任何事情之前：非 UTF-8 直接 `UnicodeDecodeError`、目录
+    `IsADirectoryError`、FIFO 则停在 `read_text` 的 `open` 上**永不返回**。这些情况
+    下「今晚会发生什么」的正确答案不是某组设置，而是「今晚什么都不会发生」或者
+    「今晚会挂在启动阶段」——合同不能替它编一份看起来正常的描述。
+
+    读不动（权限、超出激活读取上限）也走这里：读不动就建模不了，建模不了就不能
+    让用户确认。**文件不存在不算错误**——上游对缺失是直接 return，那是正常状态。
     """
 
 
@@ -385,11 +422,24 @@ def _resolve_one(
     config: Mapping[str, Any],
     env: Mapping[str, str],
     settings: Mapping[str, Any],
+    env_origin: Optional[Mapping[str, str]] = None,
 ) -> tuple[Any, str]:
-    """按这一行声明的优先级取值，返回 ``(值, 来源)``。"""
+    """按这一行声明的优先级取值，返回 ``(值, 来源)``。
+
+    ``env`` 是 shell 与项目根 `.env` 合并后的**有效环境**，``env_origin`` 说明其中
+    每个名字来自哪一层。环境层胜出时，来源报的是那一层的名字（``shell`` /
+    ``project_env``）而不是笼统的 “env”——用户读合同时需要知道该去改哪儿，而
+    「值在 `.env` 里」与「值在我这个 shell 里」对定时任务是完全相反的两件事。
+    """
 
     key = setting.key
     default = setting.default(settings)
+    origin = env_origin if env_origin is not None else {}
+
+    def _from(env_key: str) -> str:
+        # 没有 origin 信息时一律当成 shell：这是**更保守**的一侧，会让交接单在
+        # 拿不准的时候拒绝，而不是放行。
+        return origin.get(env_key, "shell")
 
     if setting.precedence == "env_config_default":
         # `env_bool(E) if 已设置 else bool(config.get(key, default))`
@@ -397,7 +447,7 @@ def _resolve_one(
         # 在上游是**真**。照抄，因为合同的价值在于把这种反直觉的配置如实摊开。
         from_env = nightly_env_bool(env, setting.env_keys[0])
         if from_env is not None:
-            return from_env, "env"
+            return from_env, _from(setting.env_keys[0])
         if key in config:
             return bool(config[key]), "config"
         return bool(default), "default"
@@ -409,7 +459,7 @@ def _resolve_one(
             return bool(config[key]), "config"
         from_env = nightly_env_bool(env, "CWK_SYNC_DOCDB")
         if from_env is not None:
-            return bool(from_env), "env"
+            return bool(from_env), _from("CWK_SYNC_DOCDB")
         return False, "default"
 
     if setting.precedence == "config_only_derived":
@@ -424,7 +474,7 @@ def _resolve_one(
         for env_key in setting.env_keys:
             raw = env.get(env_key)
             if raw:
-                return _coerce(setting, raw, where=f"environment {env_key}"), "env"
+                return _coerce(setting, raw, where=f"environment {env_key}"), _from(env_key)
         if key in config:
             return _coerce(setting, config[key], where=f"config.{key}"), "config"
         return default, "default"
@@ -436,7 +486,7 @@ def _resolve_one(
             return _coerce(setting, config[key], where=f"config.{key}"), "config"
         env_key = setting.env_keys[0]
         if env_key in env:
-            return _coerce(setting, env[env_key], where=f"environment {env_key}"), "env"
+            return _coerce(setting, env[env_key], where=f"environment {env_key}"), _from(env_key)
         return default, "default"
 
     raise AssertionError(f"unknown precedence {setting.precedence!r}")
@@ -475,13 +525,163 @@ def _reject_unknown(config: Mapping[str, Any]) -> None:
         )
 
 
+# ── 项目根 .env：上游在 import 阶段就会读的那一层 ──────────────────────────
+
+# 上游 `load_local_env` 的键名规则，逐字照抄：`re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*")`。
+# 编译一次是为了避免在每一行上重建，语义与上游的 `re.fullmatch(pattern, key)` 相同。
+_PROJECT_ENV_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+# 登记表认识的全部环境变量名。用来**只统计**、绝不回显 `.env` 里那些与 nightly
+# 行为无关的名字（它们可能是别的工具的凭据名，抄进合同就等于替用户转发出去）。
+NIGHTLY_ENV_KEYS: frozenset[str] = frozenset(
+    key for setting in NIGHTLY_SETTINGS for key in setting.env_keys
+)
+
+
+class ProjectEnv(NamedTuple):
+    """项目根 `.env` 这一层的建模结果。
+
+    ``present`` 与 ``values`` 必须分开：文件存在但一行有效内容都没有，和文件根本
+    不存在，对 nightly 是同一种行为、对用户却是两件事。
+    """
+
+    present: bool
+    values: dict[str, str]
+
+
+EMPTY_PROJECT_ENV = ProjectEnv(False, {})
+
+
+def parse_project_env(text: str) -> dict[str, str]:
+    """逐字复刻 `cwk_nightly_pipeline.load_local_env` 的解析，一条都不「改良」。
+
+    照抄的清单（每一条都在 `test_rt032_project_env` 里对着上游函数本体验过）：
+
+    - 切行用 `str.splitlines()`——所以 `\\x0b`、`\\x0c`、`\\u2028`、`\\u2085` 这些
+      也算换行，一行里能塞进两条赋值；
+    - 整行先 `strip()`，空行、`#` 开头、不含 `=` 的行跳过；
+    - `export K=v` **不被接受**：键会变成 `"export K"`，过不了键名正则；
+    - 键 `strip()` 后必须完全匹配 `[A-Za-z_][A-Za-z0-9_]*`，否则整行丢弃，
+      而且**不影响后面的行**——一行写坏不会让其余的失效；
+    - 值 `strip()` 后先 `strip('"')` 再 `strip("'")`，所以 `'"x"'` 得到 `"x"`
+      而 `"'x'"` 得到 `x`，`""x""` 得到 `x`；
+    - `K=` 得到**空字符串**，不是「没设」；
+    - `K=a=b` 得到 `a=b`（`split("=", 1)`）；
+    - 同名重复时**第一次出现的赢**（上游是 `os.environ.setdefault`，第二次调用时
+      名字已经在了）。
+
+    改良任何一条都会让合同描述的行为与今晚真实发生的行为分叉，所以这里的目标是
+    「一样错」，不是「更对」。
+    """
+
+    values: dict[str, str] = {}
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if not key or not _PROJECT_ENV_NAME.fullmatch(key):
+            continue
+        # setdefault：与上游写进 os.environ 的先后顺序一致，先到先得。
+        values.setdefault(key, value.strip().strip('"').strip("'"))
+    return values
+
+
+def read_project_env(root: Optional[Path] = None) -> ProjectEnv:
+    """把项目根的 `.env` 读成一层可建模的取值；读不准就当场失败。
+
+    这一层过去完全不在合同里，于是一个 gitignore 掉的 `.env` 可以在没人看见的
+    情况下改掉读取范围、打开对外发布、甚至决定 nightly 能不能启动，而合同哈希、
+    漂移检查、调度等价性判断全都毫无反应。
+
+    读法与「用户给的文件」一致，走 `read_regular_path`：**只 open 一次**并在同一个
+    描述符上 `fstat`，带 `O_NONBLOCK`。`.env` 是一个可以被随时替换的名字，而它最坏
+    的替换结果不是读到脏数据，是 `open` 永不返回——那会让向导整个挂住，而挂住的
+    向导和「还在想」是分不出来的。
+
+    映射到上游的失败模式：
+
+    - 不存在 / 断链：上游 `path.exists()` 为假、直接 return。正常状态，返回
+      :data:`EMPTY_PROJECT_ENV`，**不是**错误；
+    - 目录、FIFO、设备、套接字：上游会 `IsADirectoryError` 或永久阻塞——今晚不会
+      有一次成功的运行，拒绝出合同；
+    - 非 UTF-8：上游 `read_text(encoding="utf-8")` 抛 `UnicodeDecodeError`，nightly
+      在 import 阶段就死，拒绝；
+    - 超过激活读取上限或读不动（权限等）：本模块建模不了，拒绝。
+
+    错误消息里只有固定字面量 `.env`，没有路径、没有 errno、没有文件正文——
+    正文是任意的攻击者可控文本，回显它就等于把它转发给读这条消息的 Agent。
+    """
+
+    base = Path(root) if root is not None else _PROJECT_ENV_ROOT
+    try:
+        raw = read_regular_path(base / PROJECT_ENV_FILE)
+    except FileNotFoundError:
+        # 上游对「没有」的反应就是什么都不做。这不是异常路径，是常态。
+        return EMPTY_PROJECT_ENV
+    except (IsADirectoryError, NotADirectoryError, ContainmentError):
+        raise ProjectEnvironmentError(
+            "the project root has a .env that is not a readable regular file; the "
+            "nightly process loads it before it does anything else and would hang or "
+            "abort at startup, so no contract was produced"
+        ) from None
+    except (AtomicFileError, OSError):
+        raise ProjectEnvironmentError(
+            "the project root has a .env that could not be read; the nightly process "
+            "loads it at startup, so a contract written without it would describe a "
+            "run that may not happen"
+        ) from None
+
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        raise ProjectEnvironmentError(
+            "the project root has a .env that is not valid UTF-8 text; the nightly "
+            "process decodes it at import time and would fail before starting, so "
+            "there is no nightly run to describe"
+        ) from None
+
+    return ProjectEnv(True, parse_project_env(text))
+
+
+def merge_runtime_env(
+    shell: Mapping[str, str], project_env: Optional[Mapping[str, str]] = None
+) -> tuple[dict[str, str], dict[str, str]]:
+    """算出 nightly 解析设置时**真正**看到的那个环境，以及每个名字来自哪一层。
+
+    上游是 `os.environ.setdefault(key, value)`：进程里已经有的名字原样保留，
+    没有的才由 `.env` 补上。于是优先级是 shell > `.env`，而不是反过来。
+
+    返回 ``(merged, origin)``，`origin[name]` 是 ``"shell"`` 或 ``"project_env"``。
+    """
+
+    merged: dict[str, str] = {}
+    origin: dict[str, str] = {}
+    for name, value in shell.items():
+        merged[name] = value
+        origin[name] = "shell"
+    for name, value in (project_env or {}).items():
+        if name not in merged:
+            merged[name] = value
+            origin[name] = "project_env"
+    return merged, origin
+
+
 def resolve_nightly_runtime(
-    config: Mapping[str, Any], env: Optional[Mapping[str, str]] = None
+    config: Mapping[str, Any],
+    env: Optional[Mapping[str, str]] = None,
+    project_env: Optional[Mapping[str, str]] = None,
 ) -> dict:
     """算出被排期的那条 nightly 命令实际会用的取值。
 
-    返回 ``{"settings": {...}, "sources": {setting: config|env|default}}``，覆盖
-    登记表里的**每一个**键。
+    返回 ``{"settings": {...}, "sources": {setting: config|shell|project_env|default}}``，
+    覆盖登记表里的**每一个**键。
+
+    ``env`` 是 shell/进程环境，``project_env`` 是项目根 `.env` 解析出来的那一层
+    （见 :func:`read_project_env`）。两者先按上游的 `setdefault` 语义合并成一个
+    「有效环境」，**再**送进各键原本的优先级：`config_env_default` 依旧是配置优先，
+    合并只改变「环境层里那个值是谁给的」，不改变环境层排第几。
 
     取值无效或本模块无法建模时抛 :class:`NightlyConfigError`；配置开了一条被排期
     的命令走不通的路径时抛 :class:`UnschedulableNightlySetting`。两者都是 fail
@@ -493,11 +693,12 @@ def resolve_nightly_runtime(
     _reject_unknown(config)
 
     env = env if env is not None else os.environ
+    effective, origin = merge_runtime_env(env, project_env)
     settings: dict[str, Any] = {}
     sources: dict[str, str] = {}
     for setting in NIGHTLY_SETTINGS:
         settings[setting.key], sources[setting.key] = _resolve_one(
-            setting, config, env, settings
+            setting, config, effective, settings, origin
         )
 
     # 凭据不进配置文件。它会被写进合同、进哈希、并被念给用户听；而交接单本来就
@@ -878,13 +1079,14 @@ def build_execution_contract(
     *,
     config: Mapping[str, Any],
     env: Optional[Mapping[str, str]] = None,
+    project_env_root: Optional[Path] = None,
     profile_sha256: str,
     run_at_local: str,
     timezone: str,
     generated_at: str,
     project_dir: Optional[Path] = None,
 ) -> dict:
-    """从**实际配置 + 实际环境**渲染每日执行合同。
+    """从**实际配置 + 实际环境 + 项目根 `.env`** 渲染每日执行合同。
 
     取值规则不是本模块自己发明的，而是 `cwk_nightly_pipeline` 在
     `--config/--run-name/--date` 这条固定 argv 下的真实行为（见
@@ -893,21 +1095,38 @@ def build_execution_contract(
     `sync_docdb` 又回到 config > env > False。合同照抄这份不对称，因为它描述的
     是现实，不是理想。
 
-    额外记录两件事：每个取值**来自哪一层**，以及**去掉 shell 里的 CWK_* 变量后
-    结果是否相同**。后者决定交接单能不能出——被排期的任务只拿得到 CWORK_APP_KEY。
+    这里的 “env” 有**两层**。上游在 import 阶段就执行
+    `load_local_env(PROJECT / ".env")`，把项目根那个 gitignore 掉的 `.env` 用
+    `setdefault` 填进进程环境；于是真实优先级是
+    **shell > 项目 `.env` > 配置 > 默认**（各键原本的优先级类别不变，合并只发生在
+    环境层内部）。合同以前只看 shell，`.env` 因此成了一条无人看管的通道：改一行就
+    能打开对外发布，而哈希、漂移、调度等价性全都不动。
+
+    额外记录两件事：每个取值**来自哪一层**（config / shell / project_env /
+    default），以及**换成被排期的那次运行真实会有的环境后结果是否相同**。后者决定
+    交接单能不能出。关键在于「被排期的环境」= 允许清单里的 shell 变量
+    （只有 CWORK_APP_KEY）**加上同一份 `.env`**——那个文件今晚会被 nightly 自己重新
+    读一遍，把它一起去掉会把「值写在 `.env` 里」误判成「依赖当前 shell」而白白拒绝；
+    而只有 shell 里的 `CWK_*` 才是定时任务真的拿不到、必须拒绝的那一类。
     """
 
     env = env if env is not None else os.environ
+    layer = read_project_env(project_env_root)
 
-    resolved = resolve_nightly_runtime(config, env)
+    resolved = resolve_nightly_runtime(config, env, layer.values)
     settings = resolved["settings"]
     sources = resolved["sources"]
-    # 被排期的任务只拿得到 env_allowlist 里的变量（CWORK_APP_KEY）。用那个子集
-    # 再算一次，就是它真实的取值——把整个环境清空是不对的，那会把「凭据来自
-    # 环境变量」误判成「依赖 shell」。
+    # 被排期的任务只拿得到 env_allowlist 里的变量（CWORK_APP_KEY），但它**会**自己
+    # 再读一次项目根的 `.env`。用「允许清单 ∩ 当前 shell + 同一份 .env」再算一次，
+    # 就是它今晚真实的取值。把整个环境清空是不对的，那会把「凭据来自环境变量」
+    # 误判成「依赖 shell」；把 `.env` 一起清掉同样不对，理由见上。
     scheduled_env = {k: v for k, v in env.items() if k in SCHEDULED_ENV_ALLOWLIST}
-    scheduled = resolve_nightly_runtime(config, scheduled_env)["settings"]
+    scheduled = resolve_nightly_runtime(config, scheduled_env, layer.values)["settings"]
+    # 差异有两种成因，都必须拒绝：值只在 shell 里（定时任务拿不到），或者 shell 正
+    # 遮住一个 `.env` 值（今晚没有那个 shell，`.env` 会翻上来生效）。后者尤其阴险：
+    # 交互式解析说「不发布」，定时运行却会发布。
     env_only = [key for key in NIGHTLY_SETTING_KEYS if settings[key] != scheduled[key]]
+    from_project_env = [k for k in NIGHTLY_SETTING_KEYS if sources[k] == "project_env"]
 
     caps = {
         "detail_cap": settings["detail_cap"],
@@ -956,6 +1175,23 @@ def build_execution_contract(
             "scheduled_environment_equivalent": not env_only,
             "settings_requiring_shell_environment": env_only,
             "scheduled_environment_allowlist": list(SCHEDULED_ENV_ALLOWLIST),
+            # 项目根 `.env` 这一层。全部是封闭词表：固定字面量 `.env`、布尔、计数，
+            # 以及登记表里的键名。**不出现** `.env` 里的任意名字、任意取值、任意
+            # 正文或任何路径——那个文件的内容是攻击者可控文本，也常常是别的工具的
+            # 凭据，抄进合同就等于替用户把它转发出去。
+            "project_env": {
+                "file": PROJECT_ENV_FILE,
+                "present": layer.present,
+                "loaded_by": "cwk_nightly_pipeline.load_local_env",
+                # 上游是 setdefault：进程里已有的名字不会被覆盖。
+                "shell_overrides_file": True,
+                # 定时任务也会自己读同一个文件，所以它**不是** shell 依赖。
+                "reloaded_by_scheduled_run": True,
+                "modelled_variables_present": sum(
+                    1 for name in layer.values if name in NIGHTLY_ENV_KEYS
+                ),
+                "settings_sourced_from_file": from_project_env,
+            },
         },
         "scheduled_invocation": {
             "argv_options": ["--config", "--run-name", "--date"],
@@ -1036,8 +1272,13 @@ def contract_drift(contract: Mapping[str, Any], recorded_sha256: Optional[str]) 
 
 _SOURCE_LABELS = {
     "config": "配置文件",
-    "env": "当前 shell 的环境变量",
+    "shell": "当前 shell 的环境变量",
+    "project_env": "项目根的 .env 文件",
     "default": "上游默认值",
+    # 旧词表。`.env` 这一层进合同之前，环境来源统一记成 "env"。留着只是为了让一份
+    # 早于本次改动写下的合同仍然能被念成人话——它的哈希在新词表下必然已经变了，
+    # 所以走到这里的路径只有「渲染一份历史文件」。
+    "env": "当前 shell 的环境变量",
 }
 
 
@@ -1109,13 +1350,29 @@ def render_contract_markdown(contract: Mapping[str, Any]) -> str:
         if isinstance(shown, dict):
             shown = shown.get("state", "unset")
         lines.append(f"- {name} = `{shown}` ← {_SOURCE_LABELS.get(origin, origin)}")
+    # 项目根的 `.env` 会在 nightly 启动的第一步被读进环境。它被 gitignore、不会出现
+    # 在配置文件里、也不会出现在命令行上——用户要是不知道它在参与，就等于在对一份
+    # 自己看不见来源的行为签字。所以只要它存在就明说，哪怕当前一个取值都没被它决定。
+    project_env = resolution.get("project_env") or {}
+    if project_env.get("present"):
+        from_file = list(project_env.get("settings_sourced_from_file") or [])
+        note = (
+            f"- 项目根存在 `{project_env.get('file', PROJECT_ENV_FILE)}`，"
+            "nightly 启动时会先把它读进环境（同名时当前 shell 的值优先）。"
+        )
+        if from_file:
+            note += "本合同中由它决定的取值：" + "、".join(from_file) + "。"
+        else:
+            note += "本合同中没有取值由它决定。"
+        lines.extend(["", note])
     needs_shell = list(resolution.get("settings_requiring_shell_environment") or [])
     if needs_shell:
         lines.extend(
             [
                 "",
-                "> 警告：以下取值来自当前 shell 的 CWK_* 环境变量，而被排期的任务"
-                "只会拿到 CWORK_APP_KEY，届时会解析出**另一个值**："
+                "> 警告：以下取值在被排期的那次运行里会解析成**另一个值**——它们要么"
+                "来自当前 shell 的 CWK_* 环境变量（定时任务只会拿到 CWORK_APP_KEY），"
+                "要么正被当前 shell 遮住、届时会由 .env 里的值翻上来生效："
                 + "、".join(needs_shell)
                 + "。把它们写进配置文件后重新渲染，否则不会出交接单。",
             ]

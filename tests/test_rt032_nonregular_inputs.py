@@ -668,6 +668,94 @@ class CallerInputLivenessTests(DeadlineMixin, unittest.TestCase):
         self.assertTrue(json.loads(result.stdout)["ok"])
 
 
+# ── 3b. the project root's own .env ───────────────────────────────────────
+
+
+PROJECT_ENV_SNIPPET = """
+import json, sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+import cwk_activation_contract as contract
+try:
+    layer = contract.read_project_env(Path(sys.argv[2]))
+except contract.ProjectEnvironmentError as exc:
+    print(json.dumps({"refused": True, "message": str(exc)}))
+else:
+    print(json.dumps({"refused": False, "present": layer.present, "count": len(layer.values)}))
+"""
+
+
+class ProjectEnvLivenessTests(DeadlineMixin, unittest.TestCase):
+    """``.env`` is read on every contract build, and it is not a caller's file.
+
+    Nobody names it on the command line, so nobody chooses it — the wizard goes
+    to a fixed path in the project root because that is where the nightly
+    process goes. A name the wizard must open unprompted is the worst place for
+    a blocking read: ``render-contract``, ``record-pilot``, ``check-drift`` and
+    ``schedule-handoff`` would all stop returning, and a wizard that never
+    answers looks exactly like a wizard that is thinking.
+
+    Same rule as everywhere else in this file: a real subprocess with a real
+    deadline, and the deadline expiring *is* the failure.
+    """
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.addCleanup(self.tmp.cleanup)
+        self.target = self.root / ".env"
+
+    def probe(self, label: str):
+        return self.run_deadline(
+            [sys.executable, "-c", PROJECT_ENV_SNIPPET, str(PROJECT / "scripts"), str(self.root)],
+            label=label,
+        )
+
+    def test_the_read_returns_on_every_planted_shape(self) -> None:
+        for name, plant in PLANTERS.items():
+            with self.subTest(planted=name):
+                remove_planted(self.target)
+                plant(self.target)
+                result = self.probe("read_project_env with a %s .env" % name)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                payload = json.loads(result.stdout)
+                if name in NEVER_ACCEPTABLE and name != "dangling_symlink":
+                    self.assertTrue(payload["refused"], name)
+                self.assert_clean_refusal(
+                    result, secrets=(self.root, self.target), label=name,
+                )
+
+    def test_a_dangling_symlink_reads_as_absent_not_as_a_refusal(self) -> None:
+        """Upstream's ``path.exists()`` is false there, so it simply returns."""
+
+        remove_planted(self.target)
+        plant_dangling_symlink(self.target)
+        payload = json.loads(self.probe("dangling .env").stdout)
+        self.assertEqual(payload, {"refused": False, "present": False, "count": 0})
+
+    def test_an_absent_file_is_not_an_error(self) -> None:
+        payload = json.loads(self.probe("absent .env").stdout)
+        self.assertEqual(payload, {"refused": False, "present": False, "count": 0})
+
+    def test_a_regular_file_is_read_and_nothing_in_it_is_echoed(self) -> None:
+        self.target.write_text(
+            "CWK_SYNC_DOCDB=1\nOPENAI_API_KEY=sk-not-a-real-key\n", encoding="utf-8"
+        )
+        result = self.probe("regular .env")
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload, {"refused": False, "present": True, "count": 2})
+        self.assertNotIn("sk-not-a-real-key", result.stdout + result.stderr)
+
+    def test_a_refusal_names_neither_the_path_nor_the_contents(self) -> None:
+        self.target.write_bytes(b"CWORK_APP_KEY=sk-not-a-real-key\n\xff\xfe\n")
+        result = self.probe("undecodable .env")
+        payload = json.loads(result.stdout)
+        self.assertTrue(payload["refused"])
+        self.assertNotIn("sk-not-a-real-key", payload["message"])
+        self.assertNotIn(str(self.root), payload["message"])
+        self.assert_clean_refusal(result, secrets=(self.root, self.target), label="undecodable")
+
+
 # ── 4. the reader itself, isolated ────────────────────────────────────────
 
 

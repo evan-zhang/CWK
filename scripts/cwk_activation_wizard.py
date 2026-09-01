@@ -47,6 +47,7 @@ if str(_PROJECT / "scripts") not in sys.path:
 from cwk_activation_contract import (  # noqa: E402
     ConfigLocatorError,
     NightlyConfigError,
+    ProjectEnvironmentError,
     ScheduledEnvironmentMismatch,
     ScopeSchemaError,
     UnschedulableNightlySetting,
@@ -1194,6 +1195,13 @@ def main(argv: Optional[list[str]] = None) -> int:
         # argv 给不出）。这不是「用法写错了」，是这条路现在不能被排期——
         # 与其让用户确认一份每晚定时失败的自动化，不如当场拒绝。
         payload = _failure(args.command, exc, "UnschedulableNightlySetting")
+        code = EXIT_REFUSED
+    except ProjectEnvironmentError as exc:
+        # 项目根有一个 `.env`，但读不准。上游在 import 阶段就会读它，读失败的形态
+        # 是「nightly 根本起不来」甚至「永远停在 open 上」。这不是用法错误，是这套
+        # 配置现在描述不了：与其猜一份不含它的合同（那正是这次要修的盲区），
+        # 不如当场拒绝。消息里只有固定的 `.env` 三个字，没有路径、没有正文。
+        payload = _failure(args.command, exc, "ProjectEnvironmentError")
         code = EXIT_REFUSED
     except NightlyConfigError as exc:
         # 配置或环境里的 nightly 取值本身不合法（不是整数、超出范围、控制字符），

@@ -488,6 +488,108 @@ discovery scope 闭合归一。
 真实 CWork/DocDB、定时任务、Gateway、远端与模型调用一律未触发。**仍未跑完整
 `make ci`**。
 
+## 第七轮整改（独立复审 NO-GO 的一个根因阻断项）
+
+**根因：合同的「环境」这一层只画了一半。** 上游 `cwk_nightly_pipeline.py` 在**模块
+体**里就执行 `load_local_env(PROJECT / ".env")`——不是在 `main()` 里，是 import 阶段。
+它按 `os.environ.setdefault` 填空：当前 shell 有的名字不动，没有的名字由项目根 `.env`
+补上。也就是说今晚真正生效的环境是 **shell ∪ `.env`**，而合同只解析了 shell。后果是
+一份放在项目根、谁都没再打开过的 `.env` 里写一行 `CWK_WIKI_SYNC=1`，就能让 nightly
+把 wiki 推去 DocDB，而合同、`contract_sha256`、`check-drift` 和排期等价性判定**全部
+看不见**——用户确认的仍然是「不发布」，哈希一个比特都不动。
+
+第六轮把「有没有漏一个键」变成了可判定的问题，这一轮补的是更前面的一层：**取值从哪
+些地方来**。41 个键一个不少，但入口少了一个，完备性就还是假的。
+
+**先把上游的解析逐字复刻，不「改良」。** 静态读源码 + 合成临时夹具实测了 18 种形态，
+`parse_project_env()` 与之逐条对齐：`B = 2` 键值都 strip；`export C=3` **被拒**（键名
+`"export C"` 过不了 `[A-Za-z_][A-Za-z0-9_]*`）；`#` 注释与无 `=` 行跳过；`E=` 是空串
+不是缺省；引号只脱一层且**先双后单**，所以 `H='"mixed"'` 得到 `"mixed"`、
+`I="'mixed'"` 得到 `mixed`；重复键**第一次出现的赢**（`setdefault`，不是后写覆盖）；
+`\x0b` / ` ` 也算换行（`.splitlines()`）；`S=a=b=c` 只切第一个 `=`。任何一条猜错，
+合同就会在某个边角上如实地说谎，而那正是最难被人发现的一类假话。
+
+**四道门共用同一个有效运行时模型。** `build_execution_contract` 先读 `.env`，
+`merge_runtime_env()` 按 shell > `.env` 合成一份有效环境，再交给
+`resolve_nightly_runtime`——**合并发生在环境层内部**，所以每个键原有的优先级类别
+（配置优先 / 环境优先 / `sync_docdb` 的反转 / 派生）一条都没被改动，`sync_docdb` 仍然
+配置优先地压过 `.env`。取值来源词表从 `env` 细分成 `shell` / `project_env`，进入
+`contract_sha256`，`render-contract`、`record-pilot`、`schedule-handoff`、`check-drift`
+因此自动同源：`.env` 改一个字，哈希就动，确认就作废。
+
+**排期等价性因此变得更准，而不是更严。** 定时任务只拿得到 `CWORK_APP_KEY`，但它**会
+重新加载同一个 `.env`**。所以第二次解析喂的是「允许清单里的 shell 值 + 同一份 `.env`」：
+shell 遮住 `.env` 的值仍然判不等价并拒绝出交接单（届时遮罩消失、翻上来的是文件里的
+值），而只由 `.env` 决定的取值**不再被误拒**——它今晚确实还在那儿。`CWORK_APP_KEY`
+只传名字、不传值这条老保证原样保留。
+
+**只说结构，不说内容。** 合同里关于 `.env` 的披露是闭合词表：文件名、在不在、由谁加载、
+shell 是否优先、定时是否重载、**被建模的变量个数**、以及由它决定了注册表里的哪几个键。
+不出现任何外来变量名、任何值、任何路径、任何原始行。`.env` 正是凭据所在——把没见过的
+名字回显进产物或日志，等于亲手做了一次泄漏。
+
+**失败关闭，但不把「缺席」当错误。** 上游对文件不存在是直接 `return`，那是正常状态，
+所以 `read_project_env` 也照样返回空层。反过来，凡是上游会用它而我们建不准的形态一律
+`ProjectEnvironmentError` → `EXIT_REFUSED`：目录（上游 `IsADirectoryError`）、非 UTF-8
+（上游 import 期 `UnicodeDecodeError`，nightly 根本起不来）、读不动。FIFO 是最要命的
+一种——上游 `path.exists()` 为真，`read_text()` 会**永远停在那里**；复用第六轮的
+`read_regular_path`（只 open 一次、`O_NONBLOCK`、同描述符 `fstat`）后实测 11 种形态：
+缺席/断链按正常缺席处理，fifo/目录/套接字/软链到 fifo/软链到 `/dev/zero`/非 UTF-8/
+不可读全部在 0.000s 拒绝，空文件与软链到普通文件正常读。错误消息里只有「.env」三个字，
+无路径、无 errno、无正文、无 traceback。
+
+**「.env 在哪」本身不接受外部输入。** 没有 `--project-dir`、没有环境变量覆写：一个能
+被外部指向别处的「.env 位置」本身就是漏洞——指错地方就等于给人看一份描述别处配置的
+合同。只有一个私有模块常量 `_PROJECT_ENV_ROOT = _PROJECT`（与上游 `PROJECT` 同一个
+算式、同一个目录），加上 `build_execution_contract` 的显式 kwarg 供测试注入；
+`--project-dir` 语义的 `project_dir` 刻意**不**参与。
+
+**测试不碰真实 `.env`。** 对拍预言机不再手抄一遍解析，而是**驱动上游那个函数本身**：
+加载 pipeline 时把真函数存到 `__real_load_local_env__` 再打桩，跑对拍时用一个只有
+`environ` 属性的 `_EnvironShim` 把它的 `os` 换掉，让它写进沙箱字典，跑完断言本进程
+`os.environ` 逐键未变。合同类套件全部改为显式指向一个空的临时目录（`NO_DOT_ENV` /
+`use_project_env_root`）——否则这些期望哈希会随开发机上碰巧有没有 `.env` 而变，且在真
+树里种一个 `.env` 有覆盖掉开发者自己那份的风险。已确认工作树与主树都没有真实 `.env`
+（只有 `.env.example`）。
+
+**三处被测试当场揪出的实现认知偏差**（都不是测试写错，是我一开始想错了）：
+`sync_docdb` 是唯一的配置优先键，用它做「`.env` 单独生效」的样本会被配置正当地压掉；
+`cmd_check_drift` 的载荷键是 `contract_drift` 不是 `drift`；`CWK_DETAIL_CAP` 敌不过夹具
+里的 `detail_cap: 60`。前者顺手变成了一条正向性质——`.env` **不得**改变配置优先键的
+次序，现在有专门的回归钉着。
+
+| 命令 | 结果 |
+| --- | --- |
+| `python3.11 -m py_compile`（3 个脚本 + 4 个改动测试文件） | 通过 |
+| `bash -n install.sh` | 通过 |
+| `python3.11 -m unittest tests.test_rt032_activation_state` | 53 passed |
+| `python3.11 -m unittest tests.test_rt032_activation_contract` | 80 passed（改为对空 `.env` 根解析） |
+| `python3.11 -m unittest tests.test_rt032_activation_wizard` | 143 passed（+13） |
+| `python3.11 -m unittest tests.test_rt032_activation_integration` | 40 passed |
+| `python3.11 -m unittest tests.test_rt032_contract_fidelity` | 109 passed（+47） |
+| `python3.11 -m unittest tests.test_rt032_nonregular_inputs` | 31 passed（+5，真子进程真超时） |
+| 六个 RT-032 模块合并运行 | 456 passed（上轮 391） |
+| `python3.11 -m unittest tests.test_install_modes` | 67 passed（RT-031 四模式不回归） |
+| `python3.11 -m unittest tests.test_distribution tests.test_governance_audit` | 67 passed（5 + 62） |
+| `python3.11 .aodw-next/06-project/governance-audit.py --root .` | 通过（613 个受跟踪文件） |
+| `bash .aodw-next/06-project/aodw-check.sh` | 通过（RT-028…RT-032 门禁全过） |
+| `git diff --check` | 通过（exit 0） |
+
+新增的 `.env` 层性质（合成夹具，共 65 条）：文件单独把 `wiki_sync` / 发布翻开并推动
+哈希；shell 压过文件；配置优先类不被重排；整数与别名（`CWK_WIKI_LIMIT` 等）；激活后
+改文件触发漂移并吊销第二道门；同一份文件让排期运行判为等价；仅 shell 差异判为不等价
+并拒绝出单；凭据形态的无关条目从不进入产物/日志/状态；畸形与非常规输入确定性且不阻塞。
+
+第六轮的既有闭环全部复跑未回归：41 个行为设置与发布/不可排期路径、argv 与配置内容
+逐值绑定、FIFO/非常规状态与产物与用户文件读取、符号链接边界、吊销历史证据、闭合
+scope schema、无错误回显与路径泄漏、RT-031 四模式、安装零副作用。
+
+治理边界未越：`scripts/cwk_atomic_file.py`（PR-001 冻结）与
+`scripts/cwk_nightly_pipeline.py`（RT-026 所有）**只读不改**——本轮全程静态读源码，
+一次都没有 import 到会触发真实 `load_local_env` 的路径。改动落在 RT-032 自己的
+2 个脚本、4 个测试文件与 2 份文档里。真实 CWork/DocDB、`.env`、凭据、定时任务、
+Gateway、远端一律未触发。**仍未跑完整 `make ci`**，按协调留给下一次独立复审之后。
+
 ## 变更记录
 
 - 2026-09-02：根据用户批准的安装后使用路径，确定独立 RT；采用“AI 沟通 + 确定性状态/回执”的激活架构，并与 RT-031 安装接入职责分离。
@@ -501,10 +603,32 @@ discovery scope 闭合归一。
 
 - 2026-09-02：第六轮整改。执行合同的完备性改为从上游 AST 反推（41 配置键 / 41 环境键 / 全部 argparse 选项 / 五类取值优先级），实现漏键测试不会跟着漏；`{sync_docdb:false, wiki_sync:true}` 不再谎称「不发布」；`cloud_first` / `publish_cloud_query_catalog` 在四道门一律确认前失败关闭。顺带修掉交接单不校验命令行 `--config` 的问题——原先可以「确认合同 A、却把 B 排上去」。`_read_text` 换成只 open 一次的 `read_regular_path`，最后一条 lstat-then-open 的 TOCTOU 挂起窗口关闭，并以真子进程 + 真超时覆盖 readiness / doctor / 真实 install.sh / 向导读写与抢锁 / 产物回读 / 命令行输入的七种非常规形态。吊销第二道门补 `revoke-activation` 回执并消除 `cmd_status` 的无审计落盘；文档不再声称「一个字都不写」；对拍测试不再读 `.env`；交接单 argv 逐值逐序钉死。
 
+- 2026-09-02：第七轮整改。补上执行合同缺的那一层输入：上游在 import 阶段就
+  `load_local_env(PROJECT / ".env")`，按 `setdefault` 用项目根 `.env` 填补 shell 没有
+  的名字，所以今晚真正生效的环境是 shell ∪ `.env`；原实现只解析 shell，导致一份没人
+  再打开过的 `.env` 里一行 `CWK_WIKI_SYNC=1` 就能打开发布，而合同、哈希、漂移与排期
+  等价性全部无感。现在解析逐字复刻上游（含 `export` 被拒、引号先双后单、重复键取先者、
+  `\x0b` 算换行等 18 种形态实测对齐），合并在环境层内部完成因而不改动任何键原有的优先级
+  类别，来源词表细分为 `shell` / `project_env` 并进入 `contract_sha256`，四道门同源。
+  排期等价性改为「允许清单里的 shell 值 + 同一份 `.env`」：shell 遮罩仍判不等价并拒绝
+  出单，仅由 `.env` 决定的取值不再误拒。披露只给闭合结构（在不在、由谁加载、决定了哪
+  几个注册表键），绝不回显外来变量名、值、路径或原始行。缺席按上游语义视为正常；目录 /
+  非 UTF-8 / 读不动一律拒绝，FIFO 复用只 open 一次的 `read_regular_path` 在 0.000s 拒绝
+  而不是永久挂住。`.env` 位置不接受任何外部输入，并由 AST 对拍钉死。对拍预言机改为驱动
+  上游函数本身（`os` 打影子、跑完断言本进程环境未变），合同类套件一律指向空临时目录，
+  测试全程不碰真实 `.env`。
+
 ## 遗留事项
 
 - 完整 `make ci` 本轮**未跑**，按协调留给独立复审通过后的最终一次冻结 CI（验收标准
   第 7 条尚未闭合）。
+- 合同建模的是**渲染那一刻**的项目根 `.env`。文件在渲染之后、02:30 之前被改，与配置
+  文件被改是同一类风险，同样只能靠下一次 `check-drift` 暴露——本仓库不监听文件系统。
+  差别在于 `.env` 通常没人当成「配置」来对待，所以文档专门写了这一条。
+- `.env` 的位置固定为项目根（与上游 `PROJECT` 同一算式），**不接受任何外部输入**。
+  上游若改文件名、改锚点或改成 `cwd`，`ProjectEnvLocationTests` 会红——它从上游 AST
+  里把 `PROJECT = Path(__file__).resolve().parents[1]` 和 `PROJECT / ".env"` 逐项钉死。
+  仍需人工跟进的是：那时红的是测试，正确的新位置得由人来定，不会自动跟随。
 - `resolve_nightly_runtime` 是对 `cwk_nightly_pipeline.main()` 取值逻辑的**忠实重
   实现**，不是共享的同一份代码。上游属 PR-001 受管、RT-026 所有且 v1 演化槽位已用尽，
   从本 RT 改它或凭空开 v2 槽位都是伪演化路径；`import` 复用又会触发它模块级的

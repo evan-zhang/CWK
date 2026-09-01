@@ -34,6 +34,14 @@ FIXTURES = PROJECT / "tests" / "fixtures" / "activation"
 NOW = "2026-01-01T00:00:00Z"
 SHA_PROFILE = "b" * 64
 
+# The contract now models the project-root ``.env`` too, because the nightly
+# process loads it before it resolves anything. An empty directory is the only
+# honest default for this suite: without it every contract built here would be
+# resolved against whatever ``.env`` the developer running the suite happens to
+# have, and the expected hashes below would quietly become machine-dependent.
+# Planting a ``.env`` in the real tree instead would risk clobbering theirs.
+NO_DOT_ENV = Path(tempfile.mkdtemp(prefix="rt032-no-dotenv-"))
+
 
 def load(name: str) -> dict:
     return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
@@ -47,6 +55,7 @@ def contract_from(config: dict, *, env=None, run_at="02:30", tz="Asia/Shanghai")
         run_at_local=run_at,
         timezone=tz,
         generated_at=NOW,
+        project_env_root=NO_DOT_ENV,
     )
 
 
@@ -437,6 +446,7 @@ class ExecutionContractTests(unittest.TestCase):
             run_at_local="02:30",
             timezone="Asia/Shanghai",
             generated_at="2030-12-31T23:59:59Z",
+            project_env_root=NO_DOT_ENV,
         )
         self.assertEqual(again["contract_sha256"], self.contract["contract_sha256"])
 
@@ -477,6 +487,7 @@ class ExecutionContractTests(unittest.TestCase):
             run_at_local="02:30",
             timezone="Asia/Shanghai",
             generated_at=NOW,
+            project_env_root=NO_DOT_ENV,
         )
         self.assertNotEqual(other["contract_sha256"], self.contract["contract_sha256"])
 

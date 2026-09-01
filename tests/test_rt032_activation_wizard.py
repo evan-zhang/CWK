@@ -29,6 +29,7 @@ from unittest import mock
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "scripts"))
 
+import cwk_activation_contract as C  # noqa: E402
 import cwk_activation_state as S  # noqa: E402
 import cwk_activation_wizard as W  # noqa: E402
 import cwk_atomic_file as A  # noqa: E402
@@ -48,7 +49,26 @@ class WizardTestCase(unittest.TestCase):
         patcher = mock.patch.dict(os.environ, {}, clear=True)
         patcher.start()
         self.addCleanup(patcher.stop)
+        # …and so would a ``.env`` at the project root, which the contract now
+        # models because the nightly process loads it before resolving anything.
+        # Point that lookup at an empty directory: the suite must answer the same
+        # way on a machine that has one and a machine that does not, and planting
+        # a ``.env`` in the real tree to get determinism would risk clobbering a
+        # developer's own. Tests that are *about* the layer re-point it.
+        self.project_env_root = self.root / "project-root"
+        self.project_env_root.mkdir()
+        self.use_project_env_root(self.project_env_root)
         self.clock = 0
+
+    def use_project_env_root(self, root: Path) -> None:
+        patcher = mock.patch.object(C, "_PROJECT_ENV_ROOT", Path(root))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def write_project_env(self, text: str) -> None:
+        """Put a synthetic ``.env`` where the contract will look for one."""
+
+        (self.project_env_root / C.PROJECT_ENV_FILE).write_text(text, encoding="utf-8")
 
     # ── helpers ────────────────────────────────────────────────────────────
 
@@ -2354,6 +2374,228 @@ class PublicationConsentWalkTests(WizardTestCase):
         # A refusal is not a verdict about the installation, so it must not
         # quietly downgrade one that is still running on the old config.
         self.assertEqual(self.read_state()["state"], "ACTIVE")
+
+
+class ProjectEnvWalkTests(WizardTestCase):
+    """The same consent walk, driven by the file nobody passes on the command line.
+
+    The nightly process loads ``<project>/.env`` in its module body, before it
+    resolves a single setting. That file is gitignored, absent from the config
+    and absent from the argv, so until the contract modelled it a one-line edit
+    could turn publication on underneath a confirmation that said nothing
+    leaves the machine — and the hash the yes was bound to would not move.
+
+    These walk the real commands, because the resolver being right is not the
+    same as the wizard asking the resolver.
+    """
+
+    def test_the_file_alone_changes_what_the_user_is_shown(self):
+        """One line in ``.env`` opens a publication channel the config left shut."""
+
+        self.stage_profile()
+        config = self.fixture("config.json")
+        code, quiet = self.run_cli("render-contract", "--config", config)
+        self.assertEqual(code, W.EXIT_OK, quiet)
+        self.assertFalse(quiet["contract"]["publishing"]["any_external_publication"])
+
+        self.write_project_env("CWK_WIKI_SYNC=1\n")
+        code, loud = self.run_cli("render-contract", "--config", config)
+        self.assertEqual(code, W.EXIT_OK, loud)
+        self.assertEqual(loud["contract"]["publishing"]["targets"], ["docdb:wiki"])
+        self.assertIn("项目根存在 `.env`", loud["contract_markdown"])
+        self.assertIn("wiki_sync = `True` ← 项目根的 .env 文件", loud["contract_markdown"])
+        self.assertIn("本次是否有内容离开这台机器：是", loud["contract_markdown"])
+        self.assertNotEqual(
+            quiet["contract"]["contract_sha256"], loud["contract"]["contract_sha256"]
+        )
+
+    def test_the_file_does_not_reorder_a_config_first_setting(self):
+        """The merge happens inside the environment layer, not above the config.
+
+        ``sync_docdb`` is the one key upstream resolves config-first, and the
+        fixture sets it to false. A ``.env`` saying otherwise must lose — being
+        thorough about the new layer is not a licence to change the precedence
+        of the old ones.
+        """
+
+        self.stage_profile()
+        self.write_project_env("CWK_SYNC_DOCDB=1\nCWK_DETAIL_CAP=99\n")
+        code, payload = self.run_cli("render-contract", "--config", self.fixture("config.json"))
+        self.assertEqual(code, W.EXIT_OK, payload)
+        contract = payload["contract"]
+        self.assertFalse(contract["publishing"]["sync_docdb"])
+        self.assertEqual(contract["caps"]["detail_cap"], 60)
+        sources = contract["runtime_resolution"]["sources"]
+        self.assertEqual(sources["sync_docdb"], "config")
+        self.assertEqual(sources["detail_cap"], "config")
+
+    def test_editing_the_file_under_a_live_activation_revokes_the_consent(self):
+        """The reproduction, as a user outcome: yes to quiet, then ``.env`` says publish."""
+
+        config = self.project_config_copy(sync_docdb=False, wiki_sync=False)
+        self.stage_active(config=config)
+        self.assertEqual(self.read_state()["state"], "ACTIVE")
+
+        self.write_project_env("CWK_SYNC_DOCDB=1\nCWK_WIKI_SYNC=1\n")
+        code, payload = self.run_cli("check-drift", "--config", config)
+        self.assertEqual(code, W.EXIT_DRIFT, payload)
+        self.assertIn("activation", payload["invalidated_gates"])
+        self.assertEqual(self.read_state()["state"], "NEEDS_RECONFIRMATION")
+
+        # And the consequence that matters: nothing may be scheduled on it.
+        code, _ = self.run_cli("schedule-handoff", "--config", config)
+        self.assertEqual(code, W.EXIT_REFUSED)
+
+    def test_the_handoff_refuses_a_file_that_appeared_after_confirmation(self):
+        """``schedule-handoff`` re-resolves, so it must notice too, on its own."""
+
+        config = self.project_config_copy(sync_docdb=False, wiki_sync=False)
+        self.stage_pilot(config=config)
+        self.run_cli("confirm-activation")
+        self.write_project_env("CWK_SYNC_DOCDB=1\n")
+        code, payload = self.run_cli("schedule-handoff", "--config", config)
+        self.assertEqual(code, W.EXIT_REFUSED, payload)
+        self.assertEqual(self.read_state()["state"], "PILOT_PASSED")
+
+    def test_a_pilot_recorded_with_the_file_present_binds_to_it(self):
+        """The hash the pilot writes down has to include the layer as well."""
+
+        config = self.project_config_copy()
+        # A key the fixture config leaves alone, so the file really is what
+        # decides it — ``detail_cap`` would have been resolved config-first.
+        self.write_project_env("CWK_WIKI_LIMIT=42\n")
+        self.stage_pilot(config=config)
+        bound = self.read_state()["contract_sha256"]
+        self.run_cli("confirm-activation")
+
+        (self.project_env_root / C.PROJECT_ENV_FILE).unlink()
+        code, payload = self.run_cli("check-drift", "--config", config)
+        self.assertEqual(code, W.EXIT_DRIFT, payload)
+        self.assertNotEqual(payload["contract_drift"]["current_contract_sha256"], bound)
+        self.assertIn("activation", payload["invalidated_gates"])
+
+    def test_an_unschedulable_value_in_the_file_is_refused_not_described(self):
+        self.stage_profile()
+        self.write_project_env("CWK_CLOUD_FIRST=1\n")
+        code, payload = self.run_cli("render-contract", "--config", self.fixture("config.json"))
+        self.assertEqual(code, W.EXIT_REFUSED, payload)
+        self.assertEqual(payload["error_kind"], "UnschedulableNightlySetting")
+        self.assertIn("cloud_first", payload["error"])
+
+    def test_a_shell_value_masking_the_file_blocks_the_handoff(self):
+        """Off in this shell, on at 02:30. The handoff must not go out."""
+
+        config = self.project_config_copy(sync_docdb=True, wiki_sync=False)
+        self.write_project_env("CWK_WIKI_SYNC=1\n")
+        os.environ["CWK_WIKI_SYNC"] = "0"
+        self.stage_pilot(config=config)
+        self.run_cli("confirm-activation")
+        code, payload = self.run_cli("schedule-handoff", "--config", config)
+        self.assertEqual(code, W.EXIT_REFUSED, payload)
+        self.assertEqual(payload["error_kind"], "ScheduledEnvironmentMismatch")
+
+    def test_a_value_only_in_the_file_does_not_block_the_handoff(self):
+        """It will be reloaded at 02:30, so refusing would be a false alarm."""
+
+        config = self.project_config_copy()
+        self.write_project_env("CWK_DETAIL_CAP=42\nCWORK_APP_KEY=not-a-real-key\n")
+        self.stage_pilot(config=config)
+        self.run_cli("confirm-activation")
+        code, payload = self.run_cli("schedule-handoff", "--config", config)
+        self.assertEqual(code, W.EXIT_OK, payload)
+        self.assertEqual(
+            payload["handoff"]["command_spec"]["env_allowlist"], ["CWORK_APP_KEY"]
+        )
+
+    def test_no_foreign_name_or_value_from_the_file_reaches_any_output(self):
+        config = self.project_config_copy()
+        self.write_project_env(
+            "CWK_SYNC_DOCDB=1\n"
+            "OPENAI_API_KEY=sk-not-a-real-key\n"
+            "PRIVATE_NOTE=do-not-echo-me\n"
+            "CWORK_APP_KEY=also-not-a-real-key\n"
+        )
+        self.stage_pilot(config=config)
+        self.run_cli("confirm-activation")
+        code, handoff = self.run_cli("schedule-handoff", "--config", config)
+        self.assertEqual(code, W.EXIT_OK, handoff)
+        _, contract = self.run_cli("render-contract", "--config", config)
+        _, status = self.run_cli("status")
+
+        blob = json.dumps([handoff, contract, status], ensure_ascii=False)
+        blob += (self.state_dir / S.STATE_FILE).read_text(encoding="utf-8")
+        for artifact in self.state_dir.glob("*.json"):
+            blob += artifact.read_text(encoding="utf-8")
+        for token in (
+            "OPENAI_API_KEY",
+            "sk-not-a-real-key",
+            "PRIVATE_NOTE",
+            "do-not-echo-me",
+            "also-not-a-real-key",
+            str(self.project_env_root),
+        ):
+            with self.subTest(token=token):
+                self.assertNotIn(token, blob)
+
+    def test_a_malformed_file_is_deterministic_rather_than_partial(self):
+        """A broken line drops that line only, exactly as upstream drops it."""
+
+        config = self.project_config_copy()
+        self.write_project_env(
+            "1BAD=x\nCWK-ALSO-BAD=y\nexport CWK_DETAIL_CAP=1\n"
+            "CWK_WIKI_SYNC=1\nno-equals-sign\n"
+        )
+        self.stage_profile()
+        code, first = self.run_cli("render-contract", "--config", config)
+        self.assertEqual(code, W.EXIT_OK, first)
+        # The one well-formed line took effect; the four malformed ones were
+        # dropped individually rather than poisoning the file.
+        self.assertTrue(first["contract"]["publishing"]["wiki_sync"])
+        self.assertEqual(
+            first["contract"]["runtime_resolution"]["project_env"][
+                "modelled_variables_present"
+            ],
+            1,
+        )
+        code, second = self.run_cli("render-contract", "--config", config)
+        self.assertEqual(
+            first["contract"]["contract_sha256"], second["contract"]["contract_sha256"]
+        )
+
+    def test_a_nonregular_file_is_refused_without_hanging(self):
+        """A FIFO there would stop ``read_text`` forever; the wizard must not wait.
+
+        The assertion is the returncode, but the property is that this test
+        finishes at all — the pre-fix read would still be inside ``open``.
+        """
+
+        os.mkfifo(self.project_env_root / C.PROJECT_ENV_FILE)
+        self.stage_profile()
+        code, payload = self.run_cli("render-contract", "--config", self.fixture("config.json"))
+        self.assertEqual(code, W.EXIT_REFUSED, payload)
+        self.assertEqual(payload["error_kind"], "ProjectEnvironmentError")
+        self.assert_no_absolute_path(payload)
+
+    def test_an_undecodable_file_is_refused_with_no_echo_of_its_bytes(self):
+        (self.project_env_root / C.PROJECT_ENV_FILE).write_bytes(
+            b"CWORK_APP_KEY=sk-not-a-real-key\n\xff\xfe\n"
+        )
+        self.stage_profile()
+        code, payload = self.run_cli("render-contract", "--config", self.fixture("config.json"))
+        self.assertEqual(code, W.EXIT_REFUSED, payload)
+        text = json.dumps(payload, ensure_ascii=False)
+        self.assertNotIn("sk-not-a-real-key", text)
+        self.assertNotIn("Traceback", text)
+        self.assert_no_absolute_path(payload)
+
+    def test_a_refused_file_does_not_advance_or_damage_the_state(self):
+        self.stage_active(config=self.project_config_copy())
+        before = self.read_state()
+        os.mkfifo(self.project_env_root / C.PROJECT_ENV_FILE)
+        code, _ = self.run_cli("check-drift", "--config", self.fixture("config.json"))
+        self.assertEqual(code, W.EXIT_REFUSED)
+        self.assertEqual(self.read_state()["state"], before["state"])
+        self.assertEqual(self.read_state()["contract_sha256"], before["contract_sha256"])
 
 
 if __name__ == "__main__":

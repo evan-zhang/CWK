@@ -163,17 +163,28 @@ if the user disagrees with something in it, change the config, not the
 explanation.
 
 Every setting also says where its value came from: the config file, a `CWK_*`
-variable in the current shell, or the built-in default. Read that out too. The
-precedence is not uniform — for the caps and the lookback the config file wins
-over the environment, for `backfill_enabled` the environment wins over the
-config — so "where did this number come from" is a real question, not a
-formality.
+variable in the current shell, a `CWK_*` line in the project root's `.env`, or
+the built-in default. Read that out too. The precedence is not uniform — for
+the caps and the lookback the config file wins over the environment, for
+`backfill_enabled` the environment wins over the config — so "where did this
+number come from" is a real question, not a formality.
+
+The project root's `.env` is part of the contract because the nightly process
+loads it before it resolves anything: a `CWK_*` line in there can turn
+publishing on. Same name in your shell and in the file, the shell wins; a name
+only in the file takes effect. The contract says whether the file exists and
+which settings it decided — never what else is in it, because that is where
+credentials live. Two consequences worth saying out loud: creating or editing
+that file changes what was agreed to, so `check-drift` will void the consent
+and ask for it again; and unlike your shell, the file *is* still there at 02:30,
+so a value that comes from it is not a scheduling problem.
 
 The rendering carries a warning block when a value comes from the current shell
 rather than the config. A scheduled task inherits almost nothing from your
 shell, so such a value would be true when you read it out and false at 02:30.
-Move it into the config file before continuing; the handoff in step 7 refuses
-until you do.
+The same warning appears when your shell is *masking* a `.env` value: at 02:30
+the mask is gone and the file's value surfaces instead. Either way, move it into
+the config file before continuing; the handoff in step 7 refuses until you do.
 
 ## 5. Pilot — one read-only pass, scored by the gate
 
@@ -247,7 +258,13 @@ must not claim it does.
 python3 scripts/cwk_activation_wizard.py check-drift --config cwk-mirror.local.json
 ```
 
-Config or contract changed ⇒ exit code 5. Precisely what happens:
+Config or contract changed ⇒ exit code 5. "Config" here includes the project
+root's `.env`: adding, editing or deleting a `CWK_*` line in it is a change to
+tonight's run, and it drifts exactly like an edit to the config file. That is
+the point — otherwise a file nobody reopened could quietly turn publishing on
+under a yes that was given when it was off.
+
+Precisely what happens:
 
 * **The scheduling consent is revoked.** `invalidated_gates` contains
   `activation` and `activation_authorization_revoked` is true. Drift means the

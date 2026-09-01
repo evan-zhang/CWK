@@ -46,7 +46,10 @@ import inspect
 import json
 import os
 import re
+import socket
 import sys
+import tempfile
+import time
 import types
 import unittest
 from pathlib import Path
@@ -114,12 +117,54 @@ def load_pipeline_module() -> types.ModuleType:
         exec(compile(tree, str(PIPELINE_PATH), "exec"), module.__dict__)  # noqa: S102
     if dict(os.environ) != before:
         raise AssertionError("loading the pipeline changed this process' environment")
+    # The real function is kept under a name nothing reaches by accident. The
+    # ``.env`` layer is now part of what the contract has to model, and the only
+    # honest oracle for "what does load_local_env do to this file" is
+    # load_local_env itself — a second transcription of the parser would just be
+    # a second place to make the same mistake. It is invoked only through
+    # ``upstream_load_local_env`` below, which hands it a temp path and a fake
+    # ``os``, so none of the three guards is weakened: nothing reads a real
+    # ``.env`` and nothing writes to this process' environment.
+    module.__real_load_local_env__ = module.load_local_env
     module.load_local_env = _forbidden_load_local_env
     return module
 
 
 ENVIRONMENT_AT_IMPORT = dict(os.environ)
 N = load_pipeline_module()
+
+
+class _EnvironShim:
+    """Just enough of the ``os`` module for ``load_local_env`` to run.
+
+    ``load_local_env`` touches exactly one thing from ``os``:
+    ``os.environ.setdefault``. Handing it a shim rather than patching
+    ``os.environ`` means the oracle can be driven over dozens of synthetic
+    ``.env`` files without the real process environment being written to even
+    transiently — there is no restore step to get wrong, and no window in which
+    a ``CWORK_APP_KEY`` invented by a test is visible to anything else.
+    """
+
+    def __init__(self, environ: dict):
+        self.environ = environ
+
+
+def upstream_load_local_env(path: Path, shell: dict) -> dict:
+    """Run upstream's real ``load_local_env`` over ``path``; return the result.
+
+    ``shell`` is the pre-existing process environment. What comes back is what
+    upstream would have left in ``os.environ`` — which, because upstream uses
+    ``setdefault``, *is* the merged environment every nightly setting is then
+    resolved against.
+    """
+
+    sandbox = dict(shell)
+    before = dict(os.environ)
+    with mock.patch.object(N, "os", _EnvironShim(sandbox)):
+        N.__real_load_local_env__(path)
+    if dict(os.environ) != before:  # pragma: no cover - guard
+        raise AssertionError("the .env oracle escaped its shim and wrote to os.environ")
+    return sandbox
 
 
 # ── reading upstream's own declaration of what it honours ──────────────────
@@ -777,6 +822,26 @@ class RegistryCompletenessTests(unittest.TestCase):
             {setting.key: setting.precedence for setting in C.NIGHTLY_SETTINGS},
         )
 
+    def test_the_environment_name_index_covers_the_whole_registry(self):
+        """``NIGHTLY_ENV_KEYS`` decides which ``.env`` names are even counted.
+
+        The contract reports *how many* modelled variables a ``.env`` sets, and
+        deliberately reports nothing else about the file — no names, no values.
+        If this index went stale, that count would silently under-report the
+        very thing it exists to surface, and the omission would look like "the
+        file contains nothing relevant".
+        """
+
+        self.assertEqual(
+            set(C.NIGHTLY_ENV_KEYS),
+            {key for setting in C.NIGHTLY_SETTINGS for key in setting.env_keys},
+        )
+        for setting in C.NIGHTLY_SETTINGS:
+            for statement in upstream_statements_for(setting.key):
+                for name in _env_names(statement):
+                    with self.subTest(name=name):
+                        self.assertIn(name, C.NIGHTLY_ENV_KEYS)
+
     def test_the_command_line_only_switches_are_all_pinned(self):
         """Options with no config key still change the run — they must be stated."""
 
@@ -918,7 +983,7 @@ class NightlyResolutionEquivalenceTests(unittest.TestCase):
 
         contract = build({}, {"CWK_SYNC_DOCDB": "y"})
         self.assertTrue(contract["publishing"]["sync_docdb"])
-        self.assertEqual(contract["runtime_resolution"]["sources"]["sync_docdb"], "env")
+        self.assertEqual(contract["runtime_resolution"]["sources"]["sync_docdb"], "shell")
 
     def test_an_unparsable_integer_is_refused_rather_than_defaulted(self):
         """Upstream would abort on ``int("lots")``; the contract must not invent a number."""
@@ -1022,10 +1087,19 @@ class PausedPathTests(unittest.TestCase):
         self.assertFalse(resolved["settings"]["cloud_first"])
 
 
+# An empty directory that stands in for "a project root with no .env". Without
+# it every contract built here would be resolved against whatever ``.env`` the
+# developer running the suite happens to have, and the expected hashes below
+# would quietly become machine-dependent. Tests that are *about* the ``.env``
+# layer point ``project_env_root`` at their own fixture instead.
+NO_DOT_ENV = Path(tempfile.mkdtemp(prefix="rt032-no-dotenv-"))
+
+
 def build(config, env, **overrides):
     kwargs = {
         "config": config,
         "env": env,
+        "project_env_root": NO_DOT_ENV,
         "profile_sha256": "a" * 64,
         "run_at_local": "02:30",
         "timezone": "Asia/Shanghai",
@@ -1251,6 +1325,664 @@ class ScheduledEnvironmentTests(unittest.TestCase):
         text = C.render_contract_markdown(self.contract({"source_completeness": False}, {}))
         self.assertIn("来源完整性补采：关", text)
         self.assertIn("补采已关，本项不生效", text)
+
+
+# ── the .env layer upstream loads before it resolves anything ───────────────
+#
+# ``cwk_nightly_pipeline`` runs ``load_local_env(PROJECT / ".env")`` in its
+# module body, before ``main`` exists to be called. Every setting is therefore
+# resolved against an environment that has already been topped up from a
+# gitignored file nobody passes on the command line and nobody sees in the
+# config. Until this section existed, the contract modelled the shell and
+# nothing else — so a one-line edit to ``.env`` could turn on publication while
+# the contract hash, the drift check and the scheduled-equivalence verdict all
+# stayed exactly the same. That is the whole blind spot, stated as tests.
+
+# Each entry is a ``.env`` body whose result a reasonable person could get
+# wrong. The oracle is upstream's own parser, so "expected" is never written
+# down here — only the claim in the name.
+DOT_ENV_TEXTS = {
+    "empty file": "",
+    "one plain assignment": "CWK_SYNC_DOCDB=1\n",
+    "spaces around the equals sign": "CWK_SYNC_DOCDB = 1\n",
+    "export prefix (not honoured upstream)": "export CWK_SYNC_DOCDB=1\n",
+    "comment lines and blanks": "# CWK_SYNC_DOCDB=1\n\n   \nCWK_DETAIL_CAP=9\n",
+    "a comment after leading whitespace": "   # CWK_SYNC_DOCDB=1\n",
+    "empty value is a set-but-empty name": "CWK_HISTORY_RUN_NAME=\n",
+    "double quoted value": 'CWK_HISTORY_RUN_NAME="quoted"\n',
+    "single quoted value": "CWK_HISTORY_RUN_NAME='quoted'\n",
+    "single inside double": "CWK_HISTORY_RUN_NAME='\"mixed\"'\n",
+    "double inside single": "CWK_HISTORY_RUN_NAME=\"'mixed'\"\n",
+    "doubled quotes": 'CWK_HISTORY_RUN_NAME=""double""\n',
+    "duplicate name, first one wins": "CWK_DETAIL_CAP=1\nCWK_DETAIL_CAP=2\n",
+    "line with no equals sign": "CWK_SYNC_DOCDB\n",
+    "empty key": "=value\n",
+    "key that does not start with a letter": "1BAD=x\nCWK_DETAIL_CAP=9\n",
+    "key with a dash": "CWK-SYNC-DOCDB=1\nCWK_DETAIL_CAP=9\n",
+    "value containing more equals signs": "CWK_RELATION_API_PATH=a=b=c\n",
+    "value padded with spaces": "CWK_HISTORY_RUN_NAME=  padded  \n",
+    "vertical tab counts as a line break": "CWK_DETAIL_CAP=1\x0bCWK_BACKFILL_CAP=2\n",
+    "unicode line separator counts too": "CWK_DETAIL_CAP=1 CWK_BACKFILL_CAP=2\n",
+    "crlf line endings": "CWK_DETAIL_CAP=1\r\nCWK_BACKFILL_CAP=2\r\n",
+    "no trailing newline": "CWK_DETAIL_CAP=9",
+    "credentials belonging to other tools": (
+        "OPENAI_API_KEY=sk-not-a-real-key\n"
+        "AWS_SECRET_ACCESS_KEY=also-not-real\n"
+        "DATABASE_URL=postgres://user:pw@host/db\n"
+    ),
+    "the app key upstream really does read": "CWORK_APP_KEY=not-a-real-key\n",
+    "the whole publication chain": "CWK_SYNC_DOCDB=yes\nCWK_WIKI_SYNC=on\n",
+    "an integer setting": "CWK_DETAIL_CAP=42\n",
+    "an env-first scalar": "CWK_AI_MAX_PARALLEL=9\n",
+    "the app key alias": "XG_BIZ_API_KEY=not-a-real-key\n",
+    "a paused experimental path": "CWK_CLOUD_FIRST=1\n",
+}
+
+
+class ProjectEnvParserFidelityTests(unittest.TestCase):
+    """The contract's ``.env`` parser must reproduce upstream's, bugs included.
+
+    ``load_local_env`` is not a dotenv library. It drops ``export`` prefixes on
+    the floor, strips quote characters one class at a time so ``'"x"'`` and
+    ``"'x'"`` come out different, treats ``\\x0b`` as a line break because it
+    uses ``str.splitlines()``, and keeps the *first* of two identical names
+    because it uses ``setdefault``. A "cleaner" parser here would be a contract
+    that describes a different night than the one that runs, which is the same
+    class of defect as not reading the file at all.
+    """
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp(prefix="rt032-dotenv-"))
+
+    def write(self, text: str) -> Path:
+        target = self.root / C.PROJECT_ENV_FILE
+        target.write_text(text, encoding="utf-8")
+        return target
+
+    def test_every_shape_parses_the_way_upstream_parses_it(self):
+        for name, text in DOT_ENV_TEXTS.items():
+            with self.subTest(case=name):
+                path = self.write(text)
+                self.assertEqual(
+                    C.read_project_env(self.root).values,
+                    upstream_load_local_env(path, {}),
+                    name,
+                )
+
+    def test_the_parser_agrees_when_it_is_handed_the_text_directly(self):
+        """``parse_project_env`` and ``read_project_env`` must not diverge."""
+
+        for name, text in DOT_ENV_TEXTS.items():
+            with self.subTest(case=name):
+                self.write(text)
+                self.assertEqual(
+                    C.parse_project_env(text), C.read_project_env(self.root).values, name
+                )
+
+    def test_the_shell_always_wins_because_upstream_uses_setdefault(self):
+        shell = {"CWK_SYNC_DOCDB": "0", "CWK_DETAIL_CAP": "5"}
+        path = self.write("CWK_SYNC_DOCDB=1\nCWK_DETAIL_CAP=99\nCWK_BACKFILL_CAP=7\n")
+        merged, origin = C.merge_runtime_env(shell, C.read_project_env(self.root).values)
+        self.assertEqual(merged, upstream_load_local_env(path, shell))
+        self.assertEqual(merged["CWK_SYNC_DOCDB"], "0")
+        self.assertEqual(origin["CWK_SYNC_DOCDB"], "shell")
+        self.assertEqual(origin["CWK_BACKFILL_CAP"], "project_env")
+
+    def test_the_merge_matches_upstream_over_every_shape(self):
+        shell = {"CWK_DETAIL_CAP": "5", "CWORK_APP_KEY": "shell-key-not-echoed"}
+        for name, text in DOT_ENV_TEXTS.items():
+            with self.subTest(case=name):
+                path = self.write(text)
+                merged, _ = C.merge_runtime_env(
+                    shell, C.read_project_env(self.root).values
+                )
+                self.assertEqual(merged, upstream_load_local_env(path, shell), name)
+
+    def test_a_missing_file_is_a_normal_state_and_not_an_error(self):
+        """Upstream returns immediately when the file is absent; so must this."""
+
+        layer = C.read_project_env(self.root)
+        self.assertFalse(layer.present)
+        self.assertEqual(layer.values, {})
+
+    def test_an_empty_file_is_present_but_decides_nothing(self):
+        self.write("")
+        layer = C.read_project_env(self.root)
+        self.assertTrue(layer.present)
+        self.assertEqual(layer.values, {})
+
+    def test_a_dangling_symlink_is_absent_exactly_as_upstream_sees_it(self):
+        """``path.exists()`` is false for a broken link, so upstream returns."""
+
+        (self.root / C.PROJECT_ENV_FILE).symlink_to(self.root / "no-such-file")
+        self.assertEqual(C.read_project_env(self.root), C.EMPTY_PROJECT_ENV)
+
+    def test_a_symlink_to_a_regular_file_is_read_because_upstream_reads_it(self):
+        (self.root / "real").write_text("CWK_SYNC_DOCDB=1\n", encoding="utf-8")
+        (self.root / C.PROJECT_ENV_FILE).symlink_to(self.root / "real")
+        self.assertEqual(C.read_project_env(self.root).values, {"CWK_SYNC_DOCDB": "1"})
+
+
+class ProjectEnvLocationTests(unittest.TestCase):
+    """Reading the *wrong* ``.env`` correctly is still a contract that lies.
+
+    Everything else in this file pins what the file means. This class pins
+    *which file*, because the parser being perfect buys nothing if the two
+    modules disagree about where to look. The expectations are read out of
+    upstream's syntax tree, so upstream moving the load — to a different
+    filename, a different anchor, or ``cwd`` — fails here rather than silently
+    handing the user a contract that describes a file the nightly run will
+    never open.
+    """
+
+    @staticmethod
+    def _module_level_call() -> ast.Call:
+        for node in ast.parse(PIPELINE_SOURCE).body:
+            if (
+                isinstance(node, ast.Expr)
+                and isinstance(node.value, ast.Call)
+                and isinstance(node.value.func, ast.Name)
+                and node.value.func.id == "load_local_env"
+            ):
+                return node.value
+        raise AssertionError("upstream no longer loads a .env in its module body")
+
+    def test_upstream_loads_exactly_the_filename_this_module_looks_for(self):
+        call = self._module_level_call()
+        self.assertEqual(len(call.args), 1, "unexpected load_local_env() signature")
+        arg = call.args[0]
+        self.assertIsInstance(arg, ast.BinOp, "expected `<anchor> / <name>`")
+        self.assertIsInstance(arg.op, ast.Div)
+        self.assertIsInstance(arg.right, ast.Constant)
+        self.assertEqual(arg.right.value, C.PROJECT_ENV_FILE)
+
+    def test_the_anchor_is_the_module_constant_this_module_mirrors(self):
+        arg = self._module_level_call().args[0]
+        self.assertIsInstance(arg.left, ast.Name)
+        self.assertEqual(arg.left.id, "PROJECT", "the anchor is no longer PROJECT")
+
+    def test_the_anchor_is_still_the_script_directory_parent_not_the_cwd(self):
+        """``Path(__file__).resolve().parents[1]`` — pinned shape, not a guess."""
+
+        assignments = [
+            node
+            for node in ast.parse(PIPELINE_SOURCE).body
+            if isinstance(node, ast.Assign)
+            and any(
+                isinstance(t, ast.Name) and t.id == "PROJECT" for t in node.targets
+            )
+        ]
+        self.assertEqual(len(assignments), 1, "PROJECT is assigned more than once")
+        self.assertEqual(
+            ast.unparse(assignments[0].value), "Path(__file__).resolve().parents[1]"
+        )
+
+    def test_both_modules_resolve_that_expression_to_the_same_directory(self):
+        """The two files live side by side, so the same expression must agree."""
+
+        self.assertEqual(C._PROJECT_ENV_ROOT, N.PROJECT)
+        self.assertEqual(C._PROJECT_ENV_ROOT, PROJECT)
+
+    def test_the_location_is_not_reachable_from_the_command_line(self):
+        """A caller-steerable ``.env`` path would be the vulnerability itself.
+
+        ``project_dir`` exists for relativising paths in the handoff. If it
+        ever started steering this too, an attacker-supplied directory could
+        decide which file the user is shown a contract for.
+        """
+        source = (PROJECT / "scripts" / "cwk_activation_wizard.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("project_env_root", source)
+        self.assertNotIn("PROJECT_ENV_FILE", source)
+
+
+class ProjectEnvRefusalTests(unittest.TestCase):
+    """Shapes where upstream cannot start — and where a wrong read would hang.
+
+    ``load_local_env`` calls ``path.read_text()`` after ``path.exists()``.
+    Against a FIFO that ``open`` never returns, so the *nightly process* hangs
+    at import; against non-UTF-8 bytes it raises ``UnicodeDecodeError`` before
+    ``main`` is ever reached. There is no set of settings that honestly
+    describes either night, so the contract refuses instead of guessing — and,
+    because the wizard must never inherit the hang, it refuses *promptly*.
+    """
+
+    #: Generous enough that a slow machine will not trip it, short enough that a
+    #: blocking ``open`` cannot be mistaken for slowness.
+    BUDGET_SECONDS = 10.0
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp(prefix="rt032-dotenv-bad-"))
+        self.target = self.root / C.PROJECT_ENV_FILE
+
+    def assert_refused_promptly(self, label: str):
+        started = time.monotonic()
+        with self.assertRaises(C.ProjectEnvironmentError) as caught:
+            C.read_project_env(self.root)
+        elapsed = time.monotonic() - started
+        self.assertLess(elapsed, self.BUDGET_SECONDS, f"{label} blocked for {elapsed:.1f}s")
+        return str(caught.exception)
+
+    def test_a_fifo_is_refused_without_blocking(self):
+        os.mkfifo(self.target)
+        self.assert_refused_promptly("fifo")
+
+    def test_a_symlink_to_a_fifo_is_refused_without_blocking(self):
+        os.mkfifo(self.root / "pipe")
+        self.target.symlink_to(self.root / "pipe")
+        self.assert_refused_promptly("symlink to fifo")
+
+    def test_a_directory_is_refused(self):
+        self.target.mkdir()
+        self.assert_refused_promptly("directory")
+
+    def test_a_socket_is_refused(self):
+        sock = socket.socket(socket.AF_UNIX)
+        self.addCleanup(sock.close)
+        sock.bind(str(self.target))
+        self.assert_refused_promptly("socket")
+
+    def test_a_character_device_is_refused_without_reading_forever(self):
+        self.target.symlink_to("/dev/zero")
+        self.assert_refused_promptly("character device")
+
+    def test_non_utf8_bytes_are_refused_because_upstream_dies_on_them(self):
+        self.target.write_bytes(b"CWK_SYNC_DOCDB=1\n\xff\xfe\n")
+        message = self.assert_refused_promptly("non-utf8")
+        self.assertIn("UTF-8", message)
+
+    def test_upstream_really_would_die_on_those_bytes(self):
+        """The refusal is only honest if upstream truly cannot survive this."""
+
+        self.target.write_bytes(b"\xff\xfe\n")
+        with self.assertRaises(UnicodeDecodeError):
+            upstream_load_local_env(self.target, {})
+
+    def test_a_refusal_leaks_no_path_no_errno_and_no_file_content(self):
+        self.target.write_bytes(b"CWORK_APP_KEY=sk-not-a-real-key\n\xff")
+        message = self.assert_refused_promptly("non-utf8")
+        self.assertNotIn(str(self.root), message)
+        self.assertNotIn("sk-not-a-real-key", message)
+        self.assertNotIn("CWORK_APP_KEY", message)
+        for token in ("Errno", "errno", "ENXIO", "EACCES", "Traceback"):
+            self.assertNotIn(token, message)
+
+    def test_the_refusal_reaches_the_contract_rather_than_a_default(self):
+        """Fail closed: no contract at all, not a contract without the layer."""
+
+        os.mkfifo(self.target)
+        with self.assertRaises(C.ProjectEnvironmentError):
+            build({}, {}, project_env_root=self.root)
+
+
+# ``(config, shell, .env body)`` triples. The environment upstream resolves
+# against is the merge of the last two; the point of each case is that the
+# merge, not the shell, is what decides.
+DOT_ENV_RESOLUTION_CASES = {
+    "publication turned on by the file alone": ({}, {}, "CWK_SYNC_DOCDB=1\n"),
+    "the wiki channel turned on by the file alone": (
+        {},
+        {},
+        "CWK_SYNC_DOCDB=1\nCWK_WIKI_SYNC=1\n",
+    ),
+    "the file loses to the shell": (
+        {},
+        {"CWK_SYNC_DOCDB": "0"},
+        "CWK_SYNC_DOCDB=1\n",
+    ),
+    "the file wins where the shell is silent": (
+        {},
+        {"CWK_DETAIL_CAP": "5"},
+        "CWK_SYNC_DOCDB=1\n",
+    ),
+    # config-first keys must stay config-first over the *merged* environment.
+    "a config-first integer still beats the file": (
+        {"detail_cap": 7},
+        {},
+        "CWK_DETAIL_CAP=99\n",
+    ),
+    "a config-first integer still beats file and shell together": (
+        {"detail_cap": 7},
+        {"CWK_DETAIL_CAP": "50"},
+        "CWK_DETAIL_CAP=99\n",
+    ),
+    "an integer from the file where the config is silent": (
+        {},
+        {},
+        "CWK_DETAIL_CAP=99\n",
+    ),
+    # env-first keys must stay env-first over the merged environment.
+    "an env-first boolean from the file beats the config": (
+        {"backfill_enabled": True},
+        {},
+        "CWK_BACKFILL_ENABLED=0\n",
+    ),
+    "an env-first scalar from the file beats the config": (
+        {"ai_max_parallel": 2},
+        {},
+        "CWK_AI_MAX_PARALLEL=9\n",
+    ),
+    "sync_docdb keeps its inverted precedence over the file": (
+        {"sync_docdb": False},
+        {},
+        "CWK_SYNC_DOCDB=1\n",
+    ),
+    "the boolean vocabulary is unchanged inside the file": (
+        {},
+        {},
+        "CWK_SYNC_DOCDB=y\nCWK_BACKFILL_ENABLED=off\nCWK_SOURCE_COMPLETENESS=ON\n",
+    ),
+    "an unrecognised word in the file is false, not absent": (
+        {"backfill_enabled": True},
+        {},
+        "CWK_BACKFILL_ENABLED=maybe\n",
+    ),
+    "quotes are stripped before the value is used": (
+        {},
+        {},
+        'CWK_DETAIL_CAP="42"\n',
+    ),
+    "a duplicate name in the file keeps the first": (
+        {},
+        {},
+        "CWK_DETAIL_CAP=42\nCWK_DETAIL_CAP=7\n",
+    ),
+    "an export line changes nothing": ({}, {}, "export CWK_SYNC_DOCDB=1\n"),
+    "the app key alias is honoured from the file": (
+        {},
+        {},
+        "XG_BIZ_API_KEY=not-a-real-key\n",
+    ),
+    "other tools' credentials change nothing": (
+        {},
+        {},
+        "OPENAI_API_KEY=sk-not-a-real-key\nDATABASE_URL=postgres://u:p@h/d\n",
+    ),
+    "the whole chain from the file": (
+        {},
+        {},
+        "CWK_SYNC_WIKI=1\nCWK_SYNC_DOCDB=1\n",
+    ),
+}
+
+
+class ProjectEnvResolutionEquivalenceTests(unittest.TestCase):
+    """Resolution over the merged environment must match upstream, case by case.
+
+    This is the completeness oracle extended by one input layer. Both sides get
+    the same synthetic ``.env``; upstream's side gets it through its own
+    ``load_local_env``, so nothing about the file's semantics is assumed here.
+    """
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp(prefix="rt032-dotenv-res-"))
+
+    def merged_env(self, shell: dict, text: str) -> tuple[dict, dict]:
+        path = self.root / C.PROJECT_ENV_FILE
+        path.write_text(text, encoding="utf-8")
+        return upstream_load_local_env(path, shell), C.read_project_env(self.root).values
+
+    def test_every_case_resolves_the_same_way_as_upstream(self):
+        for name, (config, shell, text) in DOT_ENV_RESOLUTION_CASES.items():
+            with self.subTest(case=name):
+                upstream_env, layer = self.merged_env(shell, text)
+                mine = C.resolve_nightly_runtime(config, shell, layer)["settings"]
+                theirs = upstream_resolution(config, upstream_env)
+                self.assertEqual(mine, theirs, name)
+
+    def test_the_existing_case_set_is_unchanged_by_an_empty_file(self):
+        """A ``.env`` with nothing in it must not move a single answer."""
+
+        for name, (config, env) in CASES.items():
+            with self.subTest(case=name):
+                _, layer = self.merged_env(env, "# nothing here\n")
+                self.assertEqual(
+                    C.resolve_nightly_runtime(config, env, layer)["settings"],
+                    C.resolve_nightly_runtime(config, env)["settings"],
+                    name,
+                )
+
+    def test_a_file_sourced_value_is_attributed_to_the_file(self):
+        _, layer = self.merged_env({}, "CWK_SYNC_DOCDB=1\nCWK_DETAIL_CAP=42\n")
+        sources = C.resolve_nightly_runtime({}, {}, layer)["sources"]
+        self.assertEqual(sources["sync_docdb"], "project_env")
+        self.assertEqual(sources["detail_cap"], "project_env")
+
+    def test_a_shadowed_value_is_attributed_to_the_shell(self):
+        _, layer = self.merged_env({"CWK_SYNC_DOCDB": "1"}, "CWK_SYNC_DOCDB=1\n")
+        sources = C.resolve_nightly_runtime({}, {"CWK_SYNC_DOCDB": "1"}, layer)["sources"]
+        self.assertEqual(sources["sync_docdb"], "shell")
+
+    def test_the_source_vocabulary_stays_closed(self):
+        """Anything outside this set would render as raw text in the Markdown."""
+
+        _, layer = self.merged_env({}, "CWK_SYNC_DOCDB=1\n")
+        sources = C.resolve_nightly_runtime({"detail_cap": 7}, {"CWK_WIKI_LIMIT": "9"}, layer)
+        self.assertLessEqual(
+            set(sources["sources"].values()),
+            {"config", "shell", "project_env", "default"},
+        )
+
+    def test_an_unmodelled_value_in_the_file_is_refused_not_defaulted(self):
+        """``int("lots")`` aborts upstream; the contract must not invent a cap."""
+
+        _, layer = self.merged_env({}, "CWK_DETAIL_CAP=lots\n")
+        with self.assertRaises(C.NightlyConfigError):
+            C.resolve_nightly_runtime({}, {}, layer)
+
+    def test_a_paused_path_enabled_from_the_file_is_refused(self):
+        _, layer = self.merged_env({}, "CWK_CLOUD_FIRST=1\n")
+        with self.assertRaises(C.UnschedulableNightlySetting):
+            C.resolve_nightly_runtime({}, {}, layer)
+
+
+class ProjectEnvContractTests(unittest.TestCase):
+    """The blind spot, closed at the level the user actually signs.
+
+    Before this, ``.env`` could flip ``sync_docdb`` and ``wiki_sync`` on while
+    the contract said "nothing leaves this machine", the hash stayed put so the
+    existing confirmation still covered it, and the handoff went out clean.
+    """
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp(prefix="rt032-dotenv-contract-"))
+
+    def contract(self, config=None, env=None, dotenv=None):
+        if dotenv is not None:
+            (self.root / C.PROJECT_ENV_FILE).write_text(dotenv, encoding="utf-8")
+        return build(config or {}, env or {}, project_env_root=self.root)
+
+    def test_the_file_alone_turns_publication_on(self):
+        off = self.contract()
+        self.assertFalse(off["publishing"]["any_external_publication"])
+        on = self.contract(dotenv="CWK_SYNC_DOCDB=1\nCWK_WIKI_SYNC=1\n")
+        self.assertEqual(
+            on["publishing"]["targets"], ["docdb:daily_and_runs", "docdb:wiki"]
+        )
+        self.assertTrue(on["wiki_pipeline"]["sync_to_docdb"])
+
+    def test_the_file_alone_moves_the_contract_hash(self):
+        """Otherwise a confirmation given before the edit still covers after it."""
+
+        before = self.contract()["contract_sha256"]
+        after = self.contract(dotenv="CWK_SYNC_DOCDB=1\n")["contract_sha256"]
+        self.assertNotEqual(before, after)
+
+    def test_editing_the_file_later_moves_the_hash_again(self):
+        first = self.contract(dotenv="CWK_SYNC_DOCDB=1\n")["contract_sha256"]
+        second = self.contract(dotenv="CWK_SYNC_DOCDB=1\nCWK_WIKI_SYNC=1\n")
+        self.assertNotEqual(first, second["contract_sha256"])
+
+    def test_rebuilding_over_an_unchanged_file_is_byte_stable(self):
+        text = "CWK_SYNC_DOCDB=1\nCWK_DETAIL_CAP=42\n"
+        self.assertEqual(
+            json.dumps(self.contract(dotenv=text), sort_keys=True),
+            json.dumps(self.contract(dotenv=text), sort_keys=True),
+        )
+
+    def test_the_markdown_says_the_file_is_in_play(self):
+        text = C.render_contract_markdown(self.contract(dotenv="CWK_SYNC_DOCDB=1\n"))
+        self.assertIn("项目根存在 `.env`", text)
+        self.assertIn("sync_docdb = `True` ← 项目根的 .env 文件", text)
+        self.assertIn("wiki/ 发布到 DocDB：关", text)
+        self.assertIn("本次是否有内容离开这台机器：是", text)
+
+    def test_the_markdown_says_so_even_when_the_file_decides_nothing(self):
+        """A file that is loaded but currently inert is still worth disclosing."""
+
+        text = C.render_contract_markdown(self.contract(dotenv="# nothing\n"))
+        self.assertIn("项目根存在 `.env`", text)
+        self.assertIn("本合同中没有取值由它决定", text)
+
+    def test_an_absent_file_is_not_announced(self):
+        text = C.render_contract_markdown(self.contract())
+        self.assertNotIn("项目根存在", text)
+
+    def test_the_disclosure_block_names_only_registry_keys(self):
+        contract = self.contract(
+            dotenv=(
+                "CWK_SYNC_DOCDB=1\n"
+                "OPENAI_API_KEY=sk-not-a-real-key\n"
+                "SOME_PRIVATE_NAME=whatever\n"
+            )
+        )
+        block = contract["runtime_resolution"]["project_env"]
+        self.assertEqual(block["file"], ".env")
+        self.assertTrue(block["present"])
+        self.assertEqual(block["modelled_variables_present"], 1)
+        self.assertEqual(block["settings_sourced_from_file"], ["sync_docdb"])
+        for key in block["settings_sourced_from_file"]:
+            self.assertIn(key, C.NIGHTLY_SETTING_KEYS)
+
+    def test_no_foreign_name_value_or_path_reaches_the_artifacts(self):
+        secrets = (
+            "sk-not-a-real-key",
+            "OPENAI_API_KEY",
+            "SOME_PRIVATE_NAME",
+            "whatever",
+            "postgres://u:p@h/d",
+            str(self.root),
+        )
+        contract = self.contract(
+            dotenv=(
+                "CWK_SYNC_DOCDB=1\n"
+                "OPENAI_API_KEY=sk-not-a-real-key\n"
+                "SOME_PRIVATE_NAME=whatever\n"
+                "DATABASE_URL=postgres://u:p@h/d\n"
+            )
+        )
+        blob = json.dumps(contract, ensure_ascii=False) + C.render_contract_markdown(contract)
+        blob += json.dumps(handoff_for(contract), ensure_ascii=False)
+        for secret in secrets:
+            with self.subTest(secret=secret):
+                self.assertNotIn(secret, blob)
+
+    def test_a_credential_in_the_file_is_recorded_as_state_not_value(self):
+        contract = self.contract(dotenv="CWORK_APP_KEY=not-a-real-key\n")
+        self.assertEqual(contract["settings"]["app_key"], {"state": "set"})
+        self.assertEqual(
+            contract["runtime_resolution"]["sources"]["app_key"], "project_env"
+        )
+        self.assertNotIn("not-a-real-key", json.dumps(contract, ensure_ascii=False))
+
+    def test_a_credential_in_the_file_does_not_look_like_a_shell_dependency(self):
+        """The scheduled run loads the same file, so it gets the same key."""
+
+        contract = self.contract(dotenv="CWORK_APP_KEY=not-a-real-key\n")
+        self.assertTrue(
+            contract["runtime_resolution"]["scheduled_environment_equivalent"]
+        )
+        handoff_for(contract)  # must not raise
+
+    def test_a_setting_from_the_file_is_not_a_shell_dependency_either(self):
+        """It will be reloaded at 02:30; refusing the handoff would be wrong."""
+
+        contract = self.contract(dotenv="CWK_SYNC_DOCDB=1\nCWK_DETAIL_CAP=42\n")
+        resolution = contract["runtime_resolution"]
+        self.assertTrue(resolution["scheduled_environment_equivalent"])
+        self.assertEqual(resolution["settings_requiring_shell_environment"], [])
+        self.assertEqual(
+            handoff_for(contract)["command_spec"]["env_allowlist"], ["CWORK_APP_KEY"]
+        )
+
+    def test_a_shell_only_difference_is_still_refused(self):
+        contract = self.contract(
+            env={"CWK_WIKI_LIMIT": "9"}, dotenv="CWK_SYNC_DOCDB=1\n"
+        )
+        resolution = contract["runtime_resolution"]
+        self.assertFalse(resolution["scheduled_environment_equivalent"])
+        self.assertEqual(resolution["settings_requiring_shell_environment"], ["wiki_limit"])
+        with self.assertRaises(C.ScheduledEnvironmentMismatch):
+            handoff_for(contract)
+
+    def test_a_shell_value_masking_the_file_is_refused_too(self):
+        """The nastiest shape: "off" now, on at 02:30 when the shell is gone.
+
+        The interactive resolution says ``sync_docdb`` is false because the
+        shell wins. The scheduled run has no shell, so the ``.env`` value comes
+        back up and it publishes. Same contract, two different nights — the
+        handoff must not go out.
+        """
+
+        contract = self.contract(env={"CWK_SYNC_DOCDB": "0"}, dotenv="CWK_SYNC_DOCDB=1\n")
+        self.assertFalse(contract["publishing"]["sync_docdb"])
+        resolution = contract["runtime_resolution"]
+        self.assertFalse(resolution["scheduled_environment_equivalent"])
+        self.assertIn("sync_docdb", resolution["settings_requiring_shell_environment"])
+        with self.assertRaises(C.ScheduledEnvironmentMismatch):
+            handoff_for(contract)
+
+    def test_a_masked_value_is_visible_in_the_markdown_warning(self):
+        text = C.render_contract_markdown(
+            self.contract(env={"CWK_SYNC_DOCDB": "0"}, dotenv="CWK_SYNC_DOCDB=1\n")
+        )
+        self.assertIn("警告", text)
+        self.assertIn("sync_docdb", text)
+
+    def test_a_paused_path_enabled_by_the_file_refuses_the_whole_contract(self):
+        with self.assertRaises(C.UnschedulableNightlySetting):
+            self.contract(dotenv="CWK_CLOUD_FIRST=1\n")
+
+    def test_every_registry_key_set_from_the_file_moves_the_hash(self):
+        """The file has to reach *all* 41 settings, not the publication ones."""
+
+        baseline = self.contract()
+        resolved = C.resolve_nightly_runtime({}, {})["settings"]
+        for setting in C.NIGHTLY_SETTINGS:
+            if not setting.env_keys:
+                continue  # wiki_mirror_root has no environment layer at all
+            with self.subTest(setting=setting.key):
+                value = _dot_env_value(setting, resolved)
+                dotenv = f"{setting.env_keys[0]}={value}\n"
+                if setting.key in C.PAUSED_NIGHTLY_PATHS:
+                    # Stronger than "the hash moved": there is no contract at
+                    # all, because that night would exit at startup.
+                    with self.assertRaises(C.UnschedulableNightlySetting):
+                        self.contract(dotenv=dotenv)
+                    continue
+                moved = self.contract(dotenv=dotenv)
+                self.assertNotEqual(
+                    baseline["contract_sha256"],
+                    moved["contract_sha256"],
+                    f"{setting.key} can be changed from .env without voiding consent",
+                )
+
+
+def _dot_env_value(setting, resolved: dict):
+    """A ``.env`` value that moves ``setting`` away from what it resolves to now."""
+
+    if setting.kind == "bool":
+        return "0" if resolved[setting.key] else "1"
+    if setting.kind == "int":
+        return "7" if resolved[setting.key] != 7 else "3"
+    if setting.kind == "url":
+        return "https://example.test"
+    if setting.kind == "path":
+        return "knowledge"
+    if setting.kind == "secret":
+        return "not-a-real-key"
+    return "value-from-dot-env"
 
 
 class ScheduledArgvFidelityTests(unittest.TestCase):
