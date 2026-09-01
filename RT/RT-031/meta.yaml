@@ -1,0 +1,27 @@
+id: RT-031
+title: CWK 内部小团队最小上手
+type: Infrastructure
+profile: Spec-Lite
+execution_mode: collaborative
+status: in-progress
+modules:
+  - installation
+  - skill-entrypoint
+  - internal-distribution
+branch: agent/cwk-internal-team-onboarding
+worktree: .worktrees/openclaw-worktree-cwk-internal-team-onboarding
+tool: Codex
+owner: Codex
+created_at: 2026-09-01T07:25:37Z
+updated_at: 2026-09-01T07:25:37Z
+closed_at: null
+deferred_items_raised: []
+deferred_items_claimed: []
+external_ids:
+  jira: null
+  github: null
+  other: null
+notes: >
+  让已获授权的内部员工在自己的 OpenClaw Agent 上，用自己的工作协同 Key 与本地配置，
+  通过短小、可执行的步骤安装、自检并进行一次个人或获批团队目标的只读试跑；不触及
+  PR-001 受保护工作树、真实数据、生产调度或凭据。
