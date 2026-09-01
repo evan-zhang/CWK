@@ -11,6 +11,12 @@ Security boundary (RT-026 owner surface, extended by RT-031):
   readiness answer that the runtime would contradict is a false answer, so the
   two parsers must stay aligned; see ``parse_env_file``.
 * Nothing here reads CWork, writes DocDB, creates cron jobs, or mutates an Agent.
+* The activation check (RT-032) is a *probe*: it never creates the private state
+  directory, never takes the wizard's lock, and never writes. It reports the
+  state-machine token only -- no hashes, no paths, no business content. A
+  private state that exists but cannot be validated is reported as unreadable
+  rather than as "not activated yet", and it does not turn a correct
+  installation into a failed one.
 """
 
 from __future__ import annotations
@@ -94,6 +100,51 @@ def find_project_root(explicit: str | None = None) -> Path:
 
 
 PROJECT = find_project_root()
+
+# The activation state lives inside the project and is gitignored.
+ACTIVATION_STATE_REL = Path("state") / "activation"
+
+
+def activation_readiness(project: Path) -> dict[str, Any]:
+    """Ask the activation module how far this installation has got.
+
+    The judgement is not re-implemented here. ``cwk_activation_state`` owns the
+    closed schema and the fail-closed read path; the doctor only relays what it
+    says, which is why a schema change cannot make these two disagree.
+
+    The module is imported from *this file's own* package, never from
+    ``--project-dir``: a project directory is data to be inspected, and
+    importing Python out of it would turn an inspection into code execution.
+    The state directory, which is pure data, does come from ``project``.
+    """
+    package = Path(__file__).resolve().parent
+    if str(package) not in sys.path:
+        sys.path.insert(0, str(package))
+    try:
+        import cwk_activation_state as activation
+    except ImportError:
+        # The script package is incomplete. ``project_scripts`` already reports
+        # that as an error; do not claim anything about activation.
+        return {
+            "status": "unavailable",
+            "state": None,
+            "state_present": False,
+            "healthy": False,
+            "next_step": None,
+            "integrity_reason": "activation_module_missing",
+        }
+    try:
+        result = activation.readiness(project / ACTIVATION_STATE_REL)
+    except OSError:
+        return {
+            "status": "unreadable",
+            "state": None,
+            "state_present": True,
+            "healthy": False,
+            "next_step": None,
+            "integrity_reason": "state_unreadable",
+        }
+    return {key: value for key, value in result.items() if key != "schema"}
 
 
 def parse_env_file(text: str) -> dict[str, str]:
@@ -360,6 +411,32 @@ def run_checks(
     else:
         warnings.append("DocDB write checks skipped; pass --require-docdb before enabling --sync-docdb")
 
+    activation = activation_readiness(project)
+    checks.append({
+        "name": "activation",
+        "ok": bool(activation["healthy"]),
+        "value": activation["status"],
+        "activation_state": activation["state"],
+        "activation_next_step": activation["next_step"],
+        "integrity_reason": activation["integrity_reason"],
+    })
+    if not activation["healthy"] and activation["status"] != "unavailable":
+        # A warning, not an error, and deliberately so. The installation itself
+        # may be perfectly correct; what is broken is the private activation
+        # record. Turning this into an error would abort ``install.sh`` -- which
+        # runs the doctor -- and leave the user unable to reinstall their way
+        # out. Fail-closed lives where it bites: the wizard refuses to advance
+        # a state it cannot validate.
+        warnings.append(
+            "the private activation state exists but cannot be validated "
+            f"({activation['integrity_reason']}); no activation command will run "
+            "until it is resolved, and scheduled runs must be treated as untrusted"
+        )
+
+    next_step = "run a no-publish smoke test" if not errors else "resolve the listed errors and rerun doctor"
+    if not errors and activation["status"] == "not_started":
+        next_step = "run a no-publish smoke test, then start activation with the guided dialogue"
+
     return {
         "schema_version": "cwk.doctor.v1",
         "project": str(project),
@@ -367,7 +444,8 @@ def run_checks(
         "checks": checks,
         "errors": errors,
         "warnings": warnings,
-        "next_step": "run a no-publish smoke test" if not errors else "resolve the listed errors and rerun doctor",
+        "activation": activation,
+        "next_step": next_step,
     }
 
 

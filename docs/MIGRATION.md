@@ -16,13 +16,18 @@ cwk-mirror-workflow/
 
 Do not copy secrets. Do not copy Evan's raw evidence into a colleague's mirror unless that colleague is explicitly allowed to see it.
 
+Do not copy `state/activation/` either. That record says who confirmed what, on
+which scope, against which contract hash. Carrying it to another person or
+another machine forges a consent that was never given there. A migrated install
+starts at `CWK_ACTIVATION=NOT_STARTED` and walks the activation dialogue again.
+
 ## Required Capabilities
 
 - `cms-cwork-workflow` available locally.
 - `cms-auth-skills` or a valid `CWORK_APP_KEY`.
 - `cms-docdb` available when syncing to a knowledge base.
 - Write access to the authorized user's personal knowledge base, or to an explicit team knowledge-base folder.
-- Cron support for nightly execution.
+- A host-side scheduling mechanism for nightly execution. CWK emits a handoff describing the task; it never creates one.
 
 ## Required IDs and Permissions
 
@@ -46,7 +51,11 @@ The runtime Agent also needs local access to `cms-cwork-workflow` and `cms-docdb
 6. Keep `sync_docdb=false` until smoke passes. Use `--sync-docdb` explicitly for live sync.
 7. Run a no-publish smoke test using existing raw samples.
 8. Run one live read-only pass with `--sync-docdb`.
-9. Enable nightly cron only after the live pass succeeds.
+9. Walk the activation dialogue on the new install. Nightly automation needs a
+   passing read-only pilot **and** a second explicit scheduling confirmation
+   from the person whose work is being mirrored; the task is then created by the
+   host and recorded with `record-schedule`. See
+   [the activation reference](../skill/references/activation.md).
 
 ## Commands
 

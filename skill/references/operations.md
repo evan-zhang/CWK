@@ -44,6 +44,10 @@ A healthy run has:
 - A daily Markdown file and daily HTML file.
 - Incremental-link counts in `incremental-link-preview-v1.md`.
 - DocDB sync manifest with no failed command.
+- For a scheduled mirror, `scripts/cwk_doctor.py` reports `activation: active`
+  and the wizard reports `healthy: true`. A nightly run whose activation record
+  is `needs_reconfirmation`, `degraded`, or `unreadable` is running without
+  valid consent.
 
 ## Common Failures
 
@@ -81,7 +85,20 @@ A healthy run has:
 - Empty daily HTML: verify `digest-human-v4.md` exists.
 - Too many suspected links: review `incremental-link-preview-v1.md`, keep strong merge disabled.
 - DocDB server busy: rerun sync; raw evidence can use physical-file upload.
-- Cron model rejected: use an allowlisted model such as `newapi-anthropic-vip/MiniMax-latest-cloud`.
+- Scheduled model rejected: use an allowlisted model such as `newapi-anthropic-vip/MiniMax-latest-cloud`.
+- `activation: unreadable`, or the wizard reporting `healthy: false`: the private
+  activation record exists but cannot be validated, so any scheduled run is
+  untrusted until it is resolved. Do not delete the state and re-`init` over it —
+  that manufactures consent nobody gave. Tell the user the integrity reason and
+  let them disable the host-side task first.
+- `check-drift` exits 5: config or contract changed, so the confirmations voided
+  themselves. The host task keeps firing until someone disables it; say that
+  plainly, then re-walk from the step `next_step` names.
+- `schedule-handoff` refused because the config sits outside the project: move
+  the config into the project and retry. Never substitute an absolute host path
+  the handoff deliberately omitted.
+
+Full activation procedure: `references/activation.md`.
 
 ## Safety Rules
 
@@ -89,3 +106,5 @@ A healthy run has:
 - Never reply, approve, reject, delete, or complete CWork tasks.
 - Raw evidence must cite source IDs.
 - Markdown is the durable source; HTML is the human reading surface.
+- Never collect a credential in chat, and never create, modify, or delete a
+  scheduled task.

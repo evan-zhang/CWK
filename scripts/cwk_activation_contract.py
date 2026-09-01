@@ -27,6 +27,7 @@ import ast
 import hashlib
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any, Mapping, Optional
@@ -697,13 +698,97 @@ def evaluate_pilot(
 # ── 4. 调度交接与回执 ───────────────────────────────────────────────────────
 
 
+class ConfigLocatorError(ValueError):
+    """配置文件无法表示成项目相对定位符。
+
+    这是 fail-closed 的落点：宁可当场拒绝出交接单，也不把宿主的绝对路径写进
+    Agent 可见的成功负载与 `handoff_sha256`。
+    """
+
+
+# 交接单里唯一被允许的「项目根」表述：只说宿主该**怎么找**，不说它**在哪**。
+# 绝对路径同时是主机布局与用户身份的泄露面（/Users/<name>/… 、/home/<name>/…），
+# 而宿主本来就知道自己把仓库放在哪——把它回写进交接单没有任何信息增益。
+_PROJECT_ROOT_LOCATOR = {
+    "kind": "cwk_project_root",
+    "resolution_order": [
+        "environment variable CWK_PROJECT_DIR",
+        "the directory the host already uses to run this repository's scripts",
+    ],
+    "verify_marker": "scripts/cwk_doctor.py",
+    "absolute_path_intentionally_omitted": True,
+}
+
+CONFIG_LOCATOR_SCHEMA = "cwk.activation_config_locator.v1"
+
+# 段内一律不接受控制字符；首段不接受以 - 开头（会被下游当成选项解析）。
+_UNSAFE_SEGMENT = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def project_root_locator() -> dict:
+    """返回项目根定位契约的独立副本，避免调用方改到模块级常量。"""
+
+    locator = dict(_PROJECT_ROOT_LOCATOR)
+    locator["resolution_order"] = list(_PROJECT_ROOT_LOCATOR["resolution_order"])
+    return locator
+
+
+def build_config_locator(*, config_path: Path | str, project_root: Path | str) -> dict:
+    """把配置路径压成**项目相对**定位符；压不下去就当场失败。
+
+    宿主 Agent 需要的信息是「在项目根下跑哪一个配置」，不是「这台机器上的绝对
+    路径」。因此这里只输出相对段，并附上项目根的解析契约让宿主自己解析。
+    配置落在项目之外时不做任何降级——降级的唯一形式就是把绝对路径写回去，
+    那正是要防的东西。
+    """
+
+    root = Path(project_root).resolve()
+    target = Path(config_path)
+    if not target.is_absolute():
+        target = Path.cwd() / target
+    target = target.resolve()
+
+    try:
+        relative = target.relative_to(root)
+    except ValueError:
+        raise ConfigLocatorError(
+            "the config file is outside the CWK project directory; describing it would "
+            "require an absolute host path, so no scheduler handoff was produced. "
+            "Move the config inside the project directory and re-run."
+        ) from None
+
+    parts = relative.parts
+    if not parts or any(part in ("", ".", "..") for part in parts):
+        raise ConfigLocatorError(
+            "the config path cannot be reduced to a stable project-relative locator"
+        )
+    if any(_UNSAFE_SEGMENT.search(part) for part in parts):
+        raise ConfigLocatorError(
+            "the config file name contains control characters and cannot be handed off safely"
+        )
+    if parts[0].startswith("-"):
+        raise ConfigLocatorError(
+            "the config path would be parsed as a command-line option and cannot be handed off safely"
+        )
+
+    return {
+        "schema": CONFIG_LOCATOR_SCHEMA,
+        "kind": "project_relative",
+        "path": "/".join(parts),
+        "resolved_against": "cwk_project_root",
+        "project_root_locator": project_root_locator(),
+        "absolute_path_omitted": True,
+    }
+
+
 def build_scheduler_handoff(
     *,
     contract: Mapping[str, Any],
     contract_sha256: str,
     profile_sha256: str,
     pilot_receipt_sha256: str,
-    config_path: str,
+    config_path: Path | str,
+    project_root: Path | str,
     generated_at: str,
 ) -> dict:
     """产出「请宿主建一个这样的任务」的交接单。
@@ -711,8 +796,12 @@ def build_scheduler_handoff(
     本仓库不建任务。交接单只描述要跑什么命令、需要哪些环境变量名（**只有名字，
     没有值**）、以及前置条件。真正的创建动作由用户在宿主/OpenClaw 侧完成，
     完成后把外部任务标识回填给 `validate_schedule_receipt`。
+
+    配置位置以项目相对定位符表述，绝对路径既不进负载也不进 `handoff_sha256`；
+    无法安全表述时抛 `ConfigLocatorError`，不出交接单。
     """
 
+    locator = build_config_locator(config_path=config_path, project_root=project_root)
     schedule = contract["schedule_intent"]
     handoff = {
         "schema": SCHEDULER_HANDOFF_SCHEMA,
@@ -723,20 +812,23 @@ def build_scheduler_handoff(
         "cadence": schedule["cadence"],
         "run_at_local": schedule["run_at_local"],
         "timezone": schedule["timezone"],
+        "config_locator": locator,
         "command_spec": {
             "argv": [
                 "python3",
                 "scripts/cwk_nightly_pipeline.py",
                 "--config",
-                config_path,
+                locator["path"],
                 "--run-name",
                 "nightly-{{YYYYMMDD-HHMM}}",
                 "--date",
                 "{{YYYY-MM-DD}}",
             ],
             "cwd_relative_to_project_root": ".",
+            "project_root_locator": project_root_locator(),
             "env_allowlist": ["CWORK_APP_KEY"],
             "secrets_included": False,
+            "absolute_paths_included": False,
         },
         "preconditions": [
             "activation state is PILOT_PASSED",
@@ -744,6 +836,7 @@ def build_scheduler_handoff(
             "pilot receipt result is PASS for this contract_sha256",
         ],
         "host_responsibilities": [
+            "resolve the CWK project root locally using project_root_locator",
             "create the scheduled task using the host's own mechanism",
             "return the external task id to `record-schedule`",
             "never embed credentials in the task definition",

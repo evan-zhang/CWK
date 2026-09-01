@@ -16,6 +16,7 @@ import errno
 import io
 import json
 import os
+import re
 import stat
 import sys
 import tempfile
@@ -79,6 +80,13 @@ class WizardTestCase(unittest.TestCase):
         payload = json.loads((FIXTURES / "scope.json").read_text(encoding="utf-8"))
         payload.update(overrides)
         target = self.root / f"scope-{len(list(self.root.glob('scope-*.json')))}.json"
+        target.write_text(json.dumps(payload), encoding="utf-8")
+        return str(target)
+
+    def profile_copy(self, **overrides) -> str:
+        payload = json.loads((FIXTURES / "profile.json").read_text(encoding="utf-8"))
+        payload.update(overrides)
+        target = self.root / f"profile-{len(list(self.root.glob('profile-*.json')))}.json"
         target.write_text(json.dumps(payload), encoding="utf-8")
         return str(target)
 
@@ -713,6 +721,88 @@ class InvalidatedGateReportingTests(WizardTestCase):
             ["discovery", "profile", "activation"],
         )
 
+    # ── the same defect, reachable through propose-profile ─────────────────
+
+    def drifted_from_active(self):
+        """ACTIVE → contract drift → NEEDS_RECONFIRMATION, second gate intact.
+
+        Drift is flagged by comparing a *new* config against the recorded
+        contract hash; it does not rewrite that hash. So the activation grant
+        — bound to (contract, profile, pilot receipt) — survives the drift and
+        is still valid when the user comes back to re-propose a profile. That
+        is what makes the next command's report load-bearing.
+        """
+
+        config = self.fixture("config.json")
+        self.stage_active(config=config)
+        code, payload = self.run_cli(
+            "check-drift", "--config", self.config_copy(detail_cap=11)
+        )
+        self.assertEqual(code, W.EXIT_DRIFT)
+        self.assertEqual(payload["state"], "NEEDS_RECONFIRMATION")
+        self.assertEqual(payload["invalidated_gates"], [])
+        self.assertTrue(payload["confirmations"]["activation"]["valid"])
+        self.assertTrue(payload["confirmations"]["profile"]["valid"])
+
+    def test_reproposing_a_profile_after_drift_reports_the_gates_it_invalidated(self):
+        self.drifted_from_active()
+        code, payload = self.run_cli(
+            "propose-profile", "--profile-file", self.profile_copy(reporting_rhythm="daily")
+        )
+        self.assertEqual(code, W.EXIT_OK)
+        self.assertEqual(payload["state"], "PROFILE_PROPOSED")
+        # The regression: a new profile lapses both gates bound to it, and the
+        # payload has to say so. Before the fix this was [] while next_step
+        # already demanded a fresh confirmation.
+        self.assertEqual(payload["invalidated_gates"], ["profile", "activation"])
+        self.assertFalse(payload["confirmations"]["profile"]["valid"])
+        self.assertFalse(payload["confirmations"]["activation"]["valid"])
+        self.assertEqual(payload["next_step"], "confirm_profile")
+
+    def test_reproposing_the_same_profile_after_drift_does_not_cry_wolf(self):
+        self.drifted_from_active()
+        code, payload = self.run_cli(
+            "propose-profile", "--profile-file", self.fixture("profile.json")
+        )
+        self.assertEqual(code, W.EXIT_OK)
+        self.assertEqual(payload["invalidated_gates"], [])
+        self.assertTrue(payload["confirmations"]["profile"]["valid"])
+        self.assertTrue(payload["confirmations"]["activation"]["valid"])
+
+    def test_every_command_that_writes_facts_reports_both_batches(self):
+        """A structural guard, so the next such command cannot forget.
+
+        The defect was not a typo — it was one command written differently
+        from its siblings. Pin the shape: every command that calls
+        `invalidate_stale_confirmations` a second time must feed that return
+        value into `_merge_gates`, never drop it on the floor.
+        """
+
+        source = Path(W.__file__).read_text(encoding="utf-8")
+        bodies = re.split(r"\ndef (cmd_[a-z_]+)\(", source)
+        checked = []
+        for name, body in zip(bodies[1::2], bodies[2::2]):
+            # `_prepare` already performs the entry-time sweep. A command that
+            # *also* calls the sweep directly has two batches to account for.
+            if "_prepare(sess)" not in body:
+                continue
+            if "invalidate_stale_confirmations(" not in body:
+                continue
+            checked.append(name)
+            self.assertIn(
+                "_merge_gates(",
+                body,
+                f"{name} writes new facts and re-checks confirmations but "
+                "reports only the first batch",
+            )
+        self.assertEqual(
+            checked,
+            ["cmd_confirm_discovery", "cmd_record_discovery", "cmd_propose_profile",
+             "cmd_record_pilot"],
+            "the set of two-batch commands changed; re-derive which gates each one "
+            "can lapse instead of only updating this list",
+        )
+
 
 class ScheduleAttackTests(WizardTestCase):
     def test_recording_a_schedule_requires_a_handoff(self):
@@ -1098,6 +1188,69 @@ class InputAndPersistenceFailureTests(WizardTestCase):
         self.assertEqual(W.redact_message("read/write mismatch"), "read/write mismatch")
 
 
+class RedactionTests(unittest.TestCase):
+    """The last gate on error text, exercised from both sides.
+
+    Matching "anything with a slash" would turn `read/write mismatch` into
+    noise; matching only "anything starting with a slash" lets a bare
+    `state/activation/activation.json` through. Both directions are pinned.
+    """
+
+    LEAKS = (
+        # the two the contract names explicitly
+        "state/activation/activation.json",
+        "client/secret.json",
+        # and the shapes around them
+        "cannot open state/activation/discovery-report.json for reading",
+        "home/alice/cwk-mirror",
+        "tests/fixtures/activation/config.json",
+        "scripts/cwk_doctor.py",
+        "a/b/c.md",
+        # the absolute forms the first rule already owned
+        "/Users/alice/cwk/config.json",
+        "~/cwk/cwk-mirror.local.json",
+        "./relative/config.json",
+        "../sibling/config.json",
+    )
+
+    SAFE = (
+        "read/write mismatch",
+        "and/or",
+        "input/output error",
+        "pass/fail",
+        "yes/no/maybe",
+        "gateway_production/gateway_control",
+        "the value 1/2.5 is out of range",
+        "PASS/FAIL/SKIP",
+        "24/7",
+    )
+
+    def test_relative_paths_are_redacted(self):
+        for text in self.LEAKS:
+            with self.subTest(text=text):
+                cleaned = W.redact_message(text)
+                self.assertIn("<redacted-path>", cleaned)
+
+    def test_a_leaked_file_name_does_not_survive_redaction(self):
+        cleaned = W.redact_message("refusing to read client/secret.json")
+        self.assertNotIn("secret.json", cleaned)
+        self.assertIn("refusing to read", cleaned)
+
+    def test_ordinary_slash_phrases_are_left_alone(self):
+        for text in self.SAFE:
+            with self.subTest(text=text):
+                self.assertEqual(W.redact_message(text), text)
+
+    def test_a_trailing_period_survives_the_redaction(self):
+        cleaned = W.redact_message("cannot open state/activation/activation.json.")
+        self.assertEqual(cleaned, "cannot open <redacted-path>.")
+
+    def test_every_command_error_is_short_and_single_line(self):
+        cleaned = W.redact_message("x" * 5000 + "\n\tsecond line")
+        self.assertLessEqual(len(cleaned), W.MAX_ERROR_CHARS)
+        self.assertNotIn("\n", cleaned)
+
+
 class PrivacyTests(WizardTestCase):
     def test_state_directory_and_artifacts_are_private(self):
         self.stage_active()
@@ -1154,6 +1307,52 @@ class PrivacyTests(WizardTestCase):
         self.assertIn(
             "call OpenClaw, Gateway or cron APIs", handoff["repository_does_not"]
         )
+
+    def test_the_success_payload_carries_no_absolute_path(self):
+        """The *success* side, not just the failure side.
+
+        Failures were already scrubbed by `redact_message`. The handoff is the
+        one success payload that used to echo back a host path — it named the
+        config with `str(args.config)`, which on a real machine reads
+        `/Users/<name>/…` and then entered `handoff_sha256`.
+        """
+
+        self.stage_pilot()
+        self.run_cli("confirm-activation")
+        _, payload = self.run_cli("schedule-handoff", "--config", self.fixture("config.json"))
+        serialized = json.dumps(payload, ensure_ascii=False)
+        self.assertNotIn(str(PROJECT), serialized)
+        self.assertNotIn(str(self.root), serialized)
+        locator = payload["handoff"]["config_locator"]
+        self.assertEqual(locator["path"], "tests/fixtures/activation/config.json")
+        self.assertEqual(locator["kind"], "project_relative")
+
+    def test_no_stored_artifact_carries_an_absolute_path(self):
+        self.stage_active()
+        for path in self.state_dir.iterdir():
+            if not path.is_file():
+                continue
+            text = path.read_text(encoding="utf-8", errors="replace")
+            with self.subTest(artifact=path.name):
+                self.assertNotIn(str(PROJECT), text)
+                self.assertNotIn(str(self.root), text)
+
+    def test_a_config_outside_the_project_refuses_the_handoff(self):
+        """Fail closed: no handoff at all beats a handoff that leaks the path."""
+
+        self.stage_pilot()
+        self.run_cli("confirm-activation")
+        outside = self.config_copy()  # written into the private temp dir
+        code, payload = self.run_cli("schedule-handoff", "--config", outside)
+        self.assertEqual(code, W.EXIT_REFUSED)
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["error_kind"], "ConfigLocatorError")
+        self.assertNotIn(str(self.root), payload["error"])
+        self.assertNotIn(str(PROJECT), payload["error"])
+        # …and nothing was written or advanced.
+        self.assertFalse((self.state_dir / W.SCHEDULER_HANDOFF_FILE).exists())
+        self.assertIsNone(self.read_state()["schedule_handoff_sha256"])
+        self.assertEqual(self.read_state()["state"], "PILOT_PASSED")
 
 
 class OutputContractTests(WizardTestCase):

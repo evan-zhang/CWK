@@ -691,6 +691,118 @@ class ActivationSession:
         return self.raw_sha
 
 
+# ── 只读探针：给 install / doctor 用 ────────────────────────────────────────
+
+ACTIVATION_READINESS_SCHEMA = "cwk.activation_readiness.v1"
+
+READINESS_STATUSES = (
+    "not_started",
+    "in_progress",
+    "active",
+    "paused",
+    "needs_reconfirmation",
+    "degraded",
+    "unreadable",
+)
+
+_STATE_READINESS = {
+    "INSTALLED": "in_progress",
+    "READY_FOR_DISCOVERY": "in_progress",
+    "PROFILE_PROPOSED": "in_progress",
+    "PROFILE_CONFIRMED": "in_progress",
+    "PILOT_PASSED": "in_progress",
+    "ACTIVE": "active",
+    "PAUSED": "paused",
+    "NEEDS_RECONFIRMATION": "needs_reconfirmation",
+    "DEGRADED": "degraded",
+}
+
+
+def _readiness(status: str, **extra: Any) -> dict:
+    payload = {
+        "schema": ACTIVATION_READINESS_SCHEMA,
+        "status": status,
+        "state": UNINITIALIZED,
+        "state_present": False,
+        "healthy": True,
+        "next_step": "init",
+        "integrity_reason": None,
+    }
+    payload.update(extra)
+    return payload
+
+
+def readiness(state_dir: Path | str = DEFAULT_STATE_DIR) -> dict:
+    """只读探针：报告激活进度，**不创建目录、不加锁、不写任何东西**。
+
+    安装器和 doctor 需要回答「这台机器上激活走到哪了」，但它们都不该因为被问
+    了一句就把私有状态目录创建出来——目录本身的存在就是一条事实，安装不该替
+    用户宣称这条事实。所以这里只看、不建。
+
+    不加锁是刻意的：一条正在运行的向导命令不应该让 doctor 变红。写入走的是
+    原子重命名，因此读到的要么是上一份完整状态，要么是新的一份完整状态，
+    不存在半截文件。
+
+    输出只有枚举、布尔和 `null`：没有路径、没有哈希、没有业务内容，可以原样
+    进入面向 Agent 的输出。私有状态存在但读不动/校验不过时报 ``unreadable``
+    并 ``healthy=False``——fail closed，绝不退化成「当作没激活过」。
+    """
+
+    path = Path(state_dir)
+    if not path.is_dir():
+        return _readiness("not_started")
+    try:
+        dir_fd = open_dir_nofollow(path)
+    except OSError:
+        # 目录在、但打不开（权限、被换成符号链接）。有东西，只是不可信。
+        return _readiness(
+            "unreadable",
+            state=None,
+            state_present=True,
+            healthy=False,
+            next_step=None,
+            integrity_reason="state_dir_unreadable",
+        )
+    try:
+        state, _raw_sha, reason = read_state(dir_fd)
+    except OSError:
+        return _readiness(
+            "unreadable",
+            state=None,
+            state_present=True,
+            healthy=False,
+            next_step=None,
+            integrity_reason="state_unreadable",
+        )
+    finally:
+        import os as _os
+
+        _os.close(dir_fd)
+
+    if reason is not None:
+        return _readiness(
+            "unreadable",
+            state=None,
+            state_present=True,
+            healthy=False,
+            next_step=None,
+            integrity_reason=reason,
+        )
+    if state is None:
+        return _readiness("not_started")
+
+    # 在内存副本上收一遍过期确认，让 next_step 说的是**现在**的实话；
+    # 磁盘上的状态一个字节都不动——探针不是命令。
+    working = json.loads(json.dumps(state))
+    invalidate_stale_confirmations(working)
+    return _readiness(
+        _STATE_READINESS.get(working["state"], "in_progress"),
+        state=working["state"],
+        state_present=True,
+        next_step=next_step_for(working),
+    )
+
+
 def session(state_dir: Path | str = DEFAULT_STATE_DIR, *, create: bool = False) -> Iterator[ActivationSession]:
     """上下文管理器：排他锁 + 孤儿临时文件清理 + 读状态。"""
 

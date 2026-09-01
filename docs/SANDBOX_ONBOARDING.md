@@ -7,12 +7,14 @@
 要让云端 Agent 自己按本文执行，把
 [sandbox 引导提示词](../prompts/OPENCLAW_SANDBOX_BOOTSTRAP.md)整段发给它。
 
-全流程分两段，**中间有一道人工闸门**：
+全流程分三段，**每段之间都有人工闸门**：
 
 - **第 1–5 步：安装与本地自检**。不读取任何真实 CWork 内容、不写 DocDB、不启用
-  cron 或 AI，可以放心执行。
+  AI、不建任何定时任务，可以放心执行。
 - **第 6 步：个人只读试跑**。会用使用者自己的 Key 读取获授权的 CWork 内容，
   **只有使用者明确确认后才执行**。
+- **第 7 步：激活**。把「每晚自动跑」这件事单独拿出来谈，需要两次相互独立的确认，
+  定时任务由宿主创建。装完前六步不代表已激活。
 
 ## 0. 前提
 
@@ -55,13 +57,14 @@ cd /workspace/CWK
 PYTHON=python3.11 ./install.sh
 ```
 
-成功时最后一行输出 `CWK_CORE_READY`。默认**不做任何 OpenClaw 接入**，也不会
-静默改 `AGENTS.md` 或写 Skill 目录。
+成功时输出 `CWK_CORE_READY`，随后是一行 `CWK_ACTIVATION=NOT_STARTED`。默认**不做任何
+OpenClaw 接入**，也不会静默改 `AGENTS.md` 或写 Skill 目录。
 
 `install.sh` 只做这些事：跑一次不含凭据的本地检查、缺失时从模板创建 `.env` 与
 `cwk-mirror.local.json`（已存在则内容和权限都原样保留，新建时为 `0600`）、编译脚本、
-跑脱敏 smoke（产物在 `runs/ci-smoke`）。它不读取 CWork、不写 DocDB、不创建 cron、
-不修改 Agent、Gateway 或宿主配置。
+跑脱敏 smoke（产物在 `runs/ci-smoke`）。它不读取 CWork、不写 DocDB、不创建定时任务、
+不修改 Agent、Gateway 或宿主配置，也不创建私有激活状态——`CWK_ACTIVATION=NOT_STARTED`
+就是在如实说明这一点。
 
 然后**显式选择一种**接入模式：
 
@@ -183,6 +186,9 @@ python3.11 scripts/cwk_doctor.py --require-live
 - `openclaw_integration`：报告检测到的接入方式（`NONE` / `FORMAL_SKILL` /
   `AGENTS_ROUTER`）。它只报告，不会替使用者选择或自动切换模式；同时检测到两种时会给出
   “一个 Agent 只该启用一种”的警告。
+- `activation`：报告激活状态机的枚举，刚装完是 `not_started`。它只报枚举、状态名和
+  下一步，不打印路径、哈希或任何业务内容。私有状态存在却校验不过时报 `unreadable`
+  并给出告警，但不会让安装类检查失败。
 
 **不要**执行 `source .env`、`. ./.env`、`cat .env` 或任何转储凭据的命令；`doctor`
 已经安全地读过它了。
@@ -212,15 +218,44 @@ python3.11 scripts/cwk_nightly_pipeline.py \
 `digest-human-v4.md` 与 `digest-human-v4.html`。
 
 仅当目标是已批准的个人或团队 DocDB、且第 5 步的 DocDB 检查已通过时，才在同一命令
-末尾加 `--sync-docdb`。本引导流程内不启用 cron、AI 试点或任何生产默认。
+末尾加 `--sync-docdb`。这一步是手动试跑：不启用 AI 试点、不排期、也不建任何定时任务。
 
-## 7. 持久化与隔离
+## 7. 激活（把「每晚自动跑」单独谈一次）
+
+跑通第 6 步只证明程序能用，不代表任何东西被授权每晚自动执行。到这里
+`CWK_ACTIVATION` 仍是 `NOT_STARTED`。
+
+激活是一段有状态的对话，判定由 `scripts/cwk_activation_wizard.py` 独占：
+
+```bash
+cd /workspace/CWK
+python3.11 scripts/cwk_activation_wizard.py status
+```
+
+按它给出的唯一下一步走，不要问使用者「我们走到哪一步了」。这条路径上有**两次相互
+独立的确认**：先授权只读发现，很久之后、在使用者看过一次由门禁评过分的真实只读试跑
+之后，再单独问一次是否允许排期。中途改了配置或画像，已有确认自动作废并要求重走。
+
+**定时任务由宿主创建，sandbox 内不建、不改、不删任何定时任务，也不要假设存在
+OpenClaw 调度 API。** 仓库只产出一份交接单：节奏、本地运行时刻、时区、完整 argv、
+需要的环境变量**名**和前置条件，不含凭据值，也不含宿主绝对路径——配置用项目内相对
+定位符加一份「宿主自己解析项目根」的约定来表述。使用者用自己的宿主机制建好任务后，
+把宿主分配的标识回填给 `record-schedule`；这只是记录使用者做过什么，不代表仓库验证过
+那个任务真的存在。
+
+完整的分状态话术、命令与失败处理见[激活对话参考](../skill/references/activation.md)。
+四条红线在任何状态下都成立：不在对话里收集凭据；不把「现在能调用工具」当成授权；
+不展示 raw 原文；不创建、不修改、不删除任何定时任务。
+
+## 8. 持久化与隔离
 
 - 跨会话保留：`/workspace/CWK`（含私有 `.env`、`cwk-mirror.local.json`）；
   `router` 模式还依赖 `/workspace/AGENTS.md`，`workspace-skill` 模式依赖
   `/workspace/skills`。受保护的只读 Skill 挂载由宿主管理，不在本流程的持久化范围内。
 - 私有数据：`.env`、`cwk-mirror.local.json`、`runs/`、`raw/`、`knowledge/`、`state/`
-  都不提交，也绝不复制他人的同名文件或历史镜像。
+  都不提交，也绝不复制他人的同名文件或历史镜像。`state/activation/` 里的激活记录属于
+  这一份安装和这一个人：它记的是谁在什么范围上确认过什么，复制过去等于伪造别人的
+  同意，换机器要重新走一遍激活。
 - 每台 sandbox、每个使用者用自己的 Key 与数据目录。
 
 ## 边界

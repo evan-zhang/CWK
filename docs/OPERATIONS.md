@@ -1,5 +1,35 @@
 # CWK Mirror Operations
 
+## Activation and Scheduling
+
+A nightly job exists only because a person answered two separate questions: may
+CWK read this scope read-only, and — much later, after seeing a scored
+read-only pilot — may it run every night. Both answers live in the private
+activation record and are bound to the hash of what was actually shown.
+
+This repository never creates, modifies, or deletes a scheduled task. It emits a
+handoff describing one; the host creates it, and the operator records the
+identifier the host assigned:
+
+```bash
+python3 scripts/cwk_activation_wizard.py status
+python3 scripts/cwk_activation_wizard.py check-drift --config cwk-mirror.local.json
+```
+
+`check-drift` is the operational command. Config or contract changed ⇒ the
+confirmations void themselves and the state becomes `NEEDS_RECONFIRMATION`; the
+nightly job may still be firing at the host, so re-walk the dialogue or disable
+the task. A scheduled task the record does not know about is reported, never
+deleted.
+
+`pause` and `resume` change CWK's own posture only. Neither touches the external
+task, so a paused mirror still needs the host-side task disabled if the run is
+meant to actually stop.
+
+The full state-by-state procedure is in
+[the activation reference](../skill/references/activation.md); it is not
+repeated here.
+
 ## Daily Run
 
 The nightly job should call:
@@ -65,6 +95,7 @@ A healthy run has:
 - DocDB sync manifest with no failed command.
 - For an AI pilot, `ai.degraded=false`, all AI stages are completed, and quality evidence IDs resolve to raw reports.
 - `python3 scripts/cwk_wiki_query.py --lint` reports `overall=PASS`: every summary resolves to raw, evidence quotes validate, and topic/entity summary links are not dangling.
+- `python3 scripts/cwk_doctor.py` reports `activation: active`, and the wizard reports `healthy: true`. A scheduled mirror whose activation record is `needs_reconfirmation`, `degraded`, or `unreadable` is running without valid consent.
 
 ## Wiki Question Retrieval
 
@@ -117,6 +148,9 @@ The runner creates temporary prompt files under the ignored `.cwk-ai-runtime/pro
 - AI stage missing model: set all three `CWK_AI_*_MODEL` values or use `CWK_AI_DRY_RUN=true` for orchestration tests.
 - AI output invalid JSON/evidence: inspect the stage error in the nightly manifest; keep the rules digest as the published baseline.
 - Credential-like text in a CWork source must pass through unchanged. If a run skips, redacts, quarantines, or blocks on such text, treat that as a pipeline defect.
+- `activation: unreadable`, or the wizard reporting `healthy: false`: the private activation record exists but cannot be validated, so every scheduled run is untrusted until it is resolved. Do not delete the state and re-`init` over it — that manufactures consent nobody gave. Disable the host-side task first, then investigate.
+- `check-drift` exits 5: the confirmations are void. The host task keeps firing until someone disables it; treat that gap as the operational risk, not the exit code.
+- `schedule-handoff` refuses because the config sits outside the project: move the config into the project and retry. Do not hand the host an absolute path that the handoff deliberately omitted.
 
 ## Safety Rules
 
@@ -124,3 +158,4 @@ The runner creates temporary prompt files under the ignored `.cwk-ai-runtime/pro
 - Never reply, approve, reject, delete, or complete CWork tasks.
 - Raw evidence must cite source IDs.
 - Markdown is the durable source; HTML is the human reading surface.
+- Never collect a credential in a conversation, and never create, modify, or delete a scheduled task from this repository.

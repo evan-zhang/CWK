@@ -29,8 +29,11 @@ PYTHON=python3.11 ./install.sh
 
 安装会创建 gitignored 的 `.env` 和 `cwk-mirror.local.json`（新建时权限 `0600`；已存在
 则内容与权限都原样保留）、编译脚本并运行脱敏 smoke，成功时输出 `CWK_CORE_READY`。
-它不会读取 CWork、写入 DocDB、创建 cron，也不会修改 Agent、Gateway 或宿主配置，
+它不会读取 CWork、写入 DocDB、创建定时任务，也不会修改 Agent、Gateway 或宿主配置，
 更不需要 `openclaw` CLI。
+
+紧随其后还有一行 `CWK_ACTIVATION=NOT_STARTED`：安装既不做发现，也不创建私有激活
+状态，夜间自动化默认关闭。要打开它得另走第 6 步。
 
 再**显式选择一种** OpenClaw 接入模式（默认什么都不接入，不会静默改任何目录）：
 
@@ -119,6 +122,10 @@ python3.11 scripts/cwk_doctor.py --require-live
 `$HOME/.agents/skills`、`<workspace>/skills`，以及 sandbox 当前的只读物化根
 `<workspace>/.openclaw/sandbox-skills/skills`），必要时用 `CWK_SKILL_ROOTS` 补充额外的根。
 
+`doctor` 还会报一项 `activation`，取值是激活状态机的枚举（刚装完是 `not_started`），
+只报枚举、状态名和下一步，不打印路径、哈希或任何业务内容。私有激活状态存在却校验
+不过时它报 `unreadable` 并给出告警，但不会让安装类检查失败——这样才有可能重装修复。
+
 只有计划发布到已批准的 DocDB 目标时，额外执行：
 
 ```bash
@@ -141,7 +148,34 @@ python3.11 scripts/cwk_nightly_pipeline.py \
 
 确认本次 `runs/pilot-*/ACCEPTANCE-RESULT.md` 中 `overall_pass=true`，并检查生成的日报
 Markdown/HTML。仅当目标为已批准的个人或团队 DocDB、且第 4 步的 DocDB 检查已通过时，
-才在同一命令末尾加 `--sync-docdb`。不要在这次上手流程中启用 cron、AI 试点或任何生产默认。
+才在同一命令末尾加 `--sync-docdb`。这一步是手动试跑，不启用 AI 试点、不排期、也不
+建任何定时任务。
+
+## 6. 激活（可选，且独立于安装）
+
+到这里程序装好了，但没有任何东西被授权每晚自动跑。**装好 ≠ 授权**：安装从不创建
+私有激活状态，也从不建定时任务。
+
+激活是一段有状态的对话，判定由 `scripts/cwk_activation_wizard.py` 独占——它决定状态
+机、两道人工确认、每日执行合同及其漂移、试跑门禁和调度交接：
+
+```bash
+python3.11 scripts/cwk_activation_wizard.py status
+```
+
+按它给出的唯一下一步走。这条路径上有**两次相互独立的确认**：先授权只读发现；很久
+之后、在你看过一次真实只读试跑的评分结果之后，再单独问一次是否允许排期。中途改了
+配置或画像，已有确认自动作废并要求重走，这是设计如此。
+
+定时任务由**宿主**创建，不由本仓库创建。仓库只产出一份交接单（节奏、本地运行时刻、
+时区、完整 argv、需要的环境变量**名**、前置条件），不含凭据值，也不含宿主绝对路径；
+配置用项目内相对定位符加一份「宿主自己解析项目根」的约定来表述，配置若在项目外则
+直接拒绝出单，而不是退化成塞一个宿主路径进去。你用自己的宿主机制建好任务后，把宿主
+分配的标识回填给 `record-schedule`。
+
+完整的分状态话术、命令与失败处理见[激活对话参考](../skill/references/activation.md)。
+无论哪种状态，四条红线都成立：不在对话里收集凭据；不把「现在能调用工具」当成授权；
+不展示 raw 原文；不创建、不修改、不删除任何定时任务。
 
 ## 边界
 

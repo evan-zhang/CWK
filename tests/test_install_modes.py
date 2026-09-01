@@ -75,6 +75,14 @@ class InstallerFixture:
         # The doctor's package-integrity check needs the whole required trio.
         for name in ("cwk_nightly_pipeline.py", "cwk_collect_live.py"):
             (root / "scripts" / name).write_text("# sanitized stub\n", encoding="utf-8")
+        # RT-032: the installer and the doctor both probe activation readiness.
+        # Real modules, not stubs -- a stub would make "no side effects" vacuous.
+        for name in (
+            "cwk_activation_state.py",
+            "cwk_atomic_file.py",
+            "cwk_pr001_contracts.py",
+        ):
+            shutil.copy2(PROJECT / "scripts" / name, root / "scripts" / name)
         shutil.copy2(PROJECT / ".env.example", root / ".env.example")
         shutil.copy2(PROJECT / "skill" / "SKILL.md", root / "skill" / "SKILL.md")
         shutil.copy2(

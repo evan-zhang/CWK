@@ -45,6 +45,7 @@ if str(_PROJECT / "scripts") not in sys.path:
     sys.path.insert(0, str(_PROJECT / "scripts"))
 
 from cwk_activation_contract import (  # noqa: E402
+    ConfigLocatorError,
     build_discovery_report,
     build_execution_contract,
     build_scheduler_handoff,
@@ -116,9 +117,21 @@ _RUN_AT = re.compile(r"\A(?:[01]\d|2[0-3]):[0-5]\d\Z")
 _TIMEZONE = re.compile(r"\A[A-Za-z][A-Za-z0-9+_-]{0,31}(?:/[A-Za-z0-9+_-]{1,32}){0,2}\Z")
 _TIMESTAMP = re.compile(r"\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\Z")
 
-# 错误消息里凡是「以 /、~/、./、../ 开头的一段」都当路径抹掉。前面是单词字符的
+# 第一道：凡是「以 /、~/、./、../ 开头的一段」都当路径抹掉。前面是单词字符的
 # 斜杠（read/write 这种）不算路径，不会被误伤。
 _PATH_LIKE = re.compile(r"(?<![A-Za-z0-9_])(?:~|\.{1,2})?/[^\s'\",;)\]]*")
+
+# 第二道：不带前导斜杠的相对多段路径，例如 state/activation/activation.json、
+# client/secret.json。仅靠「有斜杠」判定会把 read/write、and/or、input/output
+# 这类词组一并抹掉，所以判据必须更窄——见 _looks_like_relative_path。
+_SEGMENT = r"[A-Za-z0-9_][A-Za-z0-9._+-]*"
+_RELATIVE_PATH_LIKE = re.compile(rf"(?<![A-Za-z0-9_./~-])(?:{_SEGMENT}/)+{_SEGMENT}")
+
+# 字母开头的扩展名。要求字母是为了不把 1/2.5 这种分数当成带扩展名的路径。
+_EXTENSION = re.compile(r"\.[A-Za-z][A-Za-z0-9]{0,7}\Z")
+# 「不像自然语言词」的信号：数字、点、下划线、加号、连字符。
+_PATHY_SEGMENT = re.compile(r"[0-9._+-]")
+
 MAX_ERROR_CHARS = 240
 
 
@@ -150,6 +163,37 @@ def errno_name(exc: OSError) -> str:
     return "EUNKNOWN"
 
 
+def _looks_like_relative_path(token: str) -> bool:
+    """判断一个含斜杠的词到底是路径，还是 read/write 这种词组。
+
+    两条判据，满足其一即当路径：
+
+    1. 最后一段带**字母**扩展名——client/secret.json、state/foo/bar.md；
+    2. 至少三段，且其中某一段含数字、点、下划线、加号或连字符——
+       home/alice/cwk-mirror。
+
+    纯词组两条都不满足：read/write 只有两段且无扩展名；and/or/but 虽有三段，
+    但每一段都是纯字母。宁可漏掉一个长得像散文的路径，也不要把错误消息抹成
+    看不懂的东西——真正危险的绝对路径由第一道规则无条件拦下。
+    """
+
+    parts = token.split("/")
+    if _EXTENSION.search(parts[-1]):
+        return True
+    return len(parts) >= 3 and any(_PATHY_SEGMENT.search(part) for part in parts)
+
+
+def _redact_relative(match: "re.Match[str]") -> str:
+    token = match.group(0)
+    trailing = ""
+    while token and token[-1] in ".,;:":
+        trailing = token[-1] + trailing
+        token = token[:-1]
+    if not _looks_like_relative_path(token):
+        return token + trailing
+    return "<redacted-path>" + trailing
+
+
 def redact_message(text: Any) -> str:
     """错误消息的最后一道闸。
 
@@ -160,6 +204,7 @@ def redact_message(text: Any) -> str:
 
     raw = str(text)
     cleaned = _PATH_LIKE.sub("<redacted-path>", raw)
+    cleaned = _RELATIVE_PATH_LIKE.sub(_redact_relative, cleaned)
     cleaned = "".join(" " if (ord(ch) < 0x20 or ord(ch) == 0x7F) else ch for ch in cleaned)
     cleaned = " ".join(cleaned.split())
     if len(cleaned) > MAX_ERROR_CHARS:
@@ -395,7 +440,11 @@ def cmd_confirm_discovery(args: argparse.Namespace) -> tuple[int, dict]:
     with session(args.state_dir) as sess:
         state, dropped = _prepare(sess)
         state["discovery_scope_sha256"] = compute_scope_sha256(scope)
-        invalidate_stale_confirmations(state)
+        # 与 propose-profile / record-pilot 同一种写法：写入新事实之后再收一次，
+        # 并把两批合并回报。当前转移表下这一批恒为空（confirm-discovery 只在
+        # INSTALLED 合法，那时还没有任何确认），保持同构是为了让「写入新事实后
+        # 必须复查确认」成为这个文件里唯一的一种写法，而不是靠个案记忆。
+        dropped_by_scope = invalidate_stale_confirmations(state)
         confirmation = _grant(state, "discovery", now)
         apply_transition(
             state,
@@ -408,7 +457,7 @@ def cmd_confirm_discovery(args: argparse.Namespace) -> tuple[int, dict]:
         sess.commit()
         return EXIT_OK, _snapshot(
             state,
-            invalidated_gates=dropped,
+            invalidated_gates=_merge_gates(dropped, dropped_by_scope),
             confirmed_gate="discovery",
             bound_sha256=confirmation["bound_sha256"],
         )
@@ -441,7 +490,9 @@ def cmd_record_discovery(args: argparse.Namespace) -> tuple[int, dict]:
         )
         _write_artifact(sess.dir_fd, DISCOVERY_REPORT_FILE, report)
         state["discovery_receipt_sha256"] = report["report_sha256"]
-        invalidate_stale_confirmations(state)
+        # 同上：新回执会动摇绑定在旧回执上的 profile 门。当前转移表下这一批恒为空
+        # （record-discovery 只在 READY_FOR_DISCOVERY 合法，那时还没有 profile 确认）。
+        dropped_by_receipt = invalidate_stale_confirmations(state)
         apply_transition(
             state,
             event="record-discovery",
@@ -453,7 +504,7 @@ def cmd_record_discovery(args: argparse.Namespace) -> tuple[int, dict]:
         sess.commit()
         return EXIT_OK, _snapshot(
             state,
-            invalidated_gates=dropped,
+            invalidated_gates=_merge_gates(dropped, dropped_by_receipt),
             discovery_report=report,
             artifact=DISCOVERY_REPORT_FILE,
         )
@@ -467,7 +518,10 @@ def cmd_propose_profile(args: argparse.Namespace) -> tuple[int, dict]:
         if state["discovery_receipt_sha256"] is None:
             raise IllegalTransition("cannot propose a profile before discovery has been recorded")
         state["profile_sha256"] = compute_profile_sha256(profile)
-        invalidate_stale_confirmations(state)
+        # 新画像会让绑定在旧画像上的 profile/activation 确认失效。这一批必须并进
+        # 回报里：从 NEEDS_RECONFIRMATION 重新提画像时，activation 门本来还是有效
+        # 的，正是被这条命令作废的。漏报会让用户以为「什么都没失效」。
+        dropped_by_profile = invalidate_stale_confirmations(state)
         apply_transition(
             state,
             event="propose-profile",
@@ -477,7 +531,10 @@ def cmd_propose_profile(args: argparse.Namespace) -> tuple[int, dict]:
             next_step="confirm_profile",
         )
         sess.commit()
-        return EXIT_OK, _snapshot(state, invalidated_gates=dropped)
+        return EXIT_OK, _snapshot(
+            state,
+            invalidated_gates=_merge_gates(dropped, dropped_by_profile),
+        )
 
 
 def cmd_confirm_profile(args: argparse.Namespace) -> tuple[int, dict]:
@@ -641,7 +698,8 @@ def cmd_schedule_handoff(args: argparse.Namespace) -> tuple[int, dict]:
             contract_sha256=state["contract_sha256"],
             profile_sha256=state["profile_sha256"],
             pilot_receipt_sha256=state["pilot_receipt_sha256"],
-            config_path=str(args.config),
+            config_path=args.config,
+            project_root=_PROJECT,
             generated_at=now,
         )
         _write_artifact(sess.dir_fd, SCHEDULER_HANDOFF_FILE, handoff)
@@ -944,6 +1002,11 @@ def main(argv: Optional[list[str]] = None) -> int:
     except ActivationError as exc:
         code = _exit_code_for(exc)
         payload = _failure(args.command, exc, type(exc).__name__)
+    except ConfigLocatorError as exc:
+        # 配置位置无法在不泄露宿主绝对路径的前提下表述。fail closed：不出交接单，
+        # 也不退化成把绝对路径塞进负载。用户改配置位置后重跑即可。
+        payload = _failure(args.command, exc, "ConfigLocatorError")
+        code = EXIT_REFUSED
     except ContractError as exc:
         # 输入 JSON 无法规范化（超安全范围的数字、非字符串键、NFC 键冲突等）：
         # 这是调用方给的数据不合格，不是程序缺陷。

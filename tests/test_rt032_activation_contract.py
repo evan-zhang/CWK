@@ -19,6 +19,7 @@ No network, no subprocess, no real CWork/DocDB access.
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 import tempfile
 import unittest
@@ -492,12 +493,22 @@ class PilotGateTests(unittest.TestCase):
 class SchedulerHandoffTests(unittest.TestCase):
     def setUp(self):
         self.contract = contract_from(load("config.json"))
-        self.handoff = C.build_scheduler_handoff(
+        self.root = Path(tempfile.mkdtemp(prefix="cwk-handoff-")).resolve()
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+        self.handoff = self.build()
+
+    def build(self, *, config_path=None, project_root=None):
+        return C.build_scheduler_handoff(
             contract=self.contract,
             contract_sha256=self.contract["contract_sha256"],
             profile_sha256=SHA_PROFILE,
             pilot_receipt_sha256="c" * 64,
-            config_path="cwk-mirror.local.json",
+            config_path=(
+                config_path
+                if config_path is not None
+                else self.root / "cwk-mirror.local.json"
+            ),
+            project_root=self.root if project_root is None else project_root,
             generated_at=NOW,
         )
 
@@ -560,6 +571,88 @@ class SchedulerHandoffTests(unittest.TestCase):
         )
         self.assertFalse(result["ok"])
         self.assertIn("handoff_schema_unknown", result["problems"])
+
+    # ── 配置定位符：绝对路径既不进负载，也不进 handoff_sha256 ──────────────
+
+    def test_handoff_never_carries_the_absolute_project_path(self):
+        serialized = json.dumps(self.handoff, ensure_ascii=False)
+        self.assertNotIn(str(self.root), serialized)
+        self.assertNotIn(str(PROJECT), serialized)
+
+    def test_config_is_described_as_a_project_relative_locator(self):
+        locator = self.handoff["config_locator"]
+        self.assertEqual(locator["kind"], "project_relative")
+        self.assertEqual(locator["path"], "cwk-mirror.local.json")
+        self.assertTrue(locator["absolute_path_omitted"])
+        self.assertEqual(self.handoff["command_spec"]["argv"][3], "cwk-mirror.local.json")
+        self.assertFalse(self.handoff["command_spec"]["absolute_paths_included"])
+
+    def test_nested_config_keeps_its_relative_segments(self):
+        handoff = self.build(config_path=self.root / "config" / "mine.json")
+        self.assertEqual(handoff["config_locator"]["path"], "config/mine.json")
+        self.assertNotIn(str(self.root), json.dumps(handoff, ensure_ascii=False))
+
+    def test_host_is_told_how_to_find_the_project_root_not_where_it_is(self):
+        locator = self.handoff["config_locator"]["project_root_locator"]
+        self.assertEqual(locator["kind"], "cwk_project_root")
+        self.assertEqual(locator["verify_marker"], "scripts/cwk_doctor.py")
+        self.assertTrue(locator["absolute_path_intentionally_omitted"])
+        joined = " ".join(locator["resolution_order"])
+        self.assertIn("CWK_PROJECT_DIR", joined)
+        self.assertIn(
+            "resolve the CWK project root locally using project_root_locator",
+            self.handoff["host_responsibilities"],
+        )
+
+    def test_project_root_locator_is_a_copy_callers_cannot_corrupt(self):
+        first = C.project_root_locator()
+        first["verify_marker"] = "tampered"
+        first["resolution_order"].append("tampered")
+        self.assertEqual(C.project_root_locator()["verify_marker"], "scripts/cwk_doctor.py")
+        self.assertNotIn("tampered", C.project_root_locator()["resolution_order"])
+
+    def test_the_hash_is_stable_across_different_host_layouts(self):
+        """同一份配置在两台机器的不同绝对路径下，交接单摘要必须相同。"""
+
+        other = Path(tempfile.mkdtemp(prefix="cwk-handoff-other-")).resolve()
+        self.addCleanup(shutil.rmtree, other, ignore_errors=True)
+        elsewhere = self.build(
+            config_path=other / "cwk-mirror.local.json", project_root=other
+        )
+        self.assertEqual(
+            elsewhere["handoff_sha256"], self.handoff["handoff_sha256"]
+        )
+
+    # ── fail closed：表述不了就不出交接单 ─────────────────────────────────
+
+    def test_a_config_outside_the_project_is_refused_not_downgraded(self):
+        outside = Path(tempfile.mkdtemp(prefix="cwk-outside-")).resolve()
+        self.addCleanup(shutil.rmtree, outside, ignore_errors=True)
+        with self.assertRaises(C.ConfigLocatorError) as raised:
+            self.build(config_path=outside / "cwk-mirror.local.json")
+        message = str(raised.exception)
+        self.assertNotIn(str(outside), message)
+        self.assertNotIn(str(self.root), message)
+
+    def test_a_parent_escape_is_refused(self):
+        with self.assertRaises(C.ConfigLocatorError):
+            self.build(config_path=self.root / ".." / "escaped.json")
+
+    def test_the_project_root_itself_is_not_a_config(self):
+        with self.assertRaises(C.ConfigLocatorError):
+            self.build(config_path=self.root)
+
+    def test_a_control_character_in_the_name_is_refused(self):
+        with self.assertRaises(C.ConfigLocatorError):
+            C.build_config_locator(
+                config_path=f"{self.root}/bad\nname.json", project_root=self.root
+            )
+
+    def test_a_name_that_would_be_parsed_as_an_option_is_refused(self):
+        with self.assertRaises(C.ConfigLocatorError):
+            C.build_config_locator(
+                config_path=f"{self.root}/--config.json", project_root=self.root
+            )
 
 
 class ScheduleDriftTests(unittest.TestCase):

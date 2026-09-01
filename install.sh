@@ -439,6 +439,41 @@ echo "Core install complete. Smoke output is under runs/ci-smoke."
 echo "CWK_CORE_READY"
 
 # ---------------------------------------------------------------------------
+# Activation status (RT-032)
+#
+# Read-only, and deliberately so. Installing a program is not the same act as
+# authorising it to read a person's work every night, so the installer neither
+# runs discovery, nor reads CWork, nor creates the private activation state,
+# nor creates a scheduled task. It only reports where activation stands, so the
+# Agent that reads this output knows which conversation to open next.
+#
+# Never fatal: a state that cannot be read is a reason to say so, not a reason
+# to block a reinstall.
+# ---------------------------------------------------------------------------
+
+activation_status() {
+  "$PYTHON" - "$PROJECT_DIR" <<'PY' 2>/dev/null || echo "UNKNOWN"
+import sys
+from pathlib import Path
+
+project = Path(sys.argv[1])
+sys.path.insert(0, str(project / "scripts"))
+try:
+    import cwk_activation_state as activation
+
+    print(activation.readiness(project / "state" / "activation")["status"].upper())
+except (ImportError, OSError, ValueError):
+    print("UNKNOWN")
+PY
+}
+
+CWK_ACTIVATION_STATUS="$(activation_status)"
+echo "CWK_ACTIVATION=$CWK_ACTIVATION_STATUS"
+if [ "$CWK_ACTIVATION_STATUS" = "NOT_STARTED" ]; then
+  echo "No private activation state was created. Nightly automation stays off until you complete the guided activation, which asks for read-only discovery consent and for scheduling consent separately."
+fi
+
+# ---------------------------------------------------------------------------
 # OpenClaw integration adapters
 # ---------------------------------------------------------------------------
 

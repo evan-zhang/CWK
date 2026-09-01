@@ -70,6 +70,7 @@ _REPRESENTATIVE_TRACKED = (
     "config/entity-family-registry.json",
     "references/relation-gold-v1.json",
     "skill/templates/CONFIG.example.json",
+    "scripts/cwk_activation_state.py",
     "Makefile",
     ".github/workflows/ci.yml",
     ".gitignore",

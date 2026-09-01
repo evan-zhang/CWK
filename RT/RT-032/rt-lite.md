@@ -194,52 +194,88 @@ INSTALLED
 | `bash .aodw-next/06-project/aodw-check.sh --root .` | 通过 |
 | `python3.11 .aodw-next/06-project/governance-audit.py --root .` | 仍为既有 GA-ORPHAN ×3，无新增发现 |
 
-## 待集成项（治理声明，本轮按协调要求不落盘）
+### 2026-09-02（第四轮）：接入 RT-031 基线后的集成
 
-并行协调要求本轮不修改 `code-ownership-manifest.json`、`script-evolution-v2.json`
-及任何 PR-001 登记/receipt，因此下列声明只登记不执行。由于 `R-runtime-pr001-managed-scripts`
-是**委派的封闭集合**（rationale 明确：新增 `scripts/cwk_*.py` 不在声明集合内即判孤儿），
-在补登前 `make governance-audit` 必然红：
+RT-031 冻结实现已作为 `731c695` / `a52e113` / `313de70` 引入本 worktree，作为四模式
+安装合同的既定基线。本轮把激活从「三个脚本」变成「产品里的一步」：治理补登、前三轮
+记录的三个待议项全部落地、安装/自检/Skill/文档接入，并补齐对应测试。
 
-```
-GA-ORPHAN: scripts/cwk_activation_contract.py
-GA-ORPHAN: scripts/cwk_activation_state.py
-GA-ORPHAN: scripts/cwk_activation_wizard.py
-```
+**1. 治理归属补登（GA-ORPHAN 清零）。** 在 `code-ownership-manifest.json` 增一条
+`R-runtime-rt032-activation`（`kind: exact_set`，owner=RT-032，domain=runtime），逐条
+列出三个脚本——`scripts/` 是 exact-only 区，前缀规则吸收不了，而
+`R-runtime-pr001-managed-scripts` 是委派给上游封闭集合的规则，新文件不在其中。
+`evolution_path` 取 `repo-standard-change`：`cwk-governance-repin-v1` 只接受单
+`path`（敏感 pin），`cwk-script-evolution-v2` 槽位则会硬撞 `GA-V2-SLOT`——它要求叠加
+目标先存在于 PR-001 v1 的 `evolvable_paths`，新脚本不满足，凭空开槽就是伪演化路径。
+故 `script-evolution-v2.json` 一字未动。新增的 `skill/references/activation.md` 落进
+`R-docs-skill-facing`（`skill/` 同为 exact-only 区）；`tests/` 是前缀区，新测试文件
+无需登记。审计现为 610 个受跟踪文件全绿。
 
-补登内容（待 RT-031 冻结、治理文件解冻后执行）：
+**2. `propose-profile` 的失效回报补齐（第三轮待议项 3）。** 与 `record-pilot` 同一
+缺陷、同一修法：接住写入新画像**之后**那次 `invalidate_stale_confirmations` 的返回值，
+用 `_merge_gates` 并进负载。可达路径已加回归：`ACTIVE → 合同漂移 →
+NEEDS_RECONFIRMATION → propose-profile`，此时 activation 门本来仍然有效，正是被这条
+命令作废的，原实现却回报 `[]`。`confirm-discovery` / `record-discovery` 按迁移表推不出
+「进门时该门已有有效确认」的状态（不可达），仍统一成同一写法并加结构性守卫测试
+——四条写事实的命令必须都回报两批，新增命令漏写会红。**迁移与 `next_step` 未改动。**
 
-1. 在 `code-ownership-manifest.json` 的 `rules` 中新增一条 `kind: exact_set` 规则，
-   owner=RT-032，domain=runtime，覆盖上述三个文件；`scripts/` 是 exact-only 区，
-   不能靠前缀规则吸收。
-2. 确认是否需要在 `script-evolution-v2.json` 登记演化路径；三个文件均为新增运行时
-   脚本，不改动既有受管脚本的行为面。
-3. `tests/` 不是 exact-only 区，`tests/test_rt032_activation_*.py` 与
-   `tests/fixtures/activation/` **无需**新增规则——本轮审计对这 15 个文件零发现，已验证。
+**3. 交接单不再回显宿主绝对路径（第三轮待议项 1）。** 新增
+`build_config_locator`：配置改用**项目内相对定位符** + 一份显式的项目根定位契约
+（`CWK_PROJECT_DIR`，用 `scripts/cwk_doctor.py` 作存在性判据），`absolute_path_omitted`
+写在负载里。配置落在项目外、含 `..`、含控制字符、或首段会被解析成命令行选项时，
+抛 `ConfigLocatorError` 并以 `EXIT_REFUSED` **拒绝出单**，不退化成塞一个宿主路径。
+副作用是好的：`handoff_sha256` 现在跨宿主目录布局稳定（已钉测试），宿主换机器不会
+无缘无故作废第二道确认。
 
-## 接入前待议项（本轮按协调要求只记录，不改代码）
+**4. 脱敏闸门加宽到裸相对路径（第三轮待议项 2）。** `state/activation/activation.json`、
+`client/secret.json` 这类不带前导 `/`、`./` 的多段路径原本原样穿过。加宽用两条判据而
+不是「凡带斜杠即抹」：末段有字母扩展名，或段数 ≥3 且至少一段含非单词字符。正反用例
+各一组钉住——绝对/`~`/`./`/`../` 与裸相对路径都抹，`read/write mismatch`、`and/or`、
+`input/output error`、`pass/fail`、`yes/no/maybe`、`24/7` 一律保留。
 
-三条都已实测复现，都不阻塞本轮验证，但接入 Skill/文档层之前要有结论：
+**5. 安装保持零副作用。** `install.sh` 在 `CWK_CORE_READY` 之后只增加一行
+`CWK_ACTIVATION=<状态>`：它调用 `cwk_activation_state.readiness()` 这个**只读探针**
+（不 mkdir、不加锁、不写），装完仍然没有私有激活状态、没有任何定时任务。四种接入模式
+逐一验证过这一点；已有状态的字节不被改动；状态损坏时报 `UNREADABLE` 而**不是**
+`NOT_STARTED`——后者是唯一会让已排期的运行显得无辜的答案——但安装本身照常成功，
+否则用户没法靠重装脱困。
 
-1. **交接单里的配置路径是调用方原样给的绝对路径。** `build_scheduler_handoff` 用
-   `config_path=str(args.config)` 直接进 `command_spec.argv`，因此
-   `schedule-handoff` 的**成功**负载会把绝对路径回显给 Agent（实测：fixture 的
-   绝对路径出现在返回的 JSON 里）。这和错误路径的脱敏姿态不一致。它同时进
-   `handoff_sha256`，所以改成项目根相对路径会改变交接单哈希、作废已有的第二道确认——
-   这正是要跟接入层一起决定的：宿主要在什么工作目录下执行这条 argv。
-   现有的 `assert_no_absolute_path` 只覆盖失败负载，成功负载没有这条断言。
-2. **`redact_message` 只认「以 `/`、`~/`、`./`、`../` 开头」的片段。** 裸相对路径
-   （实测 `state/activation/activation.json` 原样穿过）不会被抹。当前所有错误消息都是
-   固定文案 + errno，不含裸相对路径，所以现在不漏；但这是靠调用点自觉，不是靠闸门。
-   要不要把闸门加宽，取决于接入层会往错误消息里塞什么。加宽有误伤代价——
-   `read/write mismatch` 这类词组不能被当成路径（已有回归钉住）。
-3. **同一个失效回报缺陷在 `propose-profile` 里也可达，本轮按范围**未**修。**
-   路径：`ACTIVE → check-drift 判出合同漂移 → NEEDS_RECONFIRMATION`（此时
-   activation 门仍有效）`→ propose-profile` 换新画像。实测该命令作废了 `profile` 与
-   `activation` 两道门，却回报 `invalidated_gates: []`。修法与 `record-pilot` 完全相同：
-   接住第二次 `invalidate_stale_confirmations` 的返回值，用 `_merge_gates` 并进负载。
-   `confirm-discovery` / `record-discovery` 里有同样的写法，但按迁移表推不出「进门时
-   该门已有有效确认」的状态，属不可达，可一并改成统一写法或留白。
+**6. `doctor` 转述而不重算。** 新增 `activation` 检查项，直接复用
+`cwk_activation_state.readiness()`，不在 `cwk_doctor.py` 里重建状态表（已加静态断言
+钉住：doctor 源码里不得出现 `PILOT_PASSED` 之类的状态词）。模块从 doctor 自己的包目录
+导入，**绝不**从 `--project-dir` 导入——被检查的项目是数据，从里面 import Python 就把
+「检查」变成了「执行」（已加炸弹用例）。输出只有枚举、状态名和下一步，无路径/哈希/
+业务内容。私有状态不可校验时是**告警**不是错误，理由同上：`install.sh` 会跑 doctor。
+
+**7. Skill 与文档一条路径。** 新增 `skill/references/activation.md`（分状态话术、
+`next_step` 对照表、两道门、交接与回填、失败处理）；`skill/SKILL.md` 只做地图，指过去
+不复述。README、内部/sandbox 上手、引导提示词、运维与迁移文档统一成一条路径：
+安装（四模式 + `CWK_CORE_READY` + `CWK_ACTIVATION=NOT_STARTED`）→ 自检（`activation`
+检查项）→ smoke → 只读试跑 → 激活对话（两道确认）→ 宿主建任务 → `record-schedule`
+回填。RT-031 的 `AGENTS_ROUTER_ACTIVATION=NEXT_SESSION`、`OPENCLAW_DISCOVERY=UNVERIFIED`
+与四模式语义原样保留并加测试钉住。迁移文档新增一条：`state/activation/` 不得复制——
+它记的是谁在什么范围上确认过什么，搬走等于伪造别人的同意。
+
+| 命令 | 结果 |
+| --- | --- |
+| `python3.11 -m py_compile`（三个激活脚本 + `cwk_doctor.py` + 新测试） | 通过 |
+| `bash -n install.sh` | 通过 |
+| `python3.11 -m unittest tests.test_rt032_activation_state` | 40 passed |
+| `python3.11 -m unittest tests.test_rt032_activation_contract` | 63 passed（+11） |
+| `python3.11 -m unittest tests.test_rt032_activation_wizard` | 94 passed（+11） |
+| `python3.11 -m unittest tests.test_rt032_activation_integration` | 31 passed（新增） |
+| 四个 RT-032 模块合并运行 | 228 passed |
+| `python3.11 -m unittest tests.test_install_modes` | 67 passed（RT-031 基线不回归） |
+| `python3.11 -m unittest tests.test_distribution` | 5 passed |
+| `python3.11 -m unittest tests.test_governance_audit` | 62 passed |
+| `python3.11 .aodw-next/06-project/governance-audit.py --root .` | **通过**：610 个受跟踪文件，GA-ORPHAN 清零 |
+| `bash .aodw-next/06-project/aodw-check.sh` | 通过（RT-028…RT-032 门禁全过；仅剩本机 skill 未安装的告警） |
+| `git diff --check` | 通过（exit 0） |
+
+真实 CWork/DocDB、定时任务、Gateway、远端与模型调用一律未触发。安装器测试跑在
+`InstallerFixture` 的隔离副本里（`install.sh` 自己 `cd` 进临时目录），用的都是脱敏
+占位值；激活证据全部来自 `tests/fixtures/activation/`。**未跑完整 `make ci`**，按协调
+留给独立审阅后的最终一次冻结 CI。
 
 ## 变更记录
 
@@ -248,9 +284,20 @@ GA-ORPHAN: scripts/cwk_activation_wizard.py
 - 2026-09-02：迁移表补 `(PILOT_PASSED, record-pilot-pass) -> PILOT_PASSED` 自环。重跑一次通过的试跑本身安全：回执是内容寻址的，**证据变了**才会产出新回执并作废旧的第二道确认，证据一模一样则回执哈希不变、确认继续有效。（初版记录写成"重跑必然作废"，与实现不符，已按实际行为更正；两种情形都已加回归测试。）
 - 2026-09-02：整改独立审阅的两个阻断项——试跑门禁对采集回执改为失败关闭并把回执事实绑进哈希；CLI 边界收口 OSError/ContractError 为脱敏 JSON 与既有退出码。测试加固保留并提交。
 - 2026-09-02：接入前定向加固。`record-pilot` 的 `invalidated_gates` 改为回报本条命令作废的全部门（原先漏掉写入新回执后才失效的那批，导致「成功但什么都没失效」与 `next_step: confirm_activation` 自相矛盾）；stdout 断管道时把描述符改指 devnull，进程退出码从解释器的 120 收回到约定的 2 且 stderr 不再有噪声；并把「输入/持久化失败不进 DEGRADED、不写迁移回执」这条既有行为固定成测试与模块文档。交接单绝对路径、裸相对路径脱敏、`propose-profile` 的同类失效回报缺陷记入「接入前待议项」，本轮不动。
+- 2026-09-02：在 RT-031 冻结基线上完成集成。治理补登（`exact_set` 规则，`evolution_path=repo-standard-change`；不开伪 v2 槽位），GA-ORPHAN 清零；三个待议项全部落地——`propose-profile` 失效回报补齐并加可达回归、交接单改项目相对定位符并对无法安全表述的配置拒绝出单、脱敏闸门加宽到裸相对路径且不误伤 `read/write` 类词组；安装保持零副作用并输出 `CWK_ACTIVATION`，`doctor` 复用同一探针报 `activation`，Skill 新增激活参考、README/上手/引导/运维/迁移文档统一成一条路径。RT-031 四模式合同与 `NEXT_SESSION` 语义不回归。
 
 ## 遗留事项
 
-- 治理归属补登见上方「待集成项」，需在治理文件解冻后完成，否则 `make ci` 持续红。
-- Skill 入口、上手文档与 `install.sh` 接入层尚未实现，等 RT-031 冻结提交后再做；
-  届时须保证 `host-skill`、`workspace-skill`、`router`、`none` 四种接入模式不回归。
+- 完整 `make ci` 本轮**未跑**，按协调留给独立审阅通过后的最终一次冻结 CI（验收标准
+  第 7 条尚未闭合）。
+- `record-schedule` 只登记使用者说自己建过的宿主任务，**不验证**该任务真的存在——
+  这是刻意的边界（仓库不碰宿主调度面），但意味着「`ACTIVE` 且宿主任务已被删」这种
+  状态只能靠 `check-drift` 在下一次人工检查时暴露，不会自己报警。
+- `pause` 只改本仓库的姿态，不会停掉宿主侧任务；文档已写明，但真要停跑仍依赖使用者
+  去宿主禁用任务。
+- `doctor` 与安装器的 `activation` 只**转述**已记录的状态，不读配置与合同文件，因此
+  配置改了但还没人跑 `check-drift` 时它仍会报 `active`。这是「探针不写、命令才写」
+  这条边界的代价：漂移判定必须把重算结果落盘并作废确认，那是命令的职责，不是只读
+  探针的。文档已把 `check-drift` 写进运维路径，但它不会自己触发。
+- 宿主侧「怎么建这个任务」没有可执行文档可依：本仓库不发明 OpenClaw 调度 API，只给
+  交接单，具体机制由使用者的宿主决定。

@@ -37,6 +37,7 @@ Primary documentation:
 - [Cloud-First v2 target design and re-audit](docs/CLOUD_FIRST_V2_DESIGN.md)
 - [User guide](docs/USER_GUIDE.md)
 - [Operations guide](docs/OPERATIONS.md)
+- [Activation dialogue reference](skill/references/activation.md)
 - [AI runtime policy](docs/AI-PILOT.md)
 - [Model role matrix](MODEL_ROLES.md)
 - [PR-001 multi-tenant status](PR/PR-001-multitenant-knowledge-spaces/STATUS.md)
@@ -62,8 +63,9 @@ PYTHON=python3.11 ./install.sh
 ```
 
 核心安装只创建本机私有模板（新建时 `0600`，已存在不覆盖）并运行脱敏 smoke，成功时
-输出 `CWK_CORE_READY`；不会读取 CWork、写入 DocDB、创建 cron，也不会修改 Agent、
-Gateway 或宿主配置，更不需要 `openclaw` CLI。
+输出 `CWK_CORE_READY`；不会读取 CWork、写入 DocDB、创建定时任务，也不会修改 Agent、
+Gateway 或宿主配置，更不需要 `openclaw` CLI。它还会输出一行
+`CWK_ACTIVATION=NOT_STARTED`：安装不创建私有激活状态，夜间自动化默认关闭。
 
 OpenClaw 接入是**独立且显式**的一步，默认不做，四选一：
 
@@ -93,6 +95,30 @@ CWK 需要 Python 3.10+（推荐 3.11），当前项目只依赖 Python 标准�
 `cms-cwork-workflow` 和 `cms-auth-skills`；只有选择向个人或已批准的团队 DocDB 写派生产物
 时，才需要 `cms-docdb` 与相应写入权限。历史 RT/PR 与设计材料用于追溯，不是安装操作指令。
 
+## 激活：装好 ≠ 授权
+
+装好程序，和「授权它每晚读这个人的工作」是两件事。安装器、`doctor` 和夜间流水线都
+不会替使用者做第二件事：装完之后不存在私有激活状态，没有任何定时任务，
+`CWK_ACTIVATION=NOT_STARTED`。
+
+激活由一段有状态的对话推进，判定则由 `scripts/cwk_activation_wizard.py` 独占：
+
+```bash
+python3.11 scripts/cwk_activation_wizard.py status
+```
+
+它输出当前状态和唯一的下一步。整条路径要求**两次相互独立的人工确认**：一次授权
+只读发现，很久之后、在使用者看过一次真实只读试跑的结果之后，再单独问一次是否允许
+排期。中途任何配置或画像变化都会让已有确认自动作废并要求重走。
+
+定时任务始终由宿主创建。本仓库只产出一份交接单（节奏、本地运行时刻、时区、完整
+argv、需要的环境变量**名**、前置条件），既不含凭据值也不含宿主绝对路径；使用者用
+自己的宿主机制建好任务后，把宿主分配的标识回填给 `record-schedule`。仓库不创建、
+不修改、不删除任何定时任务，也不假设存在 OpenClaw 调度 API。
+
+完整的分状态话术、命令与失败处理见[激活对话参考](skill/references/activation.md)，
+这里不重复。
+
 ## 进阶运行参考（不是首次上手步骤）
 
 1. Clone the private repository:
@@ -119,8 +145,10 @@ PYTHON=python3.11 ./install.sh --integration router --workspace <workspace>
 PYTHON=python3.11 ./install.sh --integration none
 ```
 
-None of these collect business data, write DocDB, create cron jobs, or modify an
-Agent, a Gateway, or a host control plane. `host-skill` writes nothing at all: it
+None of these collect business data, write DocDB, create scheduled tasks, create
+private activation state, or modify an Agent, a Gateway, or a host control plane.
+Every mode ends with `CWK_ACTIVATION=NOT_STARTED` until the user completes the
+guided activation. `host-skill` writes nothing at all: it
 prints `SKILL_REGISTRATION_REQUIRES_HOST_ADMIN`, the source path in the current
 execution environment, and a Workspace-relative mapping when available, so an
 operator can resolve the real host path and register it for one Agent. See
@@ -329,7 +357,11 @@ tests/       Smoke fixtures only
 - Live run reports `overall_pass=true`.
 - Daily Markdown and HTML are generated.
 - No CWork mutating command appears in the run manifest.
-- Nightly cron is enabled only after one successful live read-only run.
+- `scripts/cwk_doctor.py` reports `activation: active` and the wizard reports
+  `healthy: true`.
+- Nightly automation is scheduled only after a passing read-only pilot **and** a
+  second explicit scheduling confirmation, and the task itself was created by
+  the host and recorded with `record-schedule`.
 - AI pilot output is side-by-side; it does not replace the rules baseline.
 - Every AI event and priority contains valid source `report_id` values.
 - `degraded=false` is required before treating an AI pilot as technically healthy.
@@ -346,5 +378,10 @@ Forbidden unless separately authorized:
 - complete todos
 - delete CWork records
 - upload real raw evidence to a shared repo
+
+Forbidden outright, with or without a request:
+
+- collect a credential inside a conversation
+- create, modify, or delete a scheduled task, or claim this repository did
 
 See `SECURITY.md` and `docs/MIGRATION.md`.
