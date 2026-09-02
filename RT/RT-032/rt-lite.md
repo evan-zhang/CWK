@@ -730,11 +730,32 @@ PR-001 **真实的** `_security_managed_inventory_parts` 解析登记表，再�
   `scripts/cwk_*.py` 兼容壳。73 处引用统一前缀替换，覆盖 22 个文件。新增
   `ManagedScriptNamespaceTests` 直接调 PR-001 真实解析器对拍并做过反向验证。
   未削弱 PR-001 断言，未改其策略/登记表/测试。
+- 2026-09-02：最终收口。冻结实现 `dd92550` 通过唯一一次完整 `make ci`
+  （2704 tests，skipped=7，退出码 0）与 PR-001 release-gate 独立长通道复跑
+  （182/182，退出码 0）；RT-032 转入 `reviewing`。NB-1…NB-5 保持非阻断，
+  转入试用反馈；本回执之后不再追加复核轮次。按用户明确授权，后续合并
+  `main` 并推送 `origin/main`。
+
+## 最终全量 CI 回执（冻结实现 `dd92550`）
+
+- 命令：`make ci`，在 `env -i` 白名单净化环境运行（HOME/PATH/USER/TMPDIR/
+  LANG/LC_ALL/PYTHONNOUSERSITE/PYTHONHASHSEED=0）；无任何 CWK/CWORK/XG/
+  凭据类变量；项目根无 `.env`（doctor 实测 `env_file: absent`）。
+- 时间：2026-09-02T02:45:47Z–03:54:22Z（约 68.6 分钟），退出码 0。
+- `make doctor`：PASS。
+- `python3 -m py_compile scripts/*.py`：通过（含 `activation_{state,contract,wizard}.py`）。
+- 单测：`Ran 2704 tests in 4098.987s` → **OK（skipped=7）**。
+- `make smoke`：通过（ci-smoke 处理 1 条样例）。
+- `aodw-check.sh`：通过（RT-028…RT-032 门禁全过；30 个 RT 花名册一致；
+  唯一 WARN 为本机 handover-pack skill 未安装，属宿主状态，不阻断）。
+- `governance-audit.py`：通过（613 个受跟踪文件全部有主）。
+- 独立复核补充：PR-001 release-gate 长通道完整复跑 **182/182 通过**
+  （2760s，退出码 0）；独立审阅结论无阻断。
 
 ## 遗留事项
 
-- 完整 `make ci` 本轮**未跑**，按协调留给独立复审通过后的最终一次冻结 CI（验收标准
-  第 7 条尚未闭合）。
+- 完整 `make ci` 已在冻结实现 `dd92550` 上通过（见上文回执），验收标准第 7 条
+  闭合；非阻断项转入试用反馈，不再追加复核轮次。
 - 合同建模的是**渲染那一刻**的项目根 `.env`。文件在渲染之后、02:30 之前被改，与配置
   文件被改是同一类风险，同样只能靠下一次 `check-drift` 暴露——本仓库不监听文件系统。
   差别在于 `.env` 通常没人当成「配置」来对待，所以文档专门写了这一条。

@@ -3,7 +3,7 @@ title: CWK AI 激活向导与自动运行编排
 type: Feature
 profile: Spec-Lite
 execution_mode: collaborative
-status: in-progress
+status: reviewing
 modules:
   - activation-wizard
   - discovery-profile
@@ -15,7 +15,7 @@ worktree: .claude/worktrees/RT-032-activation-wizard
 tool: codex
 owner: Codex
 created_at: 2026-09-01T16:06:13Z
-updated_at: 2026-09-01T18:53:33Z
+updated_at: 2026-09-02T04:56:00Z
 closed_at: null
 external_ids:
   jira: null
