@@ -243,6 +243,48 @@ def _looks_like_summary_payload(value: dict[str, Any]) -> bool:
     return bool(structural_keys.intersection(value))
 
 
+def _extract_exec_envelope(stdout: str) -> dict[str, Any]:
+    """从 `openclaw agent exec --json` 的输出里取出结果信封。
+
+    exec 会把日志行和最终 JSON 信封都打到 stdout。信封是整段输出里
+    唯一"从某个 `{` 起能一路解析到结尾"的对象；优先用这个判据，避免
+    被日志片段或信封内部嵌套对象（如 usage）误导。
+    """
+    decoder = json.JSONDecoder()
+    text = stdout.strip()
+    fallback: dict[str, Any] | None = None
+    for index, char in enumerate(text):
+        if char != "{":
+            continue
+        try:
+            value, end = decoder.raw_decode(text[index:])
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(value, dict):
+            continue
+        fallback = value
+        if end == len(text[index:]):
+            return value
+    if fallback is not None:
+        return fallback
+    raise RuntimeError("agent exec output contained no JSON envelope")
+
+
+def _parse_exec_result(stdout: str) -> dict[str, Any]:
+    """解析 exec 信封并提取模型回复里的 JSON 对象。"""
+    envelope = _extract_exec_envelope(stdout)
+    if envelope.get("ok") is False or str(envelope.get("status", "")).lower() == "error":
+        raise RuntimeError(f"agent exec failed: {clean_evidence(json.dumps(envelope, ensure_ascii=False), 400)}")
+    final_text = envelope.get("final")
+    if not isinstance(final_text, str) or not final_text.strip():
+        payloads = envelope.get("payloads")
+        if isinstance(payloads, list) and payloads and isinstance(payloads[0], dict):
+            final_text = payloads[0].get("text") or ""
+    if not isinstance(final_text, str) or not final_text.strip():
+        raise RuntimeError("agent exec returned no model output")
+    return extract_json_object(final_text)
+
+
 def invoke_openclaw_json(
     prompt: str,
     *,
@@ -255,8 +297,19 @@ def invoke_openclaw_json(
         raise ValueError(f"model is required for real AI stage {stage}")
     assert_cwk_model(model)
     runtime_workspace = ai_agent_workspace()
-    agent_id = os.environ.get("CWK_AI_AGENT_ID", "cwk-ai-reviewer")
-    assert_safe_ai_agent(agent_id)
+    # RT-034：单 agent 沙箱部署没有第二个可配置的 Agent。transport="exec" 时
+    # 走 `openclaw agent exec` 的一次性无头回合（用宿主已配置的模型凭据），
+    # 不需要任何预配置 reviewer Agent；默认 transport="agent" 行为完全不变。
+    transport = os.environ.get("CWK_AI_TRANSPORT", "agent").strip().lower() or "agent"
+    if transport not in ("agent", "exec"):
+        raise ValueError(
+            f"CWK_AI_TRANSPORT must be 'agent' or 'exec', got {transport!r}"
+        )
+    agent_id: str | None = os.environ.get("CWK_AI_AGENT_ID", "cwk-ai-reviewer")
+    if transport == "exec":
+        agent_id = None
+    else:
+        assert_safe_ai_agent(agent_id)
     thinking = os.environ.get("CWK_AI_THINKING", "high")
     instruction = (
         "You are a JSON-only responder. Follow the instructions below exactly. "
@@ -276,8 +329,25 @@ def invoke_openclaw_json(
             # Start a new process group.  The OpenClaw CLI can leave its
             # gateway child alive after its own timeout; killing only the CLI
             # then leaves this caller blocked in ``communicate`` forever.
-            proc = subprocess.Popen(
-                [
+            if agent_id is None:
+                command = [
+                    "openclaw",
+                    "agent",
+                    "exec",
+                    "--message-file",
+                    str(prompt_path),
+                    "--model",
+                    model,
+                    "--thinking",
+                    thinking,
+                    "--timeout",
+                    str(timeout_seconds),
+                    "--json",
+                    "--cwd",
+                    str(runtime_workspace),
+                ]
+            else:
+                command = [
                     "openclaw",
                     "agent",
                     "--local",
@@ -294,7 +364,9 @@ def invoke_openclaw_json(
                     "--timeout",
                     str(timeout_seconds),
                     "--json",
-                ],
+                ]
+            proc = subprocess.Popen(
+                command,
                 cwd=str(runtime_workspace),
                 env=sanitized_ai_environment(),
                 text=True,
@@ -319,7 +391,11 @@ def invoke_openclaw_json(
                     proc.communicate()
                 raise
             if proc.returncode == 0:
-                result = extract_json_object(stdout)
+                result = (
+                    _parse_exec_result(stdout)
+                    if agent_id is None
+                    else extract_json_object(stdout)
+                )
                 if "error" in result and "schema_version" not in result:
                     raise RuntimeError(f"agent returned error: {compact(result.get('error'), 400)}")
                 return result
@@ -331,32 +407,34 @@ def invoke_openclaw_json(
                 prompt_path.unlink()
             # Reviewer calls are one-shot transforms. Keeping their transcripts
             # indefinitely bloats the gateway session index and delays user turns.
-            try:
-                subprocess.run(
-                    [
-                        "openclaw",
-                        "gateway",
-                        "call",
-                        "sessions.delete",
-                        "--params",
-                        json.dumps(
-                            {
-                                "key": f"agent:{agent_id}:explicit:{session_id}",
-                                "agentId": agent_id,
-                                "deleteTranscript": True,
-                            }
-                        ),
-                    ],
-                    cwd=str(runtime_workspace),
-                    env=sanitized_ai_environment(),
-                    text=True,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    timeout=15,
-                    check=False,
-                )
-            except (OSError, subprocess.TimeoutExpired):
-                pass
+            # exec 模式是一次性本地回合，不进 gateway 会话索引，无需清理。
+            if agent_id is not None:
+                try:
+                    subprocess.run(
+                        [
+                            "openclaw",
+                            "gateway",
+                            "call",
+                            "sessions.delete",
+                            "--params",
+                            json.dumps(
+                                {
+                                    "key": f"agent:{agent_id}:explicit:{session_id}",
+                                    "agentId": agent_id,
+                                    "deleteTranscript": True,
+                                }
+                            ),
+                        ],
+                        cwd=str(runtime_workspace),
+                        env=sanitized_ai_environment(),
+                        text=True,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        timeout=15,
+                        check=False,
+                    )
+                except (OSError, subprocess.TimeoutExpired):
+                    pass
         if attempt + 1 < attempts:
             time.sleep(2**attempt)
     raise RuntimeError(f"OpenClaw model call failed after {attempts} attempts: {last_error}")

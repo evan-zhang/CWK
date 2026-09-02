@@ -59,6 +59,12 @@ _COPY_FILES = (
     "RT/RT-013/receipts/script-evolution/stage-10-cwk-agent-binding-ord1.json",
     "RT/RT-022/receipts/script-evolution/stage-06-cwk-wiki-query-ord1.json",
     "RT/RT-026/receipts/script-evolution/stage-08-cwk-nightly-pipeline-ord1.json",
+    # RT-034：legacy 族 cwk_ai_common.py 的首次演化回执 + 迁移说明 + RT 记录。
+    # scripts/ 整目录会被复制进合成仓库，GA-LEGACY-DRIFT 需要这份回执在场
+    # 才能解释 pin 与磁盘的合法差异。
+    "RT/RT-034-ai-exec-transport/receipts/script-evolution-v2/rt034-exec-transport-ord1.json",
+    "RT/RT-034-ai-exec-transport/migration-notes/rt034-exec-transport-ord1.md",
+    "RT/RT-034-ai-exec-transport/rt-lite.md",
 )
 
 # 每条规则至少要有一个代表文件，否则会触发 GA-STALE-RULE（失效规则）。

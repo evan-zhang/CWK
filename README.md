@@ -277,7 +277,7 @@ python3 scripts/cwk_nightly_pipeline.py \
   --sync-docdb
 ```
 
-Real AI calls use `openclaw agent --json` through a dedicated `CWK_AI_AGENT_ID` and do not use `--deliver`. The configured Agent is an unsandboxed **zero-tool** transformer: `tools.profile=minimal`, empty allow lists, `deny=["*"]`, `skills=[]`, and `sandbox.mode=off`. OpenClaw reads the temporary message file before the model turn, so the reviewer needs no filesystem tool and Docker is not a runtime dependency. CWK refuses any policy drift. Temporary prompt files are deleted after each call. See `docs/AI-PILOT.md` for the runtime policy.
+Real AI calls use `openclaw agent --json` through a dedicated `CWK_AI_AGENT_ID` and do not use `--deliver`. The configured Agent is an unsandboxed **zero-tool** transformer: `tools.profile=minimal`, empty allow lists, `deny=["*"]`, `skills=[]`, and `sandbox.mode=off`. OpenClaw reads the temporary message file before the model turn, so the reviewer needs no filesystem tool and Docker is not a runtime dependency. CWK refuses any policy drift. Temporary prompt files are deleted after each call. See `docs/AI-PILOT.md` for the runtime policy. Single-agent sandbox deployments can instead set `CWK_AI_TRANSPORT=exec` to run each call as a one-shot `openclaw agent exec` turn with no dedicated Agent.
 
 For cloud wiki source compilation, `scripts/cwk_cloud_wiki_compile.py` defaults to `newapi/BD-MiniMax`. Override with `--model` or `CWK_CLOUD_WIKI_MODEL` only when a cheaper or more reliable reviewed model is intentionally selected.
 If the primary response is not valid contract JSON, one bounded repair call uses

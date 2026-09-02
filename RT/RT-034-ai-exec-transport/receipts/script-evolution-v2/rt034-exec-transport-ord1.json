@@ -1,0 +1,11 @@
+{
+  "schema": "cwk.governance.script_evolution_receipt.v2",
+  "overlay_version": "v2",
+  "owner_rt": "RT-034-ai-exec-transport",
+  "target_path": "scripts/cwk_ai_common.py",
+  "ordinal": 1,
+  "from_sha256": "ea33adc54c7829e766b63d76f59937f4ea1803ff44509bc0b87370abf77c3e55",
+  "to_sha256": "8b1b610893feea984824423480c5dfe5808ce9093c23e9e005c042bfbb2b459f",
+  "migration_note_ref": "RT/RT-034-ai-exec-transport/migration-notes/rt034-exec-transport-ord1.md",
+  "rt_ref": "RT/RT-034-ai-exec-transport/rt-lite.md"
+}

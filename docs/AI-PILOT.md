@@ -33,6 +33,25 @@ Do not point `CWK_AI_AGENT_ID` at `chat-main-agent`, an operations Agent, or any
 
 Agent creation and OpenClaw configuration are deployment operations and are intentionally not performed by `install.sh`. Add the dedicated Agent through your normal OpenClaw configuration process and validate the config. Current OpenClaw releases hot-reload this agent policy; if a particular installation requires a Gateway restart, run it externally rather than from a Life-triggered turn.
 
+## Single-agent sandbox: `CWK_AI_TRANSPORT=exec`
+
+Deployments that run exactly one Agent (the sandbox assistant itself) do not
+need to provision the dedicated reviewer. Set:
+
+```bash
+CWK_AI_TRANSPORT=exec
+```
+
+Real AI calls then run as one-shot headless turns (`openclaw agent exec --json`)
+using the host's configured provider credentials — no extra Agent, no gateway
+restart. Everything else stays enforced: the CWK model allowlist, the JSON-only
+transform prompt, the secret-scrubbed subprocess environment, timeout with
+process-group termination, and retries. Isolation in this mode is
+invocation-level (one-shot turn, no delivery, no persistent session, workspace
+pinned to `.cwk-ai-runtime`); the config-level zero-tool policy applies only
+to the default `agent` transport. Hosts that already provisioned the dedicated
+reviewer keep the default and are unaffected.
+
 ## Configuration
 
 ```bash

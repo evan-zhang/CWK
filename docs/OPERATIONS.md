@@ -122,7 +122,7 @@ Fallback pages remain queryable and their final evidence is always read from `ra
 
 For other AI pilots, run manually or from a separate isolated schedule:
 
-Before the first real call, provision a dedicated `cwk-ai-reviewer` Agent according to `docs/AI-PILOT.md`. CWK rejects an Agent unless its tool profile is `minimal`, all tool allow lists are empty, `deny=["*"]`, its sandbox is `mode=off`, and its workspace exactly matches the fixed project-local `.cwk-ai-runtime` directory. This removes Docker from the AI path without granting host tools.
+Single-agent sandbox deployments set `CWK_AI_TRANSPORT=exec` instead and skip the dedicated Agent entirely (see `docs/AI-PILOT.md`). Otherwise, before the first real call, provision a dedicated `cwk-ai-reviewer` Agent according to `docs/AI-PILOT.md`. CWK rejects an Agent unless its tool profile is `minimal`, all tool allow lists are empty, `deny=["*"]`, its sandbox is `mode=off`, and its workspace exactly matches the fixed project-local `.cwk-ai-runtime` directory. This removes Docker from the AI path without granting host tools.
 
 ```bash
 CWK_AI_ENABLED=true \
