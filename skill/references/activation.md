@@ -13,10 +13,11 @@ You read its JSON and explain it. You never assert an outcome it did not emit.
 
 Never, in any state:
 
-- **Never collect a credential in chat.** Not the key, not a prefix, not "just
-  to check". Credentials go into the user's own `.env` or shell, by their hand.
-  If the user pastes one anyway, tell them to rotate it and do not repeat it
-  back.
+- **`CWORK_APP_KEY` is the one credential the user may hand over in chat** (on the vetted
+  custom-client channel). Receive it, immediately persist it with
+  `scripts/cwk_key_set.py` (stdin, never argv), reply `configured` only, and
+  never repeat the value back. Every other credential is still refused: not a
+  prefix, not "just to check". Do not read or dump `.env` beyond that script.
 - **Never treat your current tool access as authorization.** Being able to read
   CWork right now proves capability, not consent. Only a `confirm-discovery`
   receipt authorises discovery; only a `confirm-activation` receipt authorises

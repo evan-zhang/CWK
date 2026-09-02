@@ -11,10 +11,13 @@
 
 ## 硬性禁止（任何阶段都适用）
 
-1. 不向我索取 Key、Token 或 `.env` 内容；不回显、不打印、不写进命令行参数、不贴进
-   聊天记录、不写进任何文件或提交。
+1. `CWORK_APP_KEY` 允许我直接在聊天里发给你：收到后立即执行
+   `python3.11 scripts/cwk_key_set.py`（Key 经 stdin/heredoc 传入，绝不放进
+   `echo`/`printf` 的参数行），成功后只回执 `configured`，不回显、不打印、不写进
+   提交。除这把 Key 之外的任何凭据仍然：不索取、不回显、不贴进聊天记录、不写进
+   任何文件或提交。
 2. 不执行 `source .env` / `. ./.env`，也不用 `cat`、`env`、`echo` 等方式读取或转储
-   `.env`。凭据由我自己填写，你只看命令的通过/失败结果。
+   `.env`。`CWORK_APP_KEY` 的写入只走 `scripts/cwk_key_set.py`，你只看命令的通过/失败结果。
 3. 不依赖、不安装、不尝试调用 `openclaw` CLI。CWK 不需要它。
 4. 不修改全局配置、shell 配置文件、安全策略、权限或沙箱设置。
 5. 不覆盖、不删除、不重装已存在的 CWK 目录、已存在的 `.env` 或
@@ -132,18 +135,33 @@ smoke 用的是极小的脱敏样例，只验证命令与渲染连通；它报 `
 
 **暂停，等我说继续。**
 
-## 阶段 4：引导我完成私有配置
+## 阶段 4：私有配置（Key 直接发我即可）
 
-逐项告诉我要在 `/workspace/CWK/.env` 里填什么，然后等我自己填完：
+需要落到 `/workspace/CWK/.env` 的项：
 
-- `CWORK_APP_KEY`：我的工作协同 Key（必填，我自己填，不要问我要）。
+- `CWORK_APP_KEY`：我的工作协同 Key（必填）。**直接把 Key 粘贴在聊天里发给 Agent**，
+  Agent 收到后立刻写入（Key 经 heredoc 传给 stdin，绝不放进参数行）：
+
+  ```bash
+  cd /workspace/CWK
+  python3.11 scripts/cwk_key_set.py <<'CWK_KEY'
+  （用户发送的 Key 原样放在这一行）
+  CWK_KEY
+  ```
+
+  脚本原子写入 `.env`（0600），顺手修复 export 前缀、成对引号、BOM、重复行这些
+  格式坑，回执只有 `configured` 与目标路径，不会回显 Key。写完跑一次
+  `python3.11 scripts/cwk_doctor.py --require-live`，只汇报 `live_auth_configured`
+  是 `configured` 还是 `missing`。
 - `CWK_OWNER_EMP_ID`、`CWK_OWNER_NAME`：建议填，供日报关系标签使用。
 - `CWK_DOCDB_PROJECT_ID`、`CWK_DOCDB_ROOT_FILE_ID`：个人只读试跑保持为空。
 - 仅当阶段 5 的路径检查失败时，再补 `CMS_CWORK_WORKFLOW_DIR` / `CMS_AUTH_SKILL_DIR`。
 
-你可以说明每一项的含义和默认值，但不要替我写入凭据，也不要读取或校验我填的具体值。
+除 `CWORK_APP_KEY` 走上面的脚本外，你仍然不要替我写入其他任何凭据类值，也不要读取或转储
+`.env` 的内容。`CWK_OWNER_EMP_ID` / `CWK_OWNER_NAME` 不是凭据，我可以直接发给你，
+由你按 `KEY=***` 格式补进 `.env`。
 
-**暂停，等我说“填好了”。**
+**暂停，等 Key 写入回执 `configured`、doctor 检查汇报完毕，等我说继续。**
 
 ## 阶段 5：本地自检
 

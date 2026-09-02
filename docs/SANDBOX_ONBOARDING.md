@@ -142,7 +142,9 @@ Skill，所以它输出 `OPENCLAW_DISCOVERY=UNVERIFIED`。要确认是否真的�
 
 ## 4. 个人私有配置
 
-由使用者自己填写 `/workspace/CWK/.env`，Agent 不需要看到、也不应回显其内容：
+`CWORK_APP_KEY` 推荐直接在聊天里发给 Agent，由 Agent 执行
+`python3.11 scripts/cwk_key_set.py`（Key 经 stdin 传入）原子写入并回执
+`configured`；其余项由使用者自行编辑 `/workspace/CWK/.env`：
 
 ```dotenv
 CWORK_APP_KEY=自己的工作协同Key
@@ -155,8 +157,9 @@ CWK_DOCDB_PROJECT_ID=
 CWK_DOCDB_ROOT_FILE_ID=
 ```
 
-Key 不要贴进聊天记录、命令行参数或提交。`.env` 与 `cwk-mirror.local.json` 都已
-gitignore。
+在我们的定制客户端通路里把 Key 发给 Agent 是允许且推荐的路径；Key 不要放进
+命令行参数（`export KEY=v`、`echo`、`printf` 的参数行）或提交。`.env` 与
+`cwk-mirror.local.json` 都已 gitignore。
 
 只有当公司 Skill 不在默认位置时，才在同一份 `.env` 里补**路径类**变量
 `CMS_CWORK_WORKFLOW_DIR`、`CMS_AUTH_SKILL_DIR`（计划发布 DocDB 时再加
@@ -244,7 +247,7 @@ OpenClaw 调度 API。** 仓库只产出一份交接单：节奏、本地运行�
 那个任务真的存在。
 
 完整的分状态话术、命令与失败处理见[激活对话参考](../skill/references/activation.md)。
-四条红线在任何状态下都成立：不在对话里收集凭据；不把「现在能调用工具」当成授权；
+四条红线在任何状态下都成立：`CWORK_APP_KEY` 之外的凭据不进对话（这把 Key 本身允许在定制客户端通路里发送，且只经 `scripts/cwk_key_set.py` 落盘）；不把「现在能调用工具」当成授权；
 不展示 raw 原文；不创建、不修改、不删除任何定时任务。
 
 ## 8. 持久化与隔离

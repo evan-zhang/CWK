@@ -211,6 +211,17 @@
       "rationale": "RT-032 新增的激活状态机、确定性契约计算与 CLI。逐条列出而非用前缀，因为 scripts/ 是 exact-only 区，且 R-runtime-pr001-managed-scripts 是委派给上游封闭声明集合的规则——这三个新文件不在该集合内，必须由本清单直管。不建 script-evolution-v2 槽位：GA-V2-SLOT 要求叠加目标先存在于 v1 的 evolvable_paths，新脚本不满足，凭空开槽是伪演化路径。"
     },
     {
+      "id": "R-runtime-rt033-key-setup",
+      "domain": "runtime",
+      "kind": "exact",
+      "path": "scripts/cwk_key_set.py",
+      "owner": "RT-033",
+      "management_domain": "cwk-governance-v1",
+      "change_entry": "RT → rt-lite.md 记录理由 → 改动 → make governance-audit + tests/test_key_set.py",
+      "evolution_path": "repo-standard-change",
+      "rationale": "RT-033：2026-09-02 产品决策允许用户在定制客户端聊天通路直供 CWORK_APP_KEY，本脚本是其唯一落盘入口。scripts/ 是 exact-only 区且 PR-001 委派规则是封闭集合，新脚本必须由本清单直管。"
+    },
+    {
       "id": "R-build-makefile",
       "domain": "build_ci",
       "kind": "exact",

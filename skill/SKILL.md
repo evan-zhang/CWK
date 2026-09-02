@@ -63,7 +63,7 @@ python3 scripts/activation_wizard.py status
 **单独再问一次**是否允许排期（第二道确认）→ 出交接单交给宿主建任务 → 回填宿主给
 的外部任务标识。
 
-四条红线，任何状态下都成立：不在对话里收集凭据；不把「现在能调用工具」当成授权；
+四条红线，任何状态下都成立：`CWORK_APP_KEY` 之外的凭据不进对话（这把 Key 本身允许在定制客户端通路里发送，且只经 `scripts/cwk_key_set.py` 落盘）；不把「现在能调用工具」当成授权；
 不展示 raw 原文；不创建、不修改、不删除任何定时任务，也不假设存在 OpenClaw 调度
 API。完整的分状态话术、命令与失败处理见 `references/activation.md`。
 

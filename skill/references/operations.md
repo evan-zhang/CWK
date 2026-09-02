@@ -106,5 +106,4 @@ Full activation procedure: `references/activation.md`.
 - Never reply, approve, reject, delete, or complete CWork tasks.
 - Raw evidence must cite source IDs.
 - Markdown is the durable source; HTML is the human reading surface.
-- Never collect a credential in chat, and never create, modify, or delete a
-  scheduled task.
+- `CWORK_APP_KEY` may be accepted in chat on the vetted client channel and is stored only via `scripts/cwk_key_set.py`; no other credential is collected in chat. Never create, modify, or delete a scheduled task.

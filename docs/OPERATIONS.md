@@ -158,4 +158,4 @@ The runner creates temporary prompt files under the ignored `.cwk-ai-runtime/pro
 - Never reply, approve, reject, delete, or complete CWork tasks.
 - Raw evidence must cite source IDs.
 - Markdown is the durable source; HTML is the human reading surface.
-- Never collect a credential in a conversation, and never create, modify, or delete a scheduled task from this repository.
+- `CWORK_APP_KEY` may be handed over in chat on the vetted custom-client channel and is stored only via `scripts/cwk_key_set.py` (stdin, never echoed). No other credential is collected in a conversation. Never create, modify, or delete a scheduled task from this repository.
