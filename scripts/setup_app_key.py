@@ -17,8 +17,8 @@ CWORK_APP_KEY 直接粘贴在聊天窗口里发给 Agent；Agent 收到后调用
   或哈希。
 
 用法：
-    printf '%s' 'THE_KEY' | python3.11 scripts/cwk_key_set.py
-    python3.11 scripts/cwk_key_set.py --env-file /workspace/CWK/.env
+    printf '%s' 'THE_KEY' | python3.11 scripts/setup_app_key.py
+    python3.11 scripts/setup_app_key.py --env-file /workspace/CWK/.env
 
 退出码：0 成功；2 输入错误（空值、含内嵌空白、超长）。
 

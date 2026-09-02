@@ -143,7 +143,7 @@ Skill，所以它输出 `OPENCLAW_DISCOVERY=UNVERIFIED`。要确认是否真的�
 ## 4. 个人私有配置
 
 `CWORK_APP_KEY` 推荐直接在聊天里发给 Agent，由 Agent 执行
-`python3.11 scripts/cwk_key_set.py`（Key 经 stdin 传入）原子写入并回执
+`python3.11 scripts/setup_app_key.py`（Key 经 stdin 传入）原子写入并回执
 `configured`；其余项由使用者自行编辑 `/workspace/CWK/.env`：
 
 ```dotenv
@@ -247,7 +247,7 @@ OpenClaw 调度 API。** 仓库只产出一份交接单：节奏、本地运行�
 那个任务真的存在。
 
 完整的分状态话术、命令与失败处理见[激活对话参考](../skill/references/activation.md)。
-四条红线在任何状态下都成立：`CWORK_APP_KEY` 之外的凭据不进对话（这把 Key 本身允许在定制客户端通路里发送，且只经 `scripts/cwk_key_set.py` 落盘）；不把「现在能调用工具」当成授权；
+四条红线在任何状态下都成立：`CWORK_APP_KEY` 之外的凭据不进对话（这把 Key 本身允许在定制客户端通路里发送，且只经 `scripts/setup_app_key.py` 落盘）；不把「现在能调用工具」当成授权；
 不展示 raw 原文；不创建、不修改、不删除任何定时任务。
 
 ## 8. 持久化与隔离

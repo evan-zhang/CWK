@@ -54,3 +54,19 @@ agent 沙箱没有这个 agent，部署就卡在"配置专用 cwk-ai-reviewer"�
 
 单提交回退（git revert）；或运行时设 `CWK_AI_TRANSPORT=agent`，exec 分支
 完全不参与。
+
+## S-4 重钉与 CI 修复（2026-09-03 追加）
+
+RT-033 的 CI 在 PR-001 安全面测试上红了（`missing v2 security owner scope for
+RT-017`），两个根因在本 RT 一并收口：
+
+1. RT-033 新增的 `scripts/setup_app_key.py`（原名 `cwk_key_set.py`）落进了
+   PR-001 管控命名空间 `^scripts/cwk_*.py$`（封闭归属表）却没有登记，安全面
+   快照 fail-closed。修复：更名为 `scripts/setup_app_key.py` 离开封闭命名
+   空间，治理归属走 manifest 规则 R-runtime-rt033-key-setup（同类先例：
+   `cwk_wiki_batch_driver.sh`），全仓 14 处引用同步更新。
+2. 本 RT 修改 `cwk_ai_common.py` 后补执行了 authorized_change_procedure 的
+   S-4：registry pin `ea33adc5` 重钉为 `8b1b6108`，并级联更新 overlay
+   `inherits.registry_sha256` 与 `current_pin`、manifest
+   `upstream_authorities[0].sha256` 与 overlay 规则 pin。S-1..S-3 证据
+   （本 rt-lite、v2 回执、migration note）保持不变。

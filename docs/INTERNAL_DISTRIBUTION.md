@@ -86,7 +86,7 @@ Workspace，不能把容器路径原样交给宿主 CLI。
 ## 3. 只配置自己的本机文件
 
 把 `CWORK_APP_KEY` 直接发给 Agent（定制客户端通路内允许且推荐），Agent 用
-`python3.11 scripts/cwk_key_set.py`（Key 经 stdin 传入）原子写入并回执
+`python3.11 scripts/setup_app_key.py`（Key 经 stdin 传入）原子写入并回执
 `configured`；或自行编辑新建的 `.env`。无论哪种方式，Key 都不要放进命令行参数
 或提交。
 
@@ -177,7 +177,7 @@ python3.11 scripts/activation_wizard.py status
 分配的标识回填给 `record-schedule`。
 
 完整的分状态话术、命令与失败处理见[激活对话参考](../skill/references/activation.md)。
-无论哪种状态，四条红线都成立：`CWORK_APP_KEY` 之外的凭据不进对话（这把 Key 本身允许在定制客户端通路里发送，且只经 `scripts/cwk_key_set.py` 落盘）；不把「现在能调用工具」当成授权；
+无论哪种状态，四条红线都成立：`CWORK_APP_KEY` 之外的凭据不进对话（这把 Key 本身允许在定制客户端通路里发送，且只经 `scripts/setup_app_key.py` 落盘）；不把「现在能调用工具」当成授权；
 不展示 raw 原文；不创建、不修改、不删除任何定时任务。
 
 ## 边界

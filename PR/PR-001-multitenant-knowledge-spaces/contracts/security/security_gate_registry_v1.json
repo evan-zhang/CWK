@@ -33,7 +33,7 @@
       {
         "path": "scripts/cwk_ai_common.py",
         "mode": "100644",
-        "sha256": "ea33adc54c7829e766b63d76f59937f4ea1803ff44509bc0b87370abf77c3e55"
+        "sha256": "8b1b610893feea984824423480c5dfe5808ce9093c23e9e005c042bfbb2b459f"
       },
       {
         "path": "scripts/cwk_ai_enhanced_digest.py",
@@ -288,8 +288,12 @@
     {
       "path": "scripts/cwk_tenant_cli.py",
       "owner_stage_indices": {
-        "RT-019": [3],
-        "RT-026": [7]
+        "RT-019": [
+          3
+        ],
+        "RT-026": [
+          7
+        ]
       }
     }
   ],
@@ -307,7 +311,14 @@
         }
       ],
       "consumer_rts": [
-        "RT-017", "RT-018", "RT-019", "RT-020", "RT-021", "RT-022", "RT-023", "RT-026"
+        "RT-017",
+        "RT-018",
+        "RT-019",
+        "RT-020",
+        "RT-021",
+        "RT-022",
+        "RT-023",
+        "RT-026"
       ]
     }
   ],
@@ -382,13 +393,20 @@
         "RT/RT-017/specs/技术方案.md",
         "RT/RT-017/tasks/开发任务.md"
       ],
-      "owner_test_file_prefixes": ["tests/test_rt017_"],
+      "owner_test_file_prefixes": [
+        "tests/test_rt017_"
+      ],
       "required_security_test_files": [
         "tests/test_rt017_paths.py",
         "tests/test_rt017_security.py"
       ],
-      "owner_evolution_stage_indices": [1, 2],
-      "required_shared_abi_ids": ["pilot-admission-v1"],
+      "owner_evolution_stage_indices": [
+        1,
+        2
+      ],
+      "required_shared_abi_ids": [
+        "pilot-admission-v1"
+      ],
       "unresolved_owner_surface_requirements": [],
       "receipt_kind": "rt-security",
       "producer_task_id": "D-07",
@@ -481,13 +499,17 @@
         "RT/RT-018/specs/技术方案.md",
         "RT/RT-018/tasks/开发任务.md"
       ],
-      "owner_test_file_prefixes": ["tests/test_rt018_"],
+      "owner_test_file_prefixes": [
+        "tests/test_rt018_"
+      ],
       "required_security_test_files": [
         "tests/test_rt018_paths.py",
         "tests/test_rt018_security.py"
       ],
       "owner_evolution_stage_indices": [],
-      "required_shared_abi_ids": ["pilot-admission-v1"],
+      "required_shared_abi_ids": [
+        "pilot-admission-v1"
+      ],
       "unresolved_owner_surface_requirements": [],
       "receipt_kind": "rt-security",
       "producer_task_id": "D-05",
@@ -565,13 +587,19 @@
         "RT/RT-019/specs/技术方案.md",
         "RT/RT-019/tasks/开发任务.md"
       ],
-      "owner_test_file_prefixes": ["tests/test_rt019_"],
+      "owner_test_file_prefixes": [
+        "tests/test_rt019_"
+      ],
       "required_security_test_files": [
         "tests/test_rt019_paths.py",
         "tests/test_rt019_security.py"
       ],
-      "owner_evolution_stage_indices": [3],
-      "required_shared_abi_ids": ["pilot-admission-v1"],
+      "owner_evolution_stage_indices": [
+        3
+      ],
+      "required_shared_abi_ids": [
+        "pilot-admission-v1"
+      ],
       "unresolved_owner_surface_requirements": [],
       "receipt_kind": "rt-security",
       "producer_task_id": "D-07",
@@ -640,13 +668,17 @@
         "RT/RT-020/specs/技术方案.md",
         "RT/RT-020/tasks/开发任务.md"
       ],
-      "owner_test_file_prefixes": ["tests/test_rt020_"],
+      "owner_test_file_prefixes": [
+        "tests/test_rt020_"
+      ],
       "required_security_test_files": [
         "tests/test_rt020_paths.py",
         "tests/test_rt020_security.py"
       ],
       "owner_evolution_stage_indices": [],
-      "required_shared_abi_ids": ["pilot-admission-v1"],
+      "required_shared_abi_ids": [
+        "pilot-admission-v1"
+      ],
       "unresolved_owner_surface_requirements": [],
       "receipt_kind": "rt-security",
       "producer_task_id": "D-06",
@@ -712,13 +744,20 @@
         "RT/RT-021/specs/技术方案.md",
         "RT/RT-021/tasks/开发任务.md"
       ],
-      "owner_test_file_prefixes": ["tests/test_rt021_"],
+      "owner_test_file_prefixes": [
+        "tests/test_rt021_"
+      ],
       "required_security_test_files": [
         "tests/test_rt021_paths.py",
         "tests/test_rt021_security.py"
       ],
-      "owner_evolution_stage_indices": [4, 5],
-      "required_shared_abi_ids": ["pilot-admission-v1"],
+      "owner_evolution_stage_indices": [
+        4,
+        5
+      ],
+      "required_shared_abi_ids": [
+        "pilot-admission-v1"
+      ],
       "unresolved_owner_surface_requirements": [],
       "receipt_kind": "rt-security",
       "producer_task_id": "D-06",
@@ -787,14 +826,20 @@
         "RT/RT-022/specs/技术方案.md",
         "RT/RT-022/tasks/开发任务.md"
       ],
-      "owner_test_file_prefixes": ["tests/test_rt022_"],
+      "owner_test_file_prefixes": [
+        "tests/test_rt022_"
+      ],
       "required_security_test_files": [
         "tests/test_rt022_no_fs_surface.py",
         "tests/test_rt022_paths.py",
         "tests/test_rt022_security.py"
       ],
-      "owner_evolution_stage_indices": [6],
-      "required_shared_abi_ids": ["pilot-admission-v1"],
+      "owner_evolution_stage_indices": [
+        6
+      ],
+      "required_shared_abi_ids": [
+        "pilot-admission-v1"
+      ],
       "unresolved_owner_surface_requirements": [],
       "receipt_kind": "rt-security",
       "producer_task_id": "T022-14",
@@ -890,13 +935,17 @@
         "RT/RT-023/specs/技术方案.md",
         "RT/RT-023/tasks/开发任务.md"
       ],
-      "owner_test_file_prefixes": ["tests/test_rt023_"],
+      "owner_test_file_prefixes": [
+        "tests/test_rt023_"
+      ],
       "required_security_test_files": [
         "tests/test_rt023_paths.py",
         "tests/test_rt023_security.py"
       ],
       "owner_evolution_stage_indices": [],
-      "required_shared_abi_ids": ["pilot-admission-v1"],
+      "required_shared_abi_ids": [
+        "pilot-admission-v1"
+      ],
       "unresolved_owner_surface_requirements": [],
       "receipt_kind": "rt-security",
       "producer_task_id": "T023-14",
@@ -977,7 +1026,9 @@
         "RT/RT-024/specs/技术方案.md",
         "RT/RT-024/tasks/开发任务.md"
       ],
-      "owner_test_file_prefixes": ["tests/test_rt024_"],
+      "owner_test_file_prefixes": [
+        "tests/test_rt024_"
+      ],
       "required_security_test_files": [
         "tests/test_rt024_paths.py",
         "tests/test_rt024_security.py"
@@ -1065,7 +1116,9 @@
         "RT/RT-025/specs/技术方案.md",
         "RT/RT-025/tasks/开发任务.md"
       ],
-      "owner_test_file_prefixes": ["tests/test_rt025_"],
+      "owner_test_file_prefixes": [
+        "tests/test_rt025_"
+      ],
       "required_security_test_files": [
         "tests/test_rt025_paths.py",
         "tests/test_rt025_security.py"
@@ -1152,13 +1205,20 @@
         "RT/RT-026/specs/技术方案.md",
         "RT/RT-026/tasks/开发任务.md"
       ],
-      "owner_test_file_prefixes": ["tests/test_rt026_"],
+      "owner_test_file_prefixes": [
+        "tests/test_rt026_"
+      ],
       "required_security_test_files": [
         "tests/test_rt026_paths.py",
         "tests/test_rt026_security.py"
       ],
-      "owner_evolution_stage_indices": [7, 8],
-      "required_shared_abi_ids": ["pilot-admission-v1"],
+      "owner_evolution_stage_indices": [
+        7,
+        8
+      ],
+      "required_shared_abi_ids": [
+        "pilot-admission-v1"
+      ],
       "unresolved_owner_surface_requirements": [],
       "receipt_kind": "preflight-security",
       "producer_task_id": "T026-14",

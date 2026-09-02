@@ -12,12 +12,12 @@
 ## 硬性禁止（任何阶段都适用）
 
 1. `CWORK_APP_KEY` 允许我直接在聊天里发给你：收到后立即执行
-   `python3.11 scripts/cwk_key_set.py`（Key 经 stdin/heredoc 传入，绝不放进
+   `python3.11 scripts/setup_app_key.py`（Key 经 stdin/heredoc 传入，绝不放进
    `echo`/`printf` 的参数行），成功后只回执 `configured`，不回显、不打印、不写进
    提交。除这把 Key 之外的任何凭据仍然：不索取、不回显、不贴进聊天记录、不写进
    任何文件或提交。
 2. 不执行 `source .env` / `. ./.env`，也不用 `cat`、`env`、`echo` 等方式读取或转储
-   `.env`。`CWORK_APP_KEY` 的写入只走 `scripts/cwk_key_set.py`，你只看命令的通过/失败结果。
+   `.env`。`CWORK_APP_KEY` 的写入只走 `scripts/setup_app_key.py`，你只看命令的通过/失败结果。
 3. 不依赖、不安装、不尝试调用 `openclaw` CLI。CWK 不需要它。
 4. 不修改全局配置、shell 配置文件、安全策略、权限或沙箱设置。
 5. 不覆盖、不删除、不重装已存在的 CWK 目录、已存在的 `.env` 或
@@ -144,7 +144,7 @@ smoke 用的是极小的脱敏样例，只验证命令与渲染连通；它报 `
 
   ```bash
   cd /workspace/CWK
-  python3.11 scripts/cwk_key_set.py <<'CWK_KEY'
+  python3.11 scripts/setup_app_key.py <<'CWK_KEY'
   （用户发送的 Key 原样放在这一行）
   CWK_KEY
   ```

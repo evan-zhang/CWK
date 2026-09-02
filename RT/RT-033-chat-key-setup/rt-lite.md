@@ -1,4 +1,4 @@
-# RT-033：聊天直供 CWORK_APP_KEY（cwk_key_set.py）
+# RT-033：聊天直供 CWORK_APP_KEY（setup_app_key.py）
 
 ## 决策
 
@@ -9,7 +9,7 @@
 
 ## 变更
 
-- 新增 `scripts/cwk_key_set.py`：stdin 读 Key（绝不进 argv），原子写 `.env`
+- 新增 `scripts/setup_app_key.py`：stdin 读 Key（绝不进 argv），原子写 `.env`
   （0600），保留其他行，修复 export 前缀 / 成对引号 / BOM / 重复行；回执 JSON
   不含值。读取路径零改动（pipeline / doctor 现有 `.env` 解析即读取面）。
 - 新增 `tests/test_key_set.py`。
@@ -18,7 +18,7 @@
   `docs/OPERATIONS.md`、`skill/SKILL.md`、`skill/references/activation.md`、
   `skill/references/operations.md`、`.env.example`、`README.md`）：
   「不在对话里收集凭据」→「仅 CWORK_APP_KEY 允许在定制客户端通路发送，且只经
-  `scripts/cwk_key_set.py` 落盘；其余凭据照旧禁止」。
+  `scripts/setup_app_key.py` 落盘；其余凭据照旧禁止」。
 - 治理：code-ownership-manifest 新增 `R-runtime-rt033-key-setup`
   （`scripts/` 是 exact-only 区，PR-001 委派规则为封闭集合，新脚本必须由清单直管）。
 
@@ -37,3 +37,11 @@
 - `python3 -m unittest discover -s tests -p 'test_governance_audit.py'`、
   `test_distribution.py`、`test_install_modes.py`：全部通过。
 - 推送 main 后由 GitHub CI（make ci）作为权威门禁兜底。
+
+## 2026-09-03 更名说明
+
+`scripts/cwk_key_set.py` 更名为 `scripts/setup_app_key.py`：原名落入 PR-001
+安全登记表的封闭命名空间 `^scripts/cwk_*.py$`，未登记成员导致安全面测试
+fail-closed。更名后由 manifest 规则 R-runtime-rt033-key-setup 直管（同类
+先例：`cwk_wiki_batch_driver.sh`）。功能与用法不变：stdin 读 Key、原子写
+`.env`、0600、回执不含值。

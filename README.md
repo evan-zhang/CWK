@@ -183,7 +183,7 @@ In the default personal-mirror deployment, one 工作协同 appKey is enough for
 cp .env.example .env
 ```
 
-Then fill `CWORK_APP_KEY` plus the matching `CWK_OWNER_EMP_ID` / `CWK_OWNER_NAME`. On the vetted sandbox client you can simply send the key in chat and let the agent run `python3.11 scripts/cwk_key_set.py`, which writes the `CWORK_APP_KEY=***` line atomically (0600) and repairs format traps. Keep `CWK_DOCDB_PROJECT_ID` and `CWK_DOCDB_ROOT_FILE_ID` empty unless you are intentionally writing to a specific shared knowledge-base folder.
+Then fill `CWORK_APP_KEY` plus the matching `CWK_OWNER_EMP_ID` / `CWK_OWNER_NAME`. On the vetted sandbox client you can simply send the key in chat and let the agent run `python3.11 scripts/setup_app_key.py`, which writes the `CWORK_APP_KEY=***` line atomically (0600) and repairs format traps. Keep `CWK_DOCDB_PROJECT_ID` and `CWK_DOCDB_ROOT_FILE_ID` empty unless you are intentionally writing to a specific shared knowledge-base folder.
 
 `cwk_nightly_pipeline.py` automatically loads the gitignored project `.env` and never overrides variables already exported by the parent process. `scripts/cwk_doctor.py` reads the same file with a minimal dotenv parser — it never executes the file as shell, and it reports only `configured` / `missing`, never a value, prefix, hash, or reversible fragment. There is no need to `source .env` before running doctor.
 

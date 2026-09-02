@@ -3,18 +3,14 @@
   "overlay_version": "v2",
   "established_by": "RT-030",
   "established_at": "2026-08-31",
-
   "purpose": "为两类『已经无路可走』的受管文件提供有主的前向演化路径，而**不修改任何已冻结、已被哈希固定的 v1 证据**：(a) DI-001 —— policy_v1 的 9 条 evolvable_paths 槽位全部用尽；(b) DI-002 —— 53 个 legacy_frozen_files 只有固定哈希、没有演化机制。",
-
   "non_goal": "本叠加层不追认、不重写、不替代 v1 的任何历史回执。v1 已签发的 10 份 stage 回执与两份独立验收报告保持原样。v2 只在 v1 链尖之后接续。",
-
   "inherits": {
     "policy_ref": "PR/PR-001-multitenant-knowledge-spaces/contracts/script-evolution/policy_v1.json",
     "policy_sha256": "2089490e45bdd84ba3bac75fe40092f81f40765638b988e17facdc4040d14a6d",
     "registry_ref": "PR/PR-001-multitenant-knowledge-spaces/contracts/security/security_gate_registry_v1.json",
-    "registry_sha256": "247208a9b031e6e8c844c92a2e0dd318edbca14135fbf6d1ed1f64661d1a548a"
+    "registry_sha256": "1e7f6a8a30bfafc04e70d18f1305aa751f3b686035223de354a14e3fbc104195"
   },
-
   "compatibility_rules": [
     "CR-1 继承完整性：inherits 里两个 sha256 必须与磁盘逐字节相符。任何一处不符即判定 v1 被改写，v2 立即失效并硬失败——这是『没有伪造历史』的可复验证明。",
     "CR-2 交叉一致：policy_sha256 必须同时等于 registry 内 script_evolution_policy_sha256 字段的值。两个独立来源指向同一版 v1。",
@@ -23,7 +19,6 @@
     "CR-5 回执隔离：v2 回执一律落在 RT/<owner_rt>/receipts/script-evolution-v2/，绝不进入 v1 的闭合 glob RT/*/receipts/script-evolution/*，因此不会破坏 v1 的『回执必须是策略预声明』闭合判据。",
     "CR-6 owner 受限：v2 回执的 owner_rt 必须属于该槽位在 v1 中声明的 owner_rts，不得借 v2 把改动记到别人名下。"
   ],
-
   "receipt_root_template": "RT/<owner_rt>/receipts/script-evolution-v2",
   "receipt_required_fields": [
     "schema",
@@ -37,11 +32,12 @@
     "rt_ref"
   ],
   "receipt_schema_id": "cwk.governance.script_evolution_receipt.v2",
-
   "continuation_slots": [
     {
       "target_path": "scripts/cwk_wiki_query.py",
-      "owner_rts": ["RT-022"],
+      "owner_rts": [
+        "RT-022"
+      ],
       "v1_max_ordinal": 1,
       "v1_chain_tip_sha256": "41b936cc515372209ead3513a8d19166ecb8da4696fdbe7000ac9e372217c8f2",
       "v2_ordinal_start": 2,
@@ -50,7 +46,9 @@
     },
     {
       "target_path": "scripts/cwk_nightly_pipeline.py",
-      "owner_rts": ["RT-026"],
+      "owner_rts": [
+        "RT-026"
+      ],
       "v1_max_ordinal": 1,
       "v1_chain_tip_sha256": "5aed1220599b0bcad11977249f8313cf34d1ecd0c23a1b487c147dfa3a3f706f",
       "v2_ordinal_start": 2,
@@ -58,15 +56,12 @@
       "rationale": "v1 的唯一槽位 stage-08 已被 RT-029 用于登记存量改动 dc96c28（云 Wiki 主力模型切换）。RT-026 真正实现试点影子切换时需要可用槽位。"
     }
   ],
-
   "legacy_evolution": {
     "family_ref": "pr001-security-registry#managed_script_inventory.legacy_frozen_files",
     "member_count": 53,
     "problem": "该族只有『path + mode + sha256』三元组，配一条『指纹必须与磁盘相符』的断言。它能探测漂移，但没有任何**授权改动**的方式——想改就只能直接改指纹，既无 owner、无理由记录、也无验收测试。这正是 DI-002。",
-
     "default_steward": "CWK maintainer",
     "owner_assignment_rule": "每个成员的 owner 默认为 default_steward；被列入 high_risk_members 的成员额外要求在 RT 里点名说明。任何成员都不再处于『无主』状态。",
-
     "authorized_change_procedure": [
       "S-1 开 RT（或在既有 RT 内），在 rt-lite.md 写清为什么必须改这个 legacy 文件。",
       "S-2 在 RT/<owner_rt>/receipts/script-evolution-v2/ 下写一份 v2 回执，from_sha256 = 登记表当前 pin，to_sha256 = 新内容哈希。",
@@ -74,13 +69,11 @@
       "S-4 同步更新安全登记表里该成员的 pin（这一步仍是 PR-001 的动作，但现在有 S-1..S-3 作为前置证据）。",
       "S-5 跑 make governance-audit 与 make ci。"
     ],
-
     "enforcement": "governance-audit 对每个成员比对『登记表 pin ↔ 磁盘内容』。相符即通过。**不相符时不再是直接失败，而是要求存在一份能解释该差异的 v2 回执**（from = pin、to = 磁盘、owner_rt 有效、migration_note_ref 存在）；没有回执才失败。于是『改指纹放行』被替换成『带证据地改』。",
-
     "high_risk_members": [
       {
         "path": "scripts/cwk_ai_common.py",
-        "current_pin": "ea33adc54c7829e766b63d76f59937f4ea1803ff44509bc0b87370abf77c3e55",
+        "current_pin": "8b1b610893feea984824423480c5dfe5808ce9093c23e9e005c042bfbb2b459f",
         "reason": "承载模型允许清单。DI-002 记录的 dc96c28 就是在这里把允许模型从 2 个扩到 4 个——一次没有任何回执的运行时行为扩权。"
       },
       {
@@ -89,7 +82,6 @@
         "reason": "两个默认模型字面量，同属 dc96c28 那次未登记的模型切换。"
       }
     ],
-
     "note": "本叠加层不改变这 53 条 pin 中的任何一条，也不改登记表。它只是在 pin 之外补上『怎样才算被授权地改』。"
   }
 }

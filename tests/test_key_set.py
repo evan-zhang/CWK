@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 PROJECT = Path(__file__).resolve().parents[1]
-SCRIPT = PROJECT / "scripts" / "cwk_key_set.py"
+SCRIPT = PROJECT / "scripts" / "setup_app_key.py"
 FAKE_KEY = "***" + "k" * 40
 
 

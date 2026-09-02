@@ -77,7 +77,7 @@ _REPRESENTATIVE_TRACKED = (
     "references/relation-gold-v1.json",
     "skill/templates/CONFIG.example.json",
     "scripts/activation_state.py",
-    "scripts/cwk_key_set.py",
+    "scripts/setup_app_key.py",
     "Makefile",
     ".github/workflows/ci.yml",
     ".gitignore",

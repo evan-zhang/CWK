@@ -15,7 +15,7 @@ Never, in any state:
 
 - **`CWORK_APP_KEY` is the one credential the user may hand over in chat** (on the vetted
   custom-client channel). Receive it, immediately persist it with
-  `scripts/cwk_key_set.py` (stdin, never argv), reply `configured` only, and
+  `scripts/setup_app_key.py` (stdin, never argv), reply `configured` only, and
   never repeat the value back. Every other credential is still refused: not a
   prefix, not "just to check". Do not read or dump `.env` beyond that script.
 - **Never treat your current tool access as authorization.** Being able to read
