@@ -1,4 +1,4 @@
-.PHONY: doctor test aodw-check governance-audit ci smoke smoke-ai smoke-ai-degraded wiki-lint wiki-smoke clean
+.PHONY: doctor test aodw-check governance-audit ci test-lite ci-lite smoke smoke-ai smoke-ai-degraded wiki-lint wiki-smoke clean
 
 PYTHON ?= python3
 TEST_TMPDIR ?= $(shell $(PYTHON) -c 'import os,tempfile; print(os.path.realpath(tempfile.gettempdir()))')
@@ -33,6 +33,23 @@ governance-audit:
 # 两边命令一旦不同，「CI 是绿的」这句话就不再是本地可复现的证据。
 ci:
 	$(MAKE) test
+	$(MAKE) aodw-check
+	$(MAKE) governance-audit
+
+
+# 轻量车道：`make ci` 仍是唯一完整门禁（含 PR-001 安全门重夹具模块，约 46 分钟）。
+# `make ci-lite` 供纯文档/回执类合并与日常迭代使用，跳过该模块，约 20+ 分钟。
+# 发布或任何产品代码改动前必须跑 `make ci`；governance-audit 的 CC-2 断言 ci 含 governance-audit。
+test-lite:
+	$(MAKE) doctor
+	$(PYTHON) -m py_compile scripts/*.py
+	cd tests && TMPDIR="$(TEST_TMPDIR)" $(PYTHON) -m unittest $(shell cd tests && find . -maxdepth 1 -name 'test_*.py' ! -name 'test_pr001_release_gate_validation.py' -exec basename {} .py \; | sort | tr '\n' ' ')
+	$(MAKE) smoke
+	$(MAKE) smoke-ai
+	$(MAKE) smoke-ai-degraded
+
+ci-lite:
+	$(MAKE) test-lite
 	$(MAKE) aodw-check
 	$(MAKE) governance-audit
 
