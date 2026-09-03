@@ -78,6 +78,9 @@ _COPY_FILES = (
     # RT-040 ord1：legacy 族 cwk_backfill_range.py 的第二次演化（outbox 双通道）。
     "RT/RT-040/receipts/script-evolution-v2/rt040-outbox-dual-channel-ord1.json",
     "RT/RT-040/migration-notes/rt040-outbox-dual-channel-ord1.md",
+    # RT-040 ord2：高风险成员 cwk_cloud_wiki_compile.py 的 vN 择新演化。
+    "RT/RT-040/receipts/script-evolution-v2/rt040-reply-refresh-ord2.json",
+    "RT/RT-040/migration-notes/rt040-reply-refresh-ord2.md",
     "RT/RT-040/rt-lite.md",
 )
 
@@ -92,6 +95,7 @@ _REPRESENTATIVE_TRACKED = (
     "skill/templates/CONFIG.example.json",
     "scripts/activation_state.py",
     "scripts/setup_app_key.py",
+    "scripts/reply_refresh.py",
     "Makefile",
     ".github/workflows/ci.yml",
     ".gitignore",

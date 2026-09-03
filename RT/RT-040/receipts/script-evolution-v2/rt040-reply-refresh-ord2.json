@@ -1,0 +1,11 @@
+{
+  "schema": "cwk.governance.script_evolution_receipt.v2",
+  "overlay_version": "v2",
+  "owner_rt": "RT-040",
+  "target_path": "scripts/cwk_cloud_wiki_compile.py",
+  "ordinal": 1,
+  "from_sha256": "27932db3991003ccf7ec51e91965df1aecd7bbb3fe7ab5731220ffa123e0a624",
+  "to_sha256": "472e9fc4269b5060265298a42ce6f2f6fbec2633bde4d246ea923c8880e5e842",
+  "migration_note_ref": "RT/RT-040/migration-notes/rt040-reply-refresh-ord2.md",
+  "rt_ref": "RT/RT-040/rt-lite.md"
+}

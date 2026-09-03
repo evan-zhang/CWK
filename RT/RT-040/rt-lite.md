@@ -23,7 +23,14 @@
 - nightly 调用方零改动：cwk_nightly_pipeline.py 走 CLI 默认值即获得
   双通道；cwk_source_coverage_audit.py 走函数默认值同样受益
 
-## ord2 变更（scripts/cwk_reply_refresh.py，新增非封闭命名空间文件）
+## ord2 变更（scripts/reply_refresh.py 新增 + cwk_cloud_wiki_compile.py vN 择新）
+
+- **cwk_cloud_wiki_compile.py（high_risk_members 点名改动，v2 回执 ord2）**：
+  by_id 选择加 `_version_of` tie-break——同一 report_id 并存
+  `<id>-标题.md` 与 `<id>-vN-标题.md` 时选版本号最大者。旧 last-wins 因
+  排序（`-v2-` 0x2d < CJK）永远选中原快照，重编译拿不到回复刷新内容
+  （2026-09-03 线上实测复现：summary source 指针落在原文）。模型字面量
+  与 AI 调用语义一个字节未动（migration note 有点名说明）
 
 - `wiki/_system/reply-state.json` 基线：report_id → replyCount/hasNewReply
   快照 + checked_at

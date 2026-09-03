@@ -475,6 +475,16 @@ def _signal_flush(signum: int, frame: Any) -> None:
     raise SystemExit(f"received {sig_name}, manifest flushed")
 
 
+def _version_of(path: Path) -> int:
+    # RT-040 ord2: ``<id>-vN-标题.md`` reply-refresh snapshots must win over
+    # the plain ``<id>-标题.md`` original when both exist, because a v2
+    # snapshot carries the newer reply/opinion state.  Plain sort puts
+    # "-v2-" (0x2d 'v') before CJK titles, so last-wins silently pinned the
+    # ORIGINAL — recompiles never saw the refreshed content.
+    m = re.match(r"^\d+?-v(\d+?)-", path.name)
+    return int(m.group(1)) if m else 0
+
+
 def main() -> None:
     global _manifest_state, _manifest_path
 
@@ -576,7 +586,12 @@ def main() -> None:
         item.strip() for item in str(args.report_ids or "").split(",") if item.strip()
     }
     candidate_rows: list[tuple[Path, dict[str, str]]] = [(raw, raw_metadata(raw)[0]) for raw in candidates]
-    by_id = {meta["report_id"]: raw for raw, meta in candidate_rows}
+
+    by_id: dict[str, Path] = {}
+    for raw, meta in candidate_rows:
+        rid = meta["report_id"]
+        if rid not in by_id or _version_of(raw) > _version_of(by_id[rid]):
+            by_id[rid] = raw
     selected: list[Path] = []
     bystander_missing: list[Path] = []
     if requested_ids:

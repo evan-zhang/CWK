@@ -9,7 +9,7 @@
     "policy_ref": "PR/PR-001-multitenant-knowledge-spaces/contracts/script-evolution/policy_v1.json",
     "policy_sha256": "2089490e45bdd84ba3bac75fe40092f81f40765638b988e17facdc4040d14a6d",
     "registry_ref": "PR/PR-001-multitenant-knowledge-spaces/contracts/security/security_gate_registry_v1.json",
-    "registry_sha256": "3deea750b28066fe8ab43c9c7a62f10c114506b5c8555fd0d45f0cb7d01beb0b"
+    "registry_sha256": "e7d438ac071a892a8c68cd2daab6fa8655bd2f6e4879ae995233670f9745484f"
   },
   "compatibility_rules": [
     "CR-1 继承完整性：inherits 里两个 sha256 必须与磁盘逐字节相符。任何一处不符即判定 v1 被改写，v2 立即失效并硬失败——这是『没有伪造历史』的可复验证明。",
@@ -78,7 +78,7 @@
       },
       {
         "path": "scripts/cwk_cloud_wiki_compile.py",
-        "current_pin": "27932db3991003ccf7ec51e91965df1aecd7bbb3fe7ab5731220ffa123e0a624",
+        "current_pin": "472e9fc4269b5060265298a42ce6f2f6fbec2633bde4d246ea923c8880e5e842",
         "reason": "两个默认模型字面量，同属 dc96c28 那次未登记的模型切换。"
       }
     ],
