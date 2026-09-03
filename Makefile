@@ -1,4 +1,4 @@
-.PHONY: doctor test aodw-check governance-audit ci test-lite ci-lite smoke smoke-ai smoke-ai-degraded wiki-lint wiki-smoke clean
+.PHONY: doctor test test-full aodw-check governance-audit ci ci-full smoke smoke-ai smoke-ai-degraded wiki-lint wiki-smoke clean
 
 PYTHON ?= python3
 TEST_TMPDIR ?= $(shell $(PYTHON) -c 'import os,tempfile; print(os.path.realpath(tempfile.gettempdir()))')
@@ -10,7 +10,29 @@ SMOKE_AI_DEGRADED_RUN ?= ci-smoke-ai-degraded
 doctor:
 	$(PYTHON) scripts/cwk_doctor.py --check-only --config skill/templates/CONFIG.example.json
 
+# 车道两层（RT-038，实测见 RT/RT-038/rt-lite.md）：
+# - `test` / `ci` 是快车道：单测排除 PR-001 安全族（test_pr001_*.py，本地实测
+#   合计约 70+ 分钟，占全量时长绝大头），保留其余全部单测 + 三条脱敏 smoke，
+#   本地约 3 分钟。日常迭代、文档、回执类改动用它。
+# - `test-full` / `ci-full` 是全量车道：全部单测。发布或产品代码改动前必须
+#   本地过一次；ci.yml 的每夜 schedule 也会跑一遍兜底。
+# - 旧 test-lite/ci-lite 已退役：它只排除 test_pr001_release_gate_validation.py，
+#   但 PR-001 其余 10 个测试文件同样是时长主体，「轻量」车道并没有轻多少。
+# - macOS 本地注意：仓库若放在 /tmp 下，/tmp→/private/tmp 符号链接会让 VGA
+#   的实例根链检查 fail-closed（cwk_instance.InstanceRootError）；从
+#   /private/tmp/... 路径进入工作目录即可。另外默认 TMPDIR 路径较长，会
+#   触发 rt032 socket 夹具的 AF_UNIX 104 字符上限，加 TEST_TMPDIR=/private/tmp。
+#   本地建议跑法：cd /private/tmp/<repo> && env -u CWORK_APP_KEY make test TEST_TMPDIR=/private/tmp
+# - governance-audit 的 CC-2 断言要求 ci 的 recipe 含 governance-audit，别摘。
 test:
+	$(MAKE) doctor
+	$(PYTHON) -m py_compile scripts/*.py
+	cd tests && TMPDIR="$(TEST_TMPDIR)" $(PYTHON) -m unittest $(shell cd tests && find . -maxdepth 1 -name 'test_*.py' ! -name 'test_pr001_*.py' -exec basename {} .py \; | sort | tr '\n' ' ')
+	$(MAKE) smoke
+	$(MAKE) smoke-ai
+	$(MAKE) smoke-ai-degraded
+
+test-full:
 	$(MAKE) doctor
 	$(PYTHON) -m py_compile scripts/*.py
 	TMPDIR="$(TEST_TMPDIR)" $(PYTHON) -m unittest discover -s tests -p 'test_*.py'
@@ -29,27 +51,17 @@ aodw-check:
 governance-audit:
 	$(PYTHON) .aodw-next/06-project/governance-audit.py --root .
 
-# CI 与本地共用的唯一入口。CI 跑什么本地就跑什么，反过来也一样——
-# 两边命令一旦不同，「CI 是绿的」这句话就不再是本地可复现的证据。
+# CI 与本地共用的两个入口：ci（快车道，push/PR）与 ci-full（全量，每夜 schedule）。
+# 两条车道都由 .github/workflows/ci.yml 调用；CI 跑什么本地就跑什么，
+# 反过来也一样——两边命令一旦不同，「CI 是绿的」这句话就不再是本地可
+# 复现的证据。governance-audit 的 CC-2 断言 ci 含 governance-audit。
 ci:
 	$(MAKE) test
 	$(MAKE) aodw-check
 	$(MAKE) governance-audit
 
-
-# 轻量车道：`make ci` 仍是唯一完整门禁（含 PR-001 安全门重夹具模块，约 46 分钟）。
-# `make ci-lite` 供纯文档/回执类合并与日常迭代使用，跳过该模块，约 20+ 分钟。
-# 发布或任何产品代码改动前必须跑 `make ci`；governance-audit 的 CC-2 断言 ci 含 governance-audit。
-test-lite:
-	$(MAKE) doctor
-	$(PYTHON) -m py_compile scripts/*.py
-	cd tests && TMPDIR="$(TEST_TMPDIR)" $(PYTHON) -m unittest $(shell cd tests && find . -maxdepth 1 -name 'test_*.py' ! -name 'test_pr001_release_gate_validation.py' -exec basename {} .py \; | sort | tr '\n' ' ')
-	$(MAKE) smoke
-	$(MAKE) smoke-ai
-	$(MAKE) smoke-ai-degraded
-
-ci-lite:
-	$(MAKE) test-lite
+ci-full:
+	$(MAKE) test-full
 	$(MAKE) aodw-check
 	$(MAKE) governance-audit
 

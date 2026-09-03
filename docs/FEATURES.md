@@ -27,7 +27,7 @@ CWK 是一条**对 CWork/工作协同只读**的知识镜像工作流：把你�
 | H | 可选 DocDB 派生内容发布 | `--sync-docdb/--sync-wiki` |
 | I | 自检与运维 | `scripts/cwk_doctor.py`、`docs/OPERATIONS.md` |
 | J | 调度交接与宿主任务登记 | `activation_wizard.py` 子命令 |
-| K | 质量门与治理（CI） | `make ci` / `make ci-lite` |
+| K | 质量门与治理（CI） | `make ci` / `make ci-full` |
 
 ## 2. 逐项详细说明
 
@@ -147,10 +147,28 @@ CWK 是一条**对 CWork/工作协同只读**的知识镜像工作流：把你�
 
 ### K. 质量门与治理（维护者视角）
 
-- `make doctor / test / aodw-check / governance-audit / ci`：完整门禁；
-  `ci` = test + 方法层自检（AODW/RT 门禁/花名册）+ 代码归属审计（613 个受跟踪文件）；
-- `make ci-lite`：轻量车道，跳过约 46 分钟的 PR-001 重安全模块，供纯文档/回执合并
-  与日常迭代；**发布或产品代码改动仍必须跑完整 `make ci`**；
+- 车道分两层（RT-038）：`make test` / `make ci` 是**快车道**——doctor +
+  py_compile + 单测（排除 PR-001 安全族 test_pr001_*.py）+ 三条脱敏 smoke；
+  本地实测约 2 分半（1640 tests，RT-038）。`make test-full` / `make ci-full`
+  是**全量车道**——全部单测，本地实测约 75 分钟（PR-001 安全族 11 个文件
+  占绝大头），由 CI 每夜定时跑（ci.yml 的 `nightly-full` job）。
+  快车道单测排除的重型清单用 `find ! -name` 写法直接写在 Makefile 里，
+  与当年 test-lite 同一机制，新增/退役文件一目了然；
+  **发布或产品代码改动前必须本地跑一次 `make ci-full`**，不能只等每夜 CI；
+- `ci` = test + 方法层自检（AODW/RT 门禁/花名册）+ 代码归属审计（受跟踪文件
+  全集）；`ci-full` 与其同构，只是把单测换成全量。CI 与本地共用同一条命令，
+  两边命令一旦不同，「CI 是绿的」就不再是本地可复现的证据；
+- **测试两层法**（RT-038，写给写测试的人）：
+  - AI 增强类产物（digest-ai-enhanced、quality-review 等）只测**结构**：
+    文件存在、非空、章节齐全、引用字段在。不对其内容做值断言——同一段输入
+    每次产物措辞都不同，值断言只会制造假红；
+  - 确定性管线（解析、去重、翻页、聚合、关系、发布门）测**函数级
+    输入→输出断言**：给定输入，条数/字段/去重结果必须是确定的值。
+    依据是 RT-037 的毫秒静默采零案例：search-list 接口拿到 13 位毫秒
+    时间戳时不报错、只静默返 0 篇，同窗口秒级时间戳返 38 篇——结构检查
+    对这种「合法的空」完全无感，只有输入→输出的值断言能拦住静默丢数；
+  - 判断归属的简易标准：这个断言挂了，是该修复代码，还是只是 AI 这次
+    换了说法？前者放确定性层，后者删掉或降级为结构断言；
 - 配置来源分层：config > shell > 项目根 `.env`（按上游 `setdefault` 语义），
   合同与哈希覆盖全部行为设置，改动即漂移、即作废确认。
 
@@ -160,8 +178,8 @@ CWK 是一条**对 CWork/工作协同只读**的知识镜像工作流：把你�
 PYTHON=python3.11 ./install.sh [--integration workspace-skill|host-skill|router|none] [--workspace ...]
 make doctor                       # 自检
 python3 scripts/activation_wizard.py status    # 激活状态与下一步
-make ci-lite                      # 轻量门禁（迭代）
-make ci                           # 完整门禁（发布前）
+make ci                           # 快车道门禁（日常迭代，分钟级）
+make ci-full                      # 全量门禁（发布前/每夜 CI）
 ```
 
 ## 4. 安全边界（红线，代码级强制）

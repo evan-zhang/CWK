@@ -5,11 +5,20 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    # 每夜全量车道（RT-038）：北京时间凌晨 02:40（UTC 18:40 前一天）跑
+    # `make ci-full`——快车道在 push/PR 上已经跑过，全量单测（含 PR-001
+    # 重安全模块与 VGA 套件）只在这里补齐。GitHub 的 schedule 允许延迟，
+    # 以实际触发时间为准，不承诺准点。
+    - cron: "40 18 * * *"
 
 jobs:
   # job id 保持 `smoke` 不变：分支保护里的 required status check 认的是这个 id，
   # 改名会让保护规则指向一个不存在的检查。内容已不止 smoke，见下面的 step 说明。
   smoke:
+    # 快车道只在 push/PR 跑；每夜 schedule 由下面的 nightly-full 接管，
+    # 避免同一晚跑两遍全量。
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     # PR-001 的证据链测试大量做 KDF，全量单测本身就要一个多小时。给足额度，
     # 但不要给到 GitHub 默认的 6 小时——真挂住时应该在两个多小时内被看见。
@@ -36,3 +45,21 @@ jobs:
         # 本仓库无法安全安装 pre-commit hook，CI 就是权威门。governance-audit 会
         # 反向校验这一行确实在跑 make ci——把它改掉，门自己会红。
         run: make ci
+
+  # 每夜全量车道（RT-038）：与 smoke job 同构，只是把门换成 `make ci-full`
+  # （全部单测 + 三条脱敏 smoke + aodw-check + governance-audit）。
+  # checkout 必须带 fetch-depth: 0——全量里的 PR-001 release gate 会按
+  # as-of commit 解析历史证据，浅克隆会把历史判为不可验证。
+  nightly-full:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Nightly full gate (same entry point as local `make ci-full`)
+        run: make ci-full

@@ -225,6 +225,11 @@ entries:
   status: completed
   profile: Spec-Lite
   created: 2026-09-03
+- id: RT-038
+  title: 测试两层法与 CI 提速
+  status: completed
+  profile: Spec-Lite
+  created: 2026-09-03
 - id: RT-039
   title: 查询专用 Skill（cwk-query）与两半架构定档
   status: completed

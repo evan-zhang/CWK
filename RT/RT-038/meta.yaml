@@ -1,0 +1,30 @@
+id: RT-038
+title: 测试两层法与 CI 提速
+type: Infrastructure
+profile: Spec-Lite
+execution_mode: autonomous
+status: completed
+modules:
+  - build-ci
+  - testing
+  - docs
+branch: fix/rt033-redline-assertion
+worktree: /tmp/cwk-ci-fix
+tool: openclaw
+owner: 雷锋
+created_at: 2026-09-03T20:20:00+08:00
+updated_at: 2026-09-03T22:35:00+08:00
+closed_at: 2026-09-03T22:35:00+08:00
+external_ids:
+  jira: null
+  github: null
+  other: null
+notes: >
+  Evan 2026-09-03 19:37 批准的两层法落地：测试与门禁拆成快/全量两层车道。
+  `make test`/`make ci` 默认快车道（doctor + py_compile + 单测排除重型清单
+  + 三条脱敏 smoke），新增 `make test-full`/`make ci-full` 跑全量单测；
+  ci.yml 增每夜 schedule job 跑 ci-full；退役 test-lite/ci-lite 并同步
+  docs/FEATURES.md 三处引用；「AI 层只测结构、确定性层测函数级输入→输出
+  断言」两层规矩写进 docs/FEATURES.md K 节。不碰 scripts/ 封闭命名空间、
+  不动 raw/；Makefile 与 ci.yml 属 RT-030 重 pin 演化路径，改后重 pin 并
+  在 rt-lite.md 记录理由。
