@@ -237,6 +237,6 @@ entries:
   created: 2026-09-03
 - id: RT-040
   title: 采集完整性——发件箱双通道 + 回复动态刷新
-  status: in-progress
+  status: completed
   profile: Spec-Lite
   created: 2026-09-03
