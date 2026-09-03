@@ -98,7 +98,7 @@
       {
         "path": "scripts/cwk_cloud_wiki_compile.py",
         "mode": "100644",
-        "sha256": "2e0c89e4b0c54259887300efb35f4053f075140be47710e1806a418aba8ab5af"
+        "sha256": "27932db3991003ccf7ec51e91965df1aecd7bbb3fe7ab5731220ffa123e0a624"
       },
       {
         "path": "scripts/cwk_cloud_wiki_topics_entities.py",

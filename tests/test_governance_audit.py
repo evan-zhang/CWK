@@ -68,6 +68,9 @@ _COPY_FILES = (
     "RT/RT-035-ai-gateway-compat/receipts/script-evolution-v2/rt035-agent-list-compat-ord1.json",
     "RT/RT-035-ai-gateway-compat/migration-notes/rt035-agent-list-compat-ord1.md",
     "RT/RT-035-ai-gateway-compat/rt-lite.md",
+    "RT/RT-036-owner-refine-scope/receipts/script-evolution-v2/rt036-owner-refine-scope-ord1.json",
+    "RT/RT-036-owner-refine-scope/migration-notes/rt036-owner-refine-scope-ord1.md",
+    "RT/RT-036-owner-refine-scope/rt-lite.md",
 )
 
 # 每条规则至少要有一个代表文件，否则会触发 GA-STALE-RULE（失效规则）。

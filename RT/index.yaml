@@ -200,3 +200,23 @@ entries:
   status: in-progress
   profile: Spec-Lite
   created: 2026-09-01
+- id: RT-033
+  title: 聊天直供 CWORK_APP_KEY（setup_app_key.py）
+  status: completed
+  profile: Spec-Lite
+  created: 2026-09-02
+- id: RT-034
+  title: AI 通道 exec transport（单 agent 沙箱免配 reviewer Agent）
+  status: completed
+  profile: Spec-Lite
+  created: 2026-09-03
+- id: RT-035
+  title: assert_safe_ai_agent 兼容 OpenClaw 2026.8 agents 配置结构
+  status: completed
+  profile: Spec-Lite
+  created: 2026-09-03
+- id: RT-036
+  title: 精编范围策略（refine-scope owner + min-year）
+  status: in-progress
+  profile: Spec-Lite
+  created: 2026-09-03

@@ -405,6 +405,47 @@ def append_log(wiki: Path, message: str) -> None:
         handle.write(f"\n## [{ts}] {message}\n\n")
 
 
+ROLE_FIELD_LINE = re.compile(
+    r"^[ \t]*(?:-[ \t]*\*\*)?(?:汇报人|发件人|收件人|建议人|审批人|决策人|申请人|参与人|部门负责人|抄送人?|知会人)(?:\*\*)?[ \t]*[:：\[][ \t]*(.*)$",
+    re.MULTILINE,
+)
+
+
+def partition_year(path: Path) -> int:
+    """Year of the raw partition (raw/YYYY-MM/...) holding this record; 0 when unknown."""
+    for part in path.parts:
+        matched = re.match(r"^(20\d{2})-\d{2}$", part)
+        if matched:
+            return int(matched.group(1))
+    return 0
+
+
+def owner_involved(raw: Path, *needles: str) -> bool:
+    """True when the report's frontmatter writer or a structured role field mentions a needle.
+
+    Only the ``writer`` frontmatter value and role-labelled lines (汇报人/收件人/
+    建议人/审批人/决策人/申请人/参与人/部门负责人/抄送/知会人...) participate.
+    Free-form prose never matches, so a co-occurring name in the body cannot
+    widen the refinement scope.
+    """
+    needles = tuple(needle for needle in needles if needle)
+    if not needles:
+        return False
+    try:
+        text = raw.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return False
+    head, _sep, _body = text.partition("\n---\n")
+    for line in head.splitlines():
+        if line.startswith("writer:"):
+            value = line.split(":", 1)[1].strip().strip('"').strip()
+            if value and value in needles:
+                return True
+            break
+    role_values = ROLE_FIELD_LINE.findall(text)
+    return any(any(needle in value for needle in needles) for value in role_values)
+
+
 def select_compile_candidates(
     missing: list[Path],
     fresh_fallback: list[Path],
@@ -459,7 +500,20 @@ def main() -> None:
         action="store_true",
         help="Create navigation-only pages for missing raw records without calling a model.",
     )
+    parser.add_argument(
+        "--refine-scope",
+        choices=["all", "owner"],
+        default="all",
+        help="owner: AI-refine only reports whose writer or a structured role field mentions the mirror owner; out-of-scope records keep deterministic fallback pages.",
+    )
+    parser.add_argument("--refine-owner-name", default="", help="Mirror owner display name for --refine-scope owner.")
+    parser.add_argument("--refine-owner-emp-id", default="", help="Mirror owner employee id for --refine-scope owner.")
+    parser.add_argument("--min-year", type=int, default=0, help="Auto-select only raw partitions whose YYYY-MM year >= this value (0 disables the floor).")
     args = parser.parse_args()
+    if args.refine_scope == "owner" and not (args.refine_owner_name.strip() or args.refine_owner_emp_id.strip()):
+        raise SystemExit("--refine-scope owner requires --refine-owner-name or --refine-owner-emp-id")
+    if args.min_year < 0:
+        raise SystemExit("--min-year must be >= 0")
     if args.limit < 1:
         raise SystemExit("--limit must be positive")
     if args.max_parallel < 1 or args.max_parallel > 8:
@@ -524,6 +578,7 @@ def main() -> None:
     candidate_rows: list[tuple[Path, dict[str, str]]] = [(raw, raw_metadata(raw)[0]) for raw in candidates]
     by_id = {meta["report_id"]: raw for raw, meta in candidate_rows}
     selected: list[Path] = []
+    bystander_missing: list[Path] = []
     if requested_ids:
         selected = [by_id[rid] for rid in sorted(requested_ids) if rid in by_id]
     else:
@@ -531,7 +586,13 @@ def main() -> None:
         # are then progressively AI-refined in bounded nightly batches. Pages
         # already in the failure queue move behind untouched fallbacks so a
         # few long-tail records cannot starve the rest of the quality backlog.
-        missing = [raw for raw, meta in candidate_rows if meta["report_id"] not in compiled]
+        scoped_rows = candidate_rows
+        if args.min_year:
+            scoped_rows = [
+                (raw, meta) for raw, meta in candidate_rows
+                if partition_year(raw) >= args.min_year
+            ]
+        missing = [raw for raw, meta in scoped_rows if meta["report_id"] not in compiled]
         fallback_ids = set(manifest.get("fallback_report_ids", []))
         failed_ids = {
             str(item.get("report_id"))
@@ -544,15 +605,28 @@ def main() -> None:
             if item.get("report_id") and int(item.get("attempts", 1)) < MAX_FAILURE_ATTEMPTS
         }
         fresh_fallback = [
-            raw for raw, meta in candidate_rows
+            raw for raw, meta in scoped_rows
             if meta["report_id"] in fallback_ids
             and meta["report_id"] not in failed_ids
         ] if args.refine_fallbacks else []
         retry_fallback = [
-            raw for raw, meta in candidate_rows
+            raw for raw, meta in scoped_rows
             if meta["report_id"] in fallback_ids
             and meta["report_id"] in retryable_failed_ids
         ] if args.refine_fallbacks else []
+        if args.refine_scope == "owner" and not args.fallback_only:
+            owner_needles = (
+                args.refine_owner_emp_id.strip(),
+                args.refine_owner_name.strip(),
+            )
+
+            def _owner(raw: Path) -> bool:
+                return owner_involved(raw, *owner_needles)
+
+            fresh_fallback = [raw for raw in fresh_fallback if _owner(raw)]
+            retry_fallback = [raw for raw in retry_fallback if _owner(raw)]
+            bystander_missing = [raw for raw in missing if not _owner(raw)]
+            missing = [raw for raw in missing if _owner(raw)]
         selected = select_compile_candidates(
             missing,
             fresh_fallback,
@@ -623,6 +697,31 @@ def main() -> None:
                 }
             )
     else:
+        for raw in bystander_missing:
+            meta, _ = raw_metadata(raw)
+            rid = meta["report_id"]
+            out = wiki / "summaries" / f"{rid}.md"
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(
+                render_fallback(
+                    meta,
+                    raw.relative_to(mirror).as_posix(),
+                    "范围外（refine-scope=owner）：保留确定性摘要",
+                    raw_sha256(raw),
+                ),
+                encoding="utf-8",
+            )
+            update_manifest_fallback(rid, manifest)
+            flush_manifest_if_dirty()
+            changed_paths.add(out.relative_to(mirror).as_posix())
+            outcomes.append(
+                {
+                    "report_id": rid,
+                    "status": "fallback_created",
+                    "scope_excluded": True,
+                    "path": out.relative_to(mirror).as_posix(),
+                }
+            )
         max_workers = min(args.max_parallel, len(selected)) if selected else 1
         with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="cwk-wiki") as executor:
             futures = {executor.submit(compile_candidate, raw): raw for raw in selected}
@@ -726,6 +825,9 @@ def main() -> None:
         "primary_model": args.model,
         "repair_model": args.repair_model,
         "max_parallel": args.max_parallel,
+        "refine_scope": args.refine_scope,
+        "min_year": args.min_year,
+        "scope_excluded": len(bystander_missing),
         "changed_relative_paths": sorted(changed_paths),
     }
     if args.manifest_out:

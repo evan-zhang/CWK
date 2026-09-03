@@ -41,6 +41,19 @@ Agent creation and OpenClaw configuration are deployment operations and are inte
 > `assert_safe_ai_agent` read both the new `agents` config path and the
 > legacy `agents.list`.
 
+## Refinement scope strategy (RT-036)
+
+Personal mirrors should AI-refine only owner-relevant reports. Run the compile with:
+
+```bash
+--refine-scope owner --refine-owner-name <name> --refine-owner-emp-id <emp-id> --min-year <current-year>
+```
+
+Only reports whose frontmatter `writer` or a structured role field (汇报人/收件人/建议人/
+审批人/决策人/申请人/参与人/部门负责人/抄送/知会人) mentions the owner receive AI
+refinement; everything else keeps its deterministic fallback page (still searchable).
+Free-form prose never widens the scope, and `--fallback-only` coverage runs stay unfiltered.
+
 Deployments that run exactly one Agent (the sandbox assistant itself) do not
 need to provision the dedicated reviewer. Set:
 

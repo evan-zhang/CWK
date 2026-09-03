@@ -21,7 +21,7 @@
     {
       "id": "pr001-security-registry",
       "path": "PR/PR-001-multitenant-knowledge-spaces/contracts/security/security_gate_registry_v1.json",
-      "sha256": "28d916c6ec02fb7e78336a4e571cfe4ebad93aaaf3512cbe661213e1087c9769",
+      "sha256": "ba29bfcff5b0ed14f5d9065a093e3e3c7e4e61fad92784ac5d4bb28a4fcdc9e8",
       "role": "scripts/cwk_*.py 命名空间的封闭归属表（owner / central / legacy 三族）",
       "mutability": "frozen-upstream：本 RT 一个字节都不改。此处按哈希引用，只为证明本清单绑定的是哪一版。"
     },
@@ -438,7 +438,7 @@
       "sensitive": true,
       "pin": {
         "mode": "100644",
-        "sha256": "9c14c48d8dc752e13294f37df6b091d1ebb47f453f91334cea59cac633ef27ed"
+        "sha256": "1cdbb39b6cbbfca3bc2a40e3481bab5857e9a63fae5e9552611cd60ab4d57684"
       },
       "owner": "RT-030",
       "management_domain": "cwk-governance-v1",
