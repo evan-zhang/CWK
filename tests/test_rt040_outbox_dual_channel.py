@@ -134,10 +134,21 @@ class ScopesAndCLITests(unittest.TestCase):
         staging_written = {}
 
         def fake_write_markdown(raw_dir, rid, r, lane, full, simple, node, **kwargs):
-            from pathlib import Path as P
-            path = P(f"{rid}-x.md")
+            path = raw_dir / f"{rid}-x.md"
             staging_written[(rid, tuple(sorted(kwargs.get("source_scopes") or set())))] = True
-            return raw_dir / path
+            # Write a minimal real staging file so promote actually lands it
+            # in raw/ and remaining_missing can be asserted against 0.
+            raw_dir.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                "---\n"
+                f'report_id: "{rid}"\n'
+                f'title: "{r.get("main", rid)}"\n'
+                'writer: "测试"\n'
+                'create_time: "2026-09-03 12:00:00"\n'
+                "---\n\n# 正文\n",
+                encoding="utf-8",
+            )
+            return path
 
         client = FakeDualClient(
             {1: ([row("1", "同事甲")], 1)},
