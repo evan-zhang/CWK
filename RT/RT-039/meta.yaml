@@ -1,0 +1,25 @@
+id: RT-039
+title: 查询专用 Skill（cwk-query）与两半架构定档
+type: Feature
+profile: Spec-Lite
+execution_mode: collaborative
+status: completed
+modules:
+  - skill-query
+  - docs-architecture
+branch: main
+worktree: null
+tool: openclaw
+owner: OpenClaw
+created_at: 2026-09-03T21:22:00+08:00
+updated_at: 2026-09-03T23:45:00+08:00
+closed_at: null
+external_ids:
+  jira: null
+  github: null
+  other: null
+notes: >
+  应用侧独立交付的第一步：只读查询 Skill 薄壳（skill-query/）+ docs/DESIGN.md
+  两半架构定档（维护侧/应用侧，接口是镜像数据契约；形态 A 私有镜像 / 形态 B
+  中心化服务）。不触碰 scripts/ 封闭命名空间；cwk_wiki_query.py 原样复用。
+  Evan 2026-09-03 21:22 批准。

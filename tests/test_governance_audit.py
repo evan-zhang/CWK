@@ -96,6 +96,7 @@ _REPRESENTATIVE_TRACKED = (
     "tests/test_governance_audit.py",
     "AGENTS.md",
     "skill/SKILL.md",
+    "skill-query/SKILL.md",
     "docs/DESIGN.md",
     "prompts/OPENCLAW_SANDBOX_BOOTSTRAP.md",
     "specs/技术方案.md",
