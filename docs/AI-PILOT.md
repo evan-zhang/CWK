@@ -69,7 +69,7 @@ CWK_AI_THINKING=high
 ## Pre-production sequence
 
 1. Run `CWK_AI_ENABLED=true CWK_AI_DRY_RUN=true make smoke-ai`.
-2. Verify the dedicated Agent policy in `openclaw config get agents.list --json`.
+2. Verify the dedicated Agent policy in `openclaw config get agents --json` (look under `entries` by id; OpenClaw 2026.8+).
 3. Run one sanitized real-model smoke with `tests/smoke/raw` and `--no-publish-mirror`.
 4. Run three side-by-side live pilots without changing the production cron.
 5. Compare `quality-review.json`, rules digest, AI digest, evidence coverage, priority inflation, missed actions, missed risks, and over-merge.

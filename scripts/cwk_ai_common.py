@@ -486,17 +486,36 @@ def assert_safe_ai_agent(agent_id: str) -> None:
     cache_key = f"{agent_id}:{expected_workspace}"
     if cache_key in _SAFE_AGENTS:
         return
-    proc = subprocess.run(
-        ["openclaw", "config", "get", "agents.list", "--json"],
-        cwd=str(PROJECT),
-        text=True,
-        capture_output=True,
-        timeout=30,
-    )
-    if proc.returncode != 0:
-        raise RuntimeError("could not inspect OpenClaw agent policy")
-    agents = json.loads(proc.stdout)
-    agent = next((item for item in agents if item.get("id") == agent_id), None)
+    # OpenClaw 2026.8 起 `config get agents.list` 不再存在（RT-035）：优先读
+    # `config get agents` 的 entries（按 id 键出完整策略），旧网关回退原命令。
+    agent: dict[str, Any] | None = None
+    try:
+        proc = subprocess.run(
+            ["openclaw", "config", "get", "agents", "--json"],
+            cwd=str(PROJECT),
+            text=True,
+            capture_output=True,
+            timeout=30,
+        )
+        if proc.returncode == 0:
+            data = json.loads(proc.stdout)
+            entries = data.get("entries") if isinstance(data, dict) else None
+            if isinstance(entries, dict) and isinstance(entries.get(agent_id), dict):
+                agent = entries[agent_id]
+    except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError):
+        agent = None
+    if agent is None:
+        proc = subprocess.run(
+            ["openclaw", "config", "get", "agents.list", "--json"],
+            cwd=str(PROJECT),
+            text=True,
+            capture_output=True,
+            timeout=30,
+        )
+        if proc.returncode != 0:
+            raise RuntimeError("could not inspect OpenClaw agent policy")
+        agents = json.loads(proc.stdout)
+        agent = next((item for item in agents if item.get("id") == agent_id), None)
     if not agent:
         raise RuntimeError(f"CWK AI agent {agent_id!r} is not configured")
     safe, reason = safe_agent_policy(agent)

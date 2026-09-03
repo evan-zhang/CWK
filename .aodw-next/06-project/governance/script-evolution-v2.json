@@ -9,7 +9,7 @@
     "policy_ref": "PR/PR-001-multitenant-knowledge-spaces/contracts/script-evolution/policy_v1.json",
     "policy_sha256": "2089490e45bdd84ba3bac75fe40092f81f40765638b988e17facdc4040d14a6d",
     "registry_ref": "PR/PR-001-multitenant-knowledge-spaces/contracts/security/security_gate_registry_v1.json",
-    "registry_sha256": "1e7f6a8a30bfafc04e70d18f1305aa751f3b686035223de354a14e3fbc104195"
+    "registry_sha256": "28d916c6ec02fb7e78336a4e571cfe4ebad93aaaf3512cbe661213e1087c9769"
   },
   "compatibility_rules": [
     "CR-1 继承完整性：inherits 里两个 sha256 必须与磁盘逐字节相符。任何一处不符即判定 v1 被改写，v2 立即失效并硬失败——这是『没有伪造历史』的可复验证明。",
@@ -73,7 +73,7 @@
     "high_risk_members": [
       {
         "path": "scripts/cwk_ai_common.py",
-        "current_pin": "8b1b610893feea984824423480c5dfe5808ce9093c23e9e005c042bfbb2b459f",
+        "current_pin": "47a6161fdcc62accd50ea43986888629b67639fe8d043d89971a0ee4e23d8eae",
         "reason": "承载模型允许清单。DI-002 记录的 dc96c28 就是在这里把允许模型从 2 个扩到 4 个——一次没有任何回执的运行时行为扩权。"
       },
       {

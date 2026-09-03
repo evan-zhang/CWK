@@ -33,7 +33,7 @@
       {
         "path": "scripts/cwk_ai_common.py",
         "mode": "100644",
-        "sha256": "8b1b610893feea984824423480c5dfe5808ce9093c23e9e005c042bfbb2b459f"
+        "sha256": "47a6161fdcc62accd50ea43986888629b67639fe8d043d89971a0ee4e23d8eae"
       },
       {
         "path": "scripts/cwk_ai_enhanced_digest.py",
