@@ -466,7 +466,8 @@ class ActivationDialogueContractTests(unittest.TestCase):
     def test_the_reference_states_the_four_red_lines(self) -> None:
         lowered = self.reference.lower()
         for phrase in (
-            "never collect a credential",
+            "one credential the user may hand over in chat",
+            "every other credential is still refused",
             "never treat your current tool access as authorization",
             "never show raw evidence",
             "never create, modify, or delete a scheduled task",
