@@ -35,6 +35,12 @@ Agent creation and OpenClaw configuration are deployment operations and are inte
 
 ## Single-agent sandbox: `CWK_AI_TRANSPORT=exec`
 
+> **OpenClaw 2026.8+ note**: `openclaw agent --local` is refused while a
+> Gateway is running for the same state directory, so hosts with a resident
+> Gateway must use `exec`. RT-035 (main `3822f10`) also made
+> `assert_safe_ai_agent` read both the new `agents` config path and the
+> legacy `agents.list`.
+
 Deployments that run exactly one Agent (the sandbox assistant itself) do not
 need to provision the dedicated reviewer. Set:
 

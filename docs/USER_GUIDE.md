@@ -48,7 +48,7 @@ python3 scripts/cwk_wiki_query.py \
 - 本机可用的 `cms-cwork-workflow`、`cms-docdb` 和鉴权能力；
 - 有权限读取目标工作协同数据的 appKey。
 
-模型精编默认走专用 `cwk-ai-reviewer` Agent；单 agent 沙箱可设 `CWK_AI_TRANSPORT=exec` 免配置（见 `docs/AI-PILOT.md`）。纯采集、完整性审计和可信检索不需要模型，也不需要 Docker。
+模型精编可走专用 `cwk-ai-reviewer` Agent；单 agent 沙箱推荐直接设 `CWK_AI_TRANSPORT=exec` 免配置——OpenClaw 2026.8+ 常驻 Gateway 的宿主必须用 exec（`agent --local` 会被拒绝，见 `docs/AI-PILOT.md`）。纯采集、完整性审计和可信检索不需要模型，也不需要 Docker。
 
 ### 3.2 克隆与安装检查
 
