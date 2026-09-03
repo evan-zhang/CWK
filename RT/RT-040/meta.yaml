@@ -1,0 +1,27 @@
+id: RT-040
+title: 采集完整性——发件箱双通道 + 回复动态刷新
+type: Feature
+profile: Spec-Lite
+execution_mode: autonomous
+status: in-progress
+modules:
+  - collection-completeness
+  - raw-store
+modules_note: >
+  ord1 属采集完整性（backfill 双通道）；ord2 属 raw 动态（回复刷新）。
+branch: rt040-outbox-dual-channel
+worktree: /tmp/cwk-rt039
+tool: openclaw
+owner: 雷锋
+created_at: 2026-09-03T22:40:00+08:00
+updated_at: 2026-09-03T22:40:00+08:00
+closed_at: null
+external_ids:
+  jira: null
+  github: null
+  other: null
+notes: >
+  Evan 2026-09-03 21:52/22:17 确认整个 RT 现在做完（ord1+ord2 连续，默认
+  版本方案已批准）。ord1：backfill 源端 inbox+outbox 双通道（自发汇报
+  盲区，nightly-20260903-2230 实证）；ord2：replyCount 基线对比 + v2 raw
+  刷新通道（原 raw 一字不动）。凭据只在内存传递；对工作协同只读。

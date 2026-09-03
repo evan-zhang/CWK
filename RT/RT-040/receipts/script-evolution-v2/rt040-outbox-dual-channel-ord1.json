@@ -1,0 +1,11 @@
+{
+  "schema": "cwk.governance.script_evolution_receipt.v2",
+  "overlay_version": "v2",
+  "owner_rt": "RT-040",
+  "target_path": "scripts/cwk_backfill_range.py",
+  "ordinal": 2,
+  "from_sha256": "779f475321ea83956f85e50faf96993ec965c43c85dd65b4509eeeee9dc21eb3",
+  "to_sha256": "4eb6ea8c603a289570e65ba131b410d0d9f1e3a9336ebcb5a5512840652799d2",
+  "migration_note_ref": "RT/RT-040/migration-notes/rt040-outbox-dual-channel-ord1.md",
+  "rt_ref": "RT/RT-040/rt-lite.md"
+}

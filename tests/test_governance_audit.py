@@ -75,6 +75,10 @@ _COPY_FILES = (
     "RT/RT-037/receipts/script-evolution-v2/rt037-inbox-seconds-source-ord1.json",
     "RT/RT-037/migration-notes/rt037-inbox-seconds-source-ord1.md",
     "RT/RT-037/rt-lite.md",
+    # RT-040 ord1：legacy 族 cwk_backfill_range.py 的第二次演化（outbox 双通道）。
+    "RT/RT-040/receipts/script-evolution-v2/rt040-outbox-dual-channel-ord1.json",
+    "RT/RT-040/migration-notes/rt040-outbox-dual-channel-ord1.md",
+    "RT/RT-040/rt-lite.md",
 )
 
 # 每条规则至少要有一个代表文件，否则会触发 GA-STALE-RULE（失效规则）。

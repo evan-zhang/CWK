@@ -2,11 +2,13 @@
 """Fully page a CWork date range and promote every missing report to raw.
 
 Source rows default to the 3.1 inbox endpoint (second-level begin/end
-timestamps).  The 6.16 searchPage lane remains available via
-``--source search-list`` as a fallback: live verification on 2026-09-03
-showed the same window returning 0 rows through search-list and 38 rows
-through the inbox endpoint, and the inbox API rejects 13-digit millisecond
-timestamps, so the second-level conversion here is load-bearing.
+timestamps), then page the 3.1 outbox endpoint for reports the account
+sent itself (``--source dual``, the default).  The 6.16 searchPage lane
+remains available via ``--source search-list`` as a fallback: live
+verification on 2026-09-03 showed the same window returning 0 rows
+through search-list and 38 rows through the inbox endpoint, and the
+inbox/outbox APIs reject 13-digit millisecond timestamps, so the
+second-level conversion here is load-bearing.
 """
 
 from __future__ import annotations
@@ -62,6 +64,35 @@ def rows_from_page_data(data: Any) -> tuple[list[dict[str, Any]], int | None]:
     rows = data.get("list") or data.get("rows") or data.get("items") or []
     total = data.get("total")
     return (rows if isinstance(rows, list) else []), (int(total) if total is not None else None)
+
+
+def _paged_list(
+    fetch_page: Any, *, label: str, page_size: int,
+) -> tuple[list[dict[str, Any]], int | None]:
+    """Page any 3.1-style list endpoint to exhaustion and dedupe by id.
+
+    Both inbox and outbox return ``{"list": [...], "total": N}`` pages.
+    A short page ends the walk; the dedupe pass must reconcile the unique
+    id count against the server total, exactly as the pagination contract
+    has always demanded.
+    """
+    rows: list[dict[str, Any]] = []
+    expected: int | None = None
+    for page in range(1, 1001):
+        try:
+            data = fetch_page(page)
+        except Exception as exc:  # noqa: BLE001 - surface as a data-source failure
+            raise RuntimeError(f"{label} page {page} failed: {exc}") from exc
+        batch, total = rows_from_page_data(data)
+        expected = int(total) if total is not None else expected
+        rows.extend(row for row in batch if isinstance(row, dict))
+        if len(batch) < page_size:
+            break
+    unique = {str(row.get("id") or row.get("reportId") or row.get("reportRecordId") or ""): row for row in rows}
+    unique.pop("", None)
+    if expected is not None and len(unique) != expected:
+        raise RuntimeError(f"source pagination incomplete: expected {expected}, got {len(unique)} unique rows")
+    return list(unique.values()), expected
 
 
 def search_list_source_rows(app_key: str, start_date: str, end_date: str, page_size: int = 100) -> tuple[list[dict[str, Any]], int]:
@@ -144,10 +175,50 @@ def inbox_source_rows(
     return list(unique.values()), expected if expected is not None else len(unique)
 
 
+def outbox_source_rows(
+    client: Any, start_date: str, end_date: str, page_size: int = 100,
+) -> tuple[list[dict[str, Any]], int]:
+    """Page the 3.1 outbox endpoint (reports this account sent itself).
+
+    Shares the second-level window contract with the inbox lane: outbox
+    begin_time/end_time are 10-digit seconds pinned to UTC+8.  Rows get the
+    same enrichment as inbox rows (reportEventVO.time carries the event
+    timestamp; a server-provided reportTime is never overwritten).
+    """
+    begin_sec = epoch_seconds(start_date)
+    end_sec = epoch_seconds(end_date, end_of_day=True)
+    rows, expected = _paged_list(
+        lambda page: client.get_outbox_list(
+            page_size=page_size, page_index=page,
+            begin_time=begin_sec, end_time=end_sec,
+        ),
+        label="outbox",
+        page_size=page_size,
+    )
+    rows = [enrich_inbox_row(row) for row in rows]
+    return rows, expected if expected is not None else len(rows)
+
+
 def source_rows(
     app_key: str, start_date: str, end_date: str, page_size: int = 100,
     *, source: str = "inbox", client_factory: Any = None,
 ) -> tuple[list[dict[str, Any]], int]:
+    if source == "dual":
+        make_client = client_factory or _inbox_client
+        client = make_client(app_key)
+        inbox_rows, inbox_total = inbox_source_rows(client, start_date, end_date, page_size)
+        outbox_rows, _ = outbox_source_rows(client, start_date, end_date, page_size)
+        merged: dict[str, dict[str, Any]] = {
+            str(row.get("id") or row.get("reportId") or row.get("reportRecordId")): row
+            for row in inbox_rows
+        }
+        outbox_only = 0
+        for row in outbox_rows:
+            key = str(row.get("id") or row.get("reportId") or row.get("reportRecordId"))
+            if key not in merged:
+                merged[key] = row
+                outbox_only += 1
+        return list(merged.values()), inbox_total + outbox_only
     if source == "search-list":
         return search_list_source_rows(app_key, start_date, end_date, page_size)
     if source != "inbox":
@@ -215,7 +286,12 @@ def run_backfill(
     source_by_id = {str(row.get("id") or row.get("reportId") or row.get("reportRecordId")): row for row in rows}
     existing = raw_index(mirror_root / "raw")
     missing = sorted(set(source_by_id) - set(existing))
-    scopes = {"inbox_range"} if source == "inbox" else {"date_range_search"}
+    if source == "dual":
+        scopes = {"inbox_range", "outbox_range"}
+    elif source == "inbox":
+        scopes = {"inbox_range"}
+    else:
+        scopes = {"date_range_search"}
 
     results: list[dict[str, Any]] = []
     with ThreadPoolExecutor(max_workers=max(1, max_parallel)) as pool:
@@ -263,8 +339,13 @@ def main() -> None:
     parser.add_argument("--page-size", type=int, default=100)
     parser.add_argument("--cloud-first", action="store_true", help="Preserve experimental Cloud-First raw manifest semantics.")
     parser.add_argument(
-        "--source", choices=["inbox", "search-list"], default="inbox",
-        help="List endpoint for source rows. inbox = 3.1 inbox API with second-level timestamps (default; live-verified 2026-09-03). search-list = 6.16 searchPage fallback.",
+        "--source", choices=["dual", "inbox", "search-list"], default="dual",
+        help=(
+            "List endpoint(s) for source rows. dual = inbox + outbox, both 3.1 "
+            "APIs with second-level timestamps (default; closes the self-sent "
+            "gap, live-verified 2026-09-03). inbox = inbox only. "
+            "search-list = 6.16 searchPage fallback."
+        ),
     )
     args = parser.parse_args()
     if not args.app_key:
