@@ -62,15 +62,15 @@ _COPY_FILES = (
     # RT-034：legacy 族 cwk_ai_common.py 的首次演化回执 + 迁移说明 + RT 记录。
     # scripts/ 整目录会被复制进合成仓库，GA-LEGACY-DRIFT 需要这份回执在场
     # 才能解释 pin 与磁盘的合法差异。
-    "RT/RT-034-ai-exec-transport/receipts/script-evolution-v2/rt034-exec-transport-ord1.json",
-    "RT/RT-034-ai-exec-transport/migration-notes/rt034-exec-transport-ord1.md",
-    "RT/RT-034-ai-exec-transport/rt-lite.md",
-    "RT/RT-035-ai-gateway-compat/receipts/script-evolution-v2/rt035-agent-list-compat-ord1.json",
-    "RT/RT-035-ai-gateway-compat/migration-notes/rt035-agent-list-compat-ord1.md",
-    "RT/RT-035-ai-gateway-compat/rt-lite.md",
-    "RT/RT-036-owner-refine-scope/receipts/script-evolution-v2/rt036-owner-refine-scope-ord1.json",
-    "RT/RT-036-owner-refine-scope/migration-notes/rt036-owner-refine-scope-ord1.md",
-    "RT/RT-036-owner-refine-scope/rt-lite.md",
+    "RT/RT-034/receipts/script-evolution-v2/rt034-exec-transport-ord1.json",
+    "RT/RT-034/migration-notes/rt034-exec-transport-ord1.md",
+    "RT/RT-034/rt-lite.md",
+    "RT/RT-035/receipts/script-evolution-v2/rt035-agent-list-compat-ord1.json",
+    "RT/RT-035/migration-notes/rt035-agent-list-compat-ord1.md",
+    "RT/RT-035/rt-lite.md",
+    "RT/RT-036/receipts/script-evolution-v2/rt036-owner-refine-scope-ord1.json",
+    "RT/RT-036/migration-notes/rt036-owner-refine-scope-ord1.md",
+    "RT/RT-036/rt-lite.md",
 )
 
 # 每条规则至少要有一个代表文件，否则会触发 GA-STALE-RULE（失效规则）。

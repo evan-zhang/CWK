@@ -1,11 +1,11 @@
 {
   "schema": "cwk.governance.script_evolution_receipt.v2",
   "overlay_version": "v2",
-  "owner_rt": "RT-035-ai-gateway-compat",
+  "owner_rt": "RT-035",
   "target_path": "scripts/cwk_ai_common.py",
   "ordinal": 1,
   "from_sha256": "8b1b610893feea984824423480c5dfe5808ce9093c23e9e005c042bfbb2b459f",
   "to_sha256": "47a6161fdcc62accd50ea43986888629b67639fe8d043d89971a0ee4e23d8eae",
-  "migration_note_ref": "RT/RT-035-ai-gateway-compat/migration-notes/rt035-agent-list-compat-ord1.md",
-  "rt_ref": "RT/RT-035-ai-gateway-compat/rt-lite.md"
+  "migration_note_ref": "RT/RT-035/migration-notes/rt035-agent-list-compat-ord1.md",
+  "rt_ref": "RT/RT-035/rt-lite.md"
 }
