@@ -1,0 +1,29 @@
+id: RT-041
+title: 源适配器契约与 CWork 包装
+type: Feature
+profile: Spec-Lite
+execution_mode: autonomous
+status: completed
+modules:
+  - source-adapter-contract
+  - adapters
+modules_note: >
+  ord1 单交付：契约定稿入仓 + adapters/ 目录（base 契约 + gwork 1 号
+  包装式适配器）。ord2（DocDB 适配器）待 Evan 拍板，未含在本收口内。
+branch: rt041-source-adapter
+worktree: /tmp/cwk-rt041
+tool: openclaw
+owner: 雷锋
+created_at: 2026-09-03T23:20:00+08:00
+updated_at: 2026-09-04T00:45:00+08:00
+closed_at: 2026-09-04T00:45:00+08:00
+external_ids:
+  jira: null
+  github: null
+  other: null
+notes: >
+  Evan 2026-09-03 23:20 立项（排在 RT-040 后）。契约设计稿出自
+  docs/drafts/rt041-source-adapter/CONTRACT.md（先读它）。红线：不碰
+  scripts/ 封闭命名空间；凭据只在内存；raw 只增不改；对工作协同只读；
+  CC-2 不破。等价测试兜底：同一测试窗口内适配器采出 id 集合 = 现有
+  backfill 采出 id 集合，fetch 产物与 fetch_one 字节一致。
