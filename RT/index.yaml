@@ -220,3 +220,8 @@ entries:
   status: in-progress
   profile: Spec-Lite
   created: 2026-09-03
+- id: RT-037
+  title: 回填源切 3.1 收件箱（秒级时间戳）
+  status: completed
+  profile: Spec-Lite
+  created: 2026-09-03

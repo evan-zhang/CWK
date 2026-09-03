@@ -71,6 +71,10 @@ _COPY_FILES = (
     "RT/RT-036/receipts/script-evolution-v2/rt036-owner-refine-scope-ord1.json",
     "RT/RT-036/migration-notes/rt036-owner-refine-scope-ord1.md",
     "RT/RT-036/rt-lite.md",
+    # RT-037：legacy 族 cwk_backfill_range.py 的首次演化回执（inbox 秒级源切换）。
+    "RT/RT-037/receipts/script-evolution-v2/rt037-inbox-seconds-source-ord1.json",
+    "RT/RT-037/migration-notes/rt037-inbox-seconds-source-ord1.md",
+    "RT/RT-037/rt-lite.md",
 )
 
 # 每条规则至少要有一个代表文件，否则会触发 GA-STALE-RULE（失效规则）。

@@ -179,7 +179,7 @@ class RawPromotionTests(unittest.TestCase):
             return pages[args[args.index("--page-index") + 1]]
 
         with patch.object(cwk_backfill_range, "run_tool", side_effect=fake_run):
-            rows, total = cwk_backfill_range.source_rows("key", "2026-08-01", "2026-08-04", page_size=2)
+            rows, total = cwk_backfill_range.search_list_source_rows("key", "2026-08-01", "2026-08-04", page_size=2)
         self.assertEqual(total, 3)
         self.assertEqual({row["id"] for row in rows}, {"1", "2", "3"})
 

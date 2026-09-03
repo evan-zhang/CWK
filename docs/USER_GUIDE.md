@@ -250,7 +250,7 @@ python3 scripts/cwk_backfill_range.py \
 
 脚本会：
 
-- 完整分页日期范围；
+- 完整分页日期范围（默认走 3.1 收件箱接口，秒级时间窗；`--source search-list` 可回退毫秒 searchPage）；
 - 校验源端总数；
 - 只抓 raw 中缺失的 ID；
 - 获取全文并暂存；

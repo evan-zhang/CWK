@@ -9,7 +9,7 @@
     "policy_ref": "PR/PR-001-multitenant-knowledge-spaces/contracts/script-evolution/policy_v1.json",
     "policy_sha256": "2089490e45bdd84ba3bac75fe40092f81f40765638b988e17facdc4040d14a6d",
     "registry_ref": "PR/PR-001-multitenant-knowledge-spaces/contracts/security/security_gate_registry_v1.json",
-    "registry_sha256": "ba29bfcff5b0ed14f5d9065a093e3e3c7e4e61fad92784ac5d4bb28a4fcdc9e8"
+    "registry_sha256": "d4edef248865e9a3ff92e6b440e27fb217315956e8ed8bff5bc04989d8237b24"
   },
   "compatibility_rules": [
     "CR-1 继承完整性：inherits 里两个 sha256 必须与磁盘逐字节相符。任何一处不符即判定 v1 被改写，v2 立即失效并硬失败——这是『没有伪造历史』的可复验证明。",
