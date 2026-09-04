@@ -52,6 +52,7 @@ from cwk_kb_ledger import (  # noqa: E402
     LOG_REL,
     MANIFEST_REL,
     RAW_MANIFEST_REL,
+    LedgerViolation,
     dumps,
     iso,
     record_write,
@@ -538,9 +539,29 @@ class BuildResult:
         }
 
 
+def assert_destination_is_clean(backend: StorageBackend) -> None:
+    """Refuse to build into a root that already holds files.
+
+    Checked *before* the first write, not discovered halfway through it: a
+    build that overwrites kb.json and then trips over the ledger has already
+    destroyed the library it was refusing to touch.  An empty (or absent)
+    root is the only state a build may start from; re-creating an existing
+    library is a restore, and restores do not go through this CLI.
+    """
+    existing = backend.walk_files(".")
+    if not existing:
+        return
+    head = "、".join(sorted(existing)[:5])
+    raise LedgerViolation(
+        f"建库拒绝：目标根已有 {len(existing)} 个文件（{head}…），"
+        "不覆盖既有库。请换一个空目录，或先归档再重建——本次零写入。"
+    )
+
+
 def create_kb(backend: StorageBackend, spec: KbSpec) -> BuildResult:
     """Materialise the B-table tree for ``spec`` on ``backend``."""
     spec.validate()
+    assert_destination_is_clean(backend)
     items = tree_for(spec.source_types)
     files = initial_files(spec)
 

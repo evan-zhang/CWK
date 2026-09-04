@@ -20,6 +20,7 @@ sys.path.insert(0, str(PROJECT / "scripts"))
 
 import cwk_kb_migrate as migrate  # noqa: E402
 from cwk_kb_create import KbSpec, SourceSpec, create_kb  # noqa: E402
+from cwk_kb_ledger import load_manifest, verify_manifest  # noqa: E402
 from cwk_kb_storage import LocalFSBackend, MemoryBackend, UnsafePath  # noqa: E402
 
 FIXED_NOW = datetime(2026, 9, 4, 12, 0, 0, tzinfo=timezone.utc)
@@ -207,6 +208,77 @@ class ReconcileTests(unittest.TestCase):
         after = {path: self.dest.sha256(path) for path in self.dest.walk_files(".")}
         self.assertEqual(before, after)
         self.assertTrue(self.reconcile().ok)
+
+
+class ApplyPreflightTests(unittest.TestCase):
+    """迁移必须先预检目的地，不许「先破坏后报错」。"""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.source = build_mirror(Path(self.tmp.name) / "mirror")
+        self.dest = MemoryBackend()
+        fresh_kb(self.dest)
+        self.plan = migrate.build_plan(self.source)
+
+    def snapshot(self) -> dict:
+        return {path: self.dest.sha256(path) for path in self.dest.walk_files(".")}
+
+    def test_a_target_the_ledger_never_recorded_is_refused_with_zero_writes(self) -> None:
+        """红法：目的地已有账本不认的同名文件 → 拒绝，且零写入。"""
+        self.dest.write("raw/2026-07/report-03.md", "# 别人先放的\n".encode("utf-8"))
+        before = self.snapshot()
+        with self.assertRaises(migrate.MigrationError) as ctx:
+            migrate.apply_plan(self.source, self.dest, self.plan)
+        self.assertIn("零写入", str(ctx.exception))
+        self.assertIn("账本未登记", str(ctx.exception))
+        self.assertEqual(self.snapshot(), before, "预检失败却已经写了一部分")
+        self.assertFalse(self.dest.exists("raw/2026-07/report-01.md"))
+
+    def test_a_destination_that_drifted_from_its_ledger_is_refused(self) -> None:
+        self.dest.write("wiki/index.md", "# 手改过的骨架\n".encode("utf-8"))
+        before = self.snapshot()
+        with self.assertRaises(migrate.MigrationError) as ctx:
+            migrate.apply_plan(self.source, self.dest, self.plan)
+        self.assertIn("内容已偏离账本", str(ctx.exception))
+        self.assertEqual(self.snapshot(), before)
+
+    def test_an_explicitly_allowed_overwrite_goes_through(self) -> None:
+        self.dest.write("raw/2026-07/report-03.md", "# 别人先放的\n".encode("utf-8"))
+        written = migrate.apply_plan(
+            self.source,
+            self.dest,
+            self.plan,
+            allowed_overwrite=["raw/2026-07/report-03.md"],
+        )
+        self.assertIn("raw/2026-07/report-03.md", written)
+        self.assertEqual(
+            self.dest.read("raw/2026-07/report-03.md"),
+            MIRROR_FILES["raw/2026-07/report-03.md"].encode("utf-8"),
+        )
+
+    def test_apply_refreshes_the_destination_ledger_before_returning(self) -> None:
+        """迁移后账本必须在同一函数内刷新，不留给下一条命令。"""
+        written = migrate.apply_plan(self.source, self.dest, self.plan)
+        report = verify_manifest(self.dest)
+        self.assertTrue(report.ok, report.describe())
+        manifest = load_manifest(self.dest)
+        self.assertEqual(manifest["kb_code"], "c" * 32)
+        for path in written:
+            with self.subTest(path=path):
+                self.assertIn(path, manifest["entries"])
+
+    def test_a_second_apply_writes_nothing_and_leaves_the_ledger_alone(self) -> None:
+        migrate.apply_plan(self.source, self.dest, self.plan)
+        before = self.snapshot()
+        self.assertEqual(migrate.apply_plan(self.source, self.dest, self.plan), [])
+        self.assertEqual(self.snapshot(), before)
+
+    def test_a_destination_without_a_library_is_refused_by_name(self) -> None:
+        bare = MemoryBackend()
+        with self.assertRaises(migrate.MigrationError) as ctx:
+            migrate.apply_plan(self.source, bare, self.plan)
+        self.assertIn("kb.json", str(ctx.exception))
 
 
 class MigrateCliTests(unittest.TestCase):

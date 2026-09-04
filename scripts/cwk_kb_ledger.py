@@ -228,12 +228,16 @@ def refresh_manifest(
     kb_code: str,
     generated_at: Optional[datetime] = None,
     allow_new: Sequence[str] = (),
+    allow_replaced: Sequence[str] = (),
 ) -> dict:
     """Rebuild the manifest after a write, asserting the existing set is intact.
 
-    ``allow_new`` names paths this write is permitted to add.  Anything else
-    that appeared, changed or vanished raises :class:`LedgerViolation` — the
-    ledger refuses to re-sign a tree it cannot explain.
+    ``allow_new`` names paths this write is permitted to add and
+    ``allow_replaced`` names paths it is permitted to overwrite (the
+    migration filling in a build's placeholder is the case that needs it).
+    Anything else that appeared, changed or vanished raises
+    :class:`LedgerViolation` — the ledger refuses to re-sign a tree it cannot
+    explain, and both allowances are per-call data a reviewer can read.
     """
     try:
         previous = load_manifest(backend)
@@ -244,7 +248,9 @@ def refresh_manifest(
         backend, kb_code=kb_code, manifest_version=version, generated_at=generated_at
     )
     if previous:
-        violations = assert_existing_unchanged(previous, current, allow_new=allow_new)
+        violations = assert_existing_unchanged(
+            previous, current, allow_new=allow_new, allow_replaced=allow_replaced
+        )
         if violations:
             raise LedgerViolation(
                 "存量不变断言失败：\n  " + "\n  ".join(violations)
@@ -276,11 +282,13 @@ def assert_existing_unchanged(
     current: dict,
     *,
     allow_new: Sequence[str] = (),
+    allow_replaced: Sequence[str] = (),
     exempt: Sequence[str] = TIMESTAMP_CLASS_PATHS,
 ) -> List[str]:
     """Return the list of "存量不变" violations between two manifests."""
     exempt_set = set(exempt)
     allowed = set(allow_new)
+    replaced = set(allow_replaced)
     old = previous.get("entries") or {}
     new = current.get("entries") or {}
     violations: List[str] = []
@@ -289,7 +297,7 @@ def assert_existing_unchanged(
             continue
         if path not in new:
             violations.append(f"存量文件被删除：{path}")
-        elif new[path].get("sha256") != row.get("sha256"):
+        elif new[path].get("sha256") != row.get("sha256") and path not in replaced:
             violations.append(
                 f"存量文件被原地改写：{path}"
                 f"（{row.get('sha256')} → {new[path].get('sha256')}）"

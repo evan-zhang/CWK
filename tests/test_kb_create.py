@@ -20,7 +20,7 @@ PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "scripts"))
 
 import cwk_kb_create as create  # noqa: E402
-from cwk_kb_ledger import loads, verify_manifest  # noqa: E402
+from cwk_kb_ledger import LedgerViolation, loads, verify_manifest  # noqa: E402
 from cwk_kb_storage import LocalFSBackend, MemoryBackend  # noqa: E402
 
 FIXED_NOW = datetime(2026, 9, 4, 12, 0, 0, tzinfo=timezone.utc)
@@ -126,6 +126,51 @@ class BuildTests(unittest.TestCase):
         for path in stable:
             with self.subTest(path=path):
                 self.assertEqual(left.sha256(path), right.sha256(path))
+
+
+class DestinationPreflightTests(unittest.TestCase):
+    """建库必须先预检目标根，不许「先破坏后报错」。"""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name) / "kb"
+        self.backend = LocalFSBackend(self.root)
+        create.create_kb(self.backend, spec())
+        self.before = {
+            path: self.backend.sha256(path) for path in self.backend.walk_files(".")
+        }
+
+    def snapshot(self) -> dict:
+        return {path: self.backend.sha256(path) for path in self.backend.walk_files(".")}
+
+    def test_building_into_an_existing_library_is_refused(self) -> None:
+        """红法：指向已建库 → 拒绝，且库内容一个字节都没变。"""
+        second = spec(display_name="另一个库", kb_code="e" * 32)
+        with self.assertRaises(LedgerViolation) as ctx:
+            create.create_kb(self.backend, second)
+        self.assertIn("零写入", str(ctx.exception))
+        self.assertEqual(self.snapshot(), self.before, "被拒绝的建库改动了既有库")
+
+    def test_the_refusal_happens_before_the_first_write(self) -> None:
+        """A single stray file is enough; the check is not about kb.json only."""
+        empty = LocalFSBackend(Path(self.tmp.name) / "half")
+        empty.write("wiki/index.md", "# 我先写的\n".encode("utf-8"))
+        before = {path: empty.sha256(path) for path in empty.walk_files(".")}
+        with self.assertRaises(LedgerViolation):
+            create.create_kb(empty, spec())
+        self.assertEqual(
+            {path: empty.sha256(path) for path in empty.walk_files(".")},
+            before,
+            "预检失败却已经落了盘",
+        )
+        self.assertFalse(empty.exists("kb.json"))
+
+    def test_an_empty_or_absent_root_is_still_accepted(self) -> None:
+        fresh = LocalFSBackend(Path(self.tmp.name) / "fresh")
+        result = create.create_kb(fresh, spec())
+        self.assertTrue(fresh.exists("kb.json"))
+        self.assertGreater(len(result.created_files), 0)
 
 
 class IdentityTests(unittest.TestCase):

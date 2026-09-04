@@ -42,11 +42,19 @@ from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "scripts"))
 
-from cwk_kb_ledger import dumps, record_write  # noqa: E402
+from cwk_kb_ledger import (  # noqa: E402
+    MANIFEST_REL,
+    dumps,
+    read_json,
+    record_write,
+    refresh_manifest,
+)
 from cwk_kb_storage import (  # noqa: E402
+    NotFound,
     StorageBackend,
     assert_no_plaintext_credential_flags,
     build_backend,
+    close_backend,
     normalize_path,
 )
 
@@ -179,18 +187,124 @@ def build_plan(source: StorageBackend, *, scope: str = ".") -> MigrationPlan:
     return plan
 
 
-def apply_plan(
-    source: StorageBackend, dest: StorageBackend, plan: MigrationPlan
-) -> List[str]:
-    """Copy every mapped file.  Idempotent: re-running converges."""
-    written: List[str] = []
+def ledger_digests(dest: StorageBackend) -> Dict[str, str]:
+    """Return ``{path: sha256}`` as the destination's root-manifest records it."""
+    try:
+        manifest = read_json(dest, MANIFEST_REL)
+    except (NotFound, ValueError):
+        return {}
+    return {
+        path: str(row.get("sha256"))
+        for path, row in (manifest.get("entries") or {}).items()
+        if isinstance(row, dict)
+    }
+
+
+def assert_destination_is_clean(
+    dest: StorageBackend,
+    plan: MigrationPlan,
+    *,
+    allowed_overwrite: Sequence[str] = (),
+    known: Optional[Dict[str, str]] = None,
+) -> None:
+    """Prove, before the first copy, that no target holds unaccounted content.
+
+    A target may be written when it does not exist, when it already carries
+    the source bytes (the idempotent re-run), or when it carries exactly what
+    the destination's root-manifest says the build put there — the B-table
+    skeleton the migration is meant to fill in.  Anything else (a file the
+    ledger never recorded, a file whose content drifted from the ledger, the
+    debris of an earlier interrupted run) is a collision, and the migration
+    refuses with zero writes instead of clobbering half of it and then
+    reporting the problem.
+    """
+    known = ledger_digests(dest) if known is None else known
+    allowed = set(allowed_overwrite)
+    collisions: List[str] = []
     for src_path in sorted(plan.mapping):
+        target = plan.mapping[src_path]
+        if not dest.exists(target) or target in allowed:
+            continue
+        try:
+            existing = dest.sha256(target)
+        except NotFound:  # a directory is standing where the file should go
+            collisions.append(f"{src_path} → {target}（目的地同名对象不是文件）")
+            continue
+        if existing == plan.source_digests[src_path]:
+            continue
+        if known.get(target) == existing:
+            continue
+        reason = "账本未登记" if target not in known else "内容已偏离账本"
+        collisions.append(f"{src_path} → {target}（{reason}）")
+    if collisions:
+        raise MigrationError(
+            f"迁移预检失败：{len(collisions)} 个目标路径的既有内容不受目的地账本认领，"
+            "本次零写入。冲突项：\n  " + "\n  ".join(collisions[:10])
+        )
+
+
+def apply_plan(
+    source: StorageBackend,
+    dest: StorageBackend,
+    plan: MigrationPlan,
+    *,
+    kb_code: Optional[str] = None,
+    allowed_overwrite: Sequence[str] = (),
+) -> List[str]:
+    """Copy every mapped file, then re-sign the destination ledger.
+
+    Idempotent: a target that already carries the planned bytes is left
+    alone, so a re-run writes nothing and the manifest is not re-issued.
+    """
+    known = ledger_digests(dest)
+    assert_destination_is_clean(
+        dest, plan, allowed_overwrite=allowed_overwrite, known=known
+    )
+    created: List[str] = []
+    replaced: List[str] = []
+    for src_path in sorted(plan.mapping):
+        target = plan.mapping[src_path]
+        if dest.exists(target) and dest.sha256(target) == plan.source_digests[src_path]:
+            continue
         data = source.read(src_path)
         # record_write, not dest.write: a backend that swallows the copy is
         # caught here instead of at the reconcile step.
-        record_write(dest, plan.mapping[src_path], data)
-        written.append(plan.mapping[src_path])
+        record_write(dest, target, data)
+        # Classified against the *ledger*, not the disk: that is the set the
+        # manifest refresh compares against, and a file the ledger never knew
+        # about is an addition however long it has been lying there.
+        (replaced if target in known else created).append(target)
+    written = sorted(created + replaced)
+    if written:
+        # Same function, same call: leaving the ledger stale until some later
+        # command happens to refresh it is how a tree and its manifest drift
+        # apart without anybody deciding that they should.  The migration
+        # declares what it added and what it overwrote; the ledger forgives
+        # exactly that and nothing else.
+        refresh_manifest(
+            dest,
+            kb_code=resolve_kb_code(dest, kb_code),
+            allow_new=created,
+            allow_replaced=replaced,
+        )
     return written
+
+
+def resolve_kb_code(dest: StorageBackend, kb_code: Optional[str] = None) -> str:
+    """Return the destination library's kb_code (kb.json first, ledger next)."""
+    if kb_code:
+        return kb_code
+    for path, key in (("kb.json", "kb_code"), (MANIFEST_REL, "kb_code")):
+        try:
+            value = read_json(dest, path).get(key)
+        except (NotFound, ValueError):
+            continue
+        if isinstance(value, str) and value:
+            return value
+    raise MigrationError(
+        "目的地既没有 kb.json 也没有 root-manifest.json，无法确定 kb_code："
+        "迁移只写进已建好的库，请先 cwk_kb_create.py 建库。"
+    )
 
 
 def reconcile(
