@@ -54,6 +54,7 @@ from cwk_kb_storage import (  # noqa: E402
     StorageBackend,
     assert_no_plaintext_credential_flags,
     build_backend,
+    close_backend,
 )
 
 CHECKS = ("raw", "manifest", "collection-state", "changed-paths", "tree")
@@ -165,6 +166,7 @@ def selected_checks(args: argparse.Namespace) -> List[str]:
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
+    backend = None
     try:
         assert_no_plaintext_credential_flags(argv)
         args = build_parser().parse_args(argv)
@@ -181,6 +183,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     except Exception as exc:  # noqa: BLE001 - CLI boundary
         print(f"体检失败：{exc}", file=sys.stderr)
         return 2
+    finally:
+        close_backend(backend)
 
     if args.json:
         sys.stdout.write(

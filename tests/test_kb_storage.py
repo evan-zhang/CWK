@@ -509,6 +509,66 @@ class CredentialTests(unittest.TestCase):
         self.assertEqual(backend.fake.login_count, 1, "sid 应被复用，不该重复登录")
 
 
+class SessionTeardownTests(unittest.TestCase):
+    """每个 CLI 出口都要 logout：失败的那次也占着 NAS 会话。"""
+
+    class RecordingBackend(storage.MemoryBackend):
+        name = "recording"
+
+        def __init__(self) -> None:
+            super().__init__()
+            self.logouts = 0
+
+        def logout(self) -> None:
+            self.logouts += 1
+
+    def run_cli(self, module, argv):
+        import contextlib
+
+        made: List["SessionTeardownTests.RecordingBackend"] = []
+
+        def fake_build_backend(_kind, **_kwargs):
+            backend = SessionTeardownTests.RecordingBackend()
+            made.append(backend)
+            return backend
+
+        buffer = io.StringIO()
+        with mock.patch.object(module, "build_backend", fake_build_backend):
+            with contextlib.redirect_stdout(buffer), contextlib.redirect_stderr(buffer):
+                code = module.main(argv)
+        return made, code, buffer.getvalue()
+
+    def test_every_cli_logs_out_even_when_the_run_fails(self) -> None:
+        import cwk_kb_create
+        import cwk_kb_doctor
+        import cwk_kb_migrate
+
+        cases = (
+            (cwk_kb_create, ["--name", "库", "--backend", "nas"]),
+            (cwk_kb_migrate, ["apply", "--source-root", "x", "--dest-backend", "nas"]),
+            (cwk_kb_doctor, ["verify", "--manifest", "--backend", "nas"]),
+        )
+        for module, argv in cases:
+            with self.subTest(module=module.__name__):
+                made, _code, _out = self.run_cli(module, argv)
+                self.assertTrue(made, "CLI 没有建后端，测试没测到东西")
+                for backend in made:
+                    self.assertEqual(
+                        backend.logouts, 1, f"{module.__name__} 没有释放 NAS 会话"
+                    )
+
+    def test_close_backend_tolerates_a_backend_without_a_session(self) -> None:
+        storage.close_backend(storage.MemoryBackend())
+        storage.close_backend(None)
+
+    def test_a_failing_logout_does_not_replace_the_real_error(self) -> None:
+        class Rude(storage.MemoryBackend):
+            def logout(self) -> None:
+                raise storage.RemoteStorageError("logout 也挂了")
+
+        storage.close_backend(Rude())
+
+
 # ── FileStation behaviour ───────────────────────────────────────────────────
 
 

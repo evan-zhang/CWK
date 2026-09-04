@@ -301,6 +301,60 @@ class ValidationTests(unittest.TestCase):
             spec(visibility="public").validate()
 
 
+class KeyRefTests(unittest.TestCase):
+    """--key-ref 是环境变量引用，不是放明文 Key 的地方。"""
+
+    def test_only_an_env_reference_is_accepted(self) -> None:
+        for good in ("env:CWK_CWORK_KEY", "env:A", "env:_X9", "env:KB_KEY_2"):
+            with self.subTest(key_ref=good):
+                self.assertEqual(create.validate_key_ref(good), good)
+
+    def test_everything_else_is_refused(self) -> None:
+        """红法：明文 Key、文件路径、小写变量名、注入片段 → 全部拒绝。"""
+        for bad in (
+            "sk-live-0123456789",          # 明文 Key
+            "CWK_CWORK_KEY",               # 少了 env: 前缀
+            "env:",                        # 空变量名
+            "env:cwk_cwork_key",           # 小写
+            "env:9KEY",                    # 数字开头
+            "env:KEY WITH SPACE",
+            "env:KEY;rm -rf /",
+            "env:KEY$(id)",
+            "file:/etc/passwd",
+            "env:KEY\nenv:OTHER",
+            "",
+            None,
+        ):
+            with self.subTest(key_ref=bad):
+                with self.assertRaises(create.CreateError):
+                    create.validate_key_ref(bad)
+
+    def test_a_build_with_a_bad_key_ref_writes_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            backend = LocalFSBackend(Path(tmp) / "kb")
+            bad = spec(sources=(create.SourceSpec("cwork", key_ref="sk-live-abc"),))
+            with self.assertRaises(create.CreateError):
+                create.create_kb(backend, bad)
+            self.assertEqual(backend.walk_files("."), [])
+
+    def test_the_cli_refuses_it_too(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "kb"
+            buffer = io.StringIO()
+            with contextlib.redirect_stderr(buffer):
+                code = create.main(
+                    ["--name", "库", "--root", str(root), "--key-ref", "sk-live-abc"]
+                )
+            self.assertEqual(code, 2)
+            self.assertIn("--key-ref", buffer.getvalue())
+            self.assertEqual(LocalFSBackend(root).walk_files("."), [])
+
+    def test_the_default_is_itself_a_valid_reference(self) -> None:
+        self.assertEqual(
+            create.validate_key_ref(create.DEFAULT_KEY_REF), create.DEFAULT_KEY_REF
+        )
+
+
 class AuditTreeTests(unittest.TestCase):
     def test_a_missing_or_empty_item_is_reported(self) -> None:
         backend = MemoryBackend()

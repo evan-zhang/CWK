@@ -399,6 +399,7 @@ def parse_renames(pairs: Sequence[str]) -> List[Tuple[str, str]]:
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
+    source = dest = None
     try:
         assert_no_plaintext_credential_flags(argv)
         args = build_parser().parse_args(argv)
@@ -426,6 +427,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     except Exception as exc:  # noqa: BLE001 - CLI boundary
         print(f"迁移失败：{exc}", file=sys.stderr)
         return 2
+    finally:
+        for backend in (source, dest):
+            close_backend(backend)
     sys.stdout.write(dumps(payload).decode("utf-8"))
     return 0
 

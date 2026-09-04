@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import secrets
 import sys
 from dataclasses import dataclass, field
@@ -63,6 +64,7 @@ from cwk_kb_storage import (  # noqa: E402
     StorageBackend,
     assert_no_plaintext_credential_flags,
     build_backend,
+    close_backend,
 )
 
 KB_SCHEMA = "cwk.kb.identity.v1"
@@ -74,6 +76,15 @@ TAXONOMY_SCHEMA = "cwk.kb.taxonomy.v1"
 KB_CODE_BITS = 128
 
 SOURCE_TYPES = ("cwork", "docdb")
+
+# A key reference names an environment variable and nothing else.  The whole
+# point of storing a *reference* is that the secret stays outside the library,
+# so anything that is not ``env:VARIABLE_NAME`` — a literal key, a file path,
+# a shell fragment — is refused rather than written into source.json where it
+# would be backed up, synced and read by everything downstream.
+KEY_REF_PREFIX = "env:"
+KEY_REF_PATTERN = re.compile(r"^env:[A-Z_][A-Z0-9_]*$")
+DEFAULT_KEY_REF = "env:CWK_CWORK_KEY"
 
 # KB-PARAMETERS A2: accepted in a later version, refused today.  Accepting
 # them silently would create libraries whose stored config claims a filter
@@ -182,7 +193,7 @@ class SourceSpec:
 
     source_type: str
     route: str = "classify"
-    key_ref: str = "env:CWK_CWORK_KEY"
+    key_ref: str = DEFAULT_KEY_REF
     lanes: Tuple[str, ...] = DEFAULT_LANES
     window_mode: str = DEFAULT_WINDOW_MODE
     window_start: Optional[str] = None
@@ -265,6 +276,18 @@ class KbSpec:
             seen.add(source.source_type)
             if source.source_type == "docdb" and not source.docdb_root:
                 raise CreateError("docdb 源必须给 --docdb-root")
+            validate_key_ref(source.key_ref)
+
+
+def validate_key_ref(key_ref: str) -> str:
+    """Return ``key_ref`` if it names an environment variable, else refuse."""
+    if not isinstance(key_ref, str) or not KEY_REF_PATTERN.match(key_ref):
+        raise CreateError(
+            f"--key-ref 只接受 {KEY_REF_PREFIX}<环境变量名> 形式"
+            f"（变量名 [A-Z_][A-Z0-9_]*），收到 {key_ref!r}。"
+            "Key 本身永远不写进库配置。"
+        )
+    return key_ref
 
 
 def reject_v1_unsupported(params: Dict[str, object]) -> None:
@@ -621,7 +644,11 @@ def build_parser() -> argparse.ArgumentParser:
         default="cwork",
         help="逗号分隔的源类型：cwork,docdb（默认 cwork）",
     )
-    parser.add_argument("--key-ref", default="env:CWK_CWORK_KEY", help="Key 的 .env 引用，禁明文")
+    parser.add_argument(
+        "--key-ref",
+        default=DEFAULT_KEY_REF,
+        help=f"Key 的环境变量引用，形如 {DEFAULT_KEY_REF}；禁明文",
+    )
     parser.add_argument("--lanes", default=",".join(DEFAULT_LANES))
     parser.add_argument("--window", dest="window_mode", default=DEFAULT_WINDOW_MODE)
     parser.add_argument("--start-date")
@@ -651,6 +678,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def spec_from_args(args: argparse.Namespace) -> KbSpec:
     reject_v1_unsupported({name: getattr(args, name, None) for name in REJECTED_SOURCE_PARAMS})
+    validate_key_ref(args.key_ref)
     requested = [part.strip() for part in args.sources.split(",") if part.strip()]
     sources: List[SourceSpec] = []
     for source_type in requested:
@@ -697,6 +725,7 @@ def spec_from_args(args: argparse.Namespace) -> KbSpec:
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
+    backend = None
     try:
         assert_no_plaintext_credential_flags(argv)
         args = build_parser().parse_args(argv)
@@ -710,6 +739,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     except Exception as exc:  # noqa: BLE001 - CLI boundary
         print(f"建库失败：{exc}", file=sys.stderr)
         return 2
+    finally:
+        # A failed run holds a NAS session too; releasing it is not optional
+        # just because the command did not get what it came for.
+        close_backend(backend)
     print(f"kb_code: {result.kb_code}")
     print(f"B 表项：{len(result.tree_items)} 项 → {', '.join(result.tree_items)}")
     print(f"目录 {len(result.created_dirs)} 个 / 文件 {len(result.created_files)} 个")
