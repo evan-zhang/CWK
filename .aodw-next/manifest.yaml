@@ -1,11 +1,11 @@
 # AODW Manifest
 version: 0.6.1
-last_updated_at: 2026-08-31T00:00:00+08:00
+last_updated_at: 2026-09-04T12:30:00+08:00
 summary_preferred: true
 
 adoption:
   source_project: bd-eval-loop
-  source_commit: 08b0523c9457da9f59235e48e22227f369502ac6
+  source_commit: 21a734dba1717821c37b375ac55c5e16cdf7a51b
   adopted_at: 2026-08-31
   project_specific_layer: 06-project
 

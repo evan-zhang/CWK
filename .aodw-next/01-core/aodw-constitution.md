@@ -137,7 +137,7 @@ RT 默认只有 `meta.yaml` 和 `rt-lite.md`。
 
 本 RT 目标已达成、但发现了不该塞进本次范围的事：记为**遗留事项**。本 RT 写在 `rt-lite.md`，统一需求池是 `RT/_deferred-items.md`。不要用 `handoff/` 目录做交接。写法见 `02-workflow/rt-manager.md`。目标没达成就不要靠转出来关 RT。
 
-Git 操作细节见 `01-core/git-discipline.md`。`rt-lite.md` 写法见 `02-workflow/spec-lite-profile.md`。对人说话见 `01-core/ai-interaction-rules.md`。
+Git 操作细节见 `01-core/git-discipline.md`。`rt-lite.md` 写法见 `02-workflow/spec-lite-profile.md`。对人说话见 `01-core/ai-interaction-rules.md`。**什么样的判据算数见 `01-core/test-discipline.md`**。
 
 ---
 
@@ -159,6 +159,7 @@ Git 操作细节见 `01-core/git-discipline.md`。`rt-lite.md` 写法见 `02-wor
 3. 写代码或讨论方案：`AGENTS.md`
 4. 当前项目：`06-project/ai-overview.md`
 5. 立项 / 实现 / Git：`rt-manager.md`、`spec-lite-profile.md`、`git-discipline.md` 需要的部分
+6. 写判据或验收：`01-core/test-discipline.md`
 
 旧的 Spec-Full、Autopilot、子代理、审计官文件不是现行规则，不按旧流程做。迁移、排查悬空引用或追溯决策时可以查看 Git 历史；历史内容只能作为证据，不能覆盖本宪章。
 行为、数据含义、对外契约或模块职责变了，才更新模块文档。
