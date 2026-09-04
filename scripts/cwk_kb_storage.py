@@ -517,6 +517,9 @@ def retry_call(policy: RetryPolicy, operation: Callable[[], T]) -> T:
 # else is treated as permanent so a wrong password fails immediately instead
 # of being retried four times.
 FILESTATION_TRANSIENT_CODES = frozenset({105, 118, 119, 407, 800, 1002, 1003})
+# The complete key set of a FileStation response envelope.  A download body
+# with anything else in it is a file, not an envelope.
+ERROR_ENVELOPE_KEYS = frozenset({"success", "error", "data"})
 FILESTATION_EXISTS_CODES = frozenset({408, 414, 1100, 1805})
 
 
@@ -789,17 +792,37 @@ class FileStationBackend:
         )
         raw = retry_call(self.retry, lambda: self._transport(request))
         # A failed download returns a JSON error envelope instead of bytes.
+        # Most files in this KB *are* JSON, so "starts with a brace" cannot
+        # mean "is an error": the body is only read as an envelope when it
+        # parses whole and has the exact shape the device sends.  Anything
+        # else — a document carrying a ``success`` key, a stored capture of a
+        # failed API call — is returned as the bytes it is.
         if raw[:1] == b"{":
             try:
                 payload = json.loads(raw.decode("utf-8"))
             except (UnicodeDecodeError, json.JSONDecodeError):
                 return raw
-            if isinstance(payload, dict) and "success" in payload:
+            if self._is_error_envelope(payload):
                 code = self._error_code(payload)
                 if code in (408, 1100):
                     raise NotFound("FileStation 下载目标不存在")
                 self._check(payload)
         return raw
+
+    @staticmethod
+    def _is_error_envelope(payload: object) -> bool:
+        """True only for the device's failure envelope, not for JSON content.
+
+        ``{"success": false, "error": {"code": N}}`` and nothing wider: an
+        extra key means the body is a document that quotes an envelope, and
+        swallowing it would lose a file to a false positive.
+        """
+        return (
+            isinstance(payload, dict)
+            and payload.get("success") is False
+            and isinstance(payload.get("error"), dict)
+            and set(payload) <= ERROR_ENVELOPE_KEYS
+        )
 
     # -- StorageBackend -----------------------------------------------------
 
@@ -837,9 +860,7 @@ class FileStationBackend:
         parent = PurePosixPath(safe).parent.as_posix()
         if parent not in (".", ""):
             self.mkdir(parent)
-        boundary = "----cwk-kb-" + secrets.token_hex(16)
-        body = self._multipart(
-            boundary,
+        request = self._upload_request(
             fields={
                 "api": "SYNO.FileStation.Upload",
                 "version": "2",
@@ -852,15 +873,29 @@ class FileStationBackend:
             filename=PurePosixPath(safe).name,
             payload=payload,
         )
-        # sid 走 query string：multipart form body 里的 sid 这台 DSM 不识别（119 Invalid session）
-        request = urllib.request.Request(
+        self._check(self._call(request))
+        return sha256_bytes(payload)
+
+    def _upload_request(
+        self, *, fields: Dict[str, str], filename: str, payload: bytes
+    ) -> urllib.request.Request:
+        """Build the multipart upload with ``_sid`` in the **query string**.
+
+        DSM 7.x rejects a session id that arrives only as a multipart form
+        field (119 Invalid session), so the placement is part of the wire
+        contract rather than a style choice.  It lives in its own method so a
+        test can put the id back in the body and prove the fake notices.
+        """
+        boundary = "----cwk-kb-" + secrets.token_hex(16)
+        body = self._multipart(
+            boundary, fields=fields, filename=filename, payload=payload
+        )
+        return urllib.request.Request(
             f"{self._base_url()}/entry.cgi?_sid={self.login()}",
             data=body,
             method="POST",
             headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
         )
-        self._check(self._call(request))
-        return sha256_bytes(payload)
 
     @staticmethod
     def _multipart(

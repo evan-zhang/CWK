@@ -20,6 +20,7 @@ import sys
 import tempfile
 import unittest
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -162,11 +163,16 @@ class FakeFileStation:
 
     @staticmethod
     def _form(body: bytes) -> Dict[str, str]:
-        import urllib.parse
-
         return {k: v[0] for k, v in urllib.parse.parse_qs(body.decode("utf-8")).items()}
 
     def _upload(self, request: urllib.request.Request, body: bytes) -> bytes:
+        # DSM 7.x reads the session id from the query string on the upload
+        # endpoint.  A sid that only appears in the multipart body is not a
+        # session as far as the device is concerned: 119 Invalid session.
+        query = urllib.parse.parse_qs(urllib.parse.urlsplit(request.full_url).query)
+        if not query.get("_sid"):
+            self.calls.append("upload REJECTED no _sid in query")
+            return b'{"error": {"code": 119}}'
         boundary = request.get_header("Content-type").split("boundary=")[1]
         parts = body.split(f"--{boundary}".encode("utf-8"))
         fields: Dict[str, bytes] = {}
@@ -185,8 +191,6 @@ class FakeFileStation:
         return b'{"success": true}'
 
     def _download(self, fields: Dict[str, str]) -> bytes:
-        import urllib.parse
-
         path = json.loads(urllib.parse.unquote_plus(fields["path"]))
         self.calls.append(f"download {path}")
         if path not in self.files:
@@ -197,10 +201,16 @@ class FakeFileStation:
         api = fields.get("api")
         self.calls.append(f"{api}.{fields.get('method')}")
         if api == "SYNO.FileStation.CreateFolder":
-            target = f"{fields['folder_path']}/{fields['name']}"
-            if target in self.folders:
+            # folder_path is a JSON **array** on this endpoint; joining the raw
+            # field would invent a folder literally named ``["/kb"]/wiki`` and
+            # every later exists() would answer False without anyone noticing.
+            parents = json.loads(fields["folder_path"])
+            if isinstance(parents, str):
+                parents = [parents]
+            targets = [f"{str(parent).rstrip('/')}/{fields['name']}" for parent in parents]
+            if any(target in self.folders for target in targets):
                 return b'{"success": false, "error": {"code": 408}}'
-            self.folders.add(target)
+            self.folders.update(targets)
             return b'{"success": true}'
         if api == "SYNO.FileStation.Delete":
             for path in json.loads(fields["path"]):
@@ -605,6 +615,94 @@ class FileStationTests(unittest.TestCase):
     def test_default_port_is_the_https_management_port(self) -> None:
         backend = fake_nas()
         self.assertEqual(backend._base_url(), "https://nas.test:5001/webapi")
+
+
+class SidInBodyBackend(storage.FileStationBackend):
+    """The pre-fix upload: ``_sid`` as a form field, plain endpoint URL.
+
+    Used to prove the fake actually checks where the session id sits — a fake
+    that accepts both placements locks nothing.
+    """
+
+    def _upload_request(self, *, fields, filename, payload):
+        import secrets as _secrets
+
+        boundary = "----cwk-kb-" + _secrets.token_hex(16)
+        body = self._multipart(
+            boundary,
+            fields={**fields, "_sid": self.login()},
+            filename=filename,
+            payload=payload,
+        )
+        return urllib.request.Request(
+            f"{self._base_url()}/entry.cgi",
+            data=body,
+            method="POST",
+            headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+        )
+
+
+class WireContractTests(unittest.TestCase):
+    """The fake must fail the requests a real DSM 7.x would fail."""
+
+    def test_upload_takes_the_sid_from_the_query_string(self) -> None:
+        backend = fake_nas()
+        backend.write("wiki/index.md", b"x")
+        upload = [call for call in backend.fake.calls if call.startswith("upload")]
+        self.assertEqual(upload, ["upload /kb/wiki/index.md"])
+
+    def test_a_sid_that_only_rides_in_the_body_is_refused(self) -> None:
+        """红法：把 upload 的 sid 改回 body → 必须红（119 Invalid session）。"""
+        transport = FakeFileStation()
+        backend = SidInBodyBackend(
+            storage.NasCredentials(host="nas.test", user="svc", password="pw", share="/kb"),
+            transport=transport,
+            retry=storage.RetryPolicy(attempts=2, base_delay=0, sleep=lambda _: None),
+        )
+        with self.assertRaises(storage.TransientStorageError) as ctx:
+            backend.write("wiki/index.md", b"x")
+        self.assertIn("119", str(ctx.exception))
+        self.assertIn("upload REJECTED no _sid in query", transport.calls)
+        self.assertEqual(transport.files, {}, "被拒绝的上传不该留下文件")
+
+    def test_mkdir_creates_a_folder_the_device_can_then_see(self) -> None:
+        """CreateFolder 的 folder_path 是数组形态；拼错了 exists 就永远是 False。"""
+        backend = fake_nas()
+        backend.mkdir("wiki/summaries")
+        self.assertIn("/kb/wiki", backend.fake.folders)
+        self.assertIn("/kb/wiki/summaries", backend.fake.folders)
+        self.assertTrue(backend.exists("wiki"))
+        self.assertTrue(backend.exists("wiki/summaries"))
+        self.assertIn("summaries", backend.list_dir("wiki"))
+
+    def test_mkdir_stays_idempotent_now_that_the_folder_is_real(self) -> None:
+        backend = fake_nas()
+        backend.mkdir("wiki/summaries")
+        backend.mkdir("wiki/summaries")  # 408 already-exists, tolerated
+        self.assertTrue(backend.exists("wiki/summaries"))
+
+    def test_a_file_that_starts_with_a_brace_reads_back_unchanged(self) -> None:
+        """负例：JSON 文件不是错误信封，不许被当成信封吞掉。"""
+        backend = fake_nas()
+        cases = {
+            "kb.json": b'{"schema": "cwk.kb.identity.v1", "kb_code": "0000"}',
+            "_system/odd.json": b'{"success": true, "data": {"note": "this is a file"}}',
+            "_system/null.json": '{"success": null, "note": "抓到的响应"}'.encode("utf-8"),
+            "_system/zero.json": b'{"success": 0, "records": []}',
+            "_system/capture.json": (
+                '{"success": false, "error": {"code": 408}, "note": "存档的失败响应"}'
+            ).encode("utf-8"),
+        }
+        for path, payload in cases.items():
+            with self.subTest(path=path):
+                digest = backend.write(path, payload)
+                self.assertEqual(backend.read(path), payload)
+                self.assertEqual(backend.sha256(path), digest)
+
+    def test_a_real_error_envelope_is_still_recognised(self) -> None:
+        backend = fake_nas()
+        with self.assertRaises(storage.NotFound):
+            backend.read("wiki/missing.md")
 
 
 # ── certificate pinning ─────────────────────────────────────────────────────
