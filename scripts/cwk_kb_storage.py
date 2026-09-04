@@ -43,6 +43,12 @@ separators, NUL bytes and empty components *before* any I/O happens.  The
 local backend then re-checks the resolved path against the resolved root so
 a symlink that appeared between two calls still cannot redirect a write.
 
+TLS rule.  When ``CWK_NAS_KB_CERT_SHA256`` is set the pin is verified on
+the *business* socket, inside :meth:`PinnedHTTPSConnection.connect`, before
+a single request byte is written.  A separate probe connection (the shape
+``ssl.get_server_certificate`` invites) would only prove that *some* socket
+reached the real NAS, which is exactly the window a man in the middle needs.
+
 Reliability rule.  FileStation calls go through :func:`retry_call`, which
 retries transient failures (5xx, connection resets, timeouts and the
 FileStation "device busy" family) with exponential backoff.  Every write is
@@ -53,6 +59,7 @@ idempotent: ``mkdir`` on an existing folder succeeds, ``write`` overwrites,
 from __future__ import annotations
 
 import hashlib
+import http.client
 import io
 import json
 import os
@@ -513,6 +520,37 @@ FILESTATION_TRANSIENT_CODES = frozenset({105, 118, 119, 407, 800, 1002, 1003})
 FILESTATION_EXISTS_CODES = frozenset({408, 414, 1100, 1805})
 
 
+class PinnedHTTPSConnection(http.client.HTTPSConnection):
+    """HTTPS connection that verifies the peer certificate fingerprint itself.
+
+    The check runs inside :meth:`connect`, on the socket that is about to
+    carry the request, and it runs on *every* new connection.  That ordering
+    is the whole point: verifying a pin on a separate probe socket proves
+    only that some connection reached the real NAS, and leaves the request
+    free to travel down a different one.
+    """
+
+    def __init__(self, *args, cert_sha256: str, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.cert_sha256 = (cert_sha256 or "").strip().lower()
+        self.pin_verified = False
+
+    def connect(self) -> None:
+        super().connect()
+        der = self.sock.getpeercert(binary_form=True) if self.sock else None
+        if not der:
+            self.close()
+            raise RemoteStorageError("NAS 未提供证书，指纹固定模式拒绝连接")
+        digest = hashlib.sha256(der).hexdigest()
+        if digest != self.cert_sha256:
+            self.close()
+            raise RemoteStorageError(
+                f"NAS 证书指纹不匹配：期望 {self.cert_sha256}，实际 {digest}。"
+                "拒绝连接（指纹固定模式），本次请求一个字节都没有发出。"
+            )
+        self.pin_verified = True
+
+
 class FileStationBackend:
     """Synology FileStation backend over HTTPS.
 
@@ -540,7 +578,6 @@ class FileStationBackend:
         self.timeout = timeout
         self.verify_tls = verify_tls
         self.cert_sha256 = (cert_sha256 or "").strip().lower() or None
-        self._pin_verified = False
         self._transport = transport or self._https_transport
         self._sid: Optional[str] = None
 
@@ -576,8 +613,11 @@ class FileStationBackend:
 
     def _ssl_context(self) -> ssl.SSLContext:
         if self.cert_sha256:
-            # Pinned mode: encrypted channel, identity checked against the
-            # pinned fingerprint below (stronger than a generic CA chain).
+            # Pinned mode: the CA chain and the hostname are not what proves
+            # identity here — :class:`PinnedHTTPSConnection` compares this
+            # very socket's certificate with the pin, so the check cannot be
+            # answered by a different connection than the one that carries
+            # the request.
             context = ssl.create_default_context()
             context.check_hostname = False
             context.verify_mode = ssl.CERT_NONE
@@ -589,25 +629,54 @@ class FileStationBackend:
         context.verify_mode = ssl.CERT_NONE
         return context
 
-    def _verify_pin(self) -> None:
-        """Once per backend: compare the server cert DER sha256 to the pin."""
-        if self._pin_verified:
-            return
-        host = self.credentials.host
-        hostname, _, port = host.partition(":")
-        raw = ssl.get_server_certificate((hostname, int(port or 5001)))
-        der = ssl.PEM_cert_to_DER_cert(raw.strip())
-        digest = hashlib.sha256(der).hexdigest()
-        if digest != self.cert_sha256:
-            raise RemoteStorageError(
-                f"NAS 证书指纹不匹配：期望 {self.cert_sha256}，实际 {digest}。"
-                "拒绝连接（指纹固定模式）。"
-            )
-        self._pin_verified = True
+    def _pinned_connection(self, host: str, port: int) -> "PinnedHTTPSConnection":
+        return PinnedHTTPSConnection(
+            host,
+            port,
+            timeout=self.timeout,
+            context=self._ssl_context(),
+            cert_sha256=self.cert_sha256 or "",
+        )
+
+    def _pinned_transport(self, request: urllib.request.Request) -> bytes:
+        """Send ``request`` over a freshly pinned connection.
+
+        The request is written only after ``connect()`` has matched this
+        socket's certificate against the pin, and the connection is closed
+        afterwards, so every request re-verifies.  Nothing is cached: a pin
+        that was right an hour ago says nothing about the socket in hand.
+        """
+        split = urllib.parse.urlsplit(request.full_url)
+        target = split.path or "/"
+        if split.query:
+            target = f"{target}?{split.query}"
+        headers = {key: value for key, value in request.header_items()}
+        body = request.data
+        if body is not None:
+            headers.setdefault("Content-type", "application/x-www-form-urlencoded")
+        connection = self._pinned_connection(split.hostname or "", split.port or 5001)
+        try:
+            connection.request(request.get_method(), target, body=body, headers=headers)
+            response = connection.getresponse()
+            payload = response.read()
+            status = response.status
+        except StorageError:
+            # A pin mismatch is permanent; retrying it would only make the
+            # refusal slower.
+            raise
+        except OSError as exc:  # includes ssl.SSLError and TimeoutError
+            raise TransientStorageError(f"FileStation 连接失败：{exc}") from exc
+        finally:
+            connection.close()
+        if status >= 500 or status == 429:
+            raise TransientStorageError(f"FileStation HTTP {status}")
+        if status >= 400:
+            raise RemoteStorageError(f"FileStation HTTP {status}")
+        return payload
 
     def _https_transport(self, request: urllib.request.Request) -> bytes:
         if self.cert_sha256:
-            self._verify_pin()
+            return self._pinned_transport(request)
         try:
             with urllib.request.urlopen(
                 request, timeout=self.timeout, context=self._ssl_context()
@@ -913,6 +982,23 @@ class FileStationBackend:
 # ── factory ─────────────────────────────────────────────────────────────────
 
 
+def close_backend(backend: Optional[object]) -> None:
+    """Release a backend's remote session, if it has one.
+
+    A FileStation session that is never logged out stays on the NAS until it
+    times out; CLIs call this in a ``finally`` so a failed run releases it
+    too.  Teardown must not turn a real failure into a different one, so a
+    logout that itself fails is swallowed.
+    """
+    logout = getattr(backend, "logout", None)
+    if logout is None:
+        return
+    try:
+        logout()
+    except (StorageError, OSError):
+        pass
+
+
 def build_backend(
     kind: str,
     *,
@@ -942,6 +1028,7 @@ __all__ = [
     "LocalFSBackend",
     "MemoryBackend",
     "FileStationBackend",
+    "PinnedHTTPSConnection",
     "NasCredentials",
     "RetryPolicy",
     "StorageError",
@@ -953,6 +1040,7 @@ __all__ = [
     "RemoteStorageError",
     "assert_no_plaintext_credential_flags",
     "build_backend",
+    "close_backend",
     "credentials_from_env",
     "join_under",
     "normalize_path",

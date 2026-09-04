@@ -10,6 +10,9 @@ device.
 
 from __future__ import annotations
 
+import hashlib
+import http.client
+import io
 import json
 import os
 import secrets
@@ -404,10 +407,14 @@ class AntiIdleTests(unittest.TestCase):
         red for everything.
         """
         with tempfile.TemporaryDirectory() as tmp:
-            backend = storage.LocalFSBackend(Path(tmp) / "kb")
-            record_write(backend, "kb.json", b"{}")
-            create_kb(backend, fixed_spec())
-            self.assertTrue(backend.exists("kb.json"))
+            # Two roots: a build refuses a non-empty destination, so the
+            # single-write arm cannot share a tree with the whole-build arm.
+            single = storage.LocalFSBackend(Path(tmp) / "single")
+            record_write(single, "kb.json", b"{}")
+            self.assertTrue(single.exists("kb.json"))
+            whole = storage.LocalFSBackend(Path(tmp) / "kb")
+            create_kb(whole, fixed_spec())
+            self.assertTrue(whole.exists("kb.json"))
 
     def test_write_path_contract_helper_is_red_under_noop_and_green_otherwise(self) -> None:
         def write_path_contract(backend) -> None:
@@ -598,6 +605,182 @@ class FileStationTests(unittest.TestCase):
     def test_default_port_is_the_https_management_port(self) -> None:
         backend = fake_nas()
         self.assertEqual(backend._base_url(), "https://nas.test:5001/webapi")
+
+
+# ── certificate pinning ─────────────────────────────────────────────────────
+
+
+REAL_CERT = b"DER-of-the-real-nas"
+EVIL_CERT = b"DER-of-the-attackers-box"
+REAL_PIN = hashlib.sha256(REAL_CERT).hexdigest()
+EVIL_PIN = hashlib.sha256(EVIL_CERT).hexdigest()
+
+
+def http_response(status: int = 200, body: bytes = b'{"success": true}') -> bytes:
+    reason = {200: "OK", 401: "Unauthorized", 503: "Service Unavailable"}[status]
+    head = f"HTTP/1.1 {status} {reason}\r\nContent-Length: {len(body)}\r\n\r\n"
+    return head.encode("utf-8") + body
+
+
+class FakeTLSSocket:
+    """A socket that serves one certificate and one canned HTTP response.
+
+    ``sent`` is the point of the object: a pin failure must leave it empty.
+    """
+
+    def __init__(self, der: bytes, response: bytes) -> None:
+        self.der = der
+        self.response = response
+        self.sent = bytearray()
+        self.closed = False
+
+    def getpeercert(self, binary_form: bool = False):
+        return self.der if binary_form else {}
+
+    def sendall(self, data) -> None:
+        self.sent += bytes(data)
+
+    def send(self, data) -> int:
+        self.sendall(data)
+        return len(data)
+
+    def makefile(self, mode="rb", *args, **kwargs):
+        return io.BytesIO(self.response)
+
+    def settimeout(self, _timeout) -> None:
+        return None
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class PinnedConnectionHarness:
+    """Replaces the real TLS handshake with a scripted one."""
+
+    def __init__(self, certs, responses=None) -> None:
+        self.certs = list(certs)
+        self.responses = list(responses or [])
+        self.sockets: List[FakeTLSSocket] = []
+        self.connects = 0
+
+    def connect(self, connection) -> None:
+        self.connects += 1
+        der = self.certs.pop(0) if self.certs else b""
+        response = self.responses.pop(0) if self.responses else http_response()
+        sock = FakeTLSSocket(der, response)
+        self.sockets.append(sock)
+        connection.sock = sock
+
+    def patch(self):
+        return mock.patch.object(
+            http.client.HTTPSConnection, "connect", lambda conn: self.connect(conn)
+        )
+
+
+def pinned_backend(pin: str = REAL_PIN) -> storage.FileStationBackend:
+    return storage.FileStationBackend(
+        storage.NasCredentials(host="nas.test", user="svc", password="pw", share="/kb"),
+        cert_sha256=pin,
+        retry=storage.RetryPolicy(attempts=2, base_delay=0, sleep=lambda _: None),
+    )
+
+
+class CertificatePinningTests(unittest.TestCase):
+    """The pin must bind the connection that carries the request.
+
+    Verifying a fingerprint on a separate probe socket is a TOCTOU hole: the
+    probe can be routed to the real NAS while the request goes elsewhere.
+    """
+
+    def setUp(self) -> None:
+        self.request = urllib.request.Request(
+            "https://nas.test:5001/webapi/entry.cgi", data=b"api=x", method="POST"
+        )
+
+    def test_a_matching_pin_lets_the_request_through(self) -> None:
+        harness = PinnedConnectionHarness([REAL_CERT])
+        backend = pinned_backend()
+        with harness.patch():
+            self.assertEqual(backend._https_transport(self.request), b'{"success": true}')
+        self.assertIn(b"POST /webapi/entry.cgi", bytes(harness.sockets[0].sent))
+        self.assertIn(b"api=x", bytes(harness.sockets[0].sent))
+
+    def test_a_mismatched_pin_is_refused_before_a_single_byte_is_sent(self) -> None:
+        """红法：证书换成攻击者的 → 拒绝，且请求一个字节都没发出。"""
+        harness = PinnedConnectionHarness([EVIL_CERT])
+        backend = pinned_backend()
+        with harness.patch():
+            with self.assertRaises(storage.RemoteStorageError) as ctx:
+                backend._https_transport(self.request)
+        self.assertIn(EVIL_PIN, str(ctx.exception))
+        self.assertEqual(bytes(harness.sockets[0].sent), b"", "指纹不符却已经发出了请求")
+
+    def test_a_pin_mismatch_is_permanent_not_retried(self) -> None:
+        harness = PinnedConnectionHarness([EVIL_CERT, EVIL_CERT])
+        backend = pinned_backend()
+        with harness.patch():
+            with self.assertRaises(storage.RemoteStorageError):
+                storage.retry_call(backend.retry, lambda: backend._https_transport(self.request))
+        self.assertEqual(harness.connects, 1, "指纹不符是永久错误，不该重试")
+
+    def test_the_pin_is_re_verified_on_every_new_connection(self) -> None:
+        """TOCTOU 红法：第一次连真机、第二次被换成假机 → 第二次必须红。"""
+        harness = PinnedConnectionHarness([REAL_CERT, EVIL_CERT])
+        backend = pinned_backend()
+        with harness.patch():
+            backend._https_transport(self.request)
+            with self.assertRaises(storage.RemoteStorageError):
+                backend._https_transport(self.request)
+        self.assertEqual(harness.connects, 2, "第二次请求必须重新建连并重新验指纹")
+        self.assertEqual(bytes(harness.sockets[1].sent), b"")
+
+    def test_no_probe_connection_is_used_to_verify_the_pin(self) -> None:
+        """指纹只能来自业务连接本身，不许另开一条连接去探。"""
+        backend = pinned_backend()
+        self.assertFalse(
+            hasattr(backend, "_verify_pin"), "独立预验方法必须已废弃"
+        )
+
+        def forbidden(*_args, **_kwargs):
+            raise AssertionError("不允许另开连接探证书（TOCTOU）")
+
+        harness = PinnedConnectionHarness([REAL_CERT])
+        with mock.patch.object(storage.ssl, "get_server_certificate", forbidden):
+            with harness.patch():
+                backend._https_transport(self.request)
+
+    def test_a_server_that_presents_no_certificate_is_refused(self) -> None:
+        harness = PinnedConnectionHarness([b""])
+        backend = pinned_backend()
+        with harness.patch():
+            with self.assertRaises(storage.RemoteStorageError):
+                backend._https_transport(self.request)
+
+    def test_pinned_transport_maps_http_status_like_the_plain_one(self) -> None:
+        cases = ((503, storage.TransientStorageError), (401, storage.RemoteStorageError))
+        for status, expected in cases:
+            with self.subTest(status=status):
+                harness = PinnedConnectionHarness(
+                    [REAL_CERT], [http_response(status, b"boom")]
+                )
+                backend = pinned_backend()
+                with harness.patch():
+                    with self.assertRaises(expected):
+                        backend._https_transport(self.request)
+
+    def test_the_pinned_path_is_what_a_pinned_backend_actually_calls(self) -> None:
+        """The unpinned branch must not be reachable while a pin is configured."""
+        backend = pinned_backend()
+        called: Dict[str, int] = {"pinned": 0}
+
+        def pinned(_request):
+            called["pinned"] += 1
+            return b"{}"
+
+        with mock.patch.object(backend, "_pinned_transport", pinned):
+            with mock.patch("urllib.request.urlopen", side_effect=AssertionError("绕过了 pin")):
+                backend._https_transport(self.request)
+        self.assertEqual(called["pinned"], 1)
 
 
 # ── J7: real-machine smoke ──────────────────────────────────────────────────
