@@ -24,6 +24,10 @@ the only constructor the CLIs use, and it reads:
 ``CWK_NAS_KB_USER``          service account name
 ``CWK_NAS_KB_PASSWORD``      service account password
 ``CWK_NAS_KB_SHARE``         share root, e.g. ``/kb``
+``CWK_NAS_KB_CERT_SHA256``   optional pin of the NAS TLS cert (DER sha256,
+                             hex). Synology self-signed certs fail the
+                             default CA chain; a pin verifies identity
+                             more strictly than a public CA would.
 ===========================  ==========================================
 
 There is no ``--password`` flag anywhere in this RT and there is no default
@@ -68,6 +72,7 @@ SCHEMA = "cwk.kb.storage.v1"
 # Environment variables that carry NAS credentials.  Nothing else in this
 # repository may hold them; see KB-PARAMETERS §F.5.
 ENV_HOST = "CWK_NAS_KB_HOST"
+ENV_CERT = "CWK_NAS_KB_CERT_SHA256"
 ENV_USER = "CWK_NAS_KB_USER"
 ENV_PASSWORD = "CWK_NAS_KB_PASSWORD"
 ENV_SHARE = "CWK_NAS_KB_SHARE"
@@ -526,6 +531,7 @@ class FileStationBackend:
         transport: Optional[Callable[[urllib.request.Request], bytes]] = None,
         retry: Optional[RetryPolicy] = None,
         verify_tls: bool = True,
+        cert_sha256: Optional[str] = None,
         timeout: float = 30.0,
     ) -> None:
         self.credentials = credentials
@@ -533,6 +539,8 @@ class FileStationBackend:
         self.retry = retry or RetryPolicy()
         self.timeout = timeout
         self.verify_tls = verify_tls
+        self.cert_sha256 = (cert_sha256 or "").strip().lower() or None
+        self._pin_verified = False
         self._transport = transport or self._https_transport
         self._sid: Optional[str] = None
 
@@ -540,6 +548,8 @@ class FileStationBackend:
     def from_env(
         cls, env: Optional[Dict[str, str]] = None, **kwargs
     ) -> "FileStationBackend":
+        source = os.environ if env is None else env
+        kwargs.setdefault("cert_sha256", source.get(ENV_CERT) or None)
         return cls(credentials_from_env(env), **kwargs)
 
     # -- path helpers -------------------------------------------------------
@@ -565,6 +575,13 @@ class FileStationBackend:
     # -- transport ----------------------------------------------------------
 
     def _ssl_context(self) -> ssl.SSLContext:
+        if self.cert_sha256:
+            # Pinned mode: encrypted channel, identity checked against the
+            # pinned fingerprint below (stronger than a generic CA chain).
+            context = ssl.create_default_context()
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+            return context
         if self.verify_tls:
             return ssl.create_default_context()
         context = ssl.create_default_context()
@@ -572,7 +589,25 @@ class FileStationBackend:
         context.verify_mode = ssl.CERT_NONE
         return context
 
+    def _verify_pin(self) -> None:
+        """Once per backend: compare the server cert DER sha256 to the pin."""
+        if self._pin_verified:
+            return
+        host = self.credentials.host
+        hostname, _, port = host.partition(":")
+        raw = ssl.get_server_certificate((hostname, int(port or 5001)))
+        der = ssl.PEM_cert_to_DER_cert(raw.strip())
+        digest = hashlib.sha256(der).hexdigest()
+        if digest != self.cert_sha256:
+            raise RemoteStorageError(
+                f"NAS 证书指纹不匹配：期望 {self.cert_sha256}，实际 {digest}。"
+                "拒绝连接（指纹固定模式）。"
+            )
+        self._pin_verified = True
+
     def _https_transport(self, request: urllib.request.Request) -> bytes:
+        if self.cert_sha256:
+            self._verify_pin()
         try:
             with urllib.request.urlopen(
                 request, timeout=self.timeout, context=self._ssl_context()
@@ -711,7 +746,7 @@ class FileStationBackend:
                     "api": "SYNO.FileStation.CreateFolder",
                     "version": "2",
                     "method": "create",
-                    "folder_path": parent,
+                    "folder_path": json.dumps([parent]),
                     "name": parts[depth],
                     "force_parent": "true",
                 },
@@ -744,13 +779,13 @@ class FileStationBackend:
                 # overwrite makes the write idempotent: replaying a batch after
                 # a mid-run crash converges instead of erroring on conflict.
                 "overwrite": "true",
-                "_sid": self.login(),
             },
             filename=PurePosixPath(safe).name,
             payload=payload,
         )
+        # sid 走 query string：multipart form body 里的 sid 这台 DSM 不识别（119 Invalid session）
         request = urllib.request.Request(
-            f"{self._base_url()}/entry.cgi",
+            f"{self._base_url()}/entry.cgi?_sid={self.login()}",
             data=body,
             method="POST",
             headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
@@ -787,7 +822,7 @@ class FileStationBackend:
                 "api": "SYNO.FileStation.Download",
                 "version": "2",
                 "method": "download",
-                "path": self._remote(path),
+                "path": json.dumps(self._remote(path)),  # 引号字符串形态
                 "mode": "open",
             },
         )
@@ -820,7 +855,7 @@ class FileStationBackend:
                 "api": "SYNO.FileStation.List",
                 "version": "2",
                 "method": "list",
-                "folder_path": target,
+                "folder_path": json.dumps(target),  # 这台 DSM 的 list 只认带引号字符串形态，数组形态 502
             },
         )
         files = data.get("files")
@@ -839,7 +874,7 @@ class FileStationBackend:
                     "api": "SYNO.FileStation.List",
                     "version": "2",
                     "method": "list",
-                    "folder_path": self._remote(current) if current else self._remote_root(),
+                    "folder_path": json.dumps(self._remote(current) if current else self._remote_root()),
                     "additional": json.dumps(["type"]),
                 },
                 tolerate=(408, 1100),
