@@ -57,6 +57,27 @@ LOG_REL = "wiki/log.md"
 # and named — "排除时间戳类文件" is a rule, not a loophole.
 TIMESTAMP_CLASS_PATHS = (LOG_REL, AUDIT_REL, MANIFEST_REL)
 
+# The one authority on what the root-manifest does *not* cover.  It is a code
+# constant, never read back from the manifest file: a ledger that takes its
+# own exclusion list from the document it is checking can be told to stop
+# looking at whatever the attacker is about to edit.  Each entry is excluded
+# because another verifier owns it, and that verifier is named here:
+#
+#   root-manifest.json          the ledger's own header (generated_at, version)
+#   _system/collection_state.json   运行态游标 → verify_collection_state
+#   _system/changed_paths_manifest.json  增量记录 → verify_changed_paths
+#   audit.jsonl / wiki/log.md   append-only chains, wall-clock by construction
+#
+# Nothing is exempt from *all* checking; the exemptions move a file from one
+# verifier to another.
+EXCLUDED_PATHS: Tuple[str, ...] = (
+    MANIFEST_REL,
+    COLLECTION_STATE_REL,
+    CHANGED_PATHS_REL,
+    AUDIT_REL,
+    LOG_REL,
+)
+
 
 class LedgerError(Exception):
     """Base class for ledger failures."""
@@ -199,16 +220,21 @@ def build_manifest(
     kb_code: str,
     manifest_version: int = 1,
     generated_at: Optional[datetime] = None,
-    exclude: Sequence[str] = (MANIFEST_REL,),
 ) -> dict:
-    entries = scan_tree(backend, exclude=exclude)
+    """Hash every file the ledger owns.  The exclusion set is not negotiable.
+
+    ``excluded_paths`` is written into the document for the reader's benefit;
+    :func:`verify_manifest` treats it as a claim to check against
+    :data:`EXCLUDED_PATHS`, never as an instruction.
+    """
+    entries = scan_tree(backend, exclude=EXCLUDED_PATHS)
     return {
         "schema": MANIFEST_SCHEMA,
         "kb_code": kb_code,
         "manifest_version": manifest_version,
         "generated_at": iso(generated_at or utc_now()),
         "entry_count": len(entries),
-        "excluded_paths": sorted(exclude),
+        "excluded_paths": sorted(EXCLUDED_PATHS),
         "entries": entries,
     }
 
@@ -260,12 +286,26 @@ def refresh_manifest(
 
 
 def verify_manifest(backend: StorageBackend, manifest: Optional[dict] = None) -> VerifyReport:
-    """Re-hash the whole tree and compare it with the recorded manifest."""
+    """Re-hash the whole tree and compare it with the recorded manifest.
+
+    The scan is driven by :data:`EXCLUDED_PATHS`, not by the manifest's own
+    ``excluded_paths`` field.  Honouring that field would hand the tamperer
+    the checker's blind spot: write the victim path into the list, edit the
+    file, and the ledger would agree with itself.  The field is verified
+    instead — a manifest that claims a different exclusion set is itself a
+    finding.
+    """
     recorded = manifest if manifest is not None else load_manifest(backend)
-    exclude = recorded.get("excluded_paths") or [MANIFEST_REL]
     entries = recorded.get("entries") or {}
-    disk = scan_tree(backend, exclude=exclude)
+    disk = scan_tree(backend, exclude=EXCLUDED_PATHS)
     report = VerifyReport()
+    claimed = recorded.get("excluded_paths")
+    if claimed is None or sorted(str(path) for path in claimed) != sorted(EXCLUDED_PATHS):
+        report.mismatched.append(
+            f"{MANIFEST_REL}: excluded_paths 与代码常量不符"
+            f"（账本声明 {sorted(claimed) if claimed else claimed}，"
+            f"代码常量 {sorted(EXCLUDED_PATHS)}）"
+        )
     for path, row in entries.items():
         if path not in disk:
             report.missing.append(path)
@@ -592,6 +632,7 @@ class WizardState:
 
 __all__ = [
     "AUDIT_REL",
+    "EXCLUDED_PATHS",
     "CHANGED_PATHS_REL",
     "CHANGED_PATHS_SCHEMA",
     "COLLECTION_SCHEMA",

@@ -114,6 +114,108 @@ class ManifestTests(unittest.TestCase):
         self.assertIn("source.json", violations[0])
 
 
+class ExclusionSetTests(unittest.TestCase):
+    """账本的排除集必须来自代码常量，不能来自被检文件自己。"""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.backend = LocalFSBackend(Path(self.tmp.name) / "kb")
+        self.kb_code = built_kb(self.backend)
+
+    def rewrite_manifest(self, mutate) -> None:
+        """Edit the manifest document directly, the way a tamperer would."""
+        manifest = ledger.load_manifest(self.backend)
+        mutate(manifest)
+        self.backend.write(ledger.MANIFEST_REL, ledger.dumps(manifest))
+
+    def test_a_manifest_cannot_widen_its_own_exclusion_set(self) -> None:
+        """红法：把受害路径写进 manifest 的 excluded_paths 再改 entries → 必须红。"""
+        victim = "wiki/index.md"
+        forged = sorted(set(ledger.EXCLUDED_PATHS) | {victim})
+
+        def mutate(manifest: dict) -> None:
+            manifest["excluded_paths"] = forged
+            manifest["entries"].pop(victim, None)
+            manifest["entry_count"] = len(manifest["entries"])
+
+        self.rewrite_manifest(mutate)
+        self.backend.write(victim, "# 自愈攻击写入的内容\n".encode("utf-8"))
+        report = ledger.verify_manifest(self.backend)
+        self.assertFalse(report.ok, "账本自读排除集 = 自愈，必须红")
+        self.assertIn(victim, report.extra)
+        self.assertTrue(
+            any("excluded_paths" in item for item in report.mismatched),
+            f"排除集被篡改本身就该是一条发现：{report.as_dict()}",
+        )
+
+    def test_a_shrunken_exclusion_claim_is_also_a_finding(self) -> None:
+        self.rewrite_manifest(lambda manifest: manifest.update({"excluded_paths": []}))
+        report = ledger.verify_manifest(self.backend)
+        self.assertFalse(report.ok)
+        self.assertTrue(any("excluded_paths" in item for item in report.mismatched))
+
+    def test_the_constant_covers_the_runtime_state_files(self) -> None:
+        for path in (
+            ledger.MANIFEST_REL,
+            ledger.COLLECTION_STATE_REL,
+            ledger.CHANGED_PATHS_REL,
+            ledger.AUDIT_REL,
+            ledger.LOG_REL,
+        ):
+            with self.subTest(path=path):
+                self.assertIn(path, ledger.EXCLUDED_PATHS)
+
+    def test_a_freshly_built_manifest_states_the_constant(self) -> None:
+        manifest = ledger.load_manifest(self.backend)
+        self.assertEqual(manifest["excluded_paths"], sorted(ledger.EXCLUDED_PATHS))
+        self.assertTrue(ledger.verify_manifest(self.backend).ok)
+
+    def test_excluded_paths_are_still_covered_by_their_own_verifier(self) -> None:
+        """排除 ≠ 无人看管：游标文件坏掉必须被它自己的体检抓到。"""
+        self.backend.write(ledger.COLLECTION_STATE_REL, b'{"schema": "wrong"}\n')
+        self.assertTrue(ledger.verify_manifest(self.backend).ok)
+        self.assertFalse(ledger.verify_collection_state(self.backend).ok)
+
+
+class CursorDoesNotBreakTheLedgerTests(unittest.TestCase):
+    """游标/增量记录是运行态：正常更新后账本体检必须保持绿。"""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.backend = LocalFSBackend(Path(self.tmp.name) / "kb")
+        self.kb_code = built_kb(self.backend)
+
+    def test_a_normal_collection_round_leaves_the_manifest_green(self) -> None:
+        state = ledger.CollectionState.load(self.backend)
+        items = ["m-1", "m-2", "m-3"]
+        remaining = state.begin_batch("cwork", "inbox", items, at=FIXED_NOW)
+        self.assertEqual(remaining, items)
+        for item in remaining:
+            state.mark_done("cwork", "inbox", item, at=FIXED_NOW)
+        state.finish_batch("cwork", "inbox", at=FIXED_NOW)
+        report = ledger.verify_manifest(self.backend)
+        self.assertTrue(report.ok, f"游标正常推进却把体检弄红了：{report.describe()}")
+        self.assertTrue(ledger.verify_collection_state(self.backend).ok)
+
+    def test_recording_changed_paths_leaves_the_manifest_green(self) -> None:
+        ledger.record_changed_paths(
+            self.backend, ["wiki/index.md"], reason="refresh", at=FIXED_NOW
+        )
+        report = ledger.verify_manifest(self.backend)
+        self.assertTrue(report.ok, report.describe())
+
+    def test_the_doctor_agrees_after_a_collection_round(self) -> None:
+        state = ledger.CollectionState.load(self.backend)
+        for item in state.begin_batch("cwork", "inbox", ["m-1"], at=FIXED_NOW):
+            state.mark_done("cwork", "inbox", item, at=FIXED_NOW)
+        reports = doctor.run_checks(self.backend, ["manifest", "collection-state"])
+        for name, report in reports.items():
+            with self.subTest(check=name):
+                self.assertTrue(report.ok, report.describe())
+
+
 class WriteReconcileTests(unittest.TestCase):
     def test_record_write_returns_the_digest_it_verified(self) -> None:
         backend = MemoryBackend()

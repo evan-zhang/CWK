@@ -20,7 +20,12 @@ PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "scripts"))
 
 import cwk_kb_create as create  # noqa: E402
-from cwk_kb_ledger import LedgerViolation, loads, verify_manifest  # noqa: E402
+from cwk_kb_ledger import (  # noqa: E402
+    EXCLUDED_PATHS,
+    LedgerViolation,
+    loads,
+    verify_manifest,
+)
 from cwk_kb_storage import LocalFSBackend, MemoryBackend  # noqa: E402
 
 FIXED_NOW = datetime(2026, 9, 4, 12, 0, 0, tzinfo=timezone.utc)
@@ -114,8 +119,15 @@ class BuildTests(unittest.TestCase):
     def test_manifest_covers_the_build_and_verifies_clean(self) -> None:
         backend, built = self.build()
         self.assertTrue(verify_manifest(backend).ok)
-        self.assertEqual(built.manifest["entry_count"], len(built.created_files))
+        ledgered = [p for p in built.created_files if p not in EXCLUDED_PATHS]
+        self.assertEqual(built.manifest["entry_count"], len(ledgered))
+        self.assertEqual(sorted(built.manifest["entries"]), sorted(ledgered))
         self.assertEqual(built.manifest["kb_code"], "a" * 32)
+        # The exclusions are the runtime-state files, and nothing else.
+        self.assertEqual(
+            sorted(set(built.created_files) - set(ledgered)),
+            sorted(p for p in EXCLUDED_PATHS if p in built.created_files),
+        )
 
     def test_build_is_deterministic_for_a_fixed_spec(self) -> None:
         left = MemoryBackend()
