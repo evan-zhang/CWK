@@ -1,7 +1,0 @@
-id: RT-042
-title: 存储层 NAS 化 + 建库基座
-status: in_progress
-opened: 2026-09-04
-owner: 雷锋(BD-glm)
-base_commit: HEAD
-contract: docs/drafts/rt042-cloud-primary/{EXECUTION-PLAN,SKILL-ARCHITECTURE,KB-PARAMETERS}.md v1.1/v1.2

@@ -245,3 +245,8 @@ entries:
   status: completed
   profile: Spec-Lite
   created: 2026-09-03
+- id: RT-042
+  title: 存储层 NAS 化 + 建库基座
+  status: in-progress
+  profile: Spec-Lite
+  created: 2026-09-04
