@@ -1,0 +1,32 @@
+id: RT-042
+title: 存储层 NAS 化 + 建库基座
+type: Feature
+profile: Spec-Lite
+execution_mode: autonomous
+status: in-progress
+modules:
+  - kb-storage
+  - kb-create
+  - kb-ledger
+  - kb-migrate
+modules_note: >
+  ord1 单交付：storage 抽象（LocalFS / Memory / FileStation 三后端）、建库 CLI
+  （B 表 26 项目录树）、root-manifest 账本 + collection_state 游标 + 向导状态机
+  数据模型、镜像→NAS 迁移工具、doctor verify 子命令族。采集/精编/管理 API/网关
+  归 RT-043/044，不在本 RT。
+branch: feature/RT-042-nas-storage
+worktree: .claude/worktrees/RT-042-nas-storage
+tool: claude-code
+owner: 雷锋(BD-glm)
+base_commit: 44d8fe4
+created_at: 2026-09-04T15:41:00+08:00
+updated_at: 2026-09-04T15:41:00+08:00
+external_ids:
+  jira: null
+  github: null
+  other: null
+contract: RT/RT-042/contracts/{EXECUTION-PLAN,KB-PARAMETERS,SKILL-ARCHITECTURE}.md v1.1/v1.2
+notes: >
+  验收合同三件已批（EXECUTION-PLAN v1.1 + KB-PARAMETERS v1.1 + SKILL-ARCHITECTURE
+  v1.1），随 RT 入仓在 contracts/ 下。红线：不碰既有脚本（scripts/ 封闭命名空间）、
+  纯标准库、NAS 凭据只从 CWK_NAS_KB_* 环境变量读、raw 只增不改。

@@ -233,6 +233,23 @@
       "rationale": "RT-040 ord2 新增的回复动态刷新脚本：基线对比 + v2 raw 写入（原文件不动）+ 重编译触发。逐条 exact 而非前缀，因为 scripts/ 是 exact-only 区，且 R-runtime-pr001-managed-scripts 委派给上游封闭声明集合——本文件不在该集合内，必须由本清单直管。不建 script-evolution-v2 槽位（GA-V2-SLOT 要求叠加目标先存在于 v1 evolvable_paths，新脚本不满足）。"
     },
     {
+      "id": "R-runtime-rt042-kb-platform",
+      "domain": "runtime",
+      "kind": "exact_set",
+      "paths": [
+        "scripts/cwk_kb_create.py",
+        "scripts/cwk_kb_doctor.py",
+        "scripts/cwk_kb_ledger.py",
+        "scripts/cwk_kb_migrate.py",
+        "scripts/cwk_kb_storage.py"
+      ],
+      "owner": "RT-042",
+      "management_domain": "cwk-governance-v1",
+      "change_entry": "RT → rt-lite.md 记录理由 → 改动 → make governance-audit + tests/test_kb_*.py",
+      "evolution_path": "repo-standard-change",
+      "rationale": "RT-042 个人 KB 平台的存储地基（storage 抽象 / 建库 CLI / 哈希账本 / 迁移 / 体检）。逐条 exact_set 而非前缀：scripts/ 是 exact-only 区，且 R-runtime-pr001-managed-scripts 委派给上游的是一个封闭声明集合（namespace_pattern 只能展开登记表已有路径），这五个新文件不在该集合内，必须由本清单直管。不建 script-evolution-v2 槽位：GA-V2-SLOT 要求叠加目标先存在于 v1 evolvable_paths，新脚本不满足（同 RT-040 R-runtime-rt040-reply-refresh 先例）；新脚本回执落在 RT/RT-042/receipts/new-script/。"
+    },
+    {
       "id": "R-runtime-adapters",
       "domain": "runtime",
       "kind": "prefix",
