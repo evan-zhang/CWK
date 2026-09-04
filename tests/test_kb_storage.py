@@ -184,7 +184,7 @@ class FakeFileStation:
     def _download(self, fields: Dict[str, str]) -> bytes:
         import urllib.parse
 
-        path = urllib.parse.unquote_plus(fields["path"])
+        path = json.loads(urllib.parse.unquote_plus(fields["path"]))
         self.calls.append(f"download {path}")
         if path not in self.files:
             return b'{"success": false, "error": {"code": 408}}'
@@ -207,8 +207,9 @@ class FakeFileStation:
             paths = json.loads(fields["path"])
             found = [{"path": p} for p in paths if p in self.files or p in self.folders]
             return json.dumps({"success": True, "data": {"files": found}}).encode("utf-8")
-        if api == "SYNO.FileStation.List":
-            folder = fields["folder_path"].rstrip("/")
+        if api == "SYNO.FileStation.List" and fields.get("method") != "getinfo":
+            # 真机 DSM 7.x：method=list 的 folder_path 走引号字符串形态
+            folder = json.loads(fields["folder_path"]).rstrip("/")
             names = set()
             for path in list(self.files) + list(self.folders):
                 if not path.startswith(folder + "/"):
