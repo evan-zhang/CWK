@@ -26,7 +26,17 @@
 5. `scripts/cwk_kb_doctor.py`（或并入 ledger）：verify 子命令族
    （--raw/--manifest/--collection-state/--changed-paths）
 6. tests/test_kb_storage.py + test_kb_create.py + test_kb_ledger.py + test_kb_migrate.py
-7. receipts/script-evolution-v2/ 新脚本回执（from=none）+ scripts/index.yaml 登记
+7. 新脚本回执 + 登记（**落点按仓库实况调整，理由如下**）
+   - 回执：`RT/RT-042/receipts/new-script/*.json`（from=none），**不是**
+     `receipts/script-evolution-v2/`。governance-audit 的 GA-V2-RECEIPT 会硬失败在
+     「回执指向的 target 既不是续演槽位、也不是 legacy 成员」——v2 叠加层按设计只为
+     v1 已登记且槽位用尽的存量文件续命（GA-V2-SLOT 同理），全新文件进不去。
+     同一目录下 `README.md` 记录该判定与复验方法。
+   - 登记：本仓库没有 `scripts/index.yaml` 这个文件。等价的两处真实登记是
+     ①`.aodw-next/06-project/governance/code-ownership-manifest.json` 的
+     `R-runtime-rt042-kb-platform`（exact_set，五个脚本逐条认领，受 governance-audit
+     闭包判据约束）②`.aodw-next/06-project/modules-index.yaml` 的 `kb-platform-storage`
+     模块条目。另在 `.env.example` 补 `CWK_NAS_KB_*` 四项（J7 操作入口）。
 
 ## 3. 非目标（防扩散）
 

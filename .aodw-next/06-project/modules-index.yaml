@@ -54,3 +54,14 @@ modules:
     related_files:
       - RT/_deferred-items.md
       - .aodw-next/02-workflow/rt-manager.md
+
+  - name: kb-platform-storage
+    path: RT/RT-042/contracts/KB-PARAMETERS.md
+    root: scripts
+    related_files:
+      - scripts/cwk_kb_storage.py
+      - scripts/cwk_kb_create.py
+      - scripts/cwk_kb_ledger.py
+      - scripts/cwk_kb_migrate.py
+      - scripts/cwk_kb_doctor.py
+      - RT/RT-042/contracts/EXECUTION-PLAN.md
