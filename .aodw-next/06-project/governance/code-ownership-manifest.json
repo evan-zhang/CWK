@@ -260,7 +260,19 @@
       "management_domain": "cwk-governance-v1",
       "change_entry": "RT → rt-lite.md 记录理由 → 改动 → make governance-audit + tests/test_kb_ingest.py",
       "evolution_path": "repo-standard-change",
-      "rationale": "RT-043 统一摄取管道（源适配器 → originals write-once → 格式工厂 → raw+lineage 索引 → provenance/ingest-state 与覆盖率对账）。独立一条 exact_set 而不并入 R-runtime-rt042-kb-platform：存储地基归 RT-042，摄取管道归 RT-043，两者 owner 不同，合并会让变更入口指错 RT。不用前缀：scripts/ 是 exact-only 区，且 R-runtime-pr001-managed-scripts 委派给上游的是封闭声明集合（namespace_pattern 只能展开登记表已有路径），本文件不在该集合内，必须由本清单直管。不建 script-evolution-v2 槽位：GA-V2-SLOT 要求叠加目标先存在于 v1 evolvable_paths，新脚本不满足（同 RT-040 / RT-042 先例）。"
+      "rationale": "RT-043 统一摄取管道（源适配器 → originals write-once → 格式工厂 → raw+lineage 索引 → provenance/ingest-state 与覆盖率对账）。独立一条 exact_set 而不并入 R-runtime-rt042-kb-platform：存储地基归 RT-042，摄取管道归 RT-043，两者 owner 不同，合并会让变更入口指错 RT。不用前缀：scripts/ 是 exact-only 区，且 R-runtime-pr001-managed-scripts 委派给上游的是封闭声明集合（namespace_pattern 只能展开登记表已有路径），本文件不在该集合内，必须由本清单直管。不建 script-evolution-v2 槽位：GA-V2-SLOT 要求叠加目标先存在于 v1 evolvable_paths，新脚本不满足（同 RT-040 / RT-042 先例）。",
+      "id": "R-runtime-rt044-kb-wizard-gateway",
+      "domain": "runtime",
+      "kind": "exact_set",
+      "paths": [
+        "scripts/kb_gateway.py",
+        "scripts/kb_wizard.py"
+      ],
+      "owner": "RT-044",
+      "management_domain": "cwk-governance-v1",
+      "change_entry": "RT → rt-lite.md 记录理由 → 改动 → make governance-audit + tests/test_kb_wizard.py + tests/test_kb_gateway.py",
+      "evolution_path": "repo-standard-change",
+      "rationale": "RT-044 个人 KB 平台的操作面：建库向导 CLI（create/ingest/status/query，输出一律 JSON）与只读查询网关（/health /query /citation，管理 Key 派生 token）。两个文件同属一条规则，因为它们是同一份两进程宪法的两半——写面与读面必须同进同出地被审。逐条 exact_set 而非前缀：scripts/ 是 exact-only 区，且 R-runtime-pr001-managed-scripts 委派给上游的是一个封闭声明集合（namespace_pattern 只能展开登记表已有路径），这两个新文件不在该集合内，必须由本清单直管。不建 script-evolution-v2 槽位：GA-V2-SLOT 要求叠加目标先存在于 v1 evolvable_paths，新脚本不满足（同 RT-040 R-runtime-rt040-reply-refresh、RT-042 R-runtime-rt042-kb-platform 先例）。"
     },
     {
       "id": "R-runtime-adapters",
