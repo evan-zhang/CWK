@@ -250,3 +250,18 @@ entries:
   status: in-progress
   profile: Spec-Lite
   created: 2026-09-04
+- id: RT-043
+  title: 摄取管道 v1（拉取→originals→格式工厂→raw+index）
+  status: in-progress
+  profile: Spec-Lite
+  created: 2026-09-05
+- id: RT-044
+  title: 建库向导 + 查询网关 v1
+  status: in-progress
+  profile: Spec-Lite
+  created: 2026-09-05
+- id: RT-045
+  title: 端到端验收（两真库 + 黄金题）
+  status: in-progress
+  profile: Spec-Lite
+  created: 2026-09-05

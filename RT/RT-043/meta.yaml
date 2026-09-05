@@ -1,0 +1,29 @@
+id: RT-043
+title: 摄取管道 v1（拉取→originals→格式工厂→raw+index）
+type: Feature
+profile: Spec-Lite
+execution_mode: autonomous
+status: in-progress
+modules:
+  - kb-ingest
+modules_note: >
+  统一摄取管道：源适配器（cwork-mirror 本地扫描 / docdb skill 下载）→
+  originals(write-once) → 格式工厂 v1（md 直通/docx 满做/xlsx 每 sheet CSV/
+  pptx+图片+zip 占位/rar7z 跳过）→ route 智能缺省（AI 提议+确认卡）→
+  raw + raw-index(lineage 寻址) → provenance → ingest-state 状态账+覆盖率对账。
+  AI 精编产物列 v1.1。
+branch: feature/RT-043-ingest
+worktree: .claude/worktrees/RT-043-ingest
+tool: claude-code
+owner: 雷锋(BD-glm)
+base_commit: bb1576e
+created_at: 2026-09-05T09:39:06+08:00
+updated_at: 2026-09-05T09:39:06+08:00
+external_ids:
+  jira: null
+  github: null
+  other: null
+contract: RT/RT-043/references/{DOCDB-INGEST-DESIGN,INGEST-AND-TAXONOMY,KB-PARAMETERS,AI-FIRST-MAP}.md
+notes: >
+  复用 RT-042 存储基座（scripts/kb_*.py）。MVP 裁剪见 rt-lite（Evan 09:30 提速令）。
+  红线：不改既有脚本；凭据只走 env；raw 只增不改；今日内交付（RT-045 验收依赖）。

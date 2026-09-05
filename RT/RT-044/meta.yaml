@@ -1,0 +1,29 @@
+id: RT-044
+title: 建库向导 + 查询网关 v1
+type: Feature
+profile: Spec-Lite
+execution_mode: autonomous
+status: in-progress
+modules:
+  - kb-wizard
+  - kb-gateway
+modules_note: >
+  kb CLI 向导动词（create/ingest/status/query，参数式 --yes + JSON 确认卡）包装
+  kb_create/kb_ingest；只读网关进程（HTTP JSON，管理 Key 派生 token，只读动词，
+  citation 现场拉 NAS 字节）。两进程宪法：factory 写面与 gateway 读面分离。
+  NAS 专用只读账号 _kbquery 列 v1.x；cwk-kb Skill 包装层在 RT-045 提供。
+branch: feature/RT-044-wizard-gateway
+worktree: .claude/worktrees/RT-044-wizard-gateway
+tool: claude-code
+owner: 雷锋(BD-glm)
+base_commit: bb1576e
+created_at: 2026-09-05T09:39:06+08:00
+updated_at: 2026-09-05T09:39:06+08:00
+external_ids:
+  jira: null
+  github: null
+  other: null
+contract: RT/RT-044/references/{CLI-SPEC,KB-PARAMETERS}.md
+notes: >
+  与 RT-043 并行开发（按接口合同先写测试）；网关 v1 单进程单端口。
+  今日内交付（RT-045 验收依赖）。
