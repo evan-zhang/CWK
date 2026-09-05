@@ -1,0 +1,29 @@
+id: RT-046
+title: 格式工厂 v1.1（转换器表 + 回执三链 + 无后缀嗅探）
+type: Feature
+profile: Spec-Lite
+execution_mode: autonomous
+status: in-progress
+modules: []
+modules_note: >
+  把 kb_ingest.py 的 decide_format 从「按后缀分桶」（md/txt 直通、docx 可选、
+  其余 placeholder）升级为「按后缀查表选转换器」。方案蓝本 = 本地项目
+  bd-eval-loop RT-108 的文档接入链路（docs/modules/document-ingest.md）。
+  验收样本 = 投前库 43 件 placeholder（含 CMS投前阶段1流程诊断等无后缀真文档）。
+branch: feature/RT-046-format-factory
+worktree: .claude/worktrees/RT-046-format-factory
+tool: claude-code
+owner: 雷锋(BD-glm)
+base_commit: 36b4935
+created_at: 2026-09-05T15:25:00+08:00
+updated_at: 2026-09-05T15:25:00+08:00
+external_ids:
+  jira: null
+  github: null
+  other: bd-eval-loop RT-108 document-ingest（方案蓝本）
+contract: RT/RT-046/references/FORMAT-FACTORY-DESIGN.md
+notes: >
+  Evan 2026-09-05 13:32 指定参考 bd-eval-loop 的文档转 Markdown 方案；
+  13:35 授权我自行决定排期，拍板「现在就写」（RT-045 只剩用户侧 Skill 验收，
+  本 RT 纯文书起步不动已验收两库）。13:36 合同落盘动作被用户新指令打断，
+  15:22 补齐。
