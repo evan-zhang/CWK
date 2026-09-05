@@ -482,9 +482,12 @@ def assert_no_plaintext_credential_flags(argv: Sequence[str]) -> None:
 
 @dataclass
 class RetryPolicy:
-    attempts: int = 4
-    base_delay: float = 0.2
-    max_delay: float = 3.0
+    # Defaults sized for a home NAS under load: a DSM that starts throwing
+    # transient 502s during a long build (70+ rapid calls) typically recovers
+    # within a few seconds, so the retry window must span ~15s, not ~1.4s.
+    attempts: int = 6
+    base_delay: float = 0.5
+    max_delay: float = 8.0
     sleep: Callable[[float], None] = time.sleep
 
     def delay_for(self, attempt: int) -> float:
