@@ -1,0 +1,31 @@
+{
+ "schema": "cwk.rt047.p4-drill.v1",
+ "at": "2026-09-05T18:37:13+08:00",
+ "phase": "P4 备份灾备演练",
+ "target": "docdb-touqian（含 originals/raw/_system 全目录树）",
+ "snapshot_api_probe": {
+  "ok": false,
+  "raw_head": "{}"
+ },
+ "method": "文件级备份（walk+read+write+sha）→ 恢复到独立目录 → 逐文件 sha 对账 → 删恢复目录（有删前守卫）",
+ "backup": {
+  "copied": 288,
+  "sha_ok": 288,
+  "sha_bad": []
+ },
+ "restore": {
+  "restored": 288,
+  "sha_bad": []
+ },
+ "reconcile": {
+  "files_compared": 288,
+  "mismatch": [],
+  "missing": [],
+  "extra": [],
+  "pass": true
+ },
+ "elapsed_s": 132.9,
+ "backup_location": "_backups/d-20260905-docdb-touqian（保留）",
+ "cleanup": "restore-dir removed; backup kept at _backups/d-20260905-docdb-touqian",
+ "result": "PASS"
+}
