@@ -46,7 +46,11 @@ def make_kb(root: Path, sources=("cwork",)) -> str:
         kb_code="b" * 32,
         owner_ref="owner-43",
         created_at=FIXED_NOW,
-        sources=tuple(create.SourceSpec(source_type=name) for name in sources),
+        sources=tuple(
+            create.SourceSpec(source_type=name,
+                              docdb_root="/玄关/合同" if name == "docdb" else None)
+            for name in sources
+        ),
     )
     create.create_kb(LocalFSBackend(root), spec)
     return spec.kb_code
@@ -87,9 +91,11 @@ class FakeDocdb:
     the 5xx criterion is driven without a network.
     """
 
-    def __init__(self, folders: dict, fail_with: str = "") -> None:
+    def __init__(self, folders: dict, fail_with: str = "", blobs=None, fail_ids=()) -> None:
         self.folders = folders
         self.fail_with = fail_with
+        self.blobs = blobs or {}
+        self.fail_ids = set(fail_ids)
         self.calls: list = []
 
     def __call__(self, cmd, cwd=None, env=None, text=None, capture_output=None):
@@ -103,6 +109,15 @@ class FakeDocdb:
         if script == "browse.py":
             rows = self.folders.get(str(cmd[2]), [])
             return FakeProc(0, json.dumps({"resultCode": 1, "resultMsg": "ok", "data": rows}))
+        if script == "download-file.py":
+            file_id = str(cmd[2])
+            if file_id in self.fail_ids:
+                return FakeProc(0, json.dumps(
+                    {"resultCode": 0, "resultMsg": "503 Service Unavailable", "data": None}
+                ))
+            output = Path(cmd[cmd.index("--output") + 1])
+            output.write_bytes(self.blobs.get(file_id, b"# docdb\n"))
+            return FakeProc(0, json.dumps({"resultCode": 1, "resultMsg": "ok", "data": {}}))
         raise AssertionError(f"fake 没有实现 {script}")
 
 
@@ -1026,6 +1041,237 @@ class FormatFactoryExecutionTests(IngestFixture):
             reason="pptx-not-converted-in-v1",
         )
         self.assertEqual(first, second)
+
+
+# ── status + reconcile ──────────────────────────────────────────────────────
+
+
+class StatusTests(IngestFixture):
+    def test_status_summarises_the_state_ledger(self) -> None:
+        write_mirror(self.mirror, "2026-08/2026-08-14/2095046023776104473-附件.rar", b"Rar!\n")
+        self.execute()
+        code, payload = run_cli(["status", "--kb-root", str(self.kb)])
+        self.assertEqual(code, 0)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["counts"]["converted"], 1)
+        self.assertEqual(payload["counts"]["skipped"], 1)
+        self.assertEqual(payload["kb_code"], self.kb_code)
+        self.assertEqual(payload["last_batch"]["item_count"], 2)
+
+    def test_status_shows_failures_with_their_reasons(self) -> None:
+        second = write_mirror(
+            self.mirror, "2026-08/2026-08-15/2095046023776104450-十五日报.md", b"# 15\n"
+        )
+        plan = self.make_plan()
+        second.unlink()
+        self.execute(plan)
+        code, payload = run_cli(["status", "--kb-root", str(self.kb)])
+        self.assertEqual(code, 0)
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["failed"][0]["lineage_id"], "cwork:2095046023776104450")
+        self.assertIn("SourceError", payload["failed"][0]["reason"])
+
+    def test_status_on_a_fresh_library_is_empty_not_an_error(self) -> None:
+        code, payload = run_cli(["status", "--kb-root", str(self.kb)])
+        self.assertEqual(code, 0)
+        self.assertEqual(payload["item_count"], 0)
+
+
+class J2CoverageReconcileTests(IngestFixture):
+    """J2 覆盖率对账：手工删掉一个 raw 产物 → reconcile 必红。"""
+
+    def reconcile(self) -> tuple:
+        return run_cli(["reconcile", "--kb-root", str(self.kb)])
+
+    def test_reconcile_is_green_right_after_a_clean_run(self) -> None:
+        # 对照面：判据必须先能绿，否则"必红"没有意义。
+        write_mirror(self.mirror, "2026-08/2026-08-14/2095046023776104473-附件.rar", b"Rar!\n")
+        self.execute()
+        code, payload = self.reconcile()
+        self.assertEqual(code, 0, payload)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["checked"]["index_entries"], 1)
+        self.assertEqual(payload["checked"]["originals_files"], 2, "跳过件的原件也要在档")
+
+    def test_j2_a_deleted_raw_artefact_makes_reconcile_red(self) -> None:
+        self.execute()
+        entry = self.read_json_at(ingest.RAW_INDEX_REL)["entries"]["cwork:2095046023776104449"]
+        (self.kb / entry["path"]).unlink()
+
+        code, payload = self.reconcile()
+
+        self.assertEqual(code, 1)
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["missing_raw"],
+                         [{"lineage_id": "cwork:2095046023776104449", "path": entry["path"]}])
+
+    def test_j2_a_hand_edited_raw_file_is_reported_as_edited_not_as_lost(self) -> None:
+        # §IV 红线：raw 可移动、可重命名，不可编辑内容。报错要说对是哪一种，
+        # 否则运维会按"文件丢了"去重跑，把手工修改覆盖掉。
+        self.execute()
+        entry = self.read_json_at(ingest.RAW_INDEX_REL)["entries"]["cwork:2095046023776104449"]
+        (self.kb / entry["path"]).write_bytes("# 有人手工改了这里\n".encode("utf-8"))
+
+        code, payload = self.reconcile()
+
+        self.assertEqual(code, 1)
+        self.assertEqual(payload["missing_raw"], [])
+        self.assertEqual(payload["raw_modified_by_hand"][0]["path"], entry["path"])
+
+    def test_j2_an_originals_file_no_account_explains_is_red(self) -> None:
+        # §VI 的静默丢件方向：originals 有、index 无。
+        self.execute()
+        self.backend.write("originals/cwork/999/" + "e" * 64 + ".md", b"orphan\n")
+        code, payload = self.reconcile()
+        self.assertEqual(code, 1)
+        self.assertEqual(len(payload["orphan_originals"]), 1)
+
+    def test_j2_a_raw_file_no_index_entry_references_is_red(self) -> None:
+        # 反方向：批次写完 raw 就断电，账没落。三账各自自洽，件却对不上。
+        self.execute()
+        self.backend.write("raw/2026-08/2026-08-14/来路不明.md", b"x\n")
+        code, payload = self.reconcile()
+        self.assertEqual(code, 1)
+        self.assertEqual(payload["orphan_raw"], ["raw/2026-08/2026-08-14/来路不明.md"])
+
+    def test_j2_a_state_row_with_no_index_entry_is_red(self) -> None:
+        self.execute()
+        index = self.read_json_at(ingest.RAW_INDEX_REL)
+        entry = index["entries"].pop("cwork:2095046023776104449")
+        self.backend.write(ingest.RAW_INDEX_REL,
+                           json.dumps(index, ensure_ascii=False).encode("utf-8"))
+        code, payload = self.reconcile()
+        self.assertEqual(code, 1)
+        self.assertEqual(payload["missing_index"],
+                         [{"lineage_id": "cwork:2095046023776104449", "status": "converted"}])
+        self.assertTrue(payload["orphan_raw"], "没人认领的 raw 产物同时要报出来")
+        self.assertIn(entry["path"], payload["orphan_raw"])
+
+    def test_j2_a_failed_item_keeps_reconcile_red_until_it_is_re_run(self) -> None:
+        second = write_mirror(
+            self.mirror, "2026-08/2026-08-15/2095046023776104450-十五日报.md", b"# 15\n"
+        )
+        plan = self.make_plan()
+        second.unlink()
+        self.execute(plan)
+        code, payload = self.reconcile()
+        self.assertEqual(code, 1)
+        self.assertEqual(payload["failed_items"][0]["lineage_id"], "cwork:2095046023776104450")
+
+        write_mirror(self.mirror, "2026-08/2026-08-15/2095046023776104450-十五日报.md", b"# 15\n")
+        self.execute()
+        code, payload = self.reconcile()
+        self.assertEqual(code, 0, payload)
+
+    def test_unidentified_files_are_listed_but_do_not_fake_a_shortfall(self) -> None:
+        write_mirror(self.mirror, "2026-08/2026-08-14/notes.md", b"stray\n")
+        self.execute()
+        code, payload = self.reconcile()
+        self.assertEqual(code, 0, payload)
+        self.assertEqual(payload["unidentified"], ["2026-08/2026-08-14/notes.md"])
+
+
+# ── J5 at batch level, through the docdb adapter ────────────────────────────
+
+
+class J5SourceFaultTests(unittest.TestCase):
+    """J5 源故障必红：适配器 5xx → 批次红，已完成件保留。"""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.base = Path(self.tmp.name)
+        self.kb = self.base / "kb"
+        self.kb_code = make_kb(self.kb, sources=("docdb",))
+        self.backend = CountingBackend(self.kb)
+        skill = self.base / "cms-docdb"
+        for part in ("browse", "query"):
+            (skill / "scripts" / part).mkdir(parents=True)
+        self.env = {
+            ingest.ENV_DOCDB_SKILL_DIR: str(skill),
+            "XG_BIZ_API_KEY": "fake-key-not-a-real-secret",
+        }
+        self.folders = {
+            "100": [
+                {"fileId": "301", "name": "301-年度计划.md", "type": "2",
+                 "updateTime": "2026-08-14 09:30:00"},
+                {"fileId": "302", "name": "302-季度总结.md", "type": "2",
+                 "updateTime": "2026-08-15 09:30:00"},
+            ]
+        }
+
+    def plan_and_run(self, fake) -> dict:
+        plan = ingest.build_plan(
+            adapter="docdb", root="100", kb_root=str(self.kb), env=self.env,
+            has_openpyxl=False, generated_at=FIXED_NOW, retries=1,
+            sleep=lambda _s: None, runner=FakeDocdb(self.folders),
+        )
+        return ingest.execute_plan(
+            self.backend, plan, kb_code=self.kb_code, env=self.env, runner=fake,
+            retries=2, sleep=lambda _s: None, now=FIXED_NOW, has_openpyxl=False,
+        )
+
+    def test_j5_a_5xx_on_one_item_fails_the_batch_and_keeps_the_others(self) -> None:
+        fake = FakeDocdb(self.folders, blobs={"301": b"# 301\n"}, fail_ids={"302"})
+        report = self.plan_and_run(fake)
+
+        self.assertFalse(report["ok"], "源故障不许被吞成绿灯")
+        self.assertEqual(report["failed"], ["docdb:302"])
+        self.assertEqual(report["counts"]["converted"], 1)
+
+        index = json.loads(self.backend.read(ingest.RAW_INDEX_REL).decode("utf-8"))
+        self.assertIn("docdb:301", index["entries"], "已完成件必须保留")
+        self.assertTrue(self.backend.exists(index["entries"]["docdb:301"]["path"]))
+
+        state = json.loads(self.backend.read(ingest.INGEST_STATE_REL).decode("utf-8"))
+        self.assertEqual(state["items"]["docdb:302"]["status"], "failed")
+        self.assertIn("503", state["items"]["docdb:302"]["reason"])
+
+    def test_j5_docdb_items_default_to_the_classify_tree(self) -> None:
+        fake = FakeDocdb(self.folders, blobs={"301": b"# 301\n", "302": b"# 302\n"})
+        report = self.plan_and_run(fake)
+        self.assertTrue(report["ok"], report)
+        index = json.loads(self.backend.read(ingest.RAW_INDEX_REL).decode("utf-8"))
+        for entry in index["entries"].values():
+            self.assertTrue(entry["path"].startswith("raw/classify/"), entry["path"])
+
+    def test_j5_the_next_run_finishes_the_item_that_failed(self) -> None:
+        self.plan_and_run(FakeDocdb(self.folders, blobs={"301": b"# 301\n"}, fail_ids={"302"}))
+        self.backend.writes.clear()
+        report = self.plan_and_run(
+            FakeDocdb(self.folders, blobs={"301": b"# 301\n", "302": b"# 302\n"})
+        )
+        self.assertTrue(report["ok"], report)
+        self.assertEqual(report["counts"]["unchanged"], 1)
+        self.assertEqual(report["counts"]["converted"], 1)
+
+
+# ── the real NAS: a smoke test that skips without credentials ───────────────
+
+
+class NasSmokeTests(unittest.TestCase):
+    """真 NAS 冒烟：没有凭据就 skip，绝不在 CI 上偷偷连出去。"""
+
+    def test_nas_round_trip_of_the_ingest_accounts(self) -> None:
+        import kb_storage
+
+        missing = [
+            name for name in (kb_storage.ENV_HOST, kb_storage.ENV_USER,
+                              kb_storage.ENV_PASSWORD, kb_storage.ENV_SHARE)
+            if not os.environ.get(name)
+        ]
+        if missing:
+            self.skipTest("没有 NAS 凭据（" + ", ".join(missing) + "），跳过真 NAS 冒烟")
+        prefix = os.environ.get("CWK_NAS_KB_SMOKE_PREFIX")
+        if not prefix:
+            self.skipTest("未设置 CWK_NAS_KB_SMOKE_PREFIX，跳过真 NAS 冒烟")
+        backend = kb_storage.build_backend("nas", prefix=prefix)
+        try:
+            index, state = ingest.load_accounts_readonly(backend)
+            self.assertIsInstance(index.get("entries"), dict)
+            self.assertIsInstance(state.get("items"), dict)
+        finally:
+            kb_storage.close_backend(backend)
 
 
 if __name__ == "__main__":  # pragma: no cover

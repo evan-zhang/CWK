@@ -1548,6 +1548,174 @@ def execute_plan(
     }
 
 
+# ── status + coverage reconciliation (DOCDB-INGEST-DESIGN §VI) ──────────────
+
+
+STATUS_SCHEMA = "cwk.kb.ingest-status.v1"
+RECONCILE_SCHEMA = "cwk.kb.ingest-reconcile.v1"
+
+# Every list here means "件对不上". They are separate fields rather than one
+# bag because they need different repairs: a missing raw artefact is re-run,
+# a hash mismatch is a hand-edited raw file (§IV says report *that*, not
+# "文件丢失"), an orphan original is a batch that died before its accounts.
+RECONCILE_RED_FIELDS = (
+    "missing_raw",
+    "raw_modified_by_hand",
+    "missing_originals",
+    "missing_index",
+    "orphan_originals",
+    "orphan_raw",
+    "failed_items",
+    "pending_items",
+)
+
+
+def dedupe_rows(rows: Sequence) -> List:
+    """Stable de-duplication for rows that may be dicts (unhashable)."""
+    seen: List[str] = []
+    out: List = []
+    for row in rows:
+        key = json.dumps(row, ensure_ascii=False, sort_keys=True, default=str)
+        if key in seen:
+            continue
+        seen.append(key)
+        out.append(row)
+    return out
+
+
+def load_accounts_readonly(backend: StorageBackend) -> Tuple[dict, dict]:
+    def read(path: str, default: dict) -> dict:
+        try:
+            return read_json(backend, path)
+        except NotFound:
+            return default
+
+    index = read(RAW_INDEX_REL, {"entries": {}})
+    state = read(INGEST_STATE_REL, {"items": {}})
+    index.setdefault("entries", {})
+    state.setdefault("items", {})
+    return index, state
+
+
+def ingest_status(backend: StorageBackend) -> dict:
+    """Summarise ingest-state.  A report, not a gate — the gate is reconcile."""
+    index, state = load_accounts_readonly(backend)
+    items = state["items"]
+    counts = status_counts(items)
+    failed = [
+        {
+            "lineage_id": lineage,
+            "reason": row.get("reason"),
+            "attempts": row.get("attempts"),
+            "updated_at": row.get("updated_at"),
+        }
+        for lineage, row in sorted(items.items())
+        if row.get("status") == "failed"
+    ]
+    batches = state.get("batches") or []
+    return {
+        "schema": STATUS_SCHEMA,
+        "ok": not failed and counts.get("pending", 0) == 0,
+        "kb_code": state.get("kb_code") or index.get("kb_code"),
+        "item_count": len(items),
+        "indexed_count": len(index["entries"]),
+        "counts": counts,
+        "failed": failed,
+        "unidentified": state.get("unidentified") or [],
+        "batch_count": len(batches),
+        "last_batch": batches[-1] if batches else None,
+        "note": "status 只汇总状态账；覆盖率判定在 reconcile（缺件 exit 1）。",
+    }
+
+
+def reconcile_coverage(backend: StorageBackend) -> dict:
+    """originals ↔ index ↔ raw 三方对账.
+
+    §VI exists because the three accounts can each be internally consistent
+    while an item is missing from all of them.  So this walks the *bytes* on
+    both ends — every originals file must be explained by an account, and
+    every account entry must resolve to bytes — instead of comparing the
+    accounts with each other and calling the agreement proof.
+    """
+    index, state = load_accounts_readonly(backend)
+    entries = index["entries"]
+    items = state["items"]
+
+    report: Dict[str, List] = {name: [] for name in RECONCILE_RED_FIELDS}
+    referenced_raw: set = set()
+    referenced_originals: set = set()
+
+    for lineage, entry in sorted(entries.items()):
+        artifacts = list(entry.get("artifacts") or ([entry["path"]] if entry.get("path") else []))
+        for path in artifacts:
+            referenced_raw.add(path)
+            if not backend.exists(path):
+                report["missing_raw"].append({"lineage_id": lineage, "path": path})
+        primary = entry.get("path")
+        if primary and backend.exists(primary) and entry.get("sha256"):
+            if backend.sha256(primary) != entry["sha256"]:
+                # §IV 红线：raw 可移动、可重命名，不可编辑内容。
+                report["raw_modified_by_hand"].append(
+                    {"lineage_id": lineage, "path": primary,
+                     "recorded_sha256": entry["sha256"],
+                     "actual_sha256": backend.sha256(primary)}
+                )
+        for version in entry.get("versions") or []:
+            if version.get("path"):
+                referenced_raw.add(version["path"])
+            if version.get("originals"):
+                referenced_originals.add(version["originals"])
+        original = entry.get("originals")
+        if original:
+            referenced_originals.add(original)
+            if not backend.exists(original):
+                report["missing_originals"].append({"lineage_id": lineage, "path": original})
+
+    for lineage, row in sorted(items.items()):
+        status = row.get("status")
+        original = row.get("originals")
+        if original:
+            referenced_originals.add(original)
+            if not backend.exists(original):
+                report["missing_originals"].append({"lineage_id": lineage, "path": original})
+        if status == "failed":
+            report["failed_items"].append({"lineage_id": lineage, "reason": row.get("reason")})
+        elif status == "pending":
+            report["pending_items"].append(lineage)
+        elif status in ("converted", "placeholder") and lineage not in entries:
+            # 这正是 §VI 的静默丢件：状态账说做完了，定位账里没有。
+            report["missing_index"].append({"lineage_id": lineage, "status": status})
+
+    for path in backend.walk_files("originals"):
+        if path not in referenced_originals:
+            report["orphan_originals"].append(path)
+    for path in backend.walk_files("raw"):
+        if path.startswith("raw/_system/"):
+            continue
+        if path not in referenced_raw:
+            report["orphan_raw"].append(path)
+
+    # The same missing original can be reached from the index and from the
+    # state; report it once so a count of the list is a count of the problem.
+    deduped = {name: dedupe_rows(rows) for name, rows in report.items()}
+    ok = all(not deduped[name] for name in RECONCILE_RED_FIELDS)
+    return {
+        "schema": RECONCILE_SCHEMA,
+        "ok": ok,
+        "kb_code": state.get("kb_code") or index.get("kb_code"),
+        "checked": {
+            "index_entries": len(entries),
+            "state_items": len(items),
+            "originals_files": len(backend.walk_files("originals")),
+            "raw_files": len([p for p in backend.walk_files("raw")
+                              if not p.startswith("raw/_system/")]),
+        },
+        **deduped,
+        "unidentified": state.get("unidentified") or [],
+        "unidentified_note": "无稳定ID 的源文件：从未摄取，不计入缺件，但也不许消失。",
+    }
+
+
 # ── CLI ─────────────────────────────────────────────────────────────────────
 
 
@@ -1598,6 +1766,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run.add_argument("--backend", default="local", choices=("local", "memory", "nas"))
     run.add_argument("--prefix", default="", help="nas 后端在 share 下的子路径")
+
+    for name, help_text in (
+        ("status", "读 ingest-state 汇总"),
+        ("reconcile", "覆盖率对账；缺件 exit 1 并输出差异 JSON"),
+    ):
+        node = sub.add_parser(name, help=help_text)
+        node.add_argument("--kb-root", help="库根（local 后端必填）")
+        node.add_argument("--backend", default="local", choices=("local", "memory", "nas"))
+        node.add_argument("--prefix", default="", help="nas 后端在 share 下的子路径")
     return parser
 
 
@@ -1643,9 +1820,33 @@ def cmd_run(args: argparse.Namespace) -> int:
     return 0 if report["ok"] else 1
 
 
+def cmd_status(args: argparse.Namespace) -> int:
+    backend = None
+    try:
+        backend = open_backend(args, args.kb_root)
+        payload = ingest_status(backend)
+    finally:
+        close_backend(backend)
+    emit(payload)
+    return 0
+
+
+def cmd_reconcile(args: argparse.Namespace) -> int:
+    backend = None
+    try:
+        backend = open_backend(args, args.kb_root)
+        payload = reconcile_coverage(backend)
+    finally:
+        close_backend(backend)
+    emit(payload)
+    return 0 if payload["ok"] else 1
+
+
 COMMANDS: Dict[str, Callable[[argparse.Namespace], int]] = {
     "plan": cmd_plan,
     "run": cmd_run,
+    "status": cmd_status,
+    "reconcile": cmd_reconcile,
 }
 
 
