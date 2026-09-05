@@ -28,7 +28,22 @@ python3 scripts/kb_gateway.py --admin-key-env CWK_KB_ADMIN_KEY --backend nas \
 
 其他库：问用户 prefix；OPS 侧为新库加 launchd 实例后再用（新库上 OPS 是运维动作，不在会话里即兴做）。
 
-## 查询（token 派生，绝不打印 Key 本身）
+## 查询（鉴权双通道，绝不打印 Key/token 本身）
+
+**通道 1：Agent 绑定 token（生产默认，2026-09-05 起）**——单 Gateway 多 Agent 的多租户通道：身份到用户（owner_ref 由业务 Key verify 派生）、凭证到 Agent 实例。
+
+```bash
+# token 是签发方一次性交付的 64 位十六进制串，存在 host 侧 0600 文件，直接用（不要再哈希）
+set -a; source ~/.openclaw/cwk/kb-bind.env; set +a   # CWK_KB_BIND_TOKEN 在这里
+TOKEN=$CWK_KB_BIND_TOKEN
+curl -s -H "X-KB-Token: $TOKEN" 'http://192.168.91.72:<port>/query?q=<关键词>&limit=20'
+```
+
+- 绑定 token 只能查它 kb_ids 名单里的库，查别的库 → 403（跨库隔离，属正常）
+- 吊销即刻生效（网关每请求重读登记表）；过期/被吊销 → 401
+- 领 token：操作者在有业务 Key 的机器上 `python3 scripts/kb_token.py issue --verify-env <Key变量名> --agent-id <Agent标识> --kb-id <库>` 签发；token 明文只在签发回执出现一次，随后落 0600 文件
+
+**通道 2：管理 Key 派生（运维/调试用）**：
 
 ```bash
 set -a; source ~/.openclaw/gateways/life/.env; set +a   # CWK_KB_ADMIN_KEY 在这里
@@ -36,7 +51,7 @@ TOKEN=$(printf '%s' "$CWK_KB_ADMIN_KEY" | shasum -a 256 | awk '{print $1}')
 curl -s -H "X-KB-Token: $TOKEN" 'http://192.168.91.72:<port>/query?q=<关键词>&limit=20'
 ```
 
-⚠️ 派生坑（实测）：`printenv` 带尾换行会算出错误 token（表现为 401 假象），必须 `printf '%s'` 无换行。派生后可查长度是否 64。
+⚠️ 派生坑（实测）：`printenv` 带尾换行会算出错误 token（表现为 401 假象），必须 `printf '%s'` 无换行。派生后可查长度是否 64。（绑定 token 不需要派生，直接用）
 
 - 结果在 `results[]`：lineage_id / path / title / version / sha256；`matched` 是总命中数
 - query 是子串匹配（匹配 lineage+title+path 小写），中文关键词直接可用；复杂问题拆多个关键词多查几次
@@ -54,7 +69,7 @@ curl -s -H "X-KB-Token: $TOKEN" 'http://192.168.91.72:<port>/citation?lineage=<l
 ## 自检后才交回答
 
 - 每条引文 matches_index=true；否则标注「账本不一致」并停止引用该条
-- 401 = token 错（重新派生，先查尾换行坑）；405 = 写动词被拒（网关只读，正常）；503 = 后端不可达（OPS 网关→查 NAS；本机网关→查本机与 NAS）；连接被拒 = OPS 不通，走兜底
+- 401 = token 错或已过期/吊销（管理通道先查尾换行坑；绑定通道找操作者重签）；403 = token 有效但该库不在授权名单（绑定 token 查了别人的库，跨库隔离）；405 = 写动词被拒（网关只读，正常）；503 = 后端不可达（OPS 网关→查 NAS；本机网关→查本机与 NAS）；连接被拒 = OPS 不通，走兜底
 - 零命中 ≠ 库里没有：先换同义/变体关键词再下结论（实测问「S1」零命中，库里术语是「N1–N11」「立项会前」，内容其实全在）。试过 2–3 个变体仍零命中才明说「库里没有」
 - 回答超出 excerpt 开头范围时，直读原文补全文：`kb_storage.FileStationBackend.from_env(prefix=<库>).read(<raw 相对路径>)`（scripts 目录入 sys.path），引文纪律不变
 - 全景/盘点类问题：关键词检索之外，用同一后端 `be.walk_files('.')` 拉 raw 全目录树一次，比逐词猜快且全
