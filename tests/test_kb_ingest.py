@@ -96,13 +96,25 @@ class FakeDocdb:
     ``folders`` maps a folder id to the rows browse.py would print.  Setting
     ``fail_with`` makes every call answer with that resultMsg, which is how
     the 5xx criterion is driven without a network.
+
+    ``full_content`` maps a fileId to what ``get-full-content.py`` answers
+    with: a string is the document's text, ``None`` means the endpoint failed
+    permanently, and an absent id means it answered with an empty ``data``.
     """
 
-    def __init__(self, folders: dict, fail_with: str = "", blobs=None, fail_ids=()) -> None:
+    def __init__(
+        self,
+        folders: dict,
+        fail_with: str = "",
+        blobs=None,
+        fail_ids=(),
+        full_content=None,
+    ) -> None:
         self.folders = folders
         self.fail_with = fail_with
         self.blobs = blobs or {}
         self.fail_ids = set(fail_ids)
+        self.full_content = full_content or {}
         self.calls: list = []
 
     def __call__(self, cmd, cwd=None, env=None, text=None, capture_output=None):
@@ -125,6 +137,16 @@ class FakeDocdb:
             output = Path(cmd[cmd.index("--output") + 1])
             output.write_bytes(self.blobs.get(file_id, b"# docdb\n"))
             return FakeProc(0, json.dumps({"resultCode": 1, "resultMsg": "ok", "data": {}}))
+        if script == "get-full-content.py":
+            file_id = str(cmd[cmd.index("--file-id") + 1])
+            body = self.full_content.get(file_id, "")
+            if body is None:
+                return FakeProc(0, json.dumps(
+                    {"resultCode": 0, "resultMsg": "403 Forbidden", "data": None}
+                ))
+            return FakeProc(0, json.dumps(
+                {"resultCode": 1, "resultMsg": "ok", "data": body}, ensure_ascii=False
+            ))
         raise AssertionError(f"fake 没有实现 {script}")
 
 
@@ -321,6 +343,27 @@ def stub_module(name: str, **attributes):
             sys.modules[name] = previous
 
 
+@contextlib.contextmanager
+def without_modules(*names: str):
+    """Hide the named optional packages from the whole converter table.
+
+    ``stub_module`` 的反面，同样是为了让判据与机器无关：一条格式行是一串
+    转换器（xlsx 是 openpyxl → markitdown），只挡掉第一个，装了第二个的机器
+    会正确地降到 module-text 而不是 placeholder——断言 placeholder 的测试就
+    在开发机上红、在裸 CI 上绿。要钉「整条链都没有时会怎样」，就得把整条链
+    一起挡掉。
+    """
+    hidden = set(names)
+    original = ingest.module_available
+    ingest.module_available = lambda module: (
+        False if module in hidden else original(module)
+    )
+    try:
+        yield
+    finally:
+        ingest.module_available = original
+
+
 class FakeOptionalConverter:
     """anydoc / markitdown 的最小替身，记下它被交到手里的那个路径。
 
@@ -448,17 +491,31 @@ class FormatFactoryDecisionTests(unittest.TestCase):
             converter.chmod(0o755)
             good = ingest.decide_format("x.docx", env={ingest.ENV_DOCX_CONVERTER: str(converter)})
             self.assertEqual((good.handling, good.expected_status), ("docx-convert", "converted"))
-        missing = ingest.decide_format(
-            "x.docx", env={ingest.ENV_DOCX_CONVERTER: str(Path(tmp) / "gone")}
-        )
+        # docx 链是 docx-host → anydoc：只挡本机二进制，装了 anydoc 的机器会
+        # 正确地降到 module-text。「本机没有 docx 转换器」得由测试规定。
+        with without_modules("anydoc"):
+            missing = ingest.decide_format(
+                "x.docx", env={ingest.ENV_DOCX_CONVERTER: str(Path(tmp) / "gone")}
+            )
         self.assertEqual((missing.handling, missing.expected_status),
                          ("placeholder", "placeholder"))
 
     def test_xlsx_follows_openpyxl_availability(self) -> None:
         with_lib = ingest.decide_format("s.xlsx", env={}, has_openpyxl=True)
-        without = ingest.decide_format("s.xlsx", env={}, has_openpyxl=False)
         self.assertEqual(with_lib.handling, "xlsx-csv")
+        # 整条链一起挡：只关掉 openpyxl 就断言 placeholder，等于假设本机没装
+        # markitdown——那是机器的属性，不是这条判据的内容。
+        with without_modules("openpyxl", "markitdown"):
+            without = ingest.decide_format("s.xlsx", env={}, has_openpyxl=False)
         self.assertEqual(without.handling, "placeholder")
+        self.assertEqual(without.code, "converter-missing:xlsx")
+
+    def test_xlsx_falls_through_to_the_next_converter_in_the_chain(self) -> None:
+        """openpyxl 缺席不等于降级：表里 xlsx 的第二顺位是 markitdown。"""
+        with without_modules("openpyxl"), stub_module("markitdown"):
+            decision = ingest.decide_format("s.xlsx", env={}, has_openpyxl=False)
+        self.assertEqual((decision.handling, decision.converter),
+                         ("module-text", "markitdown"))
 
     def test_pptx_images_and_zip_are_placeholders(self) -> None:
         for name in ("deck.pptx", "photo.png", "scan.JPG", "bundle.zip"):
@@ -547,11 +604,11 @@ class ConverterTableTests(unittest.TestCase):
         self.assertEqual((decision.converter, decision.handling),
                          ("markitdown", "module-text"))
 
-    @unittest.skipIf(ingest.module_available("anydoc"), "本机装了 anydoc，缺失分支不成立")
     def test_a_format_whose_whole_chain_is_missing_degrades_and_is_recorded(self) -> None:
         # 反空转：静默跳过会让「没转成」和「不用转」在账上长得一模一样，
         # 装上转换器那天也就没人问得出该重跑哪些件。
-        decision = ingest.decide_format("x.docx", env=NO_CONVERTER)
+        with without_modules("anydoc"):
+            decision = ingest.decide_format("x.docx", env=NO_CONVERTER)
         self.assertEqual(decision.expected_status, "placeholder")
         self.assertEqual(decision.code, f"{ingest.CODE_CONVERTER_MISSING}:docx")
         self.assertIn("docx-host/anydoc", decision.reason)
@@ -1536,12 +1593,17 @@ class FormatFactoryExecutionTests(IngestFixture):
         self.assertEqual(len(csvs), 2, entry["artifacts"])
         self.assertEqual(self.backend.read(csvs[0]).decode("utf-8"), "c\n3\n")
 
-    def test_xlsx_without_openpyxl_degrades_to_a_placeholder(self) -> None:
-        report = self.ingest_one(
-            "2026-08/2026-08-14/2095046023776104471-台账.xlsx", b"PK\x03\x04xlsx",
-            has_openpyxl=False,
-        )
+    def test_xlsx_without_any_converter_degrades_to_a_placeholder(self) -> None:
+        # 「本机没有 xlsx 转换器」必须由测试来规定，不能由跑测试的那台机器
+        # 决定：装了 markitdown 的开发机会正确地降到 module-text。
+        with without_modules("openpyxl", "markitdown"):
+            report = self.ingest_one(
+                "2026-08/2026-08-14/2095046023776104471-台账.xlsx", b"PK\x03\x04xlsx",
+                has_openpyxl=False,
+            )
         self.assertEqual(report["counts"]["placeholder"], 1)
+        entry = self.read_json_at(ingest.RAW_INDEX_REL)["entries"]["cwork:2095046023776104471"]
+        self.assertEqual(entry["placeholder_reason"], "converter-missing:xlsx")
 
     def test_zip_gets_a_placeholder_carrying_its_central_directory(self) -> None:
         buffer = io.BytesIO()
@@ -1646,7 +1708,6 @@ class FormatFactoryV11ExecutionTests(IngestFixture):
         # docx 会被当纯文本处理，产物看不出错、账上也看不出错。
         self.assertTrue(fake.paths and fake.paths[0].endswith(".docx"), fake.paths)
 
-    @unittest.skipIf(ingest.module_available("anydoc"), "本机装了 anydoc，替身不成立")
     def test_a_module_conversion_that_returns_nothing_is_a_failure_in_the_receipt(self) -> None:
         # 反空转：转出 0 字按失败处理（蓝本 DI-006 的教训——转"成功"但 0 字
         # 且静默）。件仍然落地，但落的是说得出原因的占位。
@@ -1663,11 +1724,11 @@ class FormatFactoryV11ExecutionTests(IngestFixture):
             "format": "docx", "handling": "module-text", "sniffed": ".docx",
         })
 
-    @unittest.skipIf(ingest.module_available("anydoc"), "本机装了 anydoc，缺失分支不成立")
     def test_a_missing_converter_lands_as_a_rerun_candidate_not_as_silence(self) -> None:
-        report = self.ingest_one(
-            "2026-08/2026-08-14/2095046023776104470-合同.docx", ooxml_zip("docx")
-        )
+        with without_modules("anydoc"):
+            report = self.ingest_one(
+                "2026-08/2026-08-14/2095046023776104470-合同.docx", ooxml_zip("docx")
+            )
         self.assertEqual(report["counts"]["placeholder"], 1, report)
         entry = self.entry("cwork:2095046023776104470")
         self.assertEqual(entry["placeholder_reason"], f"{ingest.CODE_CONVERTER_MISSING}:docx")
@@ -1929,6 +1990,161 @@ class J5SourceFaultTests(unittest.TestCase):
         self.assertTrue(report["ok"], report)
         self.assertEqual(report["counts"]["unchanged"], 1)
         self.assertEqual(report["counts"]["converted"], 1)
+
+
+# ── DocDB 在线文档：download 给壳，正文在另一个接口 ─────────────────────────
+
+
+DOCDB_SHELL = (
+    b"<!DOCTYPE html>\n<html lang=\"zh-CN\">\n<head><meta charset=\"utf-8\">"
+    b"<title>\xe5\x9c\xa8\xe7\xba\xbf\xe6\x96\x87\xe6\xa1\xa3</title>"
+    b"<script src=\"/static/viewer.js\"></script></head>\n"
+    b"<body><div id=\"app\"></div></body>\n</html>\n"
+)
+
+
+class DocdbShellDetectionTests(unittest.TestCase):
+    """壳检测的两个条件必须**同时**成立，否则真 HTML 附件会被改写。"""
+
+    def test_an_html_body_on_a_suffixless_name_is_a_shell(self) -> None:
+        self.assertTrue(ingest.looks_like_docdb_shell(DOCDB_SHELL, "2087523108876566530-流程"))
+
+    def test_the_doctype_may_be_preceded_by_whitespace_and_any_case(self) -> None:
+        self.assertTrue(ingest.looks_like_docdb_shell(b"\n  <HTML><body>x", "计划"))
+
+    def test_a_real_html_attachment_is_never_rewritten(self) -> None:
+        # 这条是壳检测里"且文件名不以 .html/.htm 结尾"那半句的全部理由：
+        # 一份真 HTML 附件的开头和查看器壳一模一样，只有名字分得开它们。
+        for name in ("周报.html", "index.HTM"):
+            self.assertFalse(ingest.looks_like_docdb_shell(DOCDB_SHELL, name), name)
+
+    def test_bytes_that_are_not_html_are_not_a_shell(self) -> None:
+        self.assertFalse(ingest.looks_like_docdb_shell(b"# \xe6\xa0\x87\xe9\xa2\x98\n", "计划"))
+        self.assertFalse(ingest.looks_like_docdb_shell(b"", "计划"))
+
+
+class DocdbFullContentFetchTests(unittest.TestCase):
+    """实测证据：三个不同 fileId 的 download-file 返回同一份 10,557B 查看器壳
+    （无正文），而 get-full-content 返回 15,920B / 28,110B / 513B 的真身。
+    所以"下载成功"和"拿到文档"是两件事，回执必须分得开。"""
+
+    NO_SUFFIX = "2087523108876566530-无后缀流程文档"
+    BODY = "# 无后缀流程文档\n\n阶段一：立项、初筛、尽调。\n"
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.base = Path(self.tmp.name)
+        self.kb = self.base / "kb"
+        self.kb_code = make_kb(self.kb, sources=("docdb",))
+        self.backend = CountingBackend(self.kb)
+        skill = self.base / "cms-docdb"
+        for part in ("browse", "query"):
+            (skill / "scripts" / part).mkdir(parents=True)
+        self.env = {
+            ingest.ENV_DOCDB_SKILL_DIR: str(skill),
+            "XG_BIZ_API_KEY": "fake-key-not-a-real-secret",
+        }
+        self.folders = {
+            "100": [
+                {"fileId": "401", "name": self.NO_SUFFIX, "type": "2",
+                 "updateTime": "2026-08-14 09:30:00"},
+            ]
+        }
+
+    def run_with(self, fake) -> dict:
+        plan = ingest.build_plan(
+            adapter="docdb", root="100", kb_root=str(self.kb), env=self.env,
+            has_openpyxl=False, generated_at=FIXED_NOW, retries=1,
+            sleep=lambda _s: None, runner=FakeDocdb(self.folders),
+        )
+        return ingest.execute_plan(
+            self.backend, plan, kb_code=self.kb_code, env=self.env, runner=fake,
+            retries=1, sleep=lambda _s: None, now=FIXED_NOW, has_openpyxl=False,
+        )
+
+    def provenance(self) -> list:
+        text = self.backend.read(ingest.PROVENANCE_CHAIN_REL).decode("utf-8")
+        return [json.loads(line) for line in text.splitlines() if line.strip()]
+
+    def test_a_shell_is_refetched_through_get_full_content(self) -> None:
+        fake = FakeDocdb(
+            self.folders, blobs={"401": DOCDB_SHELL},
+            full_content={"401": self.BODY},
+        )
+        report = self.run_with(fake)
+        self.assertTrue(report["ok"], report)
+        self.assertEqual(report["counts"]["converted"], 1, report)
+
+        record = self.provenance()[-1]
+        self.assertEqual(record["fetch_mode"], ingest.FETCH_DOCDB_FULL_CONTENT)
+        self.assertEqual(record["fetch_reason"], "")
+        # 落地的是真身，不是壳：源哈希对的是 get-full-content 的字节。
+        self.assertEqual(record["origin_sha256"], ingest.sha256_bytes(self.BODY.encode("utf-8")))
+        entry = json.loads(
+            self.backend.read(ingest.RAW_INDEX_REL).decode("utf-8")
+        )["entries"]["docdb:401"]
+        self.assertIn("阶段一", self.backend.read(entry["path"]).decode("utf-8"))
+        # 而且确实是第二个接口去取的，不是 download-file 重试出来的。
+        scripts = [Path(call[1]).name for call in fake.calls]
+        self.assertEqual(scripts, ["download-file.py", "get-full-content.py"], scripts)
+        self.assertIn("--file-id", fake.calls[-1])
+
+    def test_a_failed_refetch_keeps_the_shell_and_says_so_on_the_account(self) -> None:
+        # 不静默：取不到真身就落占位，理由写进两本账，重跑名单从这里查。
+        fake = FakeDocdb(
+            self.folders, blobs={"401": DOCDB_SHELL}, full_content={"401": None},
+        )
+        report = self.run_with(fake)
+        self.assertTrue(report["ok"], report)
+        self.assertEqual(report["counts"]["placeholder"], 1, report)
+
+        record = self.provenance()[-1]
+        self.assertEqual(record["fetch_mode"], ingest.FETCH_DOCDB_DOWNLOAD)
+        self.assertIn(ingest.CODE_DOCDB_SHELL, record["fetch_reason"])
+        self.assertEqual(record["origin_sha256"], ingest.sha256_bytes(DOCDB_SHELL))
+        entry = json.loads(
+            self.backend.read(ingest.RAW_INDEX_REL).decode("utf-8")
+        )["entries"]["docdb:401"]
+        self.assertEqual(entry["placeholder_reason"], ingest.CODE_DOCDB_SHELL)
+        state = json.loads(self.backend.read(ingest.INGEST_STATE_REL).decode("utf-8"))
+        self.assertEqual(state["items"]["docdb:401"]["status"], "placeholder")
+
+    def test_an_empty_data_field_counts_as_a_failed_refetch(self) -> None:
+        fake = FakeDocdb(self.folders, blobs={"401": DOCDB_SHELL}, full_content={"401": "   "})
+        report = self.run_with(fake)
+        self.assertEqual(report["counts"]["placeholder"], 1, report)
+        self.assertIn("data 为空", self.provenance()[-1]["fetch_reason"])
+
+    def test_bytes_that_are_not_a_shell_go_straight_through(self) -> None:
+        # 直通分支：一份真 markdown 不许被多打一次接口。
+        self.folders["100"][0]["name"] = "401-年度计划.md"
+        fake = FakeDocdb(self.folders, blobs={"401": self.BODY.encode("utf-8")})
+        report = self.run_with(fake)
+        self.assertEqual(report["counts"]["converted"], 1, report)
+        record = self.provenance()[-1]
+        self.assertEqual(record["fetch_mode"], ingest.FETCH_DOCDB_DOWNLOAD)
+        self.assertEqual(record["fetch_reason"], "")
+        self.assertEqual([Path(call[1]).name for call in fake.calls], ["download-file.py"])
+
+    def test_a_real_html_attachment_is_downloaded_once_and_not_refetched(self) -> None:
+        # 壳检测的第二个条件在整条链上的样子：真 .html 附件照旧只打一次接口，
+        # 走 v1.1 的通用占位路径（HTML 正文转换未列入本版），不被当成壳。
+        self.folders["100"][0]["name"] = "401-说明.html"
+        fake = FakeDocdb(self.folders, blobs={"401": DOCDB_SHELL})
+        self.run_with(fake)
+        self.assertEqual([Path(call[1]).name for call in fake.calls], ["download-file.py"])
+        record = self.provenance()[-1]
+        self.assertEqual(record["fetch_mode"], ingest.FETCH_DOCDB_DOWNLOAD)
+        self.assertEqual(record["fetch_reason"], "")
+
+    def test_a_local_file_records_the_file_fetch_mode(self) -> None:
+        # 镜像面不做壳检测：一份本地 .html 就是一份 .html。
+        path = self.base / "page.html"
+        path.write_bytes(DOCDB_SHELL)
+        fetched = ingest.fetch_bytes({"kind": "file", "path": str(path)})
+        self.assertEqual((fetched.mode, fetched.reason, fetched.data),
+                         (ingest.FETCH_FILE, "", DOCDB_SHELL))
 
 
 # ── the real NAS: a smoke test that skips without credentials ───────────────

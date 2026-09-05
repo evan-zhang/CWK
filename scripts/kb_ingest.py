@@ -142,6 +142,17 @@ DOCDB_TRANSIENT_MARKERS = (
     "503", "504",
 )
 
+# How an item's original bytes were obtained.  It goes into the receipt
+# because "download-file said ok" and "we actually have the document" turned
+# out to be different statements (see :func:`looks_like_docdb_shell`).
+FETCH_FILE = "file"
+FETCH_DOCDB_DOWNLOAD = "docdb-download"
+FETCH_DOCDB_FULL_CONTENT = "docdb-full-content"
+CODE_DOCDB_SHELL = "docdb-shell-fallback"
+DOCDB_SHELL_PREFIXES = (b"<!doctype html", b"<html")
+DOCDB_FULL_CONTENT_KEYS = ("content", "fullContent", "text", "markdown")
+HTML_SUFFIXES = (".html", ".htm")
+
 MAX_SLUG_CHARS = 40
 UNDATED_BUCKET = "_undated"
 
@@ -1779,37 +1790,114 @@ def materialise(
 # ── fetching original bytes ─────────────────────────────────────────────────
 
 
-def fetch_bytes(
-    locator: dict,
+@dataclass(frozen=True)
+class Fetched:
+    """Original bytes plus *how* we ended up with them.
+
+    ``mode`` and ``reason`` go straight into the receipt.  A fetch that had to
+    fall back is a fact about the item, not a log line to be lost.
+    """
+
+    data: bytes
+    mode: str
+    reason: str = ""
+
+
+def looks_like_docdb_shell(data: bytes, name: str) -> bool:
+    """Is this the DocDB online-viewer skeleton rather than the document?
+
+    ``download-file.py`` answers for a DocDB-native document with the viewer's
+    HTML shell: the same ~10.5 KB page for every fileId, carrying no body text
+    at all.  Two conditions have to hold together before we call it a shell,
+    because a genuine ``.html`` attachment also starts with ``<!DOCTYPE html``
+    and must never be rewritten:
+
+    * the bytes open with an HTML document head, and
+    * the item is not named like an HTML file.
+    """
+    head = data[:64].lstrip().lower()
+    if not any(head.startswith(prefix) for prefix in DOCDB_SHELL_PREFIXES):
+        return False
+    return Path(name or "").suffix.lower() not in HTML_SUFFIXES
+
+
+def docdb_full_content(
+    file_id: str,
     *,
     env: Optional[Dict[str, str]] = None,
     runner: Callable[..., object] = subprocess.run,
     retries: int = 3,
     sleep: Callable[[float], None] = time.sleep,
-) -> bytes:
+) -> Tuple[Optional[bytes], str]:
+    """Ask the skill's ``get-full-content.py`` for a document's real text.
+
+    Returns ``(bytes, "")`` on success and ``(None, reason)`` on every kind of
+    failure, because this is a *fallback* path: the caller already holds the
+    shell bytes and a failure here must degrade the item, not abort the batch.
+    """
+    skill_dir = docdb_skill_dir(env)
+    script = skill_dir / "scripts" / "query" / "get-full-content.py"
+    try:
+        payload = run_json(
+            [sys.executable, str(script), "--file-id", str(file_id)],
+            docdb_env(env), cwd=skill_dir, retries=retries, sleep=sleep, runner=runner,
+        )
+    except SourceError as exc:
+        return None, str(exc)[:200]
+    data = payload.get("data")
+    if isinstance(data, dict):
+        data = next(
+            (data[key] for key in DOCDB_FULL_CONTENT_KEYS if isinstance(data.get(key), str)),
+            None,
+        )
+    if not isinstance(data, str) or not data.strip():
+        return None, "get-full-content 返回的 data 为空"
+    return data.encode("utf-8"), ""
+
+
+def fetch_bytes(
+    locator: dict,
+    *,
+    name: str = "",
+    env: Optional[Dict[str, str]] = None,
+    runner: Callable[..., object] = subprocess.run,
+    retries: int = 3,
+    sleep: Callable[[float], None] = time.sleep,
+) -> Fetched:
     """Get an item's original bytes back from what the plan recorded."""
     kind = (locator or {}).get("kind")
     if kind == "file":
         path = Path(str(locator.get("path") or ""))
         try:
-            return path.read_bytes()
+            return Fetched(path.read_bytes(), FETCH_FILE)
         except OSError as exc:
             raise SourceError(f"源文件读不到：{path}（{exc}）") from exc
     if kind == "docdb":
         skill_dir = docdb_skill_dir(env)
         script = skill_dir / "scripts" / "query" / "download-file.py"
+        file_id = str(locator.get("file_id"))
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / "payload.bin"
             run_json(
-                [sys.executable, str(script), str(locator.get("file_id")),
-                 "--output", str(output)],
+                [sys.executable, str(script), file_id, "--output", str(output)],
                 docdb_env(env), cwd=skill_dir, retries=retries, sleep=sleep, runner=runner,
             )
             if not output.is_file():
                 raise SourceError(
-                    f"DocDB 下载脚本声称成功但没有产出文件：fileId={locator.get('file_id')}"
+                    f"DocDB 下载脚本声称成功但没有产出文件：fileId={file_id}"
                 )
-            return output.read_bytes()
+            data = output.read_bytes()
+        if not looks_like_docdb_shell(data, name):
+            return Fetched(data, FETCH_DOCDB_DOWNLOAD)
+        full, reason = docdb_full_content(
+            file_id, env=env, runner=runner, retries=retries, sleep=sleep,
+        )
+        if full is not None:
+            return Fetched(full, FETCH_DOCDB_FULL_CONTENT)
+        # Keep the shell so the original is still archived byte-for-byte, and
+        # put the reason on the account: a viewer skeleton silently ingested as
+        # "an HTML document" is exactly the空转 J-series forbids.
+        return Fetched(data, FETCH_DOCDB_DOWNLOAD, f"{CODE_DOCDB_SHELL}：{reason}".strip("："))
     raise IngestError(f"计划里的 locator 无法解析：{locator!r}")
 
 
@@ -2197,9 +2285,11 @@ def execute_plan(
         route_mode = str(card.get("route_mode"))
         try:
             target = normalize_path(str(card.get("proposed_raw_path") or ""))
-            origin = fetch_bytes(
-                row.get("locator") or {}, env=env, runner=runner, retries=retries, sleep=sleep
+            fetched = fetch_bytes(
+                row.get("locator") or {}, name=name, env=env, runner=runner,
+                retries=retries, sleep=sleep,
             )
+            origin = fetched.data
             origin_sha = sha256_bytes(origin)
             if accounts.already_done(lineage, origin_sha):
                 results.append({"lineage_id": lineage, "status": "unchanged", "wrote": False})
@@ -2218,6 +2308,23 @@ def execute_plan(
             decision = decide_format(
                 name, env=env, has_openpyxl=has_openpyxl, data=origin
             )
+            if fetched.mode == FETCH_DOCDB_FULL_CONTENT:
+                # 取法即格式：get-full-content 交回的是全文 Markdown，没有魔数
+                # 可嗅，再走一遍嗅探只会把一份好正文判成 unknown-format。
+                decision = FormatDecision(
+                    "markdown", "passthrough", "converted",
+                    "DocDB 在线文档：查看器壳已识破，正文取自 get-full-content",
+                    converter="passthrough",
+                )
+            elif fetched.reason:
+                # The bytes we hold are a viewer shell, not the document.  Say
+                # so on the account instead of letting the格式工厂 report the
+                # downstream symptom ("unknown-format") as if it were the cause.
+                decision = FormatDecision(
+                    format=decision.format, handling="placeholder",
+                    expected_status="placeholder", reason=fetched.reason,
+                    converter="none", code=CODE_DOCDB_SHELL, sniffed=decision.sniffed,
+                )
             artefact = materialise(
                 lineage=lineage, name=name, raw_path=target, origin=origin,
                 decision=decision, env=env, runner=runner,
@@ -2236,6 +2343,7 @@ def execute_plan(
                         "derived": [],
                         "converter": {"name": "skip", "version": BUILTIN_CONVERTER_VERSION},
                         "converter_label": "skip",
+                        "fetch_mode": fetched.mode, "fetch_reason": fetched.reason,
                         "reason": decision.reason,
                     }
                 )
@@ -2288,6 +2396,10 @@ def execute_plan(
                         "version": artefact.converter_version,
                     },
                     "converter_label": artefact.converter,
+                    # How the origin bytes were obtained.  For DocDB-native
+                    # documents "downloaded ok" and "have the document" are
+                    # different claims, so the receipt states which one holds.
+                    "fetch_mode": fetched.mode, "fetch_reason": fetched.reason,
                     "conversion": {
                         "ok": artefact.conversion_ok,
                         "reason": artefact.conversion_reason,
