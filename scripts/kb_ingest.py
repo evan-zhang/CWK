@@ -656,15 +656,19 @@ def raw_path_for(
 
 
 def originals_path_for(source: str, stable_id: str, digest: str, name: str) -> str:
-    """``originals/<source>/<stable_id>/<sha256><ext>`` — path from identity only.
+    """``originals/<source>/id-<stable_id>/<sha256><ext>`` — path from identity only.
 
     Not from a date and not from a counter.  See the module docstring: an
     archive path that depends on wall-clock time re-writes the same bytes
     under a second name the moment an mtime shifts, and the write-once
-    criterion goes green while the archive silently doubles.
+    criterion goes green while the archive silently doubles.  The ``id-``
+    prefix on the stable-id directory is a device constraint, not style:
+    this DSM 7.x refuses CreateFolder for a purely-numeric name with
+    code=400 (observed 2026-09-05, Case 1 item 1), and a stable id is
+    nothing but digits.
     """
     _, ext = split_name(name)
-    return f"originals/{source}/{stable_id}/{digest}{ext}"
+    return f"originals/{source}/id-{stable_id}/{digest}{ext}"
 
 
 def confirmation_card(
@@ -696,7 +700,7 @@ def confirmation_card(
         "originals_path": (
             originals_path_for(source_label, item.stable_id, digest, item.name)
             if digest
-            else "originals/<source>/<稳定ID>/<sha256><ext>（摄取时按原件哈希定址）"
+            else "originals/<source>/id-<稳定ID>/<sha256><ext>（摄取时按原件哈希定址；id- 前缀避开 DSM 纯数字目录名限制）"
         ),
         "format": decision.as_dict(),
         "editable": ["route_mode", "proposed_raw_path"],

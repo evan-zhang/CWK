@@ -290,7 +290,7 @@ class RoutePlacementTests(unittest.TestCase):
         first = ingest.originals_path_for("cwork", "2095046023776104449", "a" * 64, "x.md")
         second = ingest.originals_path_for("cwork", "2095046023776104449", "a" * 64, "x.md")
         self.assertEqual(first, second)
-        self.assertEqual(first, "originals/cwork/2095046023776104449/" + "a" * 64 + ".md")
+        self.assertEqual(first, "originals/cwork/id-2095046023776104449/" + "a" * 64 + ".md")
         self.assertNotIn("2026", first)
 
 
@@ -649,7 +649,7 @@ class RunBasicsTests(IngestFixture):
         self.assertEqual(entry["rule_version"], ingest.RULE_VERSION)
 
         self.assertTrue(self.backend.exists(entry["originals"]))
-        self.assertTrue(entry["originals"].startswith("originals/cwork/2095046023776104449/"))
+        self.assertTrue(entry["originals"].startswith("originals/cwork/id-2095046023776104449/"))
 
         state = self.read_json_at(ingest.INGEST_STATE_REL)
         self.assertEqual(state["items"]["cwork:2095046023776104449"]["status"], "converted")
@@ -1162,7 +1162,7 @@ class J2CoverageReconcileTests(IngestFixture):
     def test_j2_an_originals_file_no_account_explains_is_red(self) -> None:
         # §VI 的静默丢件方向：originals 有、index 无。
         self.execute()
-        self.backend.write("originals/cwork/999/" + "e" * 64 + ".md", b"orphan\n")
+        self.backend.write("originals/cwork/id-999/" + "e" * 64 + ".md", b"orphan\n")
         code, payload = self.reconcile()
         self.assertEqual(code, 1)
         self.assertEqual(len(payload["orphan_originals"]), 1)

@@ -210,6 +210,13 @@ class FakeFileStation:
             parents = json.loads(fields["folder_path"])
             if isinstance(parents, str):
                 parents = [parents]
+            # Real DSM 7.x (observed 2026-09-05): a purely-numeric folder name
+            # is refused with code=400. Stable ids are nothing but digits, so
+            # archive layouts must prefix them (id-<stable_id>); the fake
+            # refuses what the device refuses, so a numeric-name layout
+            # regression goes red offline instead of on the real NAS.
+            if str(fields["name"]).isdigit():
+                return b'{"success": false, "error": {"code": 400}}'
             targets = [f"{str(parent).rstrip('/')}/{fields['name']}" for parent in parents]
             if any(target in self.folders for target in targets):
                 return b'{"success": false, "error": {"code": 408}}'
@@ -781,6 +788,18 @@ class WireContractTests(unittest.TestCase):
         getinfos = [c for c in backend.fake.calls if "getinfo" in c]
         self.assertEqual(len(downloads), 1, f"缺失文件只许试一次 download：{backend.fake.calls}")
         self.assertGreaterEqual(len(getinfos), 1, "必须用 getinfo 探测消歧")
+
+    def test_purely_numeric_folder_names_are_refused_like_the_device(self) -> None:
+        """负例：真机 CreateFolder 拒纯数字目录名（code=400，2026-09-05 实测）。
+
+        报告 ID 全是数字，归档布局必须加 id- 前缀；fake 拒绝真机拒绝的
+        东西，布局回归在离线测试就红，不许等到真机才炸。
+        """
+        backend = fake_nas()
+        with self.assertRaises(storage.RemoteStorageError):
+            backend.mkdir("originals/cwork/2062709758695321601")
+        backend.mkdir("originals/cwork/id-2062709758695321601")  # id- 前缀通过
+        self.assertTrue(backend.exists("originals/cwork/id-2062709758695321601"))
 
 
 # ── certificate pinning ─────────────────────────────────────────────────────
