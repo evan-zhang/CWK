@@ -579,6 +579,19 @@
       "change_entry": "RT → rt-lite.md 记录理由 → 改动 → make governance-audit + skill_workshop 同步安装副本",
       "evolution_path": "repo-standard-change",
       "rationale": "RT-045 交付的对话式 Skill 层（建库向导 + 知识库问答），是 CWK 平台的操作面之一。Evan 2026-09-05 17:37 拍板归仓：仓库内 skills/ 为源（canonical），workspace skills/ 为安装副本，改动须双向同步。独立 exact_set 而非并入 R-runtime-rt044-kb-wizard-gateway：引擎 CLI（脚本）与对话壳（Skill）owner 变更入口不同——Skill 改动还涉及安装副本同步，合并会让变更入口指错步骤。"
+    },
+    {
+      "id": "R-runtime-rt047-kb-tokens",
+      "domain": "runtime",
+      "kind": "exact_set",
+      "paths": [
+        "scripts/kb_token.py"
+      ],
+      "owner": "RT-047",
+      "management_domain": "cwk-governance-v1",
+      "change_entry": "RT → rt-lite.md 记录理由 → 改动 → make governance-audit + tests/test_kb_token.py + tests/test_kb_gateway.py",
+      "evolution_path": "repo-standard-change",
+      "rationale": "RT-047 P2「token 多租户（Agent 实例级绑定）」的签发面：绑定 token 的 issue / revoke / reissue / list 登记表 CLI；owner_ref 只能由 --verify-env 指向的业务 Key 过认证面校验后派生（铁律：不接受自报身份），登记表只存 sha256(token) 摘要与元数据，明文只在签发时出现一次。独立 exact_set 而非并入 R-runtime-rt044-kb-wizard-gateway：那条规则管的是同一份两进程宪法的读写两半，本文件是第三面——凭据签发，owner 与变更入口都不同（改它等于动鉴权门，必须连 tests/test_kb_token.py 一起审），并入会让变更入口指错 RT。不用前缀：scripts/ 是 exact-only 区，且 R-runtime-pr001-managed-scripts 委派给上游的是封闭声明集合（namespace_pattern 只能展开登记表已有路径），本文件不在该集合内，必须由本清单直管。不建 script-evolution-v2 槽位：GA-V2-SLOT 要求叠加目标先存在于 v1 evolvable_paths，新脚本不满足（同 RT-040 / RT-042 / RT-043 / RT-044 先例）。"
     }
   ],
   "exceptions": [

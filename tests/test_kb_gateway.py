@@ -12,6 +12,10 @@ J2  写语义（POST/PUT/PATCH/DELETE）与未知路径 → 405 / 404。
 J3  ``/citation`` 现场从存储后端拉字节：后端内容变了，返回的 sha256 就跟着变。
 J4  错 token → 401；token 能访问的面不含任何管理或写动作。
 J5  全动词输出 JSON，Content-Type 为 application/json。
+
+RT-047 P2（``--tokens-file``）另有四条，见 ``BindingToken*Tests``：管理 token 先
+比、绑定登记表后查；命中即本库只读；吊销/过期 → 401；有效但不在授权面 → 403；
+不传 ``--tokens-file`` 时行为与 v1 逐字节一致。
 """
 
 from __future__ import annotations
@@ -28,7 +32,7 @@ import tempfile
 import threading
 import unittest
 import urllib.parse
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from unittest import mock
@@ -37,12 +41,20 @@ PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "scripts"))
 
 import kb_gateway as gateway  # noqa: E402
+import kb_token  # noqa: E402
 from kb_ledger import dumps  # noqa: E402
 from kb_storage import LocalFSBackend, MemoryBackend, StorageError  # noqa: E402
 
 ADMIN_KEY = "rt044-admin-key-中文"
 TOKEN = hashlib.sha256(ADMIN_KEY.encode("utf-8")).hexdigest()
 FIXED_NOW = datetime(2026, 9, 5, 12, 0, 0, tzinfo=timezone.utc)
+
+#: RT-047 P2 fixtures.  ``KB_ID`` is what the gateway is started with as
+#: ``--prefix``; ``OTHER_KB`` is the library next door.
+KB_ID = "libraries/工作库"
+OTHER_KB = "libraries/合同库"
+BUSINESS_KEY = "emp-8801-业务密钥"
+AGENT_ID = "ops-mac-01"
 
 LINEAGE = "docdb:2087519593823322113"
 RAW_PATH = "raw/合同/供货协议.md"
@@ -138,8 +150,64 @@ def seed_local_kb(root: Path) -> LocalFSBackend:
     return backend
 
 
-def make_app(backend, *, token: str = TOKEN) -> gateway.GatewayApp:
-    return gateway.GatewayApp(backend, token, backend_kind="local", clock=lambda: FIXED_NOW)
+def make_app(
+    backend,
+    *,
+    token: str = TOKEN,
+    tokens=None,
+    kb_id: str = "",
+    now: datetime = FIXED_NOW,
+) -> gateway.GatewayApp:
+    return gateway.GatewayApp(
+        backend,
+        token,
+        backend_kind="local",
+        clock=lambda: now,
+        tokens=tokens,
+        kb_id=kb_id,
+    )
+
+
+def issue_binding_token(
+    registry: Path,
+    *,
+    kb_ids=(KB_ID,),
+    agent_id: str = AGENT_ID,
+    business_key: str = BUSINESS_KEY,
+    ttl_days: int = kb_token.DEFAULT_TTL_DAYS,
+    now: datetime = FIXED_NOW,
+) -> Tuple[dict, str]:
+    """Mint a real binding token through ``kb_token``'s own write face.
+
+    The identity probe is faked — the real one calls the company Skill's
+    authenticated CWork read, which has no place in a gateway test — but
+    everything downstream of it (salt, HMAC-derived ``owner_ref``, digest at
+    rest, receipts) is the production path, so what the gateway is checking
+    here is a registry a real ``kb_token issue`` would have written.
+    """
+    if registry.exists():
+        data = kb_token.load_registry(registry)
+    else:
+        data = kb_token.init_registry(registry, now=now)
+    identity = kb_token.verify_business_key(
+        "FAKE_ENV",
+        salt_hex=data["owner_ref_salt"],
+        env={"FAKE_ENV": business_key},
+        probe=lambda _key: "test:probe",
+        now=now,
+    )
+    record, plaintext = kb_token.issue_token(
+        data,
+        identity=identity,
+        raw_agent_id=agent_id,
+        kb_ids=list(kb_ids),
+        ttl_days=ttl_days,
+        now=now,
+        actor="test",
+        reason="rt047-p2",
+    )
+    kb_token.save_registry(registry, data, now=now)
+    return record, plaintext
 
 
 # ── test doubles ────────────────────────────────────────────────────────────
@@ -467,6 +535,46 @@ class TwoProcessConstitutionTests(unittest.TestCase):
         self.assertIn("kb_create", wizard, "向导是写面，应当直接包装 kb_create")
         self.assertIn("kb_gateway", wizard, "查询语义应当复用网关的读函数，而不是抄一份")
 
+    @staticmethod
+    def names_imported_from(path: Path, module: str) -> List[str]:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        names: List[str] = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module == module:
+                names.extend(alias.asname or alias.name for alias in node.names)
+        return names
+
+    def test_the_gateway_binds_only_the_read_half_of_kb_token(self) -> None:
+        """RT-047 P2 与两进程宪法的接缝。
+
+        ``kb_token`` 同时含签发（写）与判定（读）两半。网关允许 import 它，
+        但只许绑读的那半——和 ``kb_ledger`` 的先例同一条规矩。这里按 AST 检查
+        绑进来的名字，而不是检查有没有 import 这个模块。
+        """
+        bound = self.names_imported_from(PROJECT / "scripts" / "kb_gateway.py", "kb_token")
+        self.assertEqual(sorted(bound), ["TokenDecision", "TokenError", "TokenFile"])
+
+    def test_the_gateway_never_names_a_kb_token_write_verb(self) -> None:
+        source = (PROJECT / "scripts" / "kb_gateway.py").read_text(encoding="utf-8")
+        for verb in (
+            "issue_token",
+            "revoke_token",
+            "reissue_token",
+            "save_registry",
+            "init_registry",
+            "verify_business_key",
+            "derive_owner_ref",
+        ):
+            with self.subTest(verb=verb):
+                self.assertNotIn(
+                    verb, source, f"网关进程不得出现签发面动词 {verb}——签发是另一个进程的事"
+                )
+
+    def test_the_token_module_does_not_import_the_gateway_back(self) -> None:
+        """No cycle: the read face is the leaf."""
+        imported = self.imported_modules(PROJECT / "scripts" / "kb_token.py")
+        self.assertNotIn("kb_gateway", imported)
+
 
 # ── J3: live citation ───────────────────────────────────────────────────────
 
@@ -726,6 +834,240 @@ class J5JsonContractTests(GatewayHTTPCase):
                 self.assertNotIn(ADMIN_KEY, text)
 
 
+# ── RT-047 P2: per-Agent binding tokens ─────────────────────────────────────
+
+
+class BindingTokenCase(unittest.TestCase):
+    """A library, a registry with one live token, and an app wired to both."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name) / "kb"
+        self.backend = seed_local_kb(self.root)
+        self.registry = Path(self.tmp.name) / "tokens.json"
+        self.record, self.bearer = issue_binding_token(self.registry)
+        self.tokens = kb_token.TokenFile(self.registry)
+        self.app = make_app(self.backend, tokens=self.tokens, kb_id=KB_ID)
+
+    def get(self, target: str, token: Optional[str], *, app=None):
+        headers = {} if token is None else {gateway.TOKEN_HEADER: token}
+        return (app or self.app).dispatch("GET", target, headers)
+
+
+class BindingTokenAuthTests(BindingTokenCase):
+    """P2 — 管理 token 先比，登记表后查；命中即本库只读。"""
+
+    def test_a_binding_token_reaches_the_read_routes(self) -> None:
+        for target in ("/query?q=合同", f"/citation?lineage={LINEAGE}"):
+            with self.subTest(target=target):
+                response = self.get(target, self.bearer)
+                self.assertEqual(response.status, 200)
+                self.assertTrue(response.payload["ok"])
+
+    def test_the_admin_token_still_works_when_binding_is_enabled(self) -> None:
+        """The operator face is unchanged: enabling --tokens-file adds, never
+        replaces."""
+        response = self.get("/query?q=合同", TOKEN)
+        self.assertEqual(response.status, 200)
+
+    def test_the_admin_path_never_touches_the_registry(self) -> None:
+        # Delete the registry: the admin token must still get through, which
+        # is only true if the admin comparison short-circuits before the file
+        # is read.
+        self.registry.unlink()
+        self.assertEqual(self.get("/query?q=合同", TOKEN).status, 200)
+
+    def test_an_unknown_token_is_401(self) -> None:
+        near_miss = self.bearer[:-1] + ("0" if self.bearer[-1] != "0" else "1")
+        for junk in ("wrong", "", "a" * 64, near_miss, self.bearer.upper()):
+            with self.subTest(junk=junk[:8]):
+                response = self.get("/query?q=合同", junk)
+                self.assertEqual(response.status, 401)
+                self.assertEqual(response.payload["error"]["kind"], "unauthorized")
+
+    def test_a_missing_header_is_401(self) -> None:
+        self.assertEqual(self.get("/query?q=合同", None).status, 401)
+
+    def test_a_revoked_token_is_401_on_the_very_next_request(self) -> None:
+        """P2-3 吊销即刻生效：同一个进程、同一个 app 对象，不重启。"""
+        self.assertEqual(self.get("/query?q=合同", self.bearer).status, 200)
+
+        data = kb_token.load_registry(self.registry)
+        kb_token.revoke_token(
+            data, token_id=self.record["token_id"], now=FIXED_NOW, actor="test", reason="丢设备"
+        )
+        kb_token.save_registry(self.registry, data, now=FIXED_NOW)
+
+        response = self.get("/query?q=合同", self.bearer)
+        self.assertEqual(response.status, 401)
+        self.assertEqual(response.payload["auth"]["reason"], "revoked")
+
+    def test_an_expired_token_is_401(self) -> None:
+        later = FIXED_NOW + timedelta(days=kb_token.DEFAULT_TTL_DAYS + 1)
+        aged = make_app(self.backend, tokens=self.tokens, kb_id=KB_ID, now=later)
+        response = self.get("/query?q=合同", self.bearer, app=aged)
+        self.assertEqual(response.status, 401)
+        self.assertEqual(response.payload["auth"]["reason"], "expired")
+
+    def test_a_token_for_another_library_is_403_not_401(self) -> None:
+        """P2 — 「不认识你」和「认识你，但这不是你的库」是两件事。"""
+        neighbour = make_app(self.backend, tokens=self.tokens, kb_id=OTHER_KB)
+        response = self.get("/query?q=合同", self.bearer, app=neighbour)
+        self.assertEqual(response.status, 403)
+        self.assertEqual(response.payload["error"]["kind"], "forbidden")
+        self.assertEqual(response.payload["token_id"], self.record["token_id"])
+
+    def test_a_403_does_not_disclose_which_library_this_gateway_serves(self) -> None:
+        neighbour = make_app(self.backend, tokens=self.tokens, kb_id=OTHER_KB)
+        blob = json.dumps(
+            self.get("/query?q=合同", self.bearer, app=neighbour).payload, ensure_ascii=False
+        )
+        self.assertNotIn(OTHER_KB, blob)
+        self.assertNotIn(str(self.root), blob)
+
+    def test_a_gateway_with_an_empty_kb_id_admits_nobody_by_binding(self) -> None:
+        """Fail closed: an empty identity is not a wildcard."""
+        anonymous = make_app(self.backend, tokens=self.tokens, kb_id="")
+        self.assertEqual(self.get("/query?q=合同", self.bearer, app=anonymous).status, 403)
+
+    def test_an_unreadable_registry_refuses_binding_holders_and_keeps_admin(self) -> None:
+        self.registry.write_text("{ truncated", encoding="utf-8")
+        response = self.get("/query?q=合同", self.bearer)
+        self.assertEqual(response.status, 401)
+        self.assertEqual(response.payload["auth"]["reason"], "registry_unreadable")
+        self.assertEqual(self.get("/query?q=合同", TOKEN).status, 200)
+
+    def test_a_second_agents_token_is_independent(self) -> None:
+        _record, other = issue_binding_token(self.registry, agent_id="ops-mac-02")
+        self.assertEqual(self.get("/query?q=合同", other).status, 200)
+        self.assertEqual(self.get("/query?q=合同", self.bearer).status, 200)
+
+    def test_a_binding_token_buys_no_management_verb(self) -> None:
+        """P2 面 = J4 面：绑定 token 到达的路由表和管理 token 完全一样。"""
+        for path in MANAGEMENT_PROBES:
+            with self.subTest(path=path):
+                response = self.get(path, self.bearer)
+                self.assertEqual(response.status, 404)
+                self.assertEqual(response.payload["routes"], list(gateway.ROUTES))
+
+    def test_a_binding_token_cannot_write(self) -> None:
+        for method in ("POST", "PUT", "PATCH", "DELETE"):
+            with self.subTest(method=method):
+                response = self.app.dispatch(
+                    method, "/query", {gateway.TOKEN_HEADER: self.bearer}
+                )
+                self.assertEqual(response.status, 405)
+
+    def test_no_response_ever_echoes_the_bearer_or_the_business_key(self) -> None:
+        neighbour = make_app(self.backend, tokens=self.tokens, kb_id=OTHER_KB)
+        probes = [
+            self.get("/health", None),
+            self.get("/query?q=合同", self.bearer),
+            self.get(f"/citation?lineage={LINEAGE}", self.bearer),
+            self.get("/query?q=合同", "wrong"),
+            self.get("/admin", self.bearer),
+            self.get("/query?q=合同", self.bearer, app=neighbour),
+        ]
+        for response in probes:
+            with self.subTest(status=response.status):
+                blob = response.body().decode("utf-8")
+                self.assertNotIn(self.bearer, blob)
+                self.assertNotIn(BUSINESS_KEY, blob)
+                self.assertNotIn(kb_token.token_digest(self.bearer), blob)
+                self.assertNotIn(self.record["owner_ref"], blob)
+
+    def test_health_stays_unauthenticated_and_says_nothing_about_tokens(self) -> None:
+        response = self.get("/health", None)
+        self.assertEqual(response.status, 200)
+        blob = json.dumps(response.payload, ensure_ascii=False)
+        for secret in (KB_ID, str(self.registry), self.record["owner_ref"]):
+            self.assertNotIn(secret, blob)
+
+
+class BackwardCompatibilityTests(BindingTokenCase):
+    """不传 --tokens-file 时，行为与今天完全一致（admin-only）。"""
+
+    def test_a_binding_token_is_401_when_the_gateway_has_no_registry(self) -> None:
+        plain = make_app(self.backend)
+        response = self.get("/query?q=合同", self.bearer, app=plain)
+        self.assertEqual(response.status, 401)
+        self.assertEqual(response.payload["error"]["kind"], "unauthorized")
+
+    def test_the_default_app_is_admin_only(self) -> None:
+        plain = make_app(self.backend)
+        self.assertIsNone(plain.tokens)
+        self.assertEqual(plain.kb_id, "")
+        self.assertEqual(plain.dispatch("GET", "/query?q=合同", {}).payload["auth"]["modes"], ["admin"])
+
+    def test_the_401_body_keeps_its_v1_shape(self) -> None:
+        plain = make_app(self.backend)
+        payload = self.get("/query?q=合同", "wrong", app=plain).payload
+        self.assertEqual(set(payload), {"schema", "ok", "error", "auth"})
+        self.assertEqual(payload["auth"]["header"], gateway.TOKEN_HEADER)
+        self.assertEqual(payload["auth"]["derivation"], "sha256(admin_key) hex")
+
+    def test_authorized_still_means_admin_and_only_admin(self) -> None:
+        """``authorized`` is the operator question; a binding holder is not
+        an operator."""
+        self.assertTrue(self.app.authorized({gateway.TOKEN_HEADER: TOKEN}))
+        self.assertFalse(self.app.authorized({gateway.TOKEN_HEADER: self.bearer}))
+
+
+class BindingTokenHTTPTests(unittest.TestCase):
+    """The same rules over a real loopback socket."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name) / "kb"
+        self.backend = seed_local_kb(self.root)
+        self.registry = Path(self.tmp.name) / "tokens.json"
+        self.record, self.bearer = issue_binding_token(self.registry)
+        app = make_app(
+            self.backend, tokens=kb_token.TokenFile(self.registry), kb_id=KB_ID
+        )
+        self.server = RunningGateway(app)
+        self.addCleanup(self.server.close)
+
+    def test_a_binding_holder_can_query_and_cite_over_http(self) -> None:
+        for path in ("/query?q=合同", f"/citation?lineage={LINEAGE}"):
+            with self.subTest(path=path):
+                status, headers, payload = self.server.json(path, token=self.bearer)
+                self.assertEqual(status, 200)
+                self.assertTrue(payload["ok"])
+                self.assertTrue(headers["Content-Type"].startswith("application/json"))
+
+    def test_revoking_while_the_server_runs_takes_effect_immediately(self) -> None:
+        self.assertEqual(self.server.call("/query?q=合同", token=self.bearer)[0], 200)
+
+        data = kb_token.load_registry(self.registry)
+        kb_token.revoke_token(data, token_id=self.record["token_id"], now=FIXED_NOW)
+        kb_token.save_registry(self.registry, data, now=FIXED_NOW)
+
+        # No restart, no cache flush, no waiting.
+        status, _headers, payload = self.server.json("/query?q=合同", token=self.bearer)
+        self.assertEqual(status, 401)
+        self.assertEqual(payload["auth"]["reason"], "revoked")
+        # ...and the admin face is untouched by any of it.
+        self.assertEqual(self.server.call("/query?q=合同", token=TOKEN)[0], 200)
+
+    def test_a_cross_library_token_is_403_over_http(self) -> None:
+        _record, other = issue_binding_token(
+            self.registry, agent_id="ops-mac-09", kb_ids=(OTHER_KB,)
+        )
+        status, _headers, payload = self.server.json("/query?q=合同", token=other)
+        self.assertEqual(status, 403)
+        self.assertEqual(payload["error"]["kind"], "forbidden")
+
+    def test_a_binding_token_cannot_write_over_http(self) -> None:
+        status, headers, _body = self.server.call(
+            "/query", method="POST", token=self.bearer, body=b"{}"
+        )
+        self.assertEqual(status, 405)
+        self.assertEqual(headers.get("Allow"), "GET")
+
+
 # ── CLI ─────────────────────────────────────────────────────────────────────
 
 
@@ -799,6 +1141,89 @@ class CliTests(unittest.TestCase):
         )
         self.assertEqual(code, 0)
         self.assertTrue(payload["backend"]["reachable"])
+
+    # -- RT-047 P2 --------------------------------------------------------
+
+    def base_argv(self, *extra: str) -> List[str]:
+        return [
+            "--admin-key-env",
+            "KB_ADMIN",
+            "--root",
+            str(self.root),
+            "--check",
+            *extra,
+        ]
+
+    def test_without_tokens_file_the_card_says_binding_is_off(self) -> None:
+        _code, payload, _err = self.run_cli(self.base_argv(), env={"KB_ADMIN": ADMIN_KEY})
+        self.assertFalse(payload["tokens"]["enabled"])
+        self.assertEqual(payload["auth"]["modes"], ["admin"])
+
+    def test_a_tokens_file_without_a_prefix_refuses_to_start(self) -> None:
+        """prefix 就是本库的 kb_id：空 prefix 会让每支绑定 token 都被判 403，
+        那种「像被吊销了」的沉默失败比不启动坏得多。"""
+        registry = Path(self.tmp.name) / "tokens.json"
+        issue_binding_token(registry)
+        code, payload, err = self.run_cli(
+            self.base_argv("--tokens-file", str(registry)), env={"KB_ADMIN": ADMIN_KEY}
+        )
+        self.assertEqual(code, 2)
+        self.assertFalse(payload["ok"])
+        self.assertIn("--prefix", payload["error"]["message"])
+        self.assertIn("网关启动失败", err)
+
+    def test_a_missing_or_corrupt_registry_refuses_to_start(self) -> None:
+        missing = Path(self.tmp.name) / "absent.json"
+        corrupt = Path(self.tmp.name) / "corrupt.json"
+        corrupt.write_text("{ truncated", encoding="utf-8")
+        for path in (missing, corrupt):
+            with self.subTest(path=path.name):
+                code, payload, _err = self.run_cli(
+                    self.base_argv("--tokens-file", str(path), "--prefix", KB_ID),
+                    env={"KB_ADMIN": ADMIN_KEY},
+                )
+                self.assertEqual(code, 2)
+                self.assertIn("登记表", payload["error"]["message"])
+
+    def test_the_card_reports_the_registry_by_counts_only(self) -> None:
+        registry = Path(self.tmp.name) / "tokens.json"
+        record, bearer = issue_binding_token(registry)
+        code, payload, _err = self.run_cli(
+            self.base_argv("--tokens-file", str(registry), "--prefix", KB_ID),
+            env={"KB_ADMIN": ADMIN_KEY},
+        )
+        self.assertEqual(code, 0, payload)
+        card = payload["tokens"]
+        self.assertTrue(card["enabled"])
+        self.assertEqual(card["records"], 1)
+        self.assertEqual(card["active"], 1)
+        self.assertEqual(card["kb_id"], KB_ID)
+        self.assertEqual(payload["auth"]["modes"], ["admin", "binding"])
+
+        blob = json.dumps(payload, ensure_ascii=False)
+        self.assertNotIn(bearer, blob)
+        self.assertNotIn(record["owner_ref"], blob)
+        self.assertNotIn(record["token_id"], blob)
+        self.assertNotIn(ADMIN_KEY, blob)
+
+    def test_an_empty_registry_is_a_legitimate_state(self) -> None:
+        registry = Path(self.tmp.name) / "empty.json"
+        kb_token.init_registry(registry, now=FIXED_NOW)
+        code, payload, _err = self.run_cli(
+            self.base_argv("--tokens-file", str(registry), "--prefix", KB_ID),
+            env={"KB_ADMIN": ADMIN_KEY},
+        )
+        self.assertEqual(code, 0, payload)
+        self.assertEqual(payload["tokens"]["records"], 0)
+
+    def test_the_token_flag_is_still_refused_as_a_plaintext_credential(self) -> None:
+        """``--token`` would abbreviate to ``--tokens-file``; the credential
+        guard runs before argparse, so it never gets the chance."""
+        code, payload, _err = self.run_cli(
+            self.base_argv("--token", "leaked"), env={"KB_ADMIN": ADMIN_KEY}
+        )
+        self.assertEqual(code, 2)
+        self.assertEqual(payload["error"]["kind"], "PlaintextCredential")
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -93,6 +93,7 @@ _REPRESENTATIVE_TRACKED = (
     "scripts/kb_ingest.py",
     "scripts/kb_wizard.py",
     "scripts/kb_gateway.py",
+    "scripts/kb_token.py",
     "skills/cwk-kb-create/SKILL.md",
     "skills/cwk-kb-query/SKILL.md",
     "scripts/cwk_wiki_batch_driver.sh",

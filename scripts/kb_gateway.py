@@ -46,6 +46,20 @@ hex-encoded, supplied in the ``X-KB-Token`` header and compared with
 one.  The admin key itself is read from an environment *variable name* given
 on the command line (CLI-SPEC §一.3: 传变量名不传值); it is never logged,
 never echoed and never part of any response.
+
+Binding tokens (RT-047 P2).  ``--tokens-file`` additionally admits per-agent
+bearer tokens issued by ``scripts/kb_token.py``.  The order is fixed: the
+platform admin token first — byte-identical to the paragraph above, so the
+operator face is unchanged — and only on a miss does the binding registry get
+consulted.  A registry hit is read-only access to *this* library and nothing
+else; a token whose ``kb_ids`` does not list this gateway's ``--prefix`` is a
+403 rather than a 401, because "we know you, this is not yours" and "we do not
+know you" are different facts.  Without ``--tokens-file`` the process behaves
+exactly as it did before: admin-only.
+
+The registry is re-read on every lookup (:class:`kb_token.TokenFile`), which
+is what makes revocation take effect immediately rather than at the next
+restart, and an unreadable registry refuses everyone instead of falling open.
 """
 
 from __future__ import annotations
@@ -65,8 +79,9 @@ from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "scripts"))
 
-# Read-side imports only.  ``kb_ledger`` also holds the write primitives; the
-# names bound here are the reading half of it and nothing else.
+# Read-side imports only.  ``kb_ledger`` and ``kb_token`` also hold write
+# primitives; the names bound here are the reading half of each and nothing
+# else — ``tests/test_kb_gateway.py`` parses this file to keep it that way.
 from kb_ledger import dumps, iso, read_json, utc_now  # noqa: E402
 from kb_storage import (  # noqa: E402
     NotFound,
@@ -78,6 +93,7 @@ from kb_storage import (  # noqa: E402
     close_backend,
     sha256_bytes,
 )
+from kb_token import TokenDecision, TokenError, TokenFile  # noqa: E402
 
 GATEWAY_VERSION = "1.0.0"
 GATEWAY_SCHEMA = "cwk.kb.gateway.v1"
@@ -415,17 +431,79 @@ class GatewayApp:
         backend_kind: str = "local",
         version: str = GATEWAY_VERSION,
         clock: Callable[[], object] = utc_now,
+        tokens: Optional[TokenFile] = None,
+        kb_id: str = "",
     ) -> None:
         self.backend = backend
         self.token = token
         self.backend_kind = backend_kind
         self.version = version
         self.clock = clock
+        #: The binding registry, or ``None`` for admin-only (the v1 behaviour).
+        self.tokens = tokens
+        #: This gateway's library identity, matched against ``token.kb_ids``.
+        self.kb_id = kb_id
 
     # -- auth ---------------------------------------------------------------
 
     def authorized(self, headers: Mapping[str, str]) -> bool:
+        """Does the caller hold the platform admin token?
+
+        Unchanged from v1 and deliberately narrow: binding tokens are *not*
+        admin, so anything that asks this question keeps meaning "operator".
+        """
         return tokens_match(header_value(headers, TOKEN_HEADER), self.token)
+
+    def authorize(self, headers: Mapping[str, str]) -> Optional[Response]:
+        """``None`` when the caller may read; otherwise the refusal to send.
+
+        Admin first, binding registry second.  The admin comparison runs
+        unconditionally so enabling ``--tokens-file`` cannot change what the
+        operator's own token does, and the registry is only touched on a miss
+        — no file read on the hot path for the admin face.
+        """
+        presented = header_value(headers, TOKEN_HEADER)
+        if tokens_match(presented, self.token):
+            return None
+        if self.tokens is None:
+            return self.unauthorized("admin_token_mismatch")
+
+        decision: TokenDecision = self.tokens.decide(
+            presented, kb_id=self.kb_id, now=self.clock()
+        )
+        if decision.ok:
+            return None
+        if decision.forbidden:
+            # A known holder asking for someone else's library.  The message
+            # carries the fingerprint (which the caller could compute from the
+            # token it already holds) and not this gateway's identity.
+            return Response(
+                403,
+                error_payload(
+                    "forbidden",
+                    "该 token 有效，但授权面（kb_ids）不含本库——一支 token 只开一个库",
+                    auth={"header": TOKEN_HEADER, "reason": decision.reason},
+                    token_id=decision.token_id,
+                ),
+            )
+        return self.unauthorized(decision.reason)
+
+    def unauthorized(self, reason: str) -> Response:
+        """The 401 body.  Same shape with or without ``--tokens-file``."""
+        modes = ["admin"] + (["binding"] if self.tokens is not None else [])
+        return Response(
+            401,
+            error_payload(
+                "unauthorized",
+                f"{TOKEN_HEADER} 缺失或不匹配",
+                auth={
+                    "header": TOKEN_HEADER,
+                    "derivation": "sha256(admin_key) hex",
+                    "modes": modes,
+                    "reason": reason,
+                },
+            ),
+        )
 
     # -- routes -------------------------------------------------------------
 
@@ -436,7 +514,9 @@ class GatewayApp:
         attempt is refused as a write (405) whether or not the caller has a
         token.  The auth gate runs before the route table so an unknown path
         answers 401 to an unauthenticated caller: probing for a management
-        endpoint must not be cheaper than authenticating.
+        endpoint must not be cheaper than authenticating.  A binding token
+        (RT-047 P2) enters at the same gate and reaches the same three routes
+        — there is no second, wider surface behind it.
         """
         if (method or "").upper() not in ALLOWED_METHODS:
             return Response(
@@ -456,15 +536,9 @@ class GatewayApp:
         if path == "/health":
             return self.health()
 
-        if not self.authorized(headers):
-            return Response(
-                401,
-                error_payload(
-                    "unauthorized",
-                    f"{TOKEN_HEADER} 缺失或不匹配",
-                    auth={"header": TOKEN_HEADER, "derivation": "sha256(admin_key) hex"},
-                ),
-            )
+        refusal = self.authorize(headers)
+        if refusal is not None:
+            return refusal
 
         if path == "/query":
             return self.query(params)
@@ -683,13 +757,71 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--backend", default="local", choices=("local", "memory", "nas"))
     parser.add_argument("--root", help="local 后端的库根目录，支持 file:// 前缀")
-    parser.add_argument("--prefix", default="", help="nas 后端在 share 下的子路径")
+    parser.add_argument(
+        "--prefix",
+        default="",
+        help="nas 后端在 share 下的子路径；启用 --tokens-file 时它同时是本库的 kb_id",
+    )
+    parser.add_argument(
+        "--tokens-file",
+        default="",
+        metavar="PATH",
+        help=(
+            "kb_token.py 登记表路径；给了才接受 Agent 绑定 token（不给 = 仅管理 token，"
+            "与 v1 完全一致）"
+        ),
+    )
     parser.add_argument(
         "--check",
         action="store_true",
         help="只校验配置并输出启动卡 JSON，不绑定端口",
     )
     return parser
+
+
+def load_tokens(args: argparse.Namespace) -> Optional[TokenFile]:
+    """Build the binding registry reader, or refuse to start.
+
+    Three ways this says no, all before the port is bound:
+
+    * ``--tokens-file`` without a non-empty ``--prefix``.  The prefix *is* the
+      library identity compared against ``token.kb_ids``; an empty one would
+      match nothing and every binding token would silently 403, which looks
+      exactly like a revocation and is far worse than not starting.
+    * a registry that cannot be read or parsed.  Starting anyway would mean
+      running a gateway whose auth store is broken.
+    * a registry with no records is *allowed* — a library with no agent bound
+      yet is a legitimate state, and the admin face still works.
+    """
+    path = (getattr(args, "tokens_file", "") or "").strip()
+    if not path:
+        return None
+    if not (args.prefix or "").strip():
+        raise GatewayError(
+            "--tokens-file 需要同时给 --prefix：prefix 就是本库的 kb_id，"
+            "空 prefix 会让每一支绑定 token 都被判为不在授权面"
+        )
+    tokens = TokenFile(Path(path))
+    try:
+        tokens.summary()
+    except TokenError as exc:
+        raise GatewayError(f"绑定登记表不可用，网关拒绝启动：{exc}") from exc
+    return tokens
+
+
+def tokens_card(app: GatewayApp) -> dict:
+    """The binding block of the startup card: counts, never a token.
+
+    :meth:`kb_token.TokenFile.summary` returns records/active/epoch and the
+    per-owner ceiling — enough for an operator to see the registry is the one
+    they meant, with nothing that identifies a holder and nothing that could
+    be replayed.
+    """
+    if app.tokens is None:
+        return {"enabled": False, "note": "未启用绑定 token（仅管理 token），行为与 v1 一致"}
+    card = dict(app.tokens.summary())
+    card["kb_id"] = app.kb_id
+    return card
 
 
 def startup_card(args: argparse.Namespace, app: GatewayApp) -> dict:
@@ -708,7 +840,9 @@ def startup_card(args: argparse.Namespace, app: GatewayApp) -> dict:
             "key_env": args.admin_key_env,
             "derivation": "sha256(admin_key) hex",
             "comparison": "hmac.compare_digest",
+            "modes": ["admin"] + (["binding"] if app.tokens is not None else []),
         },
+        "tokens": tokens_card(app),
         "backend": {"kind": args.backend, "reachable": reachable, "detail": detail},
         "note": "只读网关：进程内不含任何写动词（RT-044 两进程宪法）",
         "at": iso(utc_now()),
@@ -723,8 +857,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         assert_no_plaintext_credential_flags(argv)
         args = build_parser().parse_args(argv)
         token = token_from_env(args.admin_key_env)
+        tokens = load_tokens(args)
         backend = build_backend(args.backend, root=parse_root(args.root), prefix=args.prefix)
-        app = GatewayApp(backend, token, backend_kind=args.backend)
+        app = GatewayApp(
+            backend,
+            token,
+            backend_kind=args.backend,
+            tokens=tokens,
+            kb_id=(args.prefix or "").strip(),
+        )
         card = startup_card(args, app)
         sys.stdout.write(dumps(card).decode("utf-8"))
         sys.stdout.flush()
