@@ -65,3 +65,11 @@ modules:
       - scripts/kb_migrate.py
       - scripts/kb_doctor.py
       - RT/RT-042/contracts/EXECUTION-PLAN.md
+
+  - name: kb-wizard-gateway
+    path: RT/RT-044/references/CLI-SPEC.md
+    root: scripts
+    related_files:
+      - scripts/kb_gateway.py
+      - tests/test_kb_gateway.py
+      - RT/RT-044/references/KB-PARAMETERS.md

@@ -90,6 +90,7 @@ _REPRESENTATIVE_TRACKED = (
     "install.sh",
     "scripts/cwk_ai_common.py",
     "scripts/kb_storage.py",
+    "scripts/kb_gateway.py",
     "scripts/cwk_wiki_batch_driver.sh",
     "config/entity-family-registry.json",
     "references/relation-gold-v1.json",
