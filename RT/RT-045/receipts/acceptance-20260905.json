@@ -1,0 +1,55 @@
+{
+  "schema": "cwk.rt045.acceptance.v1",
+  "at": "2026-09-05T04:50:00Z",
+  "overall": "engine_pass_pending_user_acceptance",
+  "summary": "引擎层端到端验收全绿（双库摄取+对账+体检+黄金题+反空转）。最终验收=用户亲自走 Skill A 建库 + Skill B 提问，待执行。",
+  "case1": {
+    "kb_prefix": "cwork-3m",
+    "kb_code": "38e94aa3fac908883e73e86f27400cde",
+    "source": "cwork-mirror（个人收发件箱镜像 raw，since=2026-06-01）",
+    "route": "timeline",
+    "ingested": {"converted": 453, "failed": 0, "placeholder": 0, "skipped": 0},
+    "reconcile": "零缺件（orphan/pending/failed/unidentified 全空）",
+    "doctor": "五项全绿（raw/manifest/collection-state/changed-paths/tree）",
+    "counts_reconciliation": {
+      "baseline_md_files_jun_sep": 451,
+      "ingested_lineages": 453,
+      "explanation": "月份目录 447 + unknown 目录 6 件（manifest 日期在窗口内）+ 1 重复 ID(2095046023776104449) 两文件归并一条 lineage；3 件无 timeline manifest 无日期（2061460947968806914/2061460989714616322/2061461023520706562，6/1 企业AI使用情况三件套）被 since fail-closed 排除。差异全解释，缺件为零。"
+    }
+  },
+  "case2": {
+    "kb_prefix": "docdb-touqian",
+    "kb_code": "32c5657aac5f1aa24f4f8b94584673a0",
+    "source": "docdb 空间 2082734860367093762（投前流程系统建设，子树 A=2087521342634180609 93 件 + 子树 B=2087521796046831618 40 件）",
+    "route": "classify",
+    "ingested": {"converted": 90, "placeholder": 43, "failed": 0, "skipped": 0, "total": 133},
+    "reconcile": "零缺件",
+    "doctor": "五项全绿",
+    "notes": "placeholder=png/zip 等二进制占位件，按设计不进 raw 正文、计入 ingest-state"
+  },
+  "golden_questions": {
+    "verdict": "5/6 全链通过 + 1 差异已解释（修订后口径 6/6）",
+    "detail": {
+      "G1-1": {"q": "医疗器械网络交易", "hit": true, "citation_sha_match": true},
+      "G1-2": {"q": "玄关健康互联网", "hit": true, "citation_sha_match": true},
+      "G1-3": {"q": "TBS", "hit": "恢复件 2073654866571624450 命中且引文比对通过；原第二期望 2039551079754358785 实测住 raw/2026-04/（窗口外被 since 正确排除），口径已修订"},
+      "G2-1": {"q": "PM看板需求整合唯一入口", "hit": true, "citation_sha_match": true},
+      "G2-2": {"q": "立项会快报", "hit": true, "citation_sha_match": true},
+      "G2-3": {"q": "产品需求文档PRD", "hit": true, "citation_sha_match": true}
+    }
+  },
+  "anti_idle_probes": {
+    "wrong_token": "401 ✅",
+    "write_verb_post": "405 ✅",
+    "nas_unreachable": "/health reachable=false 如实亮红 ✅",
+    "empty_library_prefix": "/health 「库内没有 lineage 索引」亮红 ✅"
+  },
+  "gateways": {"cwork-3m": "127.0.0.1:8787", "docdb-touqian": "127.0.0.1:8788"},
+  "skills_delivered": ["cwk-kb-create（建库向导，skill_workshop 已应用）", "cwk-kb-query（知识库问答，实时引文，skill_workshop 已应用）"],
+  "fixes_landed_today": [
+    "175d532 d-/c- 前缀：DSM 拒数字开头目录名（timeline 日期目录 + classify 数字分组）",
+    "33929d7 CLAUDE.md 仓库指南",
+    "885d2fd classify 数字开头分组名放宽守卫 + 回归测试（95 测试绿）"
+  ],
+  "pending": ["用户亲自验收：Skill A 新建一库 + Skill B 提问（验收最终判据）"]
+}
