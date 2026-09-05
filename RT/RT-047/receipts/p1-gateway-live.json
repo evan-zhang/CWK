@@ -1,0 +1,25 @@
+{
+  "schema": "cwk.rt047.p1.v1",
+  "at": "2026-09-05T09:56:00Z",
+  "phase": "P1 OPS 查询网关服务化",
+  "ops_host": "192.168.91.72 (xgStudiodeMac-Studio, macOS 26.3 arm64, Python 3.11.15)",
+  "deployment": {
+    "code": "~/CWK (rsync from main d7c61b0+, scripts+skills)",
+    "env": "~/CWK/ops/env (600, 6 vars, base64 通道下发)",
+    "services": [
+      {"label": "com.cwk.kb-gateway.cwork3m", "prefix": "cwork-3m", "port": 8787},
+      {"label": "com.cwk.kb-gateway.touqian", "prefix": "docdb-touqian", "port": 8788}
+    ],
+    "runner": "~/CWK/ops/run-gw.sh (700) + launchd RunAtLoad+KeepAlive, --host 0.0.0.0"
+  },
+  "acceptance_from_mac_mini": {
+    "health_8787": "200 ok=true reachable=true",
+    "health_8788": "200 ok=true reachable=true",
+    "wrong_token": "401 PASS",
+    "write_verb_post": "405 PASS",
+    "query_docdb_G23": "200 matched=1 PMO看板-产品需求文档PRD-刘聪.md, citation matches_index=true",
+    "query_cwork_G13": "200 matched=17, citation matches_index=true"
+  },
+  "notes": "token 派生坑：printenv 带尾换行会派生错 token（401），必须 printf '%s' 无换行派生。P2/P3/P4 待做。",
+  "result": "P1 PASS"
+}
