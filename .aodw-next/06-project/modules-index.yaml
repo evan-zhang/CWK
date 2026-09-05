@@ -65,3 +65,13 @@ modules:
       - scripts/kb_migrate.py
       - scripts/kb_doctor.py
       - RT/RT-042/contracts/EXECUTION-PLAN.md
+
+  - name: kb-ingest
+    path: RT/RT-043/references/DOCDB-INGEST-DESIGN.md
+    root: scripts
+    related_files:
+      - scripts/kb_ingest.py
+      - tests/test_kb_ingest.py
+      - RT/RT-043/references/INGEST-AND-TAXONOMY.md
+      - scripts/kb_storage.py
+      - scripts/kb_ledger.py
