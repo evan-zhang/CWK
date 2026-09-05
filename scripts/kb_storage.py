@@ -125,6 +125,17 @@ class TransientStorageError(StorageError):
     """A failure that is worth retrying (5xx, reset connection, busy device)."""
 
 
+class ServerBusyError(TransientStorageError):
+    """HTTP 5xx/429 from the device.
+
+    On this DSM 7.x a download of a *missing* path also answers with a bare
+    HTTP 502 page instead of a JSON error envelope (observed 2026-09-05), so
+    callers that can cheaply probe existence — :meth:`FileStationBackend.read`
+    via getinfo — disambiguate before burning the retry window on a file that
+    will never appear.
+    """
+
+
 class RemoteStorageError(StorageError):
     """A failure the remote reported as permanent."""
 
@@ -675,7 +686,7 @@ class FileStationBackend:
         finally:
             connection.close()
         if status >= 500 or status == 429:
-            raise TransientStorageError(f"FileStation HTTP {status}")
+            raise ServerBusyError(f"FileStation HTTP {status}")
         if status >= 400:
             raise RemoteStorageError(f"FileStation HTTP {status}")
         return payload
@@ -690,7 +701,7 @@ class FileStationBackend:
                 return response.read()
         except urllib.error.HTTPError as exc:
             if exc.code >= 500 or exc.code == 429:
-                raise TransientStorageError(f"FileStation HTTP {exc.code}") from exc
+                raise ServerBusyError(f"FileStation HTTP {exc.code}") from exc
             raise RemoteStorageError(f"FileStation HTTP {exc.code}") from exc
         except urllib.error.URLError as exc:
             raise TransientStorageError(f"FileStation 连接失败：{exc.reason}") from exc
@@ -793,7 +804,28 @@ class FileStationBackend:
         request = urllib.request.Request(
             f"{self._base_url()}/{cgi}?{urllib.parse.urlencode(merged)}", method="GET"
         )
-        raw = retry_call(self.retry, lambda: self._transport(request))
+
+        def _attempt() -> bytes:
+            try:
+                return self._transport(request)
+            except ServerBusyError as exc:
+                # Real-device quirk (observed on this DSM 7.x): downloading a
+                # missing path returns a bare HTTP 502 page, not a JSON error
+                # envelope, so the 502 looks retryable and the whole window
+                # burns on a file that will never appear. getinfo answers
+                # truthfully: a confirmed-missing path is NotFound (permanent,
+                # no retries); an unreachable probe keeps the 502 retryable.
+                remote = json.loads(params["path"]) if "path" in params else ""
+                if remote:
+                    try:
+                        present = self._remote_exists(remote)
+                    except StorageError:
+                        present = True
+                    if not present:
+                        raise NotFound(f"FileStation 下载目标不存在：{remote}") from exc
+                raise
+
+        raw = retry_call(self.retry, _attempt)
         # A failed download returns a JSON error envelope instead of bytes.
         # Most files in this KB *are* JSON, so "starts with a brace" cannot
         # mean "is an error": the body is only read as an envelope when it
@@ -934,7 +966,7 @@ class FileStationBackend:
             },
         )
 
-    def exists(self, path: str) -> bool:
+    def _remote_exists(self, remote: str) -> bool:
         try:
             data = self._get(
                 "entry.cgi",
@@ -942,7 +974,7 @@ class FileStationBackend:
                     "api": "SYNO.FileStation.List",
                     "version": "2",
                     "method": "getinfo",
-                    "path": json.dumps([self._remote(path)]),
+                    "path": json.dumps([remote]),
                 },
                 tolerate=(408, 1100),
             )
@@ -953,6 +985,9 @@ class FileStationBackend:
             return False
         entry = files[0]
         return isinstance(entry, dict) and "code" not in entry
+
+    def exists(self, path: str) -> bool:
+        return self._remote_exists(self._remote(path))
 
     def list_dir(self, path: str) -> List[str]:
         target = self._remote(path) if path not in (".", "") else self._remote_root()

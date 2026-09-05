@@ -194,7 +194,10 @@ class FakeFileStation:
         path = json.loads(urllib.parse.unquote_plus(fields["path"]))
         self.calls.append(f"download {path}")
         if path not in self.files:
-            return b'{"success": false, "error": {"code": 408}}'
+            # Real DSM 7.x (observed 2026-09-05): downloading a missing path
+            # answers with a bare HTTP 502 page, not a JSON error envelope.
+            # The backend must disambiguate via getinfo and surface NotFound.
+            raise storage.ServerBusyError("FileStation HTTP 502")
         return self.files[path]
 
     def _entry(self, fields: Dict[str, str]) -> bytes:
@@ -763,6 +766,21 @@ class WireContractTests(unittest.TestCase):
         backend = fake_nas()
         with self.assertRaises(storage.NotFound):
             backend.read("wiki/missing.md")
+
+    def test_missing_download_answers_bare_502_and_disambiguates_to_notfound(self) -> None:
+        """负例：真机对缺失文件的 Download 回裸 502 页（非 JSON 信封）。
+
+        read() 必须用 getinfo 消歧成 NotFound（永久错误、零重试），而不是
+        把重试窗口烧在一个永远不会出现的文件上——2026-09-05 真机建库
+        卡死 19.7 秒的教训。
+        """
+        backend = fake_nas()
+        with self.assertRaises(storage.NotFound):
+            backend.read("wiki/missing.md")
+        downloads = [c for c in backend.fake.calls if c.startswith("download")]
+        getinfos = [c for c in backend.fake.calls if "getinfo" in c]
+        self.assertEqual(len(downloads), 1, f"缺失文件只许试一次 download：{backend.fake.calls}")
+        self.assertGreaterEqual(len(getinfos), 1, "必须用 getinfo 探测消歧")
 
 
 # ── certificate pinning ─────────────────────────────────────────────────────
