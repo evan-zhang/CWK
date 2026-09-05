@@ -565,6 +565,20 @@
       "management_domain": "repo-docs",
       "evolution_path": "repo-standard-change",
       "rationale": "cwk-query 只读查询 Skill（应用侧独立交付第一步），说明书文件，随 RT 演化。"
+    },
+    {
+      "id": "R-runtime-rt045-kb-skills",
+      "domain": "runtime",
+      "kind": "exact_set",
+      "paths": [
+        "skills/cwk-kb-create/SKILL.md",
+        "skills/cwk-kb-query/SKILL.md"
+      ],
+      "owner": "RT-045",
+      "management_domain": "cwk-governance-v1",
+      "change_entry": "RT → rt-lite.md 记录理由 → 改动 → make governance-audit + skill_workshop 同步安装副本",
+      "evolution_path": "repo-standard-change",
+      "rationale": "RT-045 交付的对话式 Skill 层（建库向导 + 知识库问答），是 CWK 平台的操作面之一。Evan 2026-09-05 17:37 拍板归仓：仓库内 skills/ 为源（canonical），workspace skills/ 为安装副本，改动须双向同步。独立 exact_set 而非并入 R-runtime-rt044-kb-wizard-gateway：引擎 CLI（脚本）与对话壳（Skill）owner 变更入口不同——Skill 改动还涉及安装副本同步，合并会让变更入口指错步骤。"
     }
   ],
   "exceptions": [
