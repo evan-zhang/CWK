@@ -83,7 +83,7 @@ GPT-5.6 按需硬核回合。
 范围：
 1. kb-gateway 独立进程（纯标准库 ≤300 行）：token 鉴权 → 圈库 → 网关拼路径 → NAS 只读
 2. token 强化：绑定 owner_ref + kb_ids + membership_epoch（非仅用户名）；TTL + 代际
-   （reissue 原子递增使旧代全部失效）；每设备独立 token；登记表只存 HMAC 摘要
+   （reissue 原子递增使旧代全部失效）；每 Agent 实例绑定独立 token（2026-09-05 RT-047 P2 修订：单 Gateway 多 Agent、每 Agent 一人，粒度到 (owner_ref, agent_binding_id)，非机器级）；登记表只存 HMAC 摘要
    （审计只记 token_id + 指纹，禁明文/可逆密文）
 3. 审计架构：网关发结构化事件 → 工厂审计接收器唯一写入（哈希链防篡改）；
    平台级预建库审计（鉴权成败/预览/建库/Key 轮换/token 发吊/归档）

@@ -51,7 +51,7 @@ v1.0 的「同进程不同路由组」作废——与两层分离宪法互斥（
 | 档 | 凭据 | 范围 | 存储 |
 |---|---|---|---|
 | 自助管理 | cwork Key | 建/维自己的库；高危动作二次确认 | OPS `secrets/<kb>.enc` 加密；Agent 侧仅对话内存中转 |
-| 查询 | token（绑 owner_ref+kb_ids+代际，TTL，每设备独立） | 只读自己圈定的库 | host 侧 gateway 配置槽；沙箱内无凭据 exec 通道 |
+| 查询 | token（绑 owner_ref+kb_ids+代际+agent_binding_id，TTL，每 Agent 实例独立，2026-09-05 RT-047 P2 修订） | 只读自己圈定的库 | host 侧 gateway 配置槽；沙箱内无凭据 exec 通道 |
 | 平台管理 | admin 凭据 | 跨库运维 | 只存 OPS 本机，永不出 OPS |
 
 - token 登记表只存 HMAC 摘要；审计只记 token_id+指纹，禁明文/可逆密文

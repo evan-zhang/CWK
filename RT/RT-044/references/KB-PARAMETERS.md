@@ -72,7 +72,7 @@ refine_model / compounding_scope（默认 15）/ lang —— 同 v1.0。
 |---|---|---|
 | token.ttl | 90d | 过期自动失效 |
 | token.scope | query-only | **token 调管理 API 一律 403** |
-| token.max_active | 3 | 每设备独立 token，上限可调 |
+| token.max_active | 5 | 每 Agent 实例绑定一根 token；上限按「每用户跨 Agent 实例」计（2026-09-05 RT-047 P2 修订：粒度到 (owner_ref, agent_binding_id)，非机器级；实现默认 5，与 kb_token.py DEFAULT_MAX_ACTIVE_PER_OWNER 对齐） |
 | token.generation | 系统 | reissue 原子递增，旧代全失效 |
 
 ### A7 告警组（v1.1 新增）
