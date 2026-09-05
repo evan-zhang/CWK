@@ -261,7 +261,7 @@ class RoutePlacementTests(unittest.TestCase):
                 stable_id="2095046023776104449", name="2095046023776104449-八月周报.md",
                 group="2026-08-14", date="2026-08-14",
             ),
-            "raw/2026-08/2026-08-14/2095046023776104449-八月周报.md",
+            "raw/d-2026-08/d-2026-08-14/2095046023776104449-八月周报.md",
         )
 
     def test_classify_places_under_the_source_directory_name(self) -> None:
@@ -467,7 +467,7 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(card["lineage_id"], "cwork:2095046023776104449")
         self.assertEqual(
             card["proposed_raw_path"],
-            "raw/2026-08/2026-08-14/2095046023776104449-八月周报.md",
+            "raw/d-2026-08/d-2026-08-14/2095046023776104449-八月周报.md",
         )
         self.assertEqual(card["format"]["handling"], "passthrough")
         self.assertEqual(sorted(card["editable"]), ["proposed_raw_path", "route_mode"])
@@ -530,7 +530,7 @@ class PlanValidationTests(unittest.TestCase):
         confirmation = {
             "lineage_id": "cwork:2095046023776104449",
             "route_mode": "timeline",
-            "proposed_raw_path": "raw/2026-08/2026-08-14/2095046023776104449-x.md",
+            "proposed_raw_path": "raw/d-2026-08/d-2026-08-14/2095046023776104449-x.md",
         }
         confirmation.update(card)
         return {
@@ -638,7 +638,7 @@ class RunBasicsTests(IngestFixture):
     def test_a_markdown_item_lands_in_raw_originals_index_state_and_provenance(self) -> None:
         report = self.execute()
         self.assertTrue(report["ok"], report)
-        raw = "raw/2026-08/2026-08-14/2095046023776104449-八月周报.md"
+        raw = "raw/d-2026-08/d-2026-08-14/2095046023776104449-八月周报.md"
         self.assertEqual(self.backend.read(raw), self.report.read_bytes())
 
         index = self.read_json_at(ingest.RAW_INDEX_REL)
@@ -1170,10 +1170,10 @@ class J2CoverageReconcileTests(IngestFixture):
     def test_j2_a_raw_file_no_index_entry_references_is_red(self) -> None:
         # 反方向：批次写完 raw 就断电，账没落。三账各自自洽，件却对不上。
         self.execute()
-        self.backend.write("raw/2026-08/2026-08-14/来路不明.md", b"x\n")
+        self.backend.write("raw/d-2026-08/d-2026-08-14/来路不明.md", b"x\n")
         code, payload = self.reconcile()
         self.assertEqual(code, 1)
-        self.assertEqual(payload["orphan_raw"], ["raw/2026-08/2026-08-14/来路不明.md"])
+        self.assertEqual(payload["orphan_raw"], ["raw/d-2026-08/d-2026-08-14/来路不明.md"])
 
     def test_j2_a_state_row_with_no_index_entry_is_red(self) -> None:
         self.execute()

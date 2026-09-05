@@ -632,6 +632,13 @@ def scan_docdb(
 
 # ── routing (DOCDB-INGEST-DESIGN §III) ──────────────────────────────────────
 
+_NUMERIC_DIR_RE = re.compile(r"[0-9-]+")
+
+
+def _device_safe_dir(slug: str) -> str:
+    """Prefix digit-only slugs: this DSM refuses such folder names."""
+    return f"c-{slug}" if _NUMERIC_DIR_RE.fullmatch(slug) else slug
+
 
 def raw_path_for(
     *,
@@ -649,9 +656,14 @@ def raw_path_for(
     if route_mode == "timeline":
         if not date:
             return f"raw/{UNDATED_BUCKET}/{leaf}"
-        return f"raw/{date[:7]}/{date}/{leaf}"
+        # d- prefix: this DSM refuses digits-and-hyphens-only folder names
+        # (code=400; observed 2026-09-05 when raw/2026-06 killed the batch
+        # mid-ingest), and a date directory is nothing but digits and hyphens.
+        return f"raw/d-{date[:7]}/d-{date}/{leaf}"
     if route_mode == "classify":
-        return f"raw/classify/{slugify(group)}/{leaf}"
+        # A source folder like「1. 」slugifies to a bare digit — the same DSM
+        # refusal — so numeric slugs carry a letter prefix too.
+        return f"raw/classify/{_device_safe_dir(slugify(group))}/{leaf}"
     raise IngestError(f"未知 route 模式 {route_mode!r}（可选 {ROUTE_MODES}）")
 
 
