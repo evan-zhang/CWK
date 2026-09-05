@@ -14,3 +14,4 @@ cwk-mirror.local.json
 .cowrite-session.json
 .agent/skills/handover-pack
 /.claude/worktrees/
+.serena/
