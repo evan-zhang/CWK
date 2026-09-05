@@ -632,12 +632,14 @@ def scan_docdb(
 
 # ── routing (DOCDB-INGEST-DESIGN §III) ──────────────────────────────────────
 
-_NUMERIC_DIR_RE = re.compile(r"[0-9-]+")
+_DIGIT_NOTE = """Digit-leading folder names: this DSM refuses ``2026-06`` and
+``1-交付包-…`` (digit run + hyphen) with code=400 while accepting ``2026x``
+and ``2026_06``; letter-prefixed names always pass (observed 2026-09-05)."""
 
 
 def _device_safe_dir(slug: str) -> str:
-    """Prefix digit-only slugs: this DSM refuses such folder names."""
-    return f"c-{slug}" if _NUMERIC_DIR_RE.fullmatch(slug) else slug
+    """Prefix digit-leading slugs — see _DIGIT_NOTE."""
+    return f"c-{slug}" if slug[:1].isdigit() else slug
 
 
 def raw_path_for(

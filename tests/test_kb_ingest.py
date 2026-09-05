@@ -274,6 +274,18 @@ class RoutePlacementTests(unittest.TestCase):
             "raw/classify/玄关合同/20875195938-合同.md",
         )
 
+    def test_classify_digit_leading_group_gets_a_letter_prefix(self) -> None:
+        # DSM 对「1-交付包-…」这类数字起头的目录名回 code=400（2026-09-05
+        # 真机实测：2026-06、1-xxx 拒；2026x、2026_06、字母起头全过）。
+        self.assertEqual(
+            ingest.raw_path_for(
+                route_mode="classify", lineage="docdb:2082736573367070722",
+                stable_id="2082736573367070722", name="2082736573367070722-综述.md",
+                group="1. 交付包_体外模拟N1-N11节点_20260730", date="2026-07-30",
+            ),
+            "raw/classify/c-1-交付包-体外模拟N1-N11节点-20260730/2082736573367070722-综述.md",
+        )
+
     def test_timeline_without_a_date_uses_a_named_bucket_not_today(self) -> None:
         # 坏情形：无日期件落到"今天"。那样同一件重跑两次会落到两个路径，
         # 幂等判据全绿而 raw 里多出一份孤儿。
