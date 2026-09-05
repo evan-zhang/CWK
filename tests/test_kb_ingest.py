@@ -522,5 +522,511 @@ class PlanValidationTests(unittest.TestCase):
             ingest.load_plan(self.write(payload))
 
 
+# ── run: the pipeline end to end ────────────────────────────────────────────
+
+
+NO_CONVERTER = {ingest.ENV_DOCX_CONVERTER: "/nonexistent/md2md"}
+
+
+class CountingBackend:
+    """LocalFSBackend with a write counter.
+
+    "零写入" has to be measured, not inferred from an unchanged tree: a run
+    that rewrites a file with identical bytes leaves the tree identical and
+    is still doing work, still racing another writer, still burning NAS
+    round-trips.  The counter is what makes J1 mean what it says.
+    """
+
+    name = "counting"
+
+    def __init__(self, root) -> None:
+        self.inner = LocalFSBackend(root)
+        self.writes = []
+
+    def write(self, path, data):
+        self.writes.append(path)
+        return self.inner.write(path, data)
+
+    def __getattr__(self, item):
+        return getattr(self.inner, item)
+
+
+class IngestFixture(unittest.TestCase):
+    """A real RT-042 library plus a fake cwork mirror."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.base = Path(self.tmp.name)
+        self.kb = self.base / "kb"
+        self.kb_code = make_kb(self.kb)
+        self.mirror = self.base / "mirror"
+        self.backend = CountingBackend(self.kb)
+        self.report = write_mirror(
+            self.mirror, "2026-08/2026-08-14/2095046023776104449-八月周报.md", b"# 8 \xe6\x9c\x88\n"
+        )
+
+    def make_plan(self, *, route=None, env=NO_CONVERTER, has_openpyxl=False, since=None) -> dict:
+        return ingest.build_plan(
+            adapter="cwork-mirror", root=str(self.mirror), kb_root=str(self.kb),
+            route_mode=route, env=env, has_openpyxl=has_openpyxl, since=since,
+            generated_at=FIXED_NOW,
+        )
+
+    def execute(self, plan=None, *, env=NO_CONVERTER, has_openpyxl=False, runner=None,
+                now=FIXED_NOW) -> dict:
+        return ingest.execute_plan(
+            self.backend, plan if plan is not None else self.make_plan(),
+            kb_code=self.kb_code, env=env, has_openpyxl=has_openpyxl,
+            runner=runner or (lambda *a, **k: FakeProc(1, "")), retries=1,
+            sleep=lambda _s: None, now=now,
+        )
+
+    def read_json_at(self, rel: str) -> dict:
+        return json.loads(self.backend.read(rel).decode("utf-8"))
+
+    def tree(self) -> dict:
+        from kb_ledger import scan_tree
+
+        return scan_tree(self.backend.inner)
+
+
+class RunBasicsTests(IngestFixture):
+    def test_a_markdown_item_lands_in_raw_originals_index_state_and_provenance(self) -> None:
+        report = self.execute()
+        self.assertTrue(report["ok"], report)
+        raw = "raw/2026-08/2026-08-14/2095046023776104449-八月周报.md"
+        self.assertEqual(self.backend.read(raw), self.report.read_bytes())
+
+        index = self.read_json_at(ingest.RAW_INDEX_REL)
+        entry = index["entries"]["cwork:2095046023776104449"]
+        self.assertEqual(entry["path"], raw)
+        self.assertEqual(entry["artifact_kind"], "document")
+        self.assertEqual(entry["version"], 1)
+        self.assertEqual(entry["rule_version"], ingest.RULE_VERSION)
+
+        self.assertTrue(self.backend.exists(entry["originals"]))
+        self.assertTrue(entry["originals"].startswith("originals/cwork/2095046023776104449/"))
+
+        state = self.read_json_at(ingest.INGEST_STATE_REL)
+        self.assertEqual(state["items"]["cwork:2095046023776104449"]["status"], "converted")
+        self.assertEqual(state["counts"]["converted"], 1)
+
+        chain = self.backend.read(ingest.PROVENANCE_CHAIN_REL).decode("utf-8").splitlines()
+        self.assertEqual(len(chain), 1)
+        self.assertEqual(json.loads(chain[0])["lineage_id"], "cwork:2095046023776104449")
+
+    def test_the_run_keeps_the_rt042_ledgers_true(self) -> None:
+        from kb_doctor import verify_raw
+        from kb_ledger import verify_manifest
+
+        self.execute()
+        self.assertTrue(verify_manifest(self.backend.inner).ok,
+                        verify_manifest(self.backend.inner).describe())
+        self.assertTrue(verify_raw(self.backend.inner).ok,
+                        verify_raw(self.backend.inner).describe())
+
+    def test_run_without_yes_is_a_confirmation_card_and_writes_nothing(self) -> None:
+        plan_path = self.base / "plan.json"
+        plan_path.write_text(json.dumps(self.make_plan(), ensure_ascii=False), encoding="utf-8")
+        before = self.tree()
+        code, payload = run_cli(["run", "--plan", str(plan_path)])
+        self.assertEqual(code, 0)
+        self.assertFalse(payload["applied"])
+        self.assertTrue(payload["confirm_required"])
+        self.assertEqual(payload["cards"][0]["lineage_id"], "cwork:2095046023776104449")
+        self.assertEqual(self.tree(), before, "确认门必须零写入")
+
+    def test_run_with_yes_applies_the_plan_through_the_cli(self) -> None:
+        plan_path = self.base / "plan.json"
+        plan_path.write_text(json.dumps(self.make_plan(), ensure_ascii=False), encoding="utf-8")
+        code, payload = run_cli(["run", "--plan", str(plan_path), "--yes",
+                                 "--kb-root", str(self.kb)])
+        self.assertEqual(code, 0, payload)
+        self.assertTrue(payload["applied"])
+        self.assertEqual(payload["counts"]["converted"], 1)
+
+    def test_an_edited_card_moves_the_artefact(self) -> None:
+        # 确认卡可改：改了 route_mode 和路径，产物就该落到新位置。
+        plan = self.make_plan()
+        plan["items"][0]["confirmation"]["route_mode"] = "classify"
+        plan["items"][0]["confirmation"]["proposed_raw_path"] = "raw/classify/自定义/x.md"
+        self.execute(plan)
+        self.assertTrue(self.backend.exists("raw/classify/自定义/x.md"))
+        entry = self.read_json_at(ingest.RAW_INDEX_REL)["entries"]["cwork:2095046023776104449"]
+        self.assertEqual(entry["path"], "raw/classify/自定义/x.md")
+
+
+class J1IdempotenceTests(IngestFixture):
+    """J1 originals write-once：同源同件跑两遍，第二遍零写入零账变。"""
+
+    def test_j1_second_pass_writes_nothing_and_changes_no_account(self) -> None:
+        self.execute()
+        before = self.tree()
+        self.backend.writes.clear()
+
+        report = self.execute()
+
+        self.assertEqual(self.backend.writes, [], "第二遍不允许有任何一次写入")
+        self.assertEqual(self.tree(), before, "第二遍不允许改动任何一个字节")
+        self.assertEqual(report["counts"]["unchanged"], 1)
+        self.assertEqual(report["counts"]["converted"], 0)
+
+    def test_j1_a_second_pass_after_an_mtime_bump_still_writes_nothing(self) -> None:
+        self.execute()
+        os.utime(self.report, (0, 0))
+        self.backend.writes.clear()
+        self.execute()
+        self.assertEqual(self.backend.writes, [])
+
+    def test_j1_originals_are_write_once_even_without_the_state_ledger(self) -> None:
+        # 上面那条判据走的是状态账的短路，证明不了 write-once 本身：把
+        # archive_original 的存在性检查拆掉，它照样全绿（实测）。这条从
+        # 状态账丢失的现实故障进——重跑必须重新落 raw，但绝不能把同一份
+        # 字节在 originals/ 下再写一遍。
+        self.execute()
+        archived = [path for path in self.backend.writes if path.startswith("originals/")]
+        self.assertEqual(len(archived), 1)
+
+        state = self.read_json_at(ingest.INGEST_STATE_REL)
+        state["items"] = {}
+        self.backend.write(ingest.INGEST_STATE_REL,
+                           json.dumps(state, ensure_ascii=False).encode("utf-8"))
+        self.backend.writes.clear()
+
+        report = self.execute()
+
+        self.assertEqual(report["counts"]["converted"], 1, "状态账没了，raw 应当重新落位")
+        self.assertEqual(
+            [path for path in self.backend.writes if path.startswith("originals/")],
+            [],
+            "同一份字节不得在 originals/ 下写第二次",
+        )
+
+    def test_j1_archive_original_reports_that_it_wrote_nothing_the_second_time(self) -> None:
+        payload = b"# same bytes\n"
+        first = ingest.archive_original(
+            self.backend, source="cwork", stable_id="2095046023776104449",
+            name="x.md", data=payload,
+        )
+        self.backend.writes.clear()
+        second = ingest.archive_original(
+            self.backend, source="cwork", stable_id="2095046023776104449",
+            name="x.md", data=payload,
+        )
+        self.assertEqual(first[0], second[0], "同 lineage 同 sha 必须落同一条路径")
+        self.assertTrue(first[2])
+        self.assertFalse(second[2])
+        self.assertEqual(self.backend.writes, [])
+
+    def test_j1_an_archive_whose_bytes_disagree_with_its_address_is_red(self) -> None:
+        # 内容寻址的路径与内容对不上 = 存档层被改写过，不是新版本。
+        payload = b"# same bytes\n"
+        path, _digest, _wrote = ingest.archive_original(
+            self.backend, source="cwork", stable_id="2095046023776104449",
+            name="x.md", data=payload,
+        )
+        self.backend.write(path, b"tampered\n")
+        with self.assertRaises(ingest.ItemFailure) as ctx:
+            ingest.archive_original(
+                self.backend, source="cwork", stable_id="2095046023776104449",
+                name="x.md", data=payload,
+            )
+        self.assertEqual(ctx.exception.reason, "originals-sha-mismatch")
+
+    def test_j1_a_changed_source_does_write(self) -> None:
+        # 破坏实验的对照面：幂等不是"永远不写"。内容真的变了必须落盘，
+        # 否则上面那条判据用一个"什么都不做"的实现也能全绿。
+        self.execute()
+        self.report.write_bytes(b"# 8 \xe6\x9c\x88 \xe4\xbf\xae\xe8\xae\xa2\n")
+        self.backend.writes.clear()
+        report = self.execute()
+        self.assertTrue(self.backend.writes)
+        self.assertEqual(report["counts"]["converted"], 1)
+
+
+class J6LineageVersionTests(IngestFixture):
+    """J6 lineage 寻址：同 ID 第二版 → versions+1、supersedes 链正确。"""
+
+    def second_version(self) -> dict:
+        self.execute()
+        self.report.write_bytes(b"# 8 \xe6\x9c\x88 v2\n")
+        self.execute()
+        return self.read_json_at(ingest.RAW_INDEX_REL)["entries"]["cwork:2095046023776104449"]
+
+    def test_j6_a_new_version_extends_the_same_entry(self) -> None:
+        entry = self.second_version()
+        index = self.read_json_at(ingest.RAW_INDEX_REL)
+        self.assertEqual(len(index["entries"]), 1, "第二版不得另开条目")
+        self.assertEqual(entry["version"], 2)
+        self.assertEqual(len(entry["versions"]), 2)
+
+    def test_j6_the_supersedes_chain_points_backwards_correctly(self) -> None:
+        entry = self.second_version()
+        self.assertIsNone(entry["versions"][0]["supersedes"])
+        self.assertEqual(entry["versions"][1]["supersedes"], 1)
+        self.assertNotEqual(entry["versions"][0]["origin_sha256"],
+                            entry["versions"][1]["origin_sha256"])
+
+    def test_j6_timeline_mode_keeps_the_first_version_on_disk(self) -> None:
+        # raw 只增不改：timeline 库的第二版落在旁边，不覆盖第一版。
+        entry = self.second_version()
+        self.assertTrue(self.backend.exists(entry["versions"][0]["path"]))
+        self.assertTrue(entry["path"].endswith(".v2.md"))
+        self.assertNotEqual(entry["versions"][0]["path"], entry["path"])
+
+    def test_j6_classify_mode_updates_the_live_document_in_place(self) -> None:
+        # 活文档模型（§II）：classify 库当前文件就是文档本体，链记住旧版。
+        plan = self.make_plan(route="classify")
+        self.execute(plan)
+        self.report.write_bytes(b"# v2\n")
+        self.execute(self.make_plan(route="classify"))
+        entry = self.read_json_at(ingest.RAW_INDEX_REL)["entries"]["cwork:2095046023776104449"]
+        self.assertEqual(entry["version"], 2)
+        self.assertEqual(entry["versions"][0]["path"], entry["path"])
+        self.assertEqual(self.backend.read(entry["path"]), b"# v2\n")
+
+    def test_j6_provenance_keeps_the_earlier_lines_verbatim(self) -> None:
+        # append-only：第二批不得重写第一批已经写下的行。
+        self.execute()
+        first = self.backend.read(ingest.PROVENANCE_CHAIN_REL)
+        self.report.write_bytes(b"# v2\n")
+        self.execute()
+        second = self.backend.read(ingest.PROVENANCE_CHAIN_REL)
+        self.assertTrue(second.startswith(first))
+        self.assertEqual(len(second.splitlines()), 2)
+
+
+class J3IndexAtomicityTests(IngestFixture):
+    """J3 raw-index 原子写：写中断后旧 index 完整可用。"""
+
+    def interrupt_index_writes(self) -> None:
+        import kb_storage
+
+        real = kb_storage.os.replace
+
+        def flaky(src, dst):
+            if str(dst).endswith(ingest.RAW_INDEX_REL):
+                raise OSError("模拟发布 raw-index 时进程被打断")
+            return real(src, dst)
+
+        kb_storage.os.replace = flaky
+        self.addCleanup(setattr, kb_storage.os, "replace", real)
+
+    def test_j3_an_interrupted_publish_leaves_the_old_index_byte_identical(self) -> None:
+        self.execute()
+        before = self.backend.read(ingest.RAW_INDEX_REL)
+        self.assertIn("cwork:2095046023776104449", json.loads(before.decode("utf-8"))["entries"])
+
+        write_mirror(self.mirror, "2026-08/2026-08-14/2095046023776104460-新件.md", b"# new\n")
+        self.interrupt_index_writes()
+        with self.assertRaises(OSError):
+            self.execute()
+
+        after = self.backend.read(ingest.RAW_INDEX_REL)
+        self.assertEqual(after, before, "旧 index 必须逐字节完整")
+        self.assertIn("cwork:2095046023776104449", json.loads(after.decode("utf-8"))["entries"])
+
+    def test_j3_the_previous_generation_copy_holds_the_same_old_index(self) -> None:
+        self.execute()
+        before = self.backend.read(ingest.RAW_INDEX_REL)
+        write_mirror(self.mirror, "2026-08/2026-08-14/2095046023776104460-新件.md", b"# new\n")
+        self.interrupt_index_writes()
+        with self.assertRaises(OSError):
+            self.execute()
+        self.assertEqual(self.backend.read(ingest.RAW_INDEX_PREV_REL), before)
+
+    def test_j3_the_cli_reports_the_interruption_instead_of_exiting_green(self) -> None:
+        self.execute()
+        plan_path = self.base / "plan.json"
+        write_mirror(self.mirror, "2026-08/2026-08-14/2095046023776104460-新件.md", b"# new\n")
+        plan_path.write_text(json.dumps(self.make_plan(), ensure_ascii=False), encoding="utf-8")
+        self.interrupt_index_writes()
+        code, payload = run_cli(["run", "--plan", str(plan_path), "--yes",
+                                 "--kb-root", str(self.kb)])
+        self.assertEqual(code, 2)
+        self.assertFalse(payload["ok"])
+
+
+class J4ResumeTests(IngestFixture):
+    """J4 状态账与断点续跑：failed 件重跑只处理未完成。"""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.second = write_mirror(
+            self.mirror, "2026-08/2026-08-15/2095046023776104450-十五日报.md", b"# 15\n"
+        )
+
+    def first_pass_with_one_failure(self) -> dict:
+        plan = self.make_plan()
+        self.second.unlink()  # 源件在 plan 之后消失
+        return self.execute(plan)
+
+    def test_j4_a_failed_item_is_recorded_with_a_reason(self) -> None:
+        report = self.first_pass_with_one_failure()
+        self.assertFalse(report["ok"])
+        self.assertEqual(report["failed"], ["cwork:2095046023776104450"])
+        row = self.read_json_at(ingest.INGEST_STATE_REL)["items"]["cwork:2095046023776104450"]
+        self.assertEqual(row["status"], "failed")
+        self.assertIn("SourceError", row["reason"])
+
+    def test_j4_the_rerun_touches_only_the_unfinished_item(self) -> None:
+        self.first_pass_with_one_failure()
+        done_before = self.read_json_at(ingest.INGEST_STATE_REL)["items"][
+            "cwork:2095046023776104449"
+        ]
+        write_mirror(self.mirror, "2026-08/2026-08-15/2095046023776104450-十五日报.md", b"# 15\n")
+        self.backend.writes.clear()
+
+        report = self.execute()
+
+        self.assertTrue(report["ok"], report)
+        self.assertEqual(report["counts"]["unchanged"], 1, "已完成件不该被重新处理")
+        self.assertEqual(report["counts"]["converted"], 1)
+        done_after = self.read_json_at(ingest.INGEST_STATE_REL)["items"][
+            "cwork:2095046023776104449"
+        ]
+        self.assertEqual(done_after["attempts"], done_before["attempts"],
+                         "已完成件不该再记一次尝试")
+        self.assertFalse(
+            [path for path in self.backend.writes if "2095046023776104449" in path],
+            "已完成件不该产生任何写入",
+        )
+
+    def test_j4_a_failed_item_does_not_stop_the_items_after_it(self) -> None:
+        # 负例：一件失败就中止整批。那样一个坏件会把当晚剩下的全部拖住，
+        # 而状态账会显示它们"从没来过"。
+        third = write_mirror(
+            self.mirror, "2026-08/2026-08-16/2095046023776104451-十六日报.md", b"# 16\n"
+        )
+        plan = self.make_plan()
+        self.second.unlink()
+        report = self.execute(plan)
+        statuses = {row["lineage_id"]: row["status"] for row in report["results"]}
+        self.assertEqual(statuses["cwork:2095046023776104450"], "failed")
+        self.assertEqual(statuses["cwork:2095046023776104451"], "converted")
+        self.assertTrue(third.exists())
+
+
+class FormatFactoryExecutionTests(IngestFixture):
+    """格式工厂 v1 的产出面：每种形态落什么、记什么状态。"""
+
+    def ingest_one(self, rel: str, body: bytes, *, env=NO_CONVERTER, has_openpyxl=False,
+                   runner=None) -> dict:
+        write_mirror(self.mirror, rel, body)
+        self.report.unlink()
+        report = self.execute(
+            self.make_plan(env=env, has_openpyxl=has_openpyxl),
+            env=env, has_openpyxl=has_openpyxl, runner=runner,
+        )
+        return report
+
+    def test_docx_converts_through_the_host_binary(self) -> None:
+        converter = self.base / "md2md"
+        converter.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        converter.chmod(0o755)
+        env = {ingest.ENV_DOCX_CONVERTER: str(converter)}
+        runner = lambda *a, **k: FakeProc(0, "# 转换出来的正文\n\n足够长的一段内容。\n")
+        report = self.ingest_one(
+            "2026-08/2026-08-14/2095046023776104470-合同.docx", b"PK\x03\x04docx",
+            env=env, runner=runner,
+        )
+        self.assertEqual(report["counts"]["converted"], 1)
+        entry = self.read_json_at(ingest.RAW_INDEX_REL)["entries"]["cwork:2095046023776104470"]
+        self.assertEqual(entry["artifact_kind"], "document")
+        self.assertIn("转换出来的正文", self.backend.read(entry["path"]).decode("utf-8"))
+
+    def test_docx_falls_back_to_a_placeholder_without_the_host_binary(self) -> None:
+        report = self.ingest_one(
+            "2026-08/2026-08-14/2095046023776104470-合同.docx", b"PK\x03\x04docx"
+        )
+        self.assertEqual(report["counts"]["placeholder"], 1)
+        row = self.read_json_at(ingest.INGEST_STATE_REL)["items"]["cwork:2095046023776104470"]
+        self.assertEqual(row["status"], "placeholder")
+
+    def test_an_empty_docx_conversion_is_a_placeholder_not_a_green_hash(self) -> None:
+        # 质量门：转换"成功"但正文是空的，哈希照样对得上——不设门就等于
+        # 把空文档当合格产物入库。
+        converter = self.base / "md2md"
+        converter.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        converter.chmod(0o755)
+        report = self.ingest_one(
+            "2026-08/2026-08-14/2095046023776104470-合同.docx", b"PK\x03\x04docx",
+            env={ingest.ENV_DOCX_CONVERTER: str(converter)},
+            runner=lambda *a, **k: FakeProc(0, "   "),
+        )
+        self.assertEqual(report["counts"]["placeholder"], 1)
+        entry = self.read_json_at(ingest.RAW_INDEX_REL)["entries"]["cwork:2095046023776104470"]
+        self.assertEqual(entry["placeholder_reason"], "docx-convert-empty")
+
+    def test_xlsx_writes_one_csv_per_sheet(self) -> None:
+        original = ingest.convert_xlsx
+        ingest.convert_xlsx = lambda data: {"汇总": "a,b\n1,2\n", "明细": "c\n3\n"}
+        self.addCleanup(setattr, ingest, "convert_xlsx", original)
+        report = self.ingest_one(
+            "2026-08/2026-08-14/2095046023776104471-台账.xlsx", b"PK\x03\x04xlsx",
+            has_openpyxl=True,
+        )
+        self.assertEqual(report["counts"]["converted"], 1)
+        entry = self.read_json_at(ingest.RAW_INDEX_REL)["entries"]["cwork:2095046023776104471"]
+        csvs = [path for path in entry["artifacts"] if path.endswith(".csv")]
+        self.assertEqual(len(csvs), 2, entry["artifacts"])
+        self.assertEqual(self.backend.read(csvs[0]).decode("utf-8"), "c\n3\n")
+
+    def test_xlsx_without_openpyxl_degrades_to_a_placeholder(self) -> None:
+        report = self.ingest_one(
+            "2026-08/2026-08-14/2095046023776104471-台账.xlsx", b"PK\x03\x04xlsx",
+            has_openpyxl=False,
+        )
+        self.assertEqual(report["counts"]["placeholder"], 1)
+
+    def test_zip_gets_a_placeholder_carrying_its_central_directory(self) -> None:
+        buffer = io.BytesIO()
+        with __import__("zipfile").ZipFile(buffer, "w") as archive:
+            archive.writestr("合同/正本.pdf", b"x")
+            archive.writestr("合同/附件.xlsx", b"y")
+        report = self.ingest_one(
+            "2026-08/2026-08-14/2095046023776104472-打包.zip", buffer.getvalue()
+        )
+        self.assertEqual(report["counts"]["placeholder"], 1)
+        entry = self.read_json_at(ingest.RAW_INDEX_REL)["entries"]["cwork:2095046023776104472"]
+        body = self.backend.read(entry["path"]).decode("utf-8")
+        self.assertIn("合同/正本.pdf", body)
+        self.assertIn("合同/附件.xlsx", body)
+
+    def test_an_unreadable_zip_is_red_not_a_placeholder(self) -> None:
+        # §V：清单读取失败必红。降级会把坏档案和好档案摆在一起、状态一样绿。
+        report = self.ingest_one(
+            "2026-08/2026-08-14/2095046023776104472-打包.zip", b"not a zip at all"
+        )
+        self.assertFalse(report["ok"])
+        row = self.read_json_at(ingest.INGEST_STATE_REL)["items"]["cwork:2095046023776104472"]
+        self.assertEqual(row["status"], "failed")
+        self.assertIn("zip-directory-unreadable", row["reason"])
+
+    def test_rar_is_skipped_but_its_bytes_are_still_archived(self) -> None:
+        report = self.ingest_one(
+            "2026-08/2026-08-14/2095046023776104473-附件.rar", b"Rar!\x1a\x07\x00"
+        )
+        self.assertEqual(report["counts"]["skipped"], 1)
+        row = self.read_json_at(ingest.INGEST_STATE_REL)["items"]["cwork:2095046023776104473"]
+        self.assertEqual(row["status"], "skipped")
+        self.assertTrue(self.backend.exists(row["originals"]), "跳过的是转换，不是存档")
+        self.assertNotIn("cwork:2095046023776104473",
+                         self.read_json_at(ingest.RAW_INDEX_REL)["entries"])
+
+    def test_a_placeholder_body_carries_no_wall_clock(self) -> None:
+        # 占位件带时间戳会让 J1 的整树比较每次都不一样——判据变噪声。
+        first = ingest.placeholder_body(
+            lineage="cwork:1", name="a.pptx", origin_sha="f" * 64, origin_size=3,
+            reason="pptx-not-converted-in-v1",
+        )
+        second = ingest.placeholder_body(
+            lineage="cwork:1", name="a.pptx", origin_sha="f" * 64, origin_size=3,
+            reason="pptx-not-converted-in-v1",
+        )
+        self.assertEqual(first, second)
+
+
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()

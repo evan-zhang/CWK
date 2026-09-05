@@ -45,13 +45,17 @@ and are read by :mod:`kb_storage`.  No flag on this CLI accepts a secret.
 from __future__ import annotations
 
 import argparse
+import csv
+import io
 import json
 import os
 import re
 import subprocess
 import sys
+import tempfile
 import time
-from dataclasses import dataclass
+import zipfile
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
@@ -60,8 +64,15 @@ PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "scripts"))
 
 from kb_ledger import (  # noqa: E402
+    CHANGED_PATHS_REL,
+    RAW_MANIFEST_REL,
+    batch_id_for,
+    dumps,
     iso,
     read_json,
+    record_changed_paths,
+    record_write,
+    refresh_manifest,
     utc_now,
 )
 from kb_storage import (  # noqa: E402
@@ -71,6 +82,7 @@ from kb_storage import (  # noqa: E402
     build_backend,
     close_backend,
     normalize_path,
+    sha256_bytes,
 )
 
 PLAN_SCHEMA = "cwk.kb.ingest-plan.v1"
@@ -128,6 +140,37 @@ DOCDB_TRANSIENT_MARKERS = (
 
 MAX_SLUG_CHARS = 40
 UNDATED_BUCKET = "_undated"
+
+# The three accounts of DOCDB-INGEST-DESIGN §II plus the state ledger of §VI.
+# ``raw-index.prev.json`` is the 前代备份 the same section asks for: it is
+# written *before* the new index, so an interrupted publish leaves both a
+# complete old index and a complete copy of it.
+RAW_INDEX_REL = "_system/raw-index.json"
+RAW_INDEX_PREV_REL = "_system/raw-index.prev.json"
+INGEST_STATE_REL = "_system/ingest-state.json"
+PROVENANCE_REL = "_system/provenance.json"
+PROVENANCE_CHAIN_REL = "_system/provenance.jsonl"
+
+RAW_INDEX_SCHEMA = "cwk.kb.raw-index.v1"
+INGEST_STATE_SCHEMA = "cwk.kb.ingest-state.v1"
+PROVENANCE_SCHEMA = "cwk.kb.provenance.v1"
+CONFIRM_SCHEMA = "cwk.kb.ingest-confirm.v1"
+RUN_SCHEMA = "cwk.kb.ingest-run.v1"
+
+# Recorded on every index entry so a later model or rule change can re-run a
+# defined subset instead of the whole library (DOCDB-INGEST-DESIGN §III).
+# v1 has no AI routing turn, and says so rather than leaving the field out.
+RULE_VERSION = "ingest-v1"
+MODEL_VERSION = "none"
+
+TERMINAL_STATUSES = ("converted", "placeholder", "skipped")
+ALL_STATUSES = ("pending",) + TERMINAL_STATUSES + ("failed",)
+
+# docx 质量门 (DOCDB-INGEST-DESIGN §V): a conversion that "succeeded" into an
+# empty or near-empty document is a failure that hashes green.  Below this
+# many characters the artefact becomes a placeholder with a stated reason.
+MIN_DOCX_CHARS = 20
+MAX_PLACEHOLDER_LISTING = 200
 
 
 class IngestError(Exception):
@@ -750,6 +793,761 @@ def load_plan(path: Path) -> dict:
     return payload
 
 
+# ── format factory: the execution half ──────────────────────────────────────
+
+
+class ItemFailure(IngestError):
+    """One item failed.  The batch goes red; the items around it still land."""
+
+    def __init__(self, reason: str, detail: str = "") -> None:
+        super().__init__(f"{reason}{('：' + detail) if detail else ''}")
+        self.reason = reason
+        self.detail = detail
+
+
+@dataclass
+class Artefact:
+    """What the factory produced for one item, ready to be written."""
+
+    data: bytes
+    kind: str                    # document | placeholder
+    status: str                  # converted | placeholder
+    converter: str
+    placeholder_reason: Optional[str] = None
+    extras: Dict[str, bytes] = field(default_factory=dict)
+
+
+def placeholder_body(
+    *,
+    lineage: str,
+    name: str,
+    origin_sha: str,
+    origin_size: int,
+    reason: str,
+    listing: Optional[Sequence[str]] = None,
+) -> bytes:
+    """A占位件 with no wall-clock in it.
+
+    Determinism is not cosmetic here: J1 compares the whole tree between two
+    runs, and a placeholder stamped with "generated at" would differ on every
+    pass and turn the idempotence criterion into noise.
+    """
+    lines = [
+        "---",
+        f"lineage_id: {lineage}",
+        "artifact_kind: placeholder",
+        f"placeholder_reason: {reason}",
+        f"origin_name: {name}",
+        f"origin_sha256: {origin_sha}",
+        f"origin_size: {origin_size}",
+        f"rule_version: {RULE_VERSION}",
+        "---",
+        "",
+        f"# {name}（占位）",
+        "",
+        f"本件在摄取 v1 未做内容转换：{reason}。",
+        "原件字节已 write-once 存档在 originals/ 下，可按 lineage_id + sha256 定位。",
+        "占位件不进精编引用集，也不计入 classify 成功率（DOCDB-INGEST-DESIGN §III）。",
+    ]
+    if listing is not None:
+        lines += ["", f"## 内容清单（{len(listing)} 项，不解压）", ""]
+        for entry in list(listing)[:MAX_PLACEHOLDER_LISTING]:
+            lines.append(f"- {entry}")
+        if len(listing) > MAX_PLACEHOLDER_LISTING:
+            lines.append(f"- …… 另有 {len(listing) - MAX_PLACEHOLDER_LISTING} 项")
+    return ("\n".join(lines) + "\n").encode("utf-8")
+
+
+def zip_listing(data: bytes) -> List[str]:
+    """Read a zip's central directory without extracting anything.
+
+    A zip whose directory cannot be read is a hard failure, not a placeholder
+    (DOCDB-INGEST-DESIGN §V: 清单读取失败必红).  Degrading it would file an
+    unreadable archive next to the readable ones with the same green status.
+    """
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            return sorted(info.filename for info in archive.infolist())
+    except Exception as exc:  # noqa: BLE001 - any malformed zip
+        raise ItemFailure("zip-directory-unreadable", str(exc)) from exc
+
+
+def convert_docx(
+    data: bytes,
+    *,
+    env: Optional[Dict[str, str]] = None,
+    runner: Callable[..., object] = subprocess.run,
+) -> Tuple[Optional[str], str]:
+    """Run the host docx converter.  Returns ``(markdown or None, reason)``."""
+    converter = docx_converter_path(env)
+    child_env = dict(os.environ if env is None else env)
+    with tempfile.TemporaryDirectory() as tmp:
+        source = Path(tmp) / "input.docx"
+        source.write_bytes(data)
+        proc = runner(
+            [converter, str(source)], cwd=tmp, env=child_env, text=True, capture_output=True
+        )
+    code = getattr(proc, "returncode", 1)
+    text = (getattr(proc, "stdout", "") or "").strip()
+    if code != 0:
+        return None, f"docx-convert-failed:exit{code}"
+    if not text:
+        return None, "docx-convert-empty"
+    if len(text) < MIN_DOCX_CHARS:
+        return None, "docx-convert-too-short"
+    return text, "docx-convert-ok"
+
+
+def convert_xlsx(data: bytes) -> Dict[str, str]:
+    """Return ``{sheet name: CSV text}``.  openpyxl is an optional import."""
+    import openpyxl  # noqa: PLC0415 - optional host capability, never required
+
+    workbook = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    sheets: Dict[str, str] = {}
+    try:
+        for sheet in workbook.worksheets:
+            buffer = io.StringIO()
+            writer = csv.writer(buffer, lineterminator="\n")
+            for row in sheet.iter_rows(values_only=True):
+                writer.writerow(["" if cell is None else str(cell) for cell in row])
+            sheets[str(sheet.title)] = buffer.getvalue()
+    finally:
+        workbook.close()
+    return sheets
+
+
+def sheet_dir_for(raw_path: str) -> str:
+    """Sibling directory that holds one CSV per sheet."""
+    return raw_path[: -len(".md")] + ".sheets" if raw_path.endswith(".md") else raw_path + ".sheets"
+
+
+def materialise(
+    *,
+    lineage: str,
+    name: str,
+    raw_path: str,
+    origin: bytes,
+    decision: FormatDecision,
+    env: Optional[Dict[str, str]] = None,
+    runner: Callable[..., object] = subprocess.run,
+) -> Optional[Artefact]:
+    """Turn original bytes into the raw artefact.  ``None`` means skipped."""
+    digest = sha256_bytes(origin)
+    if decision.handling == "skip":
+        return None
+    if decision.handling == "passthrough":
+        return Artefact(data=origin, kind="document", status="converted", converter="passthrough")
+    if decision.handling == "docx-convert":
+        text, reason = convert_docx(origin, env=env, runner=runner)
+        if text is None:
+            return Artefact(
+                data=placeholder_body(
+                    lineage=lineage, name=name, origin_sha=digest,
+                    origin_size=len(origin), reason=reason,
+                ),
+                kind="placeholder", status="placeholder",
+                converter="docx:" + docx_converter_path(env), placeholder_reason=reason,
+            )
+        return Artefact(
+            data=(text + "\n").encode("utf-8"), kind="document", status="converted",
+            converter="docx:" + docx_converter_path(env),
+        )
+    if decision.handling == "xlsx-csv":
+        try:
+            sheets = convert_xlsx(origin)
+        except Exception as exc:  # noqa: BLE001 - any openpyxl failure
+            reason = "xlsx-unreadable"
+            return Artefact(
+                data=placeholder_body(
+                    lineage=lineage, name=name, origin_sha=digest,
+                    origin_size=len(origin), reason=f"{reason}:{exc}"[:200],
+                ),
+                kind="placeholder", status="placeholder",
+                converter="xlsx:openpyxl", placeholder_reason=reason,
+            )
+        directory = sheet_dir_for(raw_path)
+        extras = {
+            f"{directory}/{slugify(title)}.csv": text.encode("utf-8")
+            for title, text in sheets.items()
+        }
+        lines = [
+            "---",
+            f"lineage_id: {lineage}",
+            "artifact_kind: document",
+            f"origin_name: {name}",
+            f"origin_sha256: {digest}",
+            f"rule_version: {RULE_VERSION}",
+            "---",
+            "",
+            f"# {name}",
+            "",
+            f"表格按 sheet 导出为 CSV（共 {len(sheets)} 个）：",
+            "",
+        ]
+        for title in sorted(sheets):
+            lines.append(f"- {title} → `{directory}/{slugify(title)}.csv`")
+        return Artefact(
+            data=("\n".join(lines) + "\n").encode("utf-8"), kind="document",
+            status="converted", converter="xlsx:openpyxl", extras=extras,
+        )
+    listing = zip_listing(origin) if decision.format == "zip" else None
+    reason = decision.format + "-not-converted-in-v1"
+    return Artefact(
+        data=placeholder_body(
+            lineage=lineage, name=name, origin_sha=digest, origin_size=len(origin),
+            reason=reason, listing=listing,
+        ),
+        kind="placeholder", status="placeholder", converter="placeholder",
+        placeholder_reason=reason,
+    )
+
+
+# ── fetching original bytes ─────────────────────────────────────────────────
+
+
+def fetch_bytes(
+    locator: dict,
+    *,
+    env: Optional[Dict[str, str]] = None,
+    runner: Callable[..., object] = subprocess.run,
+    retries: int = 3,
+    sleep: Callable[[float], None] = time.sleep,
+) -> bytes:
+    """Get an item's original bytes back from what the plan recorded."""
+    kind = (locator or {}).get("kind")
+    if kind == "file":
+        path = Path(str(locator.get("path") or ""))
+        try:
+            return path.read_bytes()
+        except OSError as exc:
+            raise SourceError(f"源文件读不到：{path}（{exc}）") from exc
+    if kind == "docdb":
+        skill_dir = docdb_skill_dir(env)
+        script = skill_dir / "scripts" / "query" / "download-file.py"
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "payload.bin"
+            run_json(
+                [sys.executable, str(script), str(locator.get("file_id")),
+                 "--output", str(output)],
+                docdb_env(env), cwd=skill_dir, retries=retries, sleep=sleep, runner=runner,
+            )
+            if not output.is_file():
+                raise SourceError(
+                    f"DocDB 下载脚本声称成功但没有产出文件：fileId={locator.get('file_id')}"
+                )
+            return output.read_bytes()
+    raise IngestError(f"计划里的 locator 无法解析：{locator!r}")
+
+
+# ── originals: write-once (J1) ──────────────────────────────────────────────
+
+
+def archive_original(
+    backend: StorageBackend, *, source: str, stable_id: str, name: str, data: bytes
+) -> Tuple[str, str, bool]:
+    """Archive the original bytes.  Returns ``(path, sha256, wrote)``.
+
+    Write-once means exactly this: the path is content-addressed, so bytes we
+    already hold are recognised by *identity*, not by a timestamp comparison,
+    and the second ingest of the same item writes nothing at all.  A file
+    already sitting at that path whose digest disagrees is corruption, not a
+    new version — the path encodes the digest, so the two cannot legitimately
+    differ.
+    """
+    digest = sha256_bytes(data)
+    path = originals_path_for(source, stable_id, digest, name)
+    if backend.exists(path):
+        if backend.sha256(path) != digest:
+            raise ItemFailure(
+                "originals-sha-mismatch",
+                f"{path} 的字节与其内容寻址不符——存档层被改写过，拒绝覆盖",
+            )
+        return path, digest, False
+    record_write(backend, path, data)
+    return path, digest, True
+
+
+def versioned_path(raw_path: str, version: int) -> str:
+    """``raw/…/x.md`` → ``raw/…/x.v2.md`` for a timeline-mode new version."""
+    if version <= 1:
+        return raw_path
+    stem, ext = (raw_path[: -len(".md")], ".md") if raw_path.endswith(".md") else (raw_path, "")
+    return f"{stem}.v{version}{ext}"
+
+
+# ── the three accounts + the state ledger ───────────────────────────────────
+
+
+class Accounts:
+    """raw-index (#28), provenance (#27) and ingest-state (#29) as one unit.
+
+    They are published together, in a fixed order, after every item: index
+    first, then the provenance chain, then the state.  The order is the
+    recovery contract — state is what a resumed run trusts, so it must be the
+    *last* thing that becomes true.  Publishing state first and dying would
+    tell the next run "已完成" about an artefact no account can locate.
+    """
+
+    def __init__(self, backend: StorageBackend, kb_code: str) -> None:
+        self.backend = backend
+        self.kb_code = kb_code
+        self.index = self._load(RAW_INDEX_REL, {"schema": RAW_INDEX_SCHEMA, "entries": {}})
+        self.index.setdefault("entries", {})
+        self.state = self._load(
+            INGEST_STATE_REL,
+            {"schema": INGEST_STATE_SCHEMA, "items": {}, "unidentified": [], "batches": []},
+        )
+        for key, default in (("items", {}), ("unidentified", []), ("batches", [])):
+            self.state.setdefault(key, default)
+        try:
+            self.chain = self.backend.read(PROVENANCE_CHAIN_REL)
+        except NotFound:
+            self.chain = b""
+        self.pending_records: List[dict] = []
+        self.written: List[str] = []
+        self.dirty = False
+
+    def _load(self, path: str, default: dict) -> dict:
+        try:
+            return read_json(self.backend, path)
+        except NotFound:
+            return dict(default)
+
+    # ── reads ───────────────────────────────────────────────────────────
+    def entry(self, lineage: str) -> Optional[dict]:
+        return self.index["entries"].get(lineage)
+
+    def item_state(self, lineage: str) -> Optional[dict]:
+        return self.state["items"].get(lineage)
+
+    def already_done(self, lineage: str, origin_sha: str) -> bool:
+        """True when this exact item, these exact bytes, are already landed.
+
+        J1 and J4 are the same question asked twice.  ``failed`` and
+        ``pending`` are deliberately *not* terminal, so a resumed run picks
+        them up; and a terminal item whose raw artefact has since vanished is
+        not "done" either, or the pipeline would happily leave a hole that
+        only reconcile would ever notice.
+        """
+        row = self.item_state(lineage)
+        if not row or row.get("status") not in TERMINAL_STATUSES:
+            return False
+        if row.get("origin_sha256") != origin_sha:
+            return False
+        if row.get("status") == "skipped":
+            return True
+        entry = self.entry(lineage)
+        if not entry or entry.get("origin_sha256") != origin_sha:
+            return False
+        return all(self.backend.exists(path) for path in entry.get("artifacts") or [])
+
+    # ── writes ──────────────────────────────────────────────────────────
+    def upsert(
+        self,
+        lineage: str,
+        *,
+        source: str,
+        stable_id: str,
+        route_mode: str,
+        raw_path: str,
+        artefact: Artefact,
+        artefact_sha: str,
+        artefact_size: int,
+        artifacts: Sequence[str],
+        origin_sha: str,
+        originals_path: str,
+        at: str,
+    ) -> dict:
+        """Extend the lineage's version chain (J6) and point it at the newest."""
+        previous = self.entry(lineage)
+        if previous is None:
+            version, supersedes, versions = 1, None, []
+        else:
+            version = int(previous.get("version") or 1) + 1
+            supersedes = int(previous.get("version") or 1)
+            versions = list(previous.get("versions") or [])
+        versions.append(
+            {
+                "version": version,
+                "supersedes": supersedes,
+                "origin_sha256": origin_sha,
+                "sha256": artefact_sha,
+                "path": raw_path,
+                "originals": originals_path,
+                "at": at,
+            }
+        )
+        entry = {
+            "lineage_id": lineage,
+            "source": source,
+            "stable_id": stable_id,
+            "route_mode": route_mode,
+            "path": raw_path,
+            "artifacts": sorted(set(artifacts)),
+            "size": artefact_size,
+            "sha256": artefact_sha,
+            "origin_sha256": origin_sha,
+            "originals": originals_path,
+            "artifact_kind": artefact.kind,
+            "placeholder_reason": artefact.placeholder_reason,
+            "status": "ok" if artefact.kind == "document" else "placeholder",
+            "version": version,
+            "versions": versions,
+            "model_version": MODEL_VERSION,
+            "rule_version": RULE_VERSION,
+            "updated_at": at,
+        }
+        self.index["entries"][lineage] = entry
+        self.dirty = True
+        return entry
+
+    def set_state(
+        self,
+        lineage: str,
+        *,
+        status: str,
+        at: str,
+        reason: Optional[str] = None,
+        origin_sha: Optional[str] = None,
+        originals_path: Optional[str] = None,
+        raw_path: Optional[str] = None,
+        batch_id: Optional[str] = None,
+    ) -> dict:
+        if status not in ALL_STATUSES:
+            raise IngestError(f"未知摄取状态 {status!r}（可选 {ALL_STATUSES}）")
+        previous = self.state["items"].get(lineage) or {}
+        row = {
+            "lineage_id": lineage,
+            "status": status,
+            "reason": reason,
+            "origin_sha256": origin_sha or previous.get("origin_sha256"),
+            "originals": originals_path or previous.get("originals"),
+            "raw_path": raw_path if raw_path is not None else previous.get("raw_path"),
+            "attempts": int(previous.get("attempts") or 0) + 1,
+            "batch_id": batch_id,
+            "updated_at": at,
+        }
+        self.state["items"][lineage] = row
+        self.dirty = True
+        return row
+
+    def add_provenance(self, record: dict) -> None:
+        self.pending_records.append(record)
+        self.dirty = True
+
+    def note_unidentified(self, paths: Sequence[str]) -> None:
+        merged = sorted(set(self.state.get("unidentified") or []) | set(paths))
+        if merged != (self.state.get("unidentified") or []):
+            self.state["unidentified"] = merged
+            self.dirty = True
+
+    def add_batch(self, summary: dict) -> None:
+        self.state["batches"].append(summary)
+        self.dirty = True
+
+    def publish(self) -> List[str]:
+        """Write the accounts.  No-op when nothing changed (the J1 zero-write).
+
+        The index goes out through a previous-generation copy first, so a
+        publish that dies half way leaves both a complete old index and a
+        complete backup of it — the tmp+fsync+rename the local backend does
+        underneath protects the file, this protects the *generation*.
+        """
+        if not self.dirty:
+            return []
+        written: List[str] = []
+        self.index["schema"] = RAW_INDEX_SCHEMA
+        self.index["kb_code"] = self.kb_code
+        self.index["entry_count"] = len(self.index["entries"])
+
+        try:
+            current = self.backend.read(RAW_INDEX_REL)
+        except NotFound:
+            current = None
+        if current is not None:
+            record_write(self.backend, RAW_INDEX_PREV_REL, current)
+            written.append(RAW_INDEX_PREV_REL)
+        record_write(self.backend, RAW_INDEX_REL, dumps(self.index))
+        written.append(RAW_INDEX_REL)
+
+        if self.pending_records:
+            appended = b"".join(
+                (json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n").encode("utf-8")
+                for record in self.pending_records
+            )
+            self.chain = self.chain + appended
+            record_write(self.backend, PROVENANCE_CHAIN_REL, self.chain)
+            written.append(PROVENANCE_CHAIN_REL)
+            self.pending_records = []
+            record_write(
+                self.backend,
+                PROVENANCE_REL,
+                dumps(
+                    {
+                        "schema": PROVENANCE_SCHEMA,
+                        "kb_code": self.kb_code,
+                        "chain": PROVENANCE_CHAIN_REL,
+                        "record_count": self.chain.count(b"\n"),
+                        "note": (
+                            "来源账是 append-only JSONL；本文件只是它的指针与计数，"
+                            "不复制内容（复制出来的第二份账迟早会和链对不上）。"
+                        ),
+                    }
+                ),
+            )
+            written.append(PROVENANCE_REL)
+
+        # State last: it is what a resumed run believes.
+        self.state["schema"] = INGEST_STATE_SCHEMA
+        self.state["kb_code"] = self.kb_code
+        self.state["counts"] = status_counts(self.state["items"])
+        record_write(self.backend, INGEST_STATE_REL, dumps(self.state))
+        written.append(INGEST_STATE_REL)
+
+        self.dirty = False
+        for path in written:
+            if path not in self.written:
+                self.written.append(path)
+        return written
+
+    def owned_paths(self) -> List[str]:
+        """Every path the accounts can explain.
+
+        This is what the root-manifest refresh is allowed to re-sign.  A file
+        under ``raw/`` or ``originals/`` that no account mentions stays
+        unexplained and still trips the ledger — which is the point: the
+        exemption is "我记得写过它", not "它在我的目录里".
+        """
+        owned = {
+            RAW_INDEX_REL, RAW_INDEX_PREV_REL, INGEST_STATE_REL,
+            PROVENANCE_REL, PROVENANCE_CHAIN_REL, RAW_MANIFEST_REL,
+        }
+        for entry in self.index["entries"].values():
+            owned.update(entry.get("artifacts") or [])
+            if entry.get("originals"):
+                owned.add(entry["originals"])
+            for version in entry.get("versions") or []:
+                if version.get("path"):
+                    owned.add(version["path"])
+                if version.get("originals"):
+                    owned.add(version["originals"])
+        for row in self.state["items"].values():
+            for key in ("originals", "raw_path"):
+                if row.get(key):
+                    owned.add(row[key])
+        return sorted(owned)
+
+
+def status_counts(items: Dict[str, dict]) -> Dict[str, int]:
+    counts = {status: 0 for status in ALL_STATUSES}
+    for row in items.values():
+        status = str(row.get("status") or "pending")
+        counts[status] = counts.get(status, 0) + 1
+    return counts
+
+
+def refresh_raw_manifest(backend: StorageBackend, kb_code: str, at: str) -> List[str]:
+    """Rebuild B #3 after writing raw, so ``kb_doctor verify --raw`` stays true."""
+    entries = {}
+    for path in backend.walk_files("raw"):
+        if path == RAW_MANIFEST_REL:
+            continue
+        data = backend.read(path)
+        entries[path] = {"sha256": sha256_bytes(data), "size": len(data)}
+    record_write(
+        backend,
+        RAW_MANIFEST_REL,
+        dumps(
+            {
+                "schema": "cwk.kb.raw-manifest.v1",
+                "kb_code": kb_code,
+                "generated_at": at,
+                "entry_count": len(entries),
+                "entries": entries,
+            }
+        ),
+    )
+    return [RAW_MANIFEST_REL]
+
+
+# ── run ─────────────────────────────────────────────────────────────────────
+
+
+def confirmation_summary(plan: dict) -> dict:
+    """What ``run`` prints when ``--yes`` is absent.  Reads only."""
+    return {
+        "schema": CONFIRM_SCHEMA,
+        "applied": False,
+        "confirm_required": True,
+        "adapter": plan.get("adapter"),
+        "source": plan.get("source"),
+        "kb_root": plan.get("kb_root"),
+        "route": plan.get("route"),
+        "item_count": len(plan.get("items") or []),
+        "expected_status_counts": plan.get("expected_status_counts"),
+        "unidentified": plan.get("unidentified") or [],
+        "cards": [row.get("confirmation") for row in plan.get("items") or []],
+        "note": "确认卡可改（route_mode / proposed_raw_path）。确认后加 --yes 执行；本次零写入。",
+    }
+
+
+def execute_plan(
+    backend: StorageBackend,
+    plan: dict,
+    *,
+    kb_code: str,
+    env: Optional[Dict[str, str]] = None,
+    runner: Callable[..., object] = subprocess.run,
+    retries: int = 3,
+    sleep: Callable[[float], None] = time.sleep,
+    now: Optional[datetime] = None,
+    has_openpyxl: Optional[bool] = None,
+) -> dict:
+    """Ingest every item in ``plan``.  Returns the run report; never raises
+    for a *single* item's failure — that item goes to ``failed`` with a reason
+    and the batch ends red (J5)."""
+    at = iso(now or utc_now())
+    rows = list(plan.get("items") or [])
+    source = str(plan.get("source") or "")
+    batch = batch_id_for([str((row.get("confirmation") or {}).get("lineage_id")) for row in rows])
+    accounts = Accounts(backend, kb_code)
+    accounts.note_unidentified(plan.get("unidentified") or [])
+
+    results: List[dict] = []
+    touched: List[str] = []
+    for row in rows:
+        card = row.get("confirmation") or {}
+        lineage = assert_lineage_key(str(card.get("lineage_id") or ""))
+        stable_id = str(row.get("stable_id") or lineage.split(":", 1)[1])
+        name = str(row.get("name") or stable_id)
+        route_mode = str(card.get("route_mode"))
+        target = normalize_path(str(card.get("proposed_raw_path") or ""))
+        try:
+            origin = fetch_bytes(
+                row.get("locator") or {}, env=env, runner=runner, retries=retries, sleep=sleep
+            )
+            origin_sha = sha256_bytes(origin)
+            if accounts.already_done(lineage, origin_sha):
+                results.append({"lineage_id": lineage, "status": "unchanged", "wrote": False})
+                continue
+            originals_path, origin_sha, wrote_original = archive_original(
+                backend, source=source, stable_id=stable_id, name=name, data=origin
+            )
+            if wrote_original:
+                touched.append(originals_path)
+            decision = decide_format(name, env=env, has_openpyxl=has_openpyxl)
+            artefact = materialise(
+                lineage=lineage, name=name, raw_path=target, origin=origin,
+                decision=decision, env=env, runner=runner,
+            )
+            if artefact is None:
+                accounts.set_state(
+                    lineage, status="skipped", at=at, reason=decision.reason,
+                    origin_sha=origin_sha, originals_path=originals_path,
+                    raw_path=None, batch_id=batch,
+                )
+                accounts.add_provenance(
+                    {
+                        "schema": PROVENANCE_SCHEMA, "at": at, "batch_id": batch,
+                        "lineage_id": lineage, "event": "skipped",
+                        "originals": originals_path, "origin_sha256": origin_sha,
+                        "derived": [], "converter": "skip", "reason": decision.reason,
+                    }
+                )
+                accounts.publish()
+                results.append({"lineage_id": lineage, "status": "skipped", "wrote": True})
+                continue
+
+            previous = accounts.entry(lineage)
+            version = 1 if previous is None else int(previous.get("version") or 1) + 1
+            # raw 只增不改 for a timeline library: a second version lands
+            # beside the first instead of over it.  A classify library is the
+            # 活文档 model of §II, where the current file *is* the document
+            # and the chain remembers what it used to be.
+            raw_path = versioned_path(target, version) if route_mode == "timeline" else target
+            raw_path = normalize_path(raw_path)
+
+            artefact_sha = record_write(backend, raw_path, artefact.data)
+            touched.append(raw_path)
+            artifacts = [raw_path]
+            for extra_path, extra_data in sorted(artefact.extras.items()):
+                safe = normalize_path(extra_path)
+                record_write(backend, safe, extra_data)
+                artifacts.append(safe)
+                touched.append(safe)
+
+            accounts.upsert(
+                lineage, source=source, stable_id=stable_id, route_mode=route_mode,
+                raw_path=raw_path, artefact=artefact, artefact_sha=artefact_sha,
+                artefact_size=len(artefact.data), artifacts=artifacts,
+                origin_sha=origin_sha, originals_path=originals_path, at=at,
+            )
+            accounts.set_state(
+                lineage, status=artefact.status, at=at,
+                reason=artefact.placeholder_reason, origin_sha=origin_sha,
+                originals_path=originals_path, raw_path=raw_path, batch_id=batch,
+            )
+            accounts.add_provenance(
+                {
+                    "schema": PROVENANCE_SCHEMA, "at": at, "batch_id": batch,
+                    "lineage_id": lineage, "event": "ingested", "version": version,
+                    "supersedes": None if version == 1 else version - 1,
+                    "originals": originals_path, "origin_sha256": origin_sha,
+                    "derived": artifacts, "artifact_sha256": artefact_sha,
+                    "converter": artefact.converter,
+                    "artifact_kind": artefact.kind,
+                }
+            )
+            accounts.publish()
+            results.append(
+                {
+                    "lineage_id": lineage, "status": artefact.status, "version": version,
+                    "raw_path": raw_path, "wrote": True,
+                }
+            )
+        except IngestError as exc:
+            reason = getattr(exc, "reason", None) or type(exc).__name__
+            accounts.set_state(
+                lineage, status="failed", at=at, reason=f"{reason}: {exc}"[:400],
+                batch_id=batch,
+            )
+            accounts.publish()
+            results.append({"lineage_id": lineage, "status": "failed", "reason": str(exc)})
+
+    failed = [row for row in results if row["status"] == "failed"]
+    summary = {
+        "batch_id": batch,
+        "at": at,
+        "source": source,
+        "item_count": len(rows),
+        "counts": {
+            status: sum(1 for row in results if row["status"] == status)
+            for status in ("converted", "placeholder", "skipped", "unchanged", "failed")
+        },
+        "failed": [row["lineage_id"] for row in failed],
+    }
+    if touched or accounts.dirty or failed:
+        accounts.add_batch(summary)
+        accounts.publish()
+    if touched:
+        touched += refresh_raw_manifest(backend, kb_code, at)
+        record_changed_paths(backend, touched, reason=f"ingest:{batch}", at=now or utc_now())
+        allowed = sorted(set(accounts.owned_paths()) | set(touched) | {CHANGED_PATHS_REL})
+        refresh_manifest(
+            backend, kb_code=kb_code, generated_at=now or utc_now(),
+            allow_new=allowed, allow_replaced=allowed,
+        )
+
+    return {
+        "schema": RUN_SCHEMA,
+        "ok": not failed,
+        "applied": True,
+        **summary,
+        "results": results,
+        "written_paths": sorted(set(touched) | set(accounts.written)),
+    }
+
+
 # ── CLI ─────────────────────────────────────────────────────────────────────
 
 
@@ -789,6 +1587,17 @@ def build_parser() -> argparse.ArgumentParser:
     plan.add_argument("--out", help="同时把计划写到这个文件")
     plan.add_argument("--backend", default="local", choices=("local", "memory", "nas"))
     plan.add_argument("--prefix", default="", help="nas 后端在 share 下的子路径")
+
+    run = sub.add_parser("run", help="按计划执行摄取；没有 --yes 时只打确认卡")
+    run.add_argument("--plan", required=True, help="plan 子命令产出的计划文件")
+    run.add_argument("--kb-root", help="覆盖计划里记的库根")
+    run.add_argument(
+        "--yes",
+        action="store_true",
+        help="确认后执行。缺省只输出确认卡并退出，本次零写入。",
+    )
+    run.add_argument("--backend", default="local", choices=("local", "memory", "nas"))
+    run.add_argument("--prefix", default="", help="nas 后端在 share 下的子路径")
     return parser
 
 
@@ -816,7 +1625,28 @@ def cmd_plan(args: argparse.Namespace) -> int:
     return 0
 
 
-COMMANDS: Dict[str, Callable[[argparse.Namespace], int]] = {"plan": cmd_plan}
+def cmd_run(args: argparse.Namespace) -> int:
+    plan = load_plan(Path(args.plan).expanduser())
+    if not args.yes:
+        # Reads only.  The confirmation gate has to be *provably* inert, so
+        # it returns before a backend is even opened.
+        emit(confirmation_summary(plan))
+        return 0
+    kb_root = args.kb_root or plan.get("kb_root")
+    backend = None
+    try:
+        backend = open_backend(args, kb_root)
+        report = execute_plan(backend, plan, kb_code=read_kb_code(backend))
+    finally:
+        close_backend(backend)
+    emit(report)
+    return 0 if report["ok"] else 1
+
+
+COMMANDS: Dict[str, Callable[[argparse.Namespace], int]] = {
+    "plan": cmd_plan,
+    "run": cmd_run,
+}
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
