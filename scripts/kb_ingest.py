@@ -414,7 +414,15 @@ def scan_cwork_mirror(root: Path, *, since: Optional[str] = None) -> Tuple[List[
     items: List[SourceItem] = []
     unidentified: List[str] = []
     for current, dirs, files in os.walk(root):
-        dirs[:] = sorted(d for d in dirs if not d.startswith(".") and d != "@eaDir")
+        # `_system` is the platform's own ledger area inside a mirror (B 表
+        # #2c): timeline reply-chain events and snapshots the nightly
+        # pipeline writes for its own bookkeeping.  It is never source
+        # content — sweeping it in turned 451 real reports into a 3827-item
+        # plan whose extra items were the platform reading its own diary
+        # (observed 2026-09-05, Case 1).
+        dirs[:] = sorted(
+            d for d in dirs if not d.startswith(".") and d not in ("@eaDir", "_system")
+        )
         for name in sorted(files):
             if name.startswith(".") or name in ("Thumbs.db",):
                 continue

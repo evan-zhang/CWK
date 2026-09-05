@@ -327,6 +327,34 @@ class CworkMirrorAdapterTests(unittest.TestCase):
         with self.assertRaises(ingest.SourceError):
             ingest.scan_cwork_mirror(self.root.parent / "gone")
 
+    def test_platform_system_ledgers_are_never_source_content(self) -> None:
+        # 负例（Case 1 实事故 2026-09-05）：镜像 raw/_system/timelines/** 是
+        # nightly 管道自己写的回复链事件账，不是 cwork 源内容。扫描器把它
+        # 当源扫入，451 篇真报告波变成了 3827 件的计划（多数是 hex 名的
+        # 事件 json，部分碰巧以 ≥8 位数字开头撞上稳定 ID 规则）。_system
+        # 必须整体排除：items 和 unidentified 都不得含其下任何文件。
+        write_mirror(
+            self.root,
+            "_system/timelines/2093235488570916866/events/94868867166fb7140a0.json",
+            b"{}\n",
+        )
+        write_mirror(
+            self.root,
+            "_system/timelines/2093235488570916866/manifest.json",
+            b"{}\n",
+        )
+        write_mirror(
+            self.root,
+            "_system/timelines/2093235488570916866/snapshots/94868867166ab.md",
+            b"snapshot\n",
+        )
+        items, unidentified = ingest.scan_cwork_mirror(self.root)
+        # items 与不含 _system 的期望一致（8 位数字前缀的事件 json 不得混入）
+        self.assertEqual([item.stable_id for item in items],
+                         ["2095046023776104450", "2095046023776104449"])
+        # unidentified 只剩真实无 ID 文件，_system 不进清单
+        self.assertEqual(unidentified, ["2026-08/2026-08-14/README.md"])
+
 
 # ── source adapter: docdb ───────────────────────────────────────────────────
 
