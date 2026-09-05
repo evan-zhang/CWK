@@ -37,7 +37,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
-from cwk_kb_storage import NotFound, StorageBackend, sha256_bytes
+from kb_storage import NotFound, StorageBackend, sha256_bytes
 
 MANIFEST_SCHEMA = "cwk.kb.root-manifest.v1"
 COLLECTION_SCHEMA = "cwk.kb.collection-state.v1"

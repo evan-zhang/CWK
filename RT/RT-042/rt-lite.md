@@ -11,19 +11,19 @@
 
 ## 2. 范围（7 项）
 
-1. `scripts/cwk_kb_storage.py`：StorageBackend 协议 + LocalFSBackend + FileStationBackend
+1. `scripts/kb_storage.py`：StorageBackend 协议 + LocalFSBackend + FileStationBackend
    （create/write/read/list/mkdir/exists/sha256；FileStation 走 HTTPS API，凭据只从环境变量
    `CWK_NAS_KB_*` 读，禁硬编码禁命令行明文；重试 + 幂等）
-2. `scripts/cwk_kb_create.py`：建库 CLI——display_name + 128 位随机 kb_code +
+2. `scripts/kb_create.py`：建库 CLI——display_name + 128 位随机 kb_code +
    26 项目录树生成（按 KB-PARAMETERS B 表逐项；cwork-only 项按源裁剪）+
    kb.json（身份+引用）/ source.json / schedule.json（子配置唯一权威）+
    kb_members 副本（OPS 集中索引 members-index 稍后 RT-043，先留接口）
-3. `scripts/cwk_kb_ledger.py`：root-manifest 哈希账本（写后对账、全量 sha256 校验、
+3. `scripts/kb_ledger.py`：root-manifest 哈希账本（写后对账、全量 sha256 校验、
    断言存量不变）+ collection_state 游标模型 + 向导状态机数据模型
    （draft→verified→sourced→previewed→ingesting→taxonomy→active；draft TTL 30min）
-4. `scripts/cwk_kb_migrate.py`：镜像→NAS 迁移（路径映射表 + 内容哈希双向配对 +
+4. `scripts/kb_migrate.py`：镜像→NAS 迁移（路径映射表 + 内容哈希双向配对 +
    允许新增/重命名清单；退役 4 目录 entities/events/history/_index 不迁）
-5. `scripts/cwk_kb_doctor.py`（或并入 ledger）：verify 子命令族
+5. `scripts/kb_doctor.py`（或并入 ledger）：verify 子命令族
    （--raw/--manifest/--collection-state/--changed-paths）
 6. tests/test_kb_storage.py + test_kb_create.py + test_kb_ledger.py + test_kb_migrate.py
 7. 新脚本回执 + 登记（**落点按仓库实况调整，理由如下**）

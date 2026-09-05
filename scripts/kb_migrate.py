@@ -42,14 +42,14 @@ from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "scripts"))
 
-from cwk_kb_ledger import (  # noqa: E402
+from kb_ledger import (  # noqa: E402
     MANIFEST_REL,
     dumps,
     read_json,
     record_write,
     refresh_manifest,
 )
-from cwk_kb_storage import (  # noqa: E402
+from kb_storage import (  # noqa: E402
     NotFound,
     StorageBackend,
     assert_no_plaintext_credential_flags,
@@ -303,7 +303,7 @@ def resolve_kb_code(dest: StorageBackend, kb_code: Optional[str] = None) -> str:
             return value
     raise MigrationError(
         "目的地既没有 kb.json 也没有 root-manifest.json，无法确定 kb_code："
-        "迁移只写进已建好的库，请先 cwk_kb_create.py 建库。"
+        "迁移只写进已建好的库，请先 kb_create.py 建库。"
     )
 
 

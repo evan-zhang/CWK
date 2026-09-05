@@ -19,14 +19,14 @@ from pathlib import Path
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "scripts"))
 
-import cwk_kb_create as create  # noqa: E402
-from cwk_kb_ledger import (  # noqa: E402
+import kb_create as create  # noqa: E402
+from kb_ledger import (  # noqa: E402
     EXCLUDED_PATHS,
     LedgerViolation,
     loads,
     verify_manifest,
 )
-from cwk_kb_storage import LocalFSBackend, MemoryBackend  # noqa: E402
+from kb_storage import LocalFSBackend, MemoryBackend  # noqa: E402
 
 FIXED_NOW = datetime(2026, 9, 4, 12, 0, 0, tzinfo=timezone.utc)
 

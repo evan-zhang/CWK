@@ -44,7 +44,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "scripts"))
 
-from cwk_kb_ledger import (  # noqa: E402
+from kb_ledger import (  # noqa: E402
     AUDIT_REL,
     CHANGED_PATHS_REL,
     CHANGED_PATHS_SCHEMA,
@@ -60,7 +60,7 @@ from cwk_kb_ledger import (  # noqa: E402
     refresh_manifest,
     utc_now,
 )
-from cwk_kb_storage import (  # noqa: E402
+from kb_storage import (  # noqa: E402
     StorageBackend,
     assert_no_plaintext_credential_flags,
     build_backend,

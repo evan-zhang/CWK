@@ -59,9 +59,9 @@ modules:
     path: RT/RT-042/contracts/KB-PARAMETERS.md
     root: scripts
     related_files:
-      - scripts/cwk_kb_storage.py
-      - scripts/cwk_kb_create.py
-      - scripts/cwk_kb_ledger.py
-      - scripts/cwk_kb_migrate.py
-      - scripts/cwk_kb_doctor.py
+      - scripts/kb_storage.py
+      - scripts/kb_create.py
+      - scripts/kb_ledger.py
+      - scripts/kb_migrate.py
+      - scripts/kb_doctor.py
       - RT/RT-042/contracts/EXECUTION-PLAN.md

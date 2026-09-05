@@ -30,9 +30,9 @@ from unittest import mock
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "scripts"))
 
-import cwk_kb_storage as storage  # noqa: E402
-from cwk_kb_create import KbSpec, SourceSpec, create_kb  # noqa: E402
-from cwk_kb_ledger import (  # noqa: E402
+import kb_storage as storage  # noqa: E402
+from kb_create import KbSpec, SourceSpec, create_kb  # noqa: E402
+from kb_ledger import (  # noqa: E402
     TIMESTAMP_CLASS_PATHS,
     WriteReconcileFailed,
     loads,
@@ -471,11 +471,11 @@ class CredentialTests(unittest.TestCase):
                     storage.assert_no_plaintext_credential_flags(argv)
 
     def test_no_cli_accepts_a_credential_on_the_command_line(self) -> None:
-        import cwk_kb_create
-        import cwk_kb_doctor
-        import cwk_kb_migrate
+        import kb_create
+        import kb_doctor
+        import kb_migrate
 
-        for module in (cwk_kb_create, cwk_kb_migrate, cwk_kb_doctor):
+        for module in (kb_create, kb_migrate, kb_doctor):
             declared = {
                 option
                 for action in module.build_parser()._actions
@@ -488,7 +488,7 @@ class CredentialTests(unittest.TestCase):
                 )
 
     def test_no_credential_literal_is_baked_into_the_storage_module(self) -> None:
-        source = (PROJECT / "scripts" / "cwk_kb_storage.py").read_text(encoding="utf-8")
+        source = (PROJECT / "scripts" / "kb_storage.py").read_text(encoding="utf-8")
         # The only places a password may appear are the env-var name, the
         # dataclass field and the FileStation form key.
         for line in source.splitlines():
@@ -539,14 +539,14 @@ class SessionTeardownTests(unittest.TestCase):
         return made, code, buffer.getvalue()
 
     def test_every_cli_logs_out_even_when_the_run_fails(self) -> None:
-        import cwk_kb_create
-        import cwk_kb_doctor
-        import cwk_kb_migrate
+        import kb_create
+        import kb_doctor
+        import kb_migrate
 
         cases = (
-            (cwk_kb_create, ["--name", "库", "--backend", "nas"]),
-            (cwk_kb_migrate, ["apply", "--source-root", "x", "--dest-backend", "nas"]),
-            (cwk_kb_doctor, ["verify", "--manifest", "--backend", "nas"]),
+            (kb_create, ["--name", "库", "--backend", "nas"]),
+            (kb_migrate, ["apply", "--source-root", "x", "--dest-backend", "nas"]),
+            (kb_doctor, ["verify", "--manifest", "--backend", "nas"]),
         )
         for module, argv in cases:
             with self.subTest(module=module.__name__):

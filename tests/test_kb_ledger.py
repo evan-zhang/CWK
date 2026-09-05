@@ -18,10 +18,10 @@ from pathlib import Path
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "scripts"))
 
-import cwk_kb_doctor as doctor  # noqa: E402
-import cwk_kb_ledger as ledger  # noqa: E402
-from cwk_kb_create import KbSpec, SourceSpec, create_kb  # noqa: E402
-from cwk_kb_storage import LocalFSBackend, MemoryBackend, NotFound  # noqa: E402
+import kb_doctor as doctor  # noqa: E402
+import kb_ledger as ledger  # noqa: E402
+from kb_create import KbSpec, SourceSpec, create_kb  # noqa: E402
+from kb_storage import LocalFSBackend, MemoryBackend, NotFound  # noqa: E402
 
 FIXED_NOW = datetime(2026, 9, 4, 12, 0, 0, tzinfo=timezone.utc)
 

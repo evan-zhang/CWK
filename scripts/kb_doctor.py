@@ -37,8 +37,8 @@ from typing import Callable, Dict, List, Optional, Sequence
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "scripts"))
 
-from cwk_kb_create import audit_tree  # noqa: E402
-from cwk_kb_ledger import (  # noqa: E402
+from kb_create import audit_tree  # noqa: E402
+from kb_ledger import (  # noqa: E402
     CHANGED_PATHS_REL,
     CHANGED_PATHS_SCHEMA,
     RAW_MANIFEST_REL,
@@ -49,7 +49,7 @@ from cwk_kb_ledger import (  # noqa: E402
     verify_collection_state,
     verify_manifest,
 )
-from cwk_kb_storage import (  # noqa: E402
+from kb_storage import (  # noqa: E402
     NotFound,
     StorageBackend,
     assert_no_plaintext_credential_flags,
