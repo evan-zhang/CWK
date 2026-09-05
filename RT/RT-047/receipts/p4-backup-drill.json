@@ -27,5 +27,20 @@
  "elapsed_s": 132.9,
  "backup_location": "_backups/d-20260905-docdb-touqian（保留）",
  "cleanup": "restore-dir removed; backup kept at _backups/d-20260905-docdb-touqian",
- "result": "PASS"
+ "result": "PASS",
+ "production_schedule": {
+  "deployed": "2026-09-05T18:51+08:00",
+  "form": "OPS launchd com.cwk.kb-backup（每日 02:30，经 run-backup.sh 加载 600 权限 env）",
+  "target": "OPS 本地盘 ~/CWK-backups/d-YYYYMMDD/<prefix>/（与 NAS 异机，形成地理分离）",
+  "coverage": "cwork-3m + docdb-touqian 全目录树，逐文件 sha256 校验",
+  "retention": "7 天滚动",
+  "first_full_run": {
+   "cwork-3m": "931/931 ok",
+   "docdb-touqian": "288/288 ok",
+   "kept": [
+    "d-20260905"
+   ]
+  },
+  "note": "NAS 快照 API 对服务账号不可见（探测返回空）——文件级异地备份即生产策略"
+ }
 }
