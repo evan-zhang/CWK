@@ -1,0 +1,42 @@
+{
+  "schema": "cwk.rt.receipt.acceptance.v1",
+  "rt": "RT-047",
+  "phase": "P3 - AGENT(192.168.12.245) 接入",
+  "at": "2026-09-05T12:20:00Z",
+  "verdict": "PASS",
+  "summary": "245 以「用户身份 + Agent 实例绑定」的生产模式接入 OPS 网关：Py3.9 兼容快测全绿（前置闸）、双 Skill 安装、绑定 token 签发（owner_ref 由业务 Key verify 派生）、跨机端到端六项验证全过。RT-047 四阶段（P1 网关/P2 token/P3 接入/P4 备份）至此全部完成。",
+  "evidence": {
+    "py39_gate": {"tests": 385, "result": "OK (skipped=3)", "note": "kb 五模块在 245 原生 /usr/bin/python3 3.9.6 上全绿——不过不部署的前置闸通过"},
+    "skills_installed": ["~/.openclaw/skills/cwk-kb-create", "~/.openclaw/skills/cwk-kb-query"],
+    "token_binding": {
+      "token_id": "tok-b093ff1d6ddf4a68",
+      "owner_ref": "owner-824802…（业务 Key verify 派生，Evan 17:50 定案：身份用现有工号 AppKey）",
+      "agent_binding_id": "abnd-9b4ea8665f8fa4d2935aa65c",
+      "kb_ids": ["cwork-3m", "docdb-touqian"],
+      "delivery": "245:~/.openclaw/cwk/kb-bind.env（0600，token 明文只在签发回执与该文件出现，未进对话/日志）",
+      "registry": "OPS:~/CWK/ops/tokens.json（tokens=1，网关每请求重读，吊销即刻生效）"
+    },
+    "e2e_from_245": {
+      "token_len": 64,
+      "query_8787_cwork3m": "http=200 matched=1",
+      "query_8788_touqian": "http=200 matched=2",
+      "citation": "http=200 matches_index=true bytes=27574（docdb:2087523108977229825 v2，流程专题说明书真正文）",
+      "write_verb": "http=405",
+      "wrong_token": "http=401"
+    },
+    "p2_recap": {
+      "merge": "a748f54（工兵 470af5b 变基合并，diff 面一致 2777+/17-）",
+      "cleanroom_baseline": "env -u CWORK_APP_KEY py3.11 全量：合并前后红清单 diff 完全一致（wiki 4 + ai_contracts 2 + rt032 2 均为合并前环境态，P2 零新增红）",
+      "no_env_leak": "test_kb_ingest→test_kb_token→test_kb_gateway→test_rt032 连跑 434 OK（字母序组合，证明 kb 测试不污染进程环境）",
+      "real_probe_e2e": "真 AppKey verify 签发 200 命中 / 跨库 403 / revoke 后即刻 401 / admin 通道不受影响",
+      "ops_deploy": "双网关 plist 重写（含 --port + --tokens-file，plutil lint OK）bootout/bootstrap 重启，进程 argv 已核"
+    }
+  },
+  "architecture_note": "单 Gateway 多 Agent 落地形态：身份到用户（owner_ref←工号 AppKey）、凭证到 Agent 实例（token=f(owner_ref, kb_ids, agent_binding_id)）、数据到库（NAS+登记表）。一台机器多个 Agent = 多个绑定各持各的 token，互不可见；吊销粒度=单绑定。",
+  "known_limitations": [
+    "Skill 文档（cwk-kb-query）当前教的是 admin key 派生通道；绑定 token 通道已可用但文档未写——待按多租户口径更新 Skill 用法节",
+    "AppKey 轮换会孤儿化该 Key 派生的所有 token（恢复=revoke+reissue），无同人多 Key 合并机制",
+    "salt 与摘要同文件：挡关联分析与预计算，在线爆破由 256-bit token 熵压制，实际防线是 0600 文件权限"
+  ],
+  "accepted_by": "parent-agent（工人不自批：变基一致性核验、净室全量基线对照、真 probe 六项、OPS 部署亲操、245 跨机端到端亲操）"
+}
