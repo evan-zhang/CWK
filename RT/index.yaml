@@ -267,7 +267,7 @@ entries:
   created: 2026-09-05
 - id: RT-046
   title: 格式工厂 v1.1（转换器表 + 回执三链 + 无后缀嗅探）
-  status: in-progress
+  status: completed
   profile: Spec-Lite
   created: 2026-09-05
 - id: RT-047

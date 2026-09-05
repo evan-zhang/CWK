@@ -1,0 +1,50 @@
+{
+  "schema": "cwk.rt.receipt.acceptance.v1",
+  "rt": "RT-046",
+  "at": "2026-09-05T11:15:00Z",
+  "verdict": "PASS",
+  "summary": "格式工厂 v1.1 真库验收（docdb-touqian 全量 133 件重摄取）：converted 90→114、placeholder 43→19、failed 0；24 件 DocDB 查看器壳家族经壳检测→get-full-content 全部转正，生产网关（OPS）跨机复验通过。",
+  "evidence": {
+    "ingest_counts": {"total": 133, "converted": 114, "placeholder": 19, "failed": 0},
+    "delta_vs_pre_fix": {
+      "converted": "+24",
+      "placeholder": "-24",
+      "note": "24 件壳家族（download 字节 sha a8a004e5c017…，10,557B，对每个 fileId 相同）全部经 docdb-full-content 通路转正"
+    },
+    "shell_family_verdict": {
+      "judging_rule": "设计文档 §5.1：若重跑后三份流程文档 origin_sha256 仍相同，说明壳检测未生效",
+      "result": "三份 v2 原件 sha 各不相同，壳检测生效",
+      "docs": [
+        {"lineage": "docdb:2087523108876566530", "name": "CMS投前阶段1流程诊断与补丁处理备忘录（v0.4）", "bytes": 15645, "sha256_prefix": "796f38b8f567e491", "matches_index": true},
+        {"lineage": "docdb:2087523108977229825", "name": "产品投前流程专题说明书（讨论稿）", "bytes": 27574, "sha256_prefix": "84b606e9a96e1f67", "matches_index": true},
+        {"lineage": "docdb:2087523109333745665", "name": "产品引进投前全流程框架及配套模板体系建设汇报", "bytes": 454, "sha256_prefix": "d7db8ffa0a545f86", "matches_index": true}
+      ]
+    },
+    "ops_production": {
+      "gateway": "http://192.168.91.72:8788",
+      "health_ok": true,
+      "topic_queries_matched": 3,
+      "citation_matches_index": true,
+      "note": "Mac mini 仅作客户端，按生产标准从 OPS 网关验证（X-KB-Token 鉴权）"
+    },
+    "gates": {
+      "reconcile": "exit 0，零缺件",
+      "doctor_verify_all": "5/5 ok（raw / manifest / collection-state / changed-paths / tree）",
+      "unit_tests": "148 通过（1 skip）"
+    },
+    "remaining_placeholders": [
+      {"reason": "unknown-not-converted-in-v1", "count": 10},
+      {"reason": "image-not-converted-in-v1", "count": 7},
+      {"reason": "zip-not-converted-in-v1", "count": 2}
+    ],
+    "remaining_placeholder_note": "19 件全部为 v1 口径内占位（图片/ZIP/未知二进制不做正文转换），逐件记账、理由可查，非失败非静默。"
+  },
+  "commits": {"contract": "d5bb131", "factory": "2327a81", "shell_fix": "a082072"},
+  "known_limitations": [
+    "本库无 docx/xlsx/pdf 原件，anydoc(0.1.9)/markitdown(0.1.7)/pdf 抽取的真实包路径未在真库验收中覆盖（单测以替身覆盖表驱动与降级逻辑）",
+    "PDF 加密件/扫描件边界未实测（库内无此类原件）",
+    "真 HTML 正文转换不在 v1.1 范围（3 份有效 HTML 按设计走占位）",
+    "原件存档口径：壳家族 v2 存 get-full-content 抽取正文——壳字节对每个 fileId 相同，存壳会使三份不同文档被内容寻址去重误判为同一件"
+  ],
+  "accepted_by": "parent-agent（工人不自批：父级复跑单测、亲验代码、跨机复验生产网关）"
+}
