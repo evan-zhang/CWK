@@ -1,0 +1,30 @@
+id: RT-047
+title: 三机生产部署（OPS 网关服务化 + token 多租户 + 245 接入 + 备份演练）
+type: Feature
+profile: Spec-Lite
+execution_mode: autonomous
+status: in-progress
+modules: []
+modules_note: >
+  承接 EXECUTION-PLAN v1.1 D6（三机生产）。分四阶段：
+  P1 OPS 查询网关服务化（launchd 常驻、监听内网、双库双端口，LAN 任意 Agent 可查）；
+  P2 token 多租户升级（Agent 实例级绑定，复用 RT-013 模式；token 定义升级为
+  f(owner_ref, kb_ids, membership_epoch, agent_binding_id)——Evan 2026-09-05 16:09 拍板的粒度）；
+  P3 AGENT 245 接入（装 Skill + Py 快测，凭据待 Evan 提供）；
+  P4 备份灾备演练（NAS 快照 + 恢复一个库 + manifest 对账）。
+branch: main
+worktree: null
+tool: claude-code
+owner: 雷锋(BD-glm)
+base_commit: d7c61b0
+created_at: 2026-09-05T17:50:00+08:00
+updated_at: 2026-09-05T17:50:00+08:00
+external_ids:
+  jira: null
+  github: null
+  other: EXECUTION-PLAN v1.1 §D6
+contract: RT/RT-042/contracts/EXECUTION-PLAN.md（§D6 三机部署章节）
+notes: >
+  Evan 2026-09-05 17:43 提速令「尽快完成」。OPS 实测：xgStudiodeMac-Studio，
+  macOS 26.3 arm64，Python 3.11.15，SSH 通（CWK_OPS_* 凭据），无 cwk 服务无残留目录。
+  245 SSH 当前不可达（无凭据），列 P3 前置。NAS 主存与证书指纹已在 RT-042 就位。

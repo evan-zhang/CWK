@@ -270,3 +270,8 @@ entries:
   status: in-progress
   profile: Spec-Lite
   created: 2026-09-05
+- id: RT-047
+  title: 三机生产部署（OPS 网关服务化 + token 多租户 + 245 接入 + 备份演练）
+  status: in-progress
+  profile: Spec-Lite
+  created: 2026-09-05
