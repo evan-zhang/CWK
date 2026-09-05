@@ -262,7 +262,7 @@ entries:
   created: 2026-09-05
 - id: RT-045
   title: 端到端验收（两真库 + 黄金题）
-  status: in-progress
+  status: completed
   profile: Spec-Lite
   created: 2026-09-05
 - id: RT-046

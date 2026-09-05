@@ -1,0 +1,26 @@
+{
+  "schema": "cwk.rt045.production-verify.v1",
+  "at": "2026-09-05T10:25:00Z",
+  "premise": "Evan 18:22 要求：服务迁 OPS，Agent 只当终端用户，按生产环境标准验证",
+  "gateway": {
+    "topology": "OPS 192.168.91.72 launchd 常驻（P1），验证发起方 = Mac mini 终端用户视角",
+    "cwork-3m": "http://192.168.91.72:8787",
+    "docdb-touqian": "http://192.168.91.72:8788"
+  },
+  "golden_questions_on_production": {
+    "G1-1 医疗器械网络交易": "PASS（命中 2087831298663124993，citation matches_index=true）",
+    "G1-2 玄关健康互联网": "PASS（命中 2087824527735263234，citation matches_index=true）",
+    "G1-3 TBS 恢复件": "PASS（命中 2073654866571624450，citation matches_index=true）",
+    "G2-1 PM看板需求整合唯一入口": "PASS（命中 2083128981049061377，citation matches_index=true）",
+    "G2-2 立项会快报": "PASS（命中 2082736624269144066，citation matches_index=true）",
+    "G2-3 产品需求文档PRD": "PASS（命中 2083129054344523778，citation matches_index=true）"
+  },
+  "anti_idle": {
+    "wrong_token_8787": 401,
+    "write_verb_post": 405,
+    "wrong_token_8788": 401
+  },
+  "verdict": "6/6 + 反空转全过（生产网关）",
+  "skills": "cwk-kb-create / cwk-kb-query 已归仓（skills/ + 治理规则 R-runtime-rt045-kb-skills）；Skill B 已被用户三个真实提问实战验证（S1 流程 / 云端虾三问题 / 投前全流程图）",
+  "result": "RT-045 PASS（生产标准）"
+}
