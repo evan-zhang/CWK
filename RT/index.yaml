@@ -24,13 +24,13 @@ entries:
   backfill: aodw-adoption
 - id: RT-002
   title: 交互式工作协同办理中心
-  status: in_progress
+  status: completed
   profile: Spec-Lite
   created: 2026-07-18
   backfill: aodw-adoption
 - id: RT-003
   title: 云端优先 LLM Wiki 知识层
-  status: in_progress
+  status: completed
   profile: Spec-Lite
   created: 2026-07-23
   backfill: aodw-adoption
@@ -57,21 +57,21 @@ entries:
 # 补进来的唯一目的是让「目录 ∪ 索引」这条编号规则不再漏号。
 - id: RT-007
   title: 工作协同动态事项时间线与决策链可信同步
-  status: unknown
+  status: completed
   profile: unknown
   created: 2026-08-18
   backfill: aodw-adoption
   note: 接入前存量，无 meta.yaml；状态以 RT/RT-007/ 内的报告为准
 - id: RT-008
   title: 后台权威汇报关系接口
-  status: unknown
+  status: completed
   profile: unknown
   created: 2026-08-18
   backfill: aodw-adoption
   note: 接入前存量，无 meta.yaml；状态以 RT/RT-008/ 内的报告为准
 - id: RT-010
   title: 本地检索实体域约束加固
-  status: unknown
+  status: completed
   profile: unknown
   created: 2026-08-18
   backfill: aodw-adoption
@@ -182,22 +182,22 @@ entries:
   created: 2026-08-31
 - id: RT-029
   title: CWK AODW 产品基线收敛
-  status: in-progress
+  status: completed
   profile: Spec-Lite
   created: 2026-08-31
 - id: RT-030
   title: 现有代码全量规范接管
-  status: in-progress
+  status: completed
   profile: Spec-Lite
   created: 2026-08-31
 - id: RT-031
   title: CWK 内部小团队最小上手
-  status: in-progress
+  status: completed
   profile: Spec-Lite
   created: 2026-09-01
 - id: RT-032
   title: CWK AI 激活向导与自动运行编排
-  status: in-progress
+  status: completed
   profile: Spec-Lite
   created: 2026-09-01
 - id: RT-033
@@ -217,7 +217,7 @@ entries:
   created: 2026-09-03
 - id: RT-036
   title: 精编范围策略（refine-scope owner + min-year）
-  status: in-progress
+  status: completed
   profile: Spec-Lite
   created: 2026-09-03
 - id: RT-037
