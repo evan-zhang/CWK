@@ -908,6 +908,19 @@ class J4ResumeTests(IngestFixture):
             "已完成件不该产生任何写入",
         )
 
+    def test_j4_a_batch_where_everything_failed_still_leaves_a_true_manifest(self) -> None:
+        # 全批失败也写了状态账。root-manifest 不跟着重签，
+        # kb_doctor verify --manifest 会红在一件本来就记下来的事故上。
+        from kb_ledger import verify_manifest
+
+        plan = self.make_plan()
+        self.report.unlink()
+        self.second.unlink()
+        report = self.execute(plan)
+        self.assertEqual(report["counts"]["failed"], 2)
+        self.assertTrue(verify_manifest(self.backend.inner).ok,
+                        verify_manifest(self.backend.inner).describe())
+
     def test_j4_a_failed_item_does_not_stop_the_items_after_it(self) -> None:
         # 负例：一件失败就中止整批。那样一个坏件会把当晚剩下的全部拖住，
         # 而状态账会显示它们"从没来过"。

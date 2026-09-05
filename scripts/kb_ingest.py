@@ -1421,8 +1421,8 @@ def execute_plan(
         stable_id = str(row.get("stable_id") or lineage.split(":", 1)[1])
         name = str(row.get("name") or stable_id)
         route_mode = str(card.get("route_mode"))
-        target = normalize_path(str(card.get("proposed_raw_path") or ""))
         try:
+            target = normalize_path(str(card.get("proposed_raw_path") or ""))
             origin = fetch_bytes(
                 row.get("locator") or {}, env=env, runner=runner, retries=retries, sleep=sleep
             )
@@ -1435,6 +1435,10 @@ def execute_plan(
             )
             if wrote_original:
                 touched.append(originals_path)
+            # Re-decided here, not read off the card: the card records what
+            # the host could do when the plan was made, and a converter that
+            # has since appeared or vanished must change the outcome, not be
+            # overruled by a stale expectation.
             decision = decide_format(name, env=env, has_openpyxl=has_openpyxl)
             artefact = materialise(
                 lineage=lineage, name=name, raw_path=target, origin=origin,
@@ -1532,6 +1536,10 @@ def execute_plan(
     if touched:
         touched += refresh_raw_manifest(backend, kb_code, at)
         record_changed_paths(backend, touched, reason=f"ingest:{batch}", at=now or utc_now())
+    if accounts.written:
+        # Re-sign the root ledger for *any* run that wrote, including a batch
+        # where every item failed: the state ledger changed, and a manifest
+        # left describing the tree from before it is a ledger that lies.
         allowed = sorted(set(accounts.owned_paths()) | set(touched) | {CHANGED_PATHS_REL})
         refresh_manifest(
             backend, kb_code=kb_code, generated_at=now or utc_now(),
