@@ -46,6 +46,8 @@ from __future__ import annotations
 
 import argparse
 import csv
+import importlib
+import importlib.util
 import io
 import json
 import os
@@ -55,8 +57,10 @@ import sys
 import tempfile
 import time
 import zipfile
+import zlib
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from importlib import metadata as importlib_metadata
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
@@ -166,11 +170,35 @@ MODEL_VERSION = "none"
 TERMINAL_STATUSES = ("converted", "placeholder", "skipped")
 ALL_STATUSES = ("pending",) + TERMINAL_STATUSES + ("failed",)
 
-# docx 质量门 (DOCDB-INGEST-DESIGN §V): a conversion that "succeeded" into an
-# empty or near-empty document is a failure that hashes green.  Below this
-# many characters the artefact becomes a placeholder with a stated reason.
+# 质量门 (DOCDB-INGEST-DESIGN §V, RT-046 反空转): a conversion that
+# "succeeded" into an empty or near-empty document is a failure that hashes
+# green.  Below this many characters the artefact becomes a placeholder with
+# a stated reason and the receipt records the conversion as *not ok* — the
+# lesson bd-eval-loop filed as DI-006 ("转成功但 0 字且静默").
 MIN_DOCX_CHARS = 20
+MIN_CONVERTED_CHARS = MIN_DOCX_CHARS
 MAX_PLACEHOLDER_LISTING = 200
+
+# RT-046 converter table: the versions this RT tested against.  A pin is a
+# statement about what was tried, never a substitute for probing what is
+# actually installed — the receipt always carries the *detected* version.
+ANYDOC_PIN = "0.1.9"
+MARKITDOWN_PIN = "0.1.7"
+
+# What a receipt says when the host cannot tell us a version.  Written down
+# rather than left out: "unknown" is a fact about this host, an absent field
+# is a fact about our code.
+UNKNOWN_VERSION = "unknown"
+
+# In-tree converters (passthrough, the PDF text extractor) have no version of
+# their own; they move with the rule set, so that is what the receipt shows.
+BUILTIN_CONVERTER_VERSION = RULE_VERSION
+
+# Placeholder reason codes that carry meaning downstream.  ``unknown-format``
+# is the one the sniffing path is allowed to end on: it means "the bytes did
+# not say", not "we did not look".
+CODE_UNKNOWN_FORMAT = "unknown-format"
+CODE_CONVERTER_MISSING = "converter-missing"
 
 
 class IngestError(Exception):
@@ -287,10 +315,13 @@ def assert_iso_day(value: Optional[str], flag: str) -> Optional[str]:
 class FormatDecision:
     """What the factory will do with one item, and what that should produce."""
 
-    format: str          # markdown | docx | xlsx | pptx | image | zip | archive | unknown
-    handling: str        # passthrough | docx-convert | xlsx-csv | placeholder | skip
+    format: str          # markdown | docx | xlsx | pdf | pptx | image | zip | archive | unknown
+    handling: str        # passthrough | docx-convert | xlsx-csv | module-text | pdf-text | placeholder | skip
     expected_status: str  # converted | placeholder | skipped
     reason: str
+    converter: str = "none"        # the chosen converter's receipt name
+    code: str = ""                 # machine-readable placeholder reason
+    sniffed: Optional[str] = None  # suffix the magic bytes yielded, if sniffed
 
     def as_dict(self) -> dict:
         return {
@@ -298,6 +329,9 @@ class FormatDecision:
             "handling": self.handling,
             "expected_status": self.expected_status,
             "reason": self.reason,
+            "converter": self.converter,
+            "code": self.code,
+            "sniffed": self.sniffed,
         }
 
 
@@ -311,18 +345,268 @@ def docx_converter_available(env: Optional[Dict[str, str]] = None) -> bool:
     return bool(path) and os.path.isfile(path) and os.access(path, os.X_OK)
 
 
+# ── the converter table (RT-046) ────────────────────────────────────────────
+#
+# v1 bucketed suffixes inside one if-chain.  v1.1 makes the mapping a table
+# because the question stopped being "which bucket" and became "which
+# converter, and is it on this host" — the discipline ported from
+# bd-eval-loop RT-108 ``TEXT_CONVERTER_BY_SUFFIX``: **no converter is best at
+# every format**, so the choice is per format, written down, and reviewable.
+#
+# Three properties the table exists to keep:
+#
+# 1. Every suffix is claimed by exactly one row (:func:`index_format_table`
+#    refuses a duplicate at import), so a format cannot be quietly handled in
+#    two places with two verdicts.
+# 2. A converter that is not installed changes the *outcome* (placeholder,
+#    reason ``converter-missing:<format>``, recorded in both ledgers) and
+#    never the *floor*: with nothing optional installed the pipeline is still
+#    standard-library only and still green.
+# 3. The chain is ordered and the first *available* converter wins, so a host
+#    that gains a converter starts using it without an edit here — and the
+#    receipt says which one actually ran.
+
+
+@dataclass(frozen=True)
+class Converter:
+    """One way to turn original bytes into text, plus how to detect it."""
+
+    name: str          # receipt name — stable across hosts
+    handling: str      # what materialise() dispatches on
+    kind: str          # builtin | host-binary | python-module
+    module: str = ""   # import name (kind=python-module)
+    dist: str = ""     # distribution name for importlib.metadata
+    pin: str = ""      # the version RT-046 tested against ("" = no pin)
+
+
+CONVERTERS: Dict[str, Converter] = {
+    converter.name: converter
+    for converter in (
+        # 直通不是"没有转换器"：它是一个明确的选择（md/txt 转一道只会有损），
+        # 所以它在表里有名字、进回执，和别的转换器一样。
+        Converter("passthrough", "passthrough", "builtin"),
+        # 本机 docx 转换器（RT-043 起就是这条），仍排在 anydoc 前面：它是这
+        # 台机器上已验证的通路，装了 anydoc 也不该无声改变既有产物。
+        Converter("docx-host", "docx-convert", "host-binary"),
+        Converter("anydoc", "module-text", "python-module",
+                  module="anydoc", dist="firecrawl-anydoc", pin=ANYDOC_PIN),
+        # xlsx 首选 openpyxl(data_only=True)：RT-108 选 markitdown 的理由是
+        # anydoc 会连公式的**缓存值**一起丢，而缓存值恰恰是结论（总额/CAGR/
+        # 峰值）。openpyxl 的 data_only=True 读的正是那个缓存值，同一条不变
+        # 量已由 test_xlsx_keeps_the_cached_formula_value 钉住；markitdown 作
+        # 为没有 openpyxl 时的备选，而不是替换。
+        Converter("openpyxl", "xlsx-csv", "python-module", module="openpyxl", dist="openpyxl"),
+        Converter("markitdown", "module-text", "python-module",
+                  module="markitdown", dist="markitdown", pin=MARKITDOWN_PIN),
+        # PDF 走仓内纯标准库抽取（zlib + 内容流扫描）：能抽多少算多少，抽不
+        # 出就占位并说明原因，不假装有正文。
+        Converter("pdf-text", "pdf-text", "builtin"),
+    )
+}
+
+# Handlings whose product is one markdown/text body (as opposed to the
+# sheet-per-CSV shape).  Kept as a set so materialise() dispatches on the
+# table instead of on a chain of format names.
+TEXT_HANDLINGS = ("docx-convert", "module-text", "pdf-text")
+
+
+@dataclass(frozen=True)
+class FormatRow:
+    """One format: which suffixes are it, and who may convert it."""
+
+    format: str
+    suffixes: Tuple[str, ...]
+    chain: Tuple[str, ...] = ()    # ordered candidates; first available wins
+    fallback: str = "placeholder"  # placeholder | skip, when the chain is empty/absent
+    note: str = ""                 # why, in the operator's language
+
+
+FORMAT_TABLE: Tuple[FormatRow, ...] = (
+    FormatRow("markdown", PASSTHROUGH_EXTS, ("passthrough",), note="md/txt 直通，不做转换"),
+    FormatRow("docx", (".docx",), ("docx-host", "anydoc")),
+    FormatRow("xlsx", (".xlsx", ".xlsm"), ("openpyxl", "markitdown")),
+    FormatRow("pdf", (".pdf",), ("pdf-text",)),
+    FormatRow("pptx", (".pptx",), (), note="pptx 正文转换未列入 v1.1"),
+    FormatRow("image", IMAGE_EXTS, (),
+              note="图片按文件名/路径可检索，内容不可检索（v1 口径）"),
+    FormatRow("zip", (".zip",), (), note="占位 + 中央目录清单，不解压"),
+    FormatRow("archive", ARCHIVE_SKIP_EXTS, (), fallback="skip",
+              note="v1 不承诺解包，跳过并记状态"),
+)
+
+
+def index_format_table(table: Sequence[FormatRow] = FORMAT_TABLE) -> Dict[str, FormatRow]:
+    """``suffix → row``, refusing a suffix that two rows both claim.
+
+    A duplicate would make the verdict depend on row order — i.e. on nothing
+    a reader can see — which is exactly the failure mode the table replaced.
+    """
+    index: Dict[str, FormatRow] = {}
+    for row in table:
+        for suffix in row.suffixes:
+            if suffix in index:
+                raise IngestError(
+                    f"格式表冲突：后缀 {suffix} 同时被 {index[suffix].format} 和 {row.format} 认领"
+                )
+            index[suffix] = row
+    return index
+
+
+FORMAT_BY_SUFFIX: Dict[str, FormatRow] = index_format_table()
+
+
+def module_available(module: str) -> bool:
+    """True when ``import <module>`` would work — without importing it.
+
+    ``sys.modules`` is consulted first so a test can inject a stub converter
+    and drive the whole path (probe → convert → receipt) on a host where the
+    real optional package is absent.  That is the only way the degradation
+    *and* the success branch can both be covered on a bare CI runner.
+    """
+    if not module:
+        return False
+    if module in sys.modules:
+        return True
+    try:
+        return importlib.util.find_spec(module) is not None
+    except (ImportError, ValueError):  # namespace oddities, __spec__ = None
+        return False
+
+
 def openpyxl_available() -> bool:
     """True when xlsx sheets can be exported.  Optional import, never required.
 
     The pipeline is standard-library only; openpyxl is a host capability the
-    same way the docx converter is.  Absent, xlsx degrades to a placeholder
-    and the state ledger says so — it does not fail the batch.
+    same way the docx converter is.  Absent, xlsx tries the next converter in
+    the table and then degrades to a placeholder the state ledger explains —
+    it does not fail the batch.
     """
-    try:  # pragma: no cover - exercised through decide_format
-        import openpyxl  # noqa: F401
-    except Exception:
-        return False
-    return True
+    return module_available("openpyxl")
+
+
+def module_version(converter: Converter) -> str:
+    """The *installed* version of an optional converter, or ``"unknown"``.
+
+    Never read off ``pin``: a receipt that says 0.1.9 because the table says
+    0.1.9 proves nothing about the bytes that were produced.  ``unknown`` is
+    a legitimate answer and is recorded as one.
+    """
+    for dist in (converter.dist, converter.module):
+        if dist:
+            try:
+                return str(importlib_metadata.version(dist))
+            except Exception:  # noqa: BLE001 - not installed / no metadata
+                pass
+    module = sys.modules.get(converter.module)
+    version = getattr(module, "__version__", "") if module is not None else ""
+    return str(version) if version else UNKNOWN_VERSION
+
+
+def converter_available(
+    name: str,
+    *,
+    env: Optional[Dict[str, str]] = None,
+    has_openpyxl: Optional[bool] = None,
+) -> bool:
+    """Can this host run the named converter right now?"""
+    converter = CONVERTERS.get(name)
+    if converter is None:
+        raise IngestError(f"转换器表里没有 {name!r}（有 {sorted(CONVERTERS)}）")
+    if converter.kind == "builtin":
+        return True
+    if converter.kind == "host-binary":
+        return docx_converter_available(env)
+    if converter.name == "openpyxl" and has_openpyxl is not None:
+        return bool(has_openpyxl)  # explicit capability from the caller wins
+    return module_available(converter.module)
+
+
+def converter_version(name: str) -> str:
+    """The version that goes into the receipt for the named converter."""
+    converter = CONVERTERS.get(name)
+    if converter is None:
+        return UNKNOWN_VERSION
+    if converter.kind == "builtin":
+        return BUILTIN_CONVERTER_VERSION
+    if converter.kind == "host-binary":
+        # A host binary answers no version question we can trust (it may not
+        # take --version at all), so the receipt says so and carries the path
+        # in converter_label instead of inventing a number.
+        return UNKNOWN_VERSION
+    return module_version(converter)
+
+
+def converter_label(decision: FormatDecision, env: Optional[Dict[str, str]] = None) -> str:
+    """The human-facing converter string kept on the artefact (``xlsx:openpyxl``)."""
+    if decision.converter == "docx-host":
+        return "docx:" + docx_converter_path(env)
+    if decision.converter in ("none", "passthrough"):
+        return decision.converter
+    return f"{decision.format}:{decision.converter}"
+
+
+def converter_reason(row: FormatRow, converter: Converter, env: Optional[Dict[str, str]]) -> str:
+    if converter.kind == "host-binary":
+        return f"本机转换器可用：{docx_converter_path(env)}"
+    if converter.kind == "builtin":
+        return row.note or f"{row.format} 走仓内 {converter.name} 转换器"
+    return f"{row.format} → {converter.name}（表内 pin {converter.pin or '无'}）"
+
+
+# ── magic-byte sniffing (RT-046 自补，蓝本未覆盖) ────────────────────────────
+#
+# 投前库里三份关键流程文档根本没有后缀。v1 把它们判成 unknown 并占位，正文
+# 因此不可问答。规则很短，也很克制：只有**名字没说**的件才嗅探，判据只有
+# magic bytes，判不出就是 unknown-format（占位），绝不按文件名或大小猜。
+
+SNIFF_HEAD_BYTES = 16
+ZIP_MAGIC = b"PK\x03\x04"
+MAGIC_PREFIXES: Tuple[Tuple[bytes, str], ...] = (
+    (b"%PDF-", ".pdf"),
+    (b"\x89PNG\r\n\x1a\n", ".png"),
+    (b"\xff\xd8\xff", ".jpg"),
+    (b"GIF87a", ".gif"),
+    (b"GIF89a", ".gif"),
+)
+# OOXML is a zip whose member names say which application wrote it.
+OOXML_CONTENT_TYPES = "[Content_Types].xml"
+OOXML_MEMBER_PREFIXES: Tuple[Tuple[str, str], ...] = (
+    ("word/", ".docx"),
+    ("xl/", ".xlsx"),
+    ("ppt/", ".pptx"),
+)
+
+
+def sniff_zip_container(data: bytes) -> Optional[str]:
+    """``.docx`` / ``.xlsx`` / ``.pptx`` / ``.zip`` from the central directory.
+
+    An unreadable directory returns ``None`` rather than ``.zip``: the name
+    never claimed to be an archive, so there is nothing to hold it to.  (A
+    file *named* ``.zip`` whose directory will not read is still a hard
+    failure — DOCDB-INGEST-DESIGN §V; that claim came from the source.)
+    """
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            names = archive.namelist()
+    except Exception:  # noqa: BLE001 - any malformed container
+        return None
+    for prefix, suffix in OOXML_MEMBER_PREFIXES:
+        if any(name.startswith(prefix) for name in names):
+            return suffix
+    if OOXML_CONTENT_TYPES in names:
+        return None  # OOXML of a kind this table does not know — 不猜
+    return ".zip"
+
+
+def sniff_suffix(data: bytes) -> Optional[str]:
+    """The suffix the bytes imply, or ``None`` when they do not say."""
+    head = data[:SNIFF_HEAD_BYTES]
+    for magic, suffix in MAGIC_PREFIXES:
+        if head.startswith(magic):
+            return suffix
+    if head.startswith(ZIP_MAGIC):
+        return sniff_zip_container(data)
+    return None
 
 
 def decide_format(
@@ -330,41 +614,63 @@ def decide_format(
     *,
     env: Optional[Dict[str, str]] = None,
     has_openpyxl: Optional[bool] = None,
+    data: Optional[bytes] = None,
 ) -> FormatDecision:
-    """Classify one item.  Host capabilities are inputs, not global state."""
+    """Classify one item against the converter table.
+
+    Host capabilities *and* the bytes are inputs, not global state: the same
+    name decides differently on a host that has anydoc, and an extension-less
+    file decides differently once its bytes are in hand.  ``data`` is absent
+    at plan time (the plan does not download) and present at run time, which
+    is why :func:`execute_plan` re-decides instead of trusting the card.
+    """
     _, ext = split_name(name)
-    if ext in PASSTHROUGH_EXTS:
-        return FormatDecision("markdown", "passthrough", "converted", "md/txt 直通，不做转换")
-    if ext == ".docx":
-        if docx_converter_available(env):
+    sniffed: Optional[str] = None
+    if not ext:
+        if data is None:
             return FormatDecision(
-                "docx", "docx-convert", "converted",
-                f"本机转换器可用：{docx_converter_path(env)}",
+                "unknown", "placeholder", "placeholder",
+                "无后缀：计划期没有字节可读，摄取时按 magic bytes 嗅探再定",
+                code=CODE_UNKNOWN_FORMAT,
             )
+        sniffed = sniff_suffix(data)
+        if sniffed is None:
+            return FormatDecision(
+                "unknown", "placeholder", "placeholder",
+                "无后缀且 magic bytes 判不出，走通用占位路径（不猜）",
+                code=CODE_UNKNOWN_FORMAT,
+            )
+        ext = sniffed
+    row = FORMAT_BY_SUFFIX.get(ext)
+    if row is None:
         return FormatDecision(
-            "docx", "placeholder", "placeholder",
-            f"未找到可执行的 {ENV_DOCX_CONVERTER}（默认 {DEFAULT_DOCX_CONVERTER}），降级占位",
+            "unknown", "placeholder", "placeholder",
+            f"未知扩展名 {ext or '(无)'}，走通用占位路径",
+            code=CODE_UNKNOWN_FORMAT, sniffed=sniffed,
         )
-    if ext == ".xlsx":
-        available = openpyxl_available() if has_openpyxl is None else has_openpyxl
-        if available:
-            return FormatDecision("xlsx", "xlsx-csv", "converted", "每个 sheet 导出一个 CSV")
+    for candidate in row.chain:
+        if converter_available(candidate, env=env, has_openpyxl=has_openpyxl):
+            converter = CONVERTERS[candidate]
+            return FormatDecision(
+                row.format, converter.handling, "converted",
+                converter_reason(row, converter, env),
+                converter=candidate, sniffed=sniffed,
+            )
+    if row.chain:
+        # 反空转：转换器缺失必须降级 *并记账*。静默跳过会让"没转"和"不用转"
+        # 在账上长得一模一样，装上转换器后也没人知道该重跑哪些件。
         return FormatDecision(
-            "xlsx", "placeholder", "placeholder", "openpyxl 不可导入，降级占位"
+            row.format, "placeholder", "placeholder",
+            f"{row.format} 的转换器都不在本机（表：{'/'.join(row.chain)}），降级占位并记账",
+            code=f"{CODE_CONVERTER_MISSING}:{row.format}", sniffed=sniffed,
         )
-    if ext == ".pptx":
-        return FormatDecision("pptx", "placeholder", "placeholder", "pptx 内容转换列 v1.1")
-    if ext in IMAGE_EXTS:
+    if row.fallback == "skip":
         return FormatDecision(
-            "image", "placeholder", "placeholder",
-            "图片按文件名/路径可检索，内容不可检索（v1 口径）",
+            row.format, "skip", "skipped", f"{ext} {row.note}", sniffed=sniffed
         )
-    if ext == ".zip":
-        return FormatDecision("zip", "placeholder", "placeholder", "占位 + 中央目录清单，不解压")
-    if ext in ARCHIVE_SKIP_EXTS:
-        return FormatDecision("archive", "skip", "skipped", f"{ext} v1 不承诺解包，跳过并记状态")
     return FormatDecision(
-        "unknown", "placeholder", "placeholder", f"未知扩展名 {ext or '(无)'}，走通用占位路径"
+        row.format, "placeholder", "placeholder", row.note,
+        code=f"{row.format}-not-converted-in-v1", sniffed=sniffed,
     )
 
 
@@ -833,7 +1139,16 @@ class ItemFailure(IngestError):
 
 @dataclass
 class Artefact:
-    """What the factory produced for one item, ready to be written."""
+    """What the factory produced for one item, ready to be written.
+
+    ``converter`` is the human label (``docx:/opt/homebrew/bin/md2md``);
+    ``converter_name`` / ``converter_version`` are the two receipt fields
+    RT-046 requires — a label that mixes both is unusable for "which builds
+    of which converter produced the bodies now in this library".
+    ``conversion_ok`` is false for every attempt that produced no usable
+    text, including the "转出 0 字" case: the item still lands (as a
+    placeholder that says why), and the receipt still calls it a failure.
+    """
 
     data: bytes
     kind: str                    # document | placeholder
@@ -841,6 +1156,10 @@ class Artefact:
     converter: str
     placeholder_reason: Optional[str] = None
     extras: Dict[str, bytes] = field(default_factory=dict)
+    converter_name: str = "placeholder"
+    converter_version: str = BUILTIN_CONVERTER_VERSION
+    conversion_ok: bool = True
+    conversion_reason: str = ""
 
 
 def placeholder_body(
@@ -924,6 +1243,395 @@ def convert_docx(
     return text, "docx-convert-ok"
 
 
+def convert_with_module(
+    data: bytes,
+    *,
+    converter: Converter,
+    suffix: str,
+) -> Tuple[Optional[str], str]:
+    """Run an optional Python converter (anydoc / markitdown) on the bytes.
+
+    Returns ``(text or None, reason)`` — the same shape :func:`convert_docx`
+    uses, so the caller does not care which kind of converter ran.  The bytes
+    go to a temporary file with the *right suffix* because both converters
+    route on it; handing markitdown a suffix-less path is how a sniffed docx
+    would silently come back as plain text.
+
+    Purity: file in, text out, no network and no model.  A conversion that
+    an LLM performs cannot be reproduced from the receipt, which would make
+    ``converter{name,version} + source sha + output sha`` decorative.
+    """
+    try:
+        module = importlib.import_module(converter.module)
+    except Exception as exc:  # noqa: BLE001 - not installed / broken install
+        return None, f"{CODE_CONVERTER_MISSING}:{converter.name}:{exc}"[:200]
+    with tempfile.TemporaryDirectory() as tmp:
+        source = Path(tmp) / ("input" + (suffix or ""))
+        source.write_bytes(data)
+        try:
+            if converter.name == "markitdown":
+                text = module.MarkItDown().convert(str(source)).text_content
+            else:
+                text = module.to_markdown(str(source))
+        except Exception as exc:  # noqa: BLE001 - any converter failure
+            return None, f"{converter.name}-convert-failed:{exc}"[:200]
+    text = (text or "").strip()
+    if not text:
+        return None, f"{converter.name}-convert-empty"
+    if len(text) < MIN_CONVERTED_CHARS:
+        return None, f"{converter.name}-convert-too-short"
+    return text, f"{converter.name}-convert-ok"
+
+
+# ── PDF text: standard library only ─────────────────────────────────────────
+#
+# 「纯标准库能做多少做多少，做不到就占位并记原因」。做得到的是：Flate 或未压
+# 缩的内容流、文本算子（Tj/TJ/'/"）、以及子集字体的 ToUnicode CMap——最后这
+# 项不是锦上添花：Word 导出的中文 PDF 一律是 Identity-H 子集字体，没有 CMap
+# 就只能抽出 CID 乱码，也就是说「支持 PDF」会退化成「每份中文 PDF 都占位」。
+# 做不到的是：扫描件（根本没有文本算子）、没有 ToUnicode 的子集字体、加密件。
+# 三者都必须判成失败——一份乱码正文比占位更坏，它会进检索、进引文，而且哈希
+# 永远是绿的。
+
+PDF_MAGIC = b"%PDF-"
+PDF_MIN_PRINTABLE_RATIO = 0.7
+_PDF_STREAM = re.compile(rb"stream\r?\n(.*?)endstream", re.DOTALL)
+_PDF_OBJECT = re.compile(rb"(\d+)\s+0\s+obj(.*?)endobj", re.DOTALL)
+_PDF_TOUNICODE_REF = re.compile(rb"/ToUnicode\s+(\d+)\s+0\s+R")
+_PDF_FONT_RESOURCE = re.compile(rb"/Font\s*<<(.*?)>>", re.DOTALL)
+_PDF_FONT_ENTRY = re.compile(rb"/([A-Za-z0-9#+.\-]+)\s+(\d+)\s+0\s+R")
+_PDF_BFCHAR = re.compile(rb"beginbfchar(.*?)endbfchar", re.DOTALL)
+_PDF_BFRANGE = re.compile(rb"beginbfrange(.*?)endbfrange", re.DOTALL)
+_PDF_CMAP_TOKEN = re.compile(rb"<([0-9A-Fa-f]*)>|(\[)|(\])")
+_PDF_HEX_ONLY = re.compile(rb"<([0-9A-Fa-f]*)>")
+_PDF_CODESPACE = re.compile(rb"begincodespacerange(.*?)endcodespacerange", re.DOTALL)
+_PDF_CONTENTS = re.compile(rb"/Contents\s*(?:(\d+)\s+0\s+R|\[([^\]]*)\])")
+_PDF_REFERENCE = re.compile(rb"(\d+)\s+0\s+R")
+_PDF_OPERATOR_BYTES = set(b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz*'\"")
+_PDF_NAME_BYTES = set(b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-.#_")
+_PDF_NEWLINE_OPS = (b"Td", b"TD", b"T*", b"'", b'"', b"ET")
+_PDF_ESCAPES = {b"n": "\n", b"r": "\r", b"t": "\t", b"b": "\b", b"f": "\f"}
+_PDF_UNMAPPED = "�"
+
+
+def _pdf_literal(stream: bytes, start: int) -> Tuple[bytes, int]:
+    """Read a ``(...)`` string, honouring nesting and backslash escapes."""
+    out = bytearray()
+    depth = 1
+    index = start + 1
+    while index < len(stream) and depth:
+        char = stream[index : index + 1]
+        if char == b"\\":
+            nxt = stream[index + 1 : index + 2]
+            if nxt in _PDF_ESCAPES:
+                out.extend(_PDF_ESCAPES[nxt].encode("latin-1"))
+                index += 2
+                continue
+            if nxt.isdigit():
+                octal = stream[index + 1 : index + 4]
+                digits = bytes(byte for byte in octal if 0x30 <= byte <= 0x37)
+                if digits:
+                    out.append(int(digits, 8) & 0xFF)
+                    index += 1 + len(digits)
+                    continue
+            out.extend(nxt)
+            index += 2
+            continue
+        if char == b"(":
+            depth += 1
+        elif char == b")":
+            depth -= 1
+            if not depth:
+                index += 1
+                break
+        out.extend(char)
+        index += 1
+    return bytes(out), index
+
+
+def _pdf_hex(stream: bytes, start: int) -> Tuple[bytes, int]:
+    end = stream.find(b">", start)
+    if end < 0:
+        return b"", len(stream)
+    digits = bytes(byte for byte in stream[start + 1 : end] if byte in b"0123456789abcdefABCDEF")
+    if len(digits) % 2:
+        digits += b"0"
+    try:
+        return bytes.fromhex(digits.decode("ascii")), end + 1
+    except ValueError:  # pragma: no cover - filtered above
+        return b"", end + 1
+
+
+@dataclass(frozen=True)
+class PdfCMap:
+    """A font's ToUnicode table plus the code width its codespace declares.
+
+    The width is read from the CMap, never inferred from the largest code:
+    an Identity-H subset font whose glyphs happen to be numbered 1..20 is
+    still addressed with two bytes, and decoding it one byte at a time
+    yields exactly the kind of mojibake that passes a naive length check.
+    """
+
+    width: int
+    table: Dict[int, str]
+
+
+def _pdf_decode(raw: bytes, cmap: Optional[PdfCMap] = None) -> str:
+    """Bytes of a shown string → text, through the font's CMap when there is one."""
+    if cmap and cmap.table:
+        width = cmap.width
+        out: List[str] = []
+        for start in range(0, len(raw) - width + 1, width):
+            code = int.from_bytes(raw[start : start + width], "big")
+            # An unmapped code becomes U+FFFD on purpose: it must show up in
+            # the printable-ratio gate rather than vanish into a text that
+            # looks complete and is not.
+            out.append(cmap.table.get(code, _PDF_UNMAPPED))
+        return "".join(out)
+    if raw[:2] == b"\xfe\xff":
+        return raw[2:].decode("utf-16-be", "replace")
+    return raw.decode("latin-1", "replace")
+
+
+def _pdf_inflate(raw: bytes, *, plain_ok: bool = False) -> Optional[bytes]:
+    """Decompress a stream body, or return it unchanged when it is plain.
+
+    ``plain_ok`` is false for content streams: an undecompressable stream is
+    usually an embedded image, and scanning its bytes as if they were text
+    is how a JPEG turns into "正文".
+    """
+    body = raw.strip(b"\r\n")
+    try:
+        return zlib.decompress(body)
+    except zlib.error:
+        pass
+    try:  # truncated / trailing-garbage flate streams still yield their head
+        return zlib.decompressobj().decompress(body)
+    except zlib.error:
+        pass
+    if plain_ok:
+        return body
+    return body if (b"BT" in body or b"Tj" in body or b"TJ" in body) else None
+
+
+def _pdf_cmap(obj_body: bytes) -> Optional[PdfCMap]:
+    """Parse a ToUnicode CMap object into a :class:`PdfCMap`."""
+    match = _PDF_STREAM.search(obj_body)
+    stream = _pdf_inflate(match.group(1), plain_ok=True) if match else obj_body
+    if not stream:
+        return None
+    table: Dict[int, str] = {}
+    widths: List[int] = []
+    for block in _PDF_CODESPACE.findall(stream):
+        widths += [max(1, len(token) // 2) for token in _PDF_HEX_ONLY.findall(block)]
+    for block in _PDF_BFCHAR.findall(stream):
+        codes = _PDF_HEX_ONLY.findall(block)
+        for index in range(0, len(codes) - 1, 2):
+            source = codes[index]
+            widths.append(max(1, len(source) // 2))
+            table[int(source, 16) if source else 0] = _pdf_utf16(codes[index + 1])
+    for block in _PDF_BFRANGE.findall(stream):
+        widths += [max(1, len(token) // 2) for token in _PDF_HEX_ONLY.findall(block)[:1]]
+        table.update(_pdf_bfrange(block))
+    table = {code: text for code, text in table.items() if text}
+    if not table:
+        return None
+    return PdfCMap(width=max(widths) if widths else 1, table=table)
+
+
+def _pdf_utf16(digits: bytes) -> str:
+    raw = bytes.fromhex((digits + b"0" if len(digits) % 2 else digits).decode("ascii"))
+    return raw.decode("utf-16-be", "replace") if len(raw) >= 2 else raw.decode("latin-1")
+
+
+def _pdf_bfrange(block: bytes) -> Dict[int, str]:
+    """``<lo> <hi> <dst>`` and ``<lo> <hi> [<d1> <d2> …]`` forms."""
+    cmap: Dict[int, str] = {}
+    pending: List[bytes] = []
+    array: Optional[List[bytes]] = None
+    for hexed, opener, closer in _PDF_CMAP_TOKEN.findall(block):
+        if opener:
+            array = []
+            continue
+        if closer:
+            if array is not None and len(pending) >= 2:
+                low = int(pending[0], 16)
+                for offset, item in enumerate(array):
+                    cmap[low + offset] = _pdf_utf16(item)
+            pending, array = [], None
+            continue
+        if array is not None:
+            array.append(hexed)
+            continue
+        pending.append(hexed)
+        if len(pending) == 3:
+            low, high, dst = (int(pending[0], 16), int(pending[1], 16), pending[2])
+            base = _pdf_utf16(dst)
+            for offset in range(0, max(0, high - low) + 1):
+                if base and len(base) == 1:
+                    cmap[low + offset] = chr(ord(base) + offset)
+                else:
+                    cmap[low + offset] = base
+            pending = []
+    return cmap
+
+
+def _pdf_objects(data: bytes) -> Dict[int, bytes]:
+    return {int(number): body for number, body in _PDF_OBJECT.findall(data)}
+
+
+def _pdf_content_streams(objects: Dict[int, bytes]) -> List[bytes]:
+    """The inflated page content streams, addressed through ``/Contents``.
+
+    Structural, not heuristic, and that is the point: an embedded font file
+    is also a Flate stream, and a large one will contain the byte pairs
+    ``BT``/``Tj`` by chance.  Scanning every stream would feed those bytes to
+    the text scanner and turn a perfectly readable document into mojibake
+    that the quality gate then rejects wholesale.
+    """
+    streams: List[bytes] = []
+    for number, body in sorted(objects.items()):
+        if b"/Page" not in body:
+            continue
+        for single, array in _PDF_CONTENTS.findall(body):
+            references = [single] if single else _PDF_REFERENCE.findall(array)
+            for reference in references:
+                target = objects.get(int(reference))
+                if target is None:
+                    continue
+                match = _PDF_STREAM.search(target)
+                stream = _pdf_inflate(match.group(1)) if match else None
+                if stream:
+                    streams.append(stream)
+    return streams
+
+
+def pdf_font_cmaps(data: bytes) -> Dict[str, PdfCMap]:
+    """``{resource name (F1…): CMap}`` for every font that declares a ToUnicode.
+
+    Resource names are resolved document-wide.  When one name points at two
+    different font objects (possible across pages), the name is dropped
+    instead of guessed: mapping CIDs through the wrong subset font produces
+    text that reads plausibly and is wrong, which is worse than a placeholder.
+    """
+    objects = _pdf_objects(data)
+    names: Dict[str, Optional[int]] = {}
+    for body in objects.values():
+        for block in _PDF_FONT_RESOURCE.findall(body):
+            for name, number in _PDF_FONT_ENTRY.findall(block):
+                key, target = name.decode("latin-1"), int(number)
+                if key in names and names[key] != target:
+                    names[key] = None
+                else:
+                    names[key] = target
+    cmaps: Dict[str, PdfCMap] = {}
+    for key, number in names.items():
+        if number is None:
+            continue
+        reference = _PDF_TOUNICODE_REF.search(objects.get(number) or b"")
+        if not reference:
+            continue
+        cmap = _pdf_cmap(objects.get(int(reference.group(1))) or b"")
+        if cmap is not None:
+            cmaps[key] = cmap
+    return cmaps
+
+
+def _pdf_stream_text(stream: bytes, fonts: Optional[Dict[str, PdfCMap]] = None) -> str:
+    """Text-showing operators of one content stream, in order."""
+    fonts = fonts or {}
+    out: List[str] = []
+    has_blocks = b"BT" in stream
+    active = not has_blocks
+    last_name = ""
+    cmap: Optional[PdfCMap] = None
+    index, size = 0, len(stream)
+    while index < size:
+        char = stream[index : index + 1]
+        if char == b"(":
+            raw, index = _pdf_literal(stream, index)
+            if active:
+                out.append(_pdf_decode(raw, cmap))
+            continue
+        if char == b"<" and stream[index + 1 : index + 2] != b"<":
+            raw, index = _pdf_hex(stream, index)
+            if active:
+                out.append(_pdf_decode(raw, cmap))
+            continue
+        if char == b"/":
+            start = index + 1
+            index = start
+            while index < size and stream[index] in _PDF_NAME_BYTES:
+                index += 1
+            last_name = stream[start:index].decode("latin-1")
+            continue
+        if stream[index] in _PDF_OPERATOR_BYTES:
+            start = index
+            while index < size and stream[index] in _PDF_OPERATOR_BYTES:
+                index += 1
+            token = stream[start:index]
+            if token == b"Tf":
+                cmap = fonts.get(last_name)
+            elif token == b"BT":
+                active = True
+            elif token in _PDF_NEWLINE_OPS:
+                if active:
+                    out.append("\n")
+                if token == b"ET":
+                    active = not has_blocks
+            continue
+        index += 1
+    return "".join(out)
+
+
+def _printable_ratio(text: str) -> float:
+    body = [char for char in text if not char.isspace()]
+    if not body:
+        return 0.0
+    good = sum(1 for char in body if char.isprintable() and char != "�")
+    return good / len(body)
+
+
+def extract_pdf_text(data: bytes) -> Tuple[Optional[str], str]:
+    """Pure-standard-library PDF text.  Returns ``(text or None, reason)``.
+
+    The quality gate is the point, not the parser: a scanned page yields
+    nothing (``pdf-text-empty``) and a subset-font page yields mojibake
+    (``pdf-text-unreliable``).  Both must end as placeholders with a reason —
+    admitting mojibake would put unreadable "正文" into the retrieval set and
+    into citations, and it would hash green forever.
+    """
+    if not data.startswith(PDF_MAGIC):
+        return None, "pdf-not-a-pdf"
+    objects = _pdf_objects(data)
+    fonts = pdf_font_cmaps(data)
+    streams = _pdf_content_streams(objects)
+    if not streams:
+        # No page ever named its content (object streams, a shape this
+        # extractor does not parse).  Falling back to "every stream that
+        # looks like text" is deliberate and bounded: whatever it produces
+        # still has to pass the quality gate below.
+        streams = [
+            stream
+            for stream in (_pdf_inflate(raw) for raw in _PDF_STREAM.findall(data))
+            if stream and b"begincmap" not in stream and b"BT" in stream
+        ]
+    chunks: List[str] = []
+    for stream in streams:
+        piece = _pdf_stream_text(stream, fonts)
+        if piece.strip():
+            chunks.append(piece)
+    lines = [line.strip() for line in "\n".join(chunks).splitlines()]
+    text = "\n".join(line for line in lines if line).strip()
+    if not text:
+        return None, "pdf-text-empty"
+    if _printable_ratio(text) < PDF_MIN_PRINTABLE_RATIO:
+        return None, "pdf-text-unreliable"
+    if len(text) < MIN_CONVERTED_CHARS:
+        return None, "pdf-text-too-short"
+    return text, "pdf-text-ok"
+
+
 def convert_xlsx(data: bytes) -> Dict[str, str]:
     """Return ``{sheet name: CSV text}``.  openpyxl is an optional import."""
     import openpyxl  # noqa: PLC0415 - optional host capability, never required
@@ -947,6 +1655,24 @@ def sheet_dir_for(raw_path: str) -> str:
     return raw_path[: -len(".md")] + ".sheets" if raw_path.endswith(".md") else raw_path + ".sheets"
 
 
+def convert_text(
+    origin: bytes,
+    *,
+    name: str,
+    decision: FormatDecision,
+    env: Optional[Dict[str, str]] = None,
+    runner: Callable[..., object] = subprocess.run,
+) -> Tuple[Optional[str], str]:
+    """Run the converter the table chose.  ``(text or None, reason)``."""
+    if decision.handling == "docx-convert":
+        return convert_docx(origin, env=env, runner=runner)
+    if decision.handling == "pdf-text":
+        return extract_pdf_text(origin)
+    converter = CONVERTERS[decision.converter]
+    suffix = decision.sniffed or split_name(name)[1]
+    return convert_with_module(origin, converter=converter, suffix=suffix)
+
+
 def materialise(
     *,
     lineage: str,
@@ -959,38 +1685,51 @@ def materialise(
 ) -> Optional[Artefact]:
     """Turn original bytes into the raw artefact.  ``None`` means skipped."""
     digest = sha256_bytes(origin)
+    version = converter_version(decision.converter)
+    label = converter_label(decision, env)
+
+    def degraded(reason: str, *, listing: Optional[Sequence[str]] = None) -> Artefact:
+        """A placeholder that says what was tried and why it did not work."""
+        return Artefact(
+            data=placeholder_body(
+                lineage=lineage, name=name, origin_sha=digest,
+                origin_size=len(origin), reason=reason, listing=listing,
+            ),
+            kind="placeholder", status="placeholder", converter=label,
+            placeholder_reason=reason, converter_name=decision.converter,
+            converter_version=version, conversion_ok=False, conversion_reason=reason,
+        )
+
     if decision.handling == "skip":
         return None
     if decision.handling == "passthrough":
-        return Artefact(data=origin, kind="document", status="converted", converter="passthrough")
-    if decision.handling == "docx-convert":
-        text, reason = convert_docx(origin, env=env, runner=runner)
+        if not origin.strip():
+            # 反空转，直通面：源件本身是空的。放行会在 raw 里留下一个 0 字正文，
+            # 它照样进索引、照样对得上哈希，而检索侧永远问不出东西。
+            return degraded("passthrough-empty")
+        return Artefact(
+            data=origin, kind="document", status="converted", converter="passthrough",
+            converter_name="passthrough", converter_version=version,
+            conversion_reason="passthrough-ok",
+        )
+    if decision.handling in TEXT_HANDLINGS:
+        text, reason = convert_text(
+            origin, name=name, decision=decision, env=env, runner=runner
+        )
         if text is None:
-            return Artefact(
-                data=placeholder_body(
-                    lineage=lineage, name=name, origin_sha=digest,
-                    origin_size=len(origin), reason=reason,
-                ),
-                kind="placeholder", status="placeholder",
-                converter="docx:" + docx_converter_path(env), placeholder_reason=reason,
-            )
+            return degraded(reason)
         return Artefact(
             data=(text + "\n").encode("utf-8"), kind="document", status="converted",
-            converter="docx:" + docx_converter_path(env),
+            converter=label, converter_name=decision.converter,
+            converter_version=version, conversion_reason=reason,
         )
     if decision.handling == "xlsx-csv":
         try:
             sheets = convert_xlsx(origin)
         except Exception as exc:  # noqa: BLE001 - any openpyxl failure
-            reason = "xlsx-unreadable"
-            return Artefact(
-                data=placeholder_body(
-                    lineage=lineage, name=name, origin_sha=digest,
-                    origin_size=len(origin), reason=f"{reason}:{exc}"[:200],
-                ),
-                kind="placeholder", status="placeholder",
-                converter="xlsx:openpyxl", placeholder_reason=reason,
-            )
+            return degraded(f"xlsx-unreadable:{exc}"[:200])
+        if not sheets or not any(text.strip() for text in sheets.values()):
+            return degraded("xlsx-convert-empty")
         directory = sheet_dir_for(raw_path)
         extras = {
             f"{directory}/{slugify(title)}.csv": text.encode("utf-8")
@@ -1014,17 +1753,26 @@ def materialise(
             lines.append(f"- {title} → `{directory}/{slugify(title)}.csv`")
         return Artefact(
             data=("\n".join(lines) + "\n").encode("utf-8"), kind="document",
-            status="converted", converter="xlsx:openpyxl", extras=extras,
+            status="converted", converter=label, extras=extras,
+            converter_name=decision.converter, converter_version=version,
+            conversion_reason=f"{decision.converter}-convert-ok",
         )
+    # No converter ran: either the table lists none for this format (pptx /
+    # image / zip) or none of the listed ones is on this host.  Both end in a
+    # placeholder, and ``decision.code`` is what tells them apart in the
+    # ledgers — ``converter-missing:docx`` is a re-run candidate the day the
+    # converter arrives, ``image-not-converted-in-v1`` is not.
     listing = zip_listing(origin) if decision.format == "zip" else None
-    reason = decision.format + "-not-converted-in-v1"
+    reason = decision.code or (decision.format + "-not-converted-in-v1")
     return Artefact(
         data=placeholder_body(
             lineage=lineage, name=name, origin_sha=digest, origin_size=len(origin),
             reason=reason, listing=listing,
         ),
         kind="placeholder", status="placeholder", converter="placeholder",
-        placeholder_reason=reason,
+        placeholder_reason=reason, converter_name="placeholder",
+        converter_version=BUILTIN_CONVERTER_VERSION, conversion_ok=False,
+        conversion_reason=reason,
     )
 
 
@@ -1464,8 +2212,12 @@ def execute_plan(
             # Re-decided here, not read off the card: the card records what
             # the host could do when the plan was made, and a converter that
             # has since appeared or vanished must change the outcome, not be
-            # overruled by a stale expectation.
-            decision = decide_format(name, env=env, has_openpyxl=has_openpyxl)
+            # overruled by a stale expectation.  This is also the first point
+            # where the *bytes* exist, so it is where an extension-less item
+            # gets sniffed (RT-046) — the plan could only say "无后缀".
+            decision = decide_format(
+                name, env=env, has_openpyxl=has_openpyxl, data=origin
+            )
             artefact = materialise(
                 lineage=lineage, name=name, raw_path=target, origin=origin,
                 decision=decision, env=env, runner=runner,
@@ -1481,7 +2233,10 @@ def execute_plan(
                         "schema": PROVENANCE_SCHEMA, "at": at, "batch_id": batch,
                         "lineage_id": lineage, "event": "skipped",
                         "originals": originals_path, "origin_sha256": origin_sha,
-                        "derived": [], "converter": "skip", "reason": decision.reason,
+                        "derived": [],
+                        "converter": {"name": "skip", "version": BUILTIN_CONVERTER_VERSION},
+                        "converter_label": "skip",
+                        "reason": decision.reason,
                     }
                 )
                 accounts.publish()
@@ -1524,7 +2279,22 @@ def execute_plan(
                     "supersedes": None if version == 1 else version - 1,
                     "originals": originals_path, "origin_sha256": origin_sha,
                     "derived": artifacts, "artifact_sha256": artefact_sha,
-                    "converter": artefact.converter,
+                    # RT-046 回执三链：converter{name,version} + 源 sha256 +
+                    # 产物 sha256.  The label keeps the host detail (which
+                    # binary, which path); the pair keeps the answerable
+                    # question "which converter, which build".
+                    "converter": {
+                        "name": artefact.converter_name,
+                        "version": artefact.converter_version,
+                    },
+                    "converter_label": artefact.converter,
+                    "conversion": {
+                        "ok": artefact.conversion_ok,
+                        "reason": artefact.conversion_reason,
+                        "format": decision.format,
+                        "handling": decision.handling,
+                        "sniffed": decision.sniffed,
+                    },
                     "artifact_kind": artefact.kind,
                 }
             )

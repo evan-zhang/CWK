@@ -22,7 +22,10 @@ import os
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
+import zipfile
+import zlib
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -34,6 +37,10 @@ import kb_ingest as ingest  # noqa: E402
 from kb_storage import LocalFSBackend  # noqa: E402
 
 FIXED_NOW = datetime(2026, 9, 5, 3, 0, 0, tzinfo=timezone.utc)
+
+# Points the docx converter at nothing, so "本机没有转换器" is a property of
+# the test rather than of whoever's laptop is running it.
+NO_CONVERTER = {ingest.ENV_DOCX_CONVERTER: "/nonexistent/md2md"}
 
 
 # ── shared fixtures ─────────────────────────────────────────────────────────
@@ -119,6 +126,225 @@ class FakeDocdb:
             output.write_bytes(self.blobs.get(file_id, b"# docdb\n"))
             return FakeProc(0, json.dumps({"resultCode": 1, "resultMsg": "ok", "data": {}}))
         raise AssertionError(f"fake 没有实现 {script}")
+
+
+# ── synthetic binaries (RT-046 夹具) ─────────────────────────────────────────
+#
+# 夹具全部现生成，进 git 的只有生成它们的代码。一个 checked-in 的 .pdf/.xlsx
+# 二进制在 review 里读不出任何东西——没人能说清它到底钉住了哪条分支，也没人
+# 敢改它。下面这几十行反过来把「这份 PDF 长什么样」写成了判据的一部分，而且
+# 体积是零。
+
+
+def _pdf_stream_object(payload: bytes, *, compress: bool = True) -> bytes:
+    body = zlib.compress(payload) if compress else payload
+    filt = b"/Filter /FlateDecode " if compress else b""
+    return (b"<< " + filt + b"/Length " + str(len(body)).encode() + b" >>\nstream\n"
+            + body + b"\nendstream")
+
+
+def _pdf_assemble(objects) -> bytes:
+    """Header, numbered objects, xref, trailer — a real PDF, not a stub."""
+    out = bytearray(b"%PDF-1.4\n")
+    offsets = []
+    for number, body in enumerate(objects, start=1):
+        offsets.append(len(out))
+        out += str(number).encode() + b" 0 obj\n" + body + b"\nendobj\n"
+    start_xref = len(out)
+    out += b"xref\n0 " + str(len(objects) + 1).encode() + b"\n0000000000 65535 f \n"
+    for offset in offsets:
+        out += ("%010d 00000 n \n" % offset).encode()
+    out += (b"trailer\n<< /Size " + str(len(objects) + 1).encode() + b" /Root 1 0 R >>\n"
+            b"startxref\n" + str(start_xref).encode() + b"\n%%EOF\n")
+    return bytes(out)
+
+
+def latin_pdf(lines, *, compress: bool = True) -> bytes:
+    """A Helvetica page: literal strings, the easy half of the parser."""
+    ops = [b"BT", b"/F1 12 Tf", b"72 720 Td"]
+    for line in lines:
+        escaped = (line.encode("latin-1").replace(b"\\", b"\\\\")
+                   .replace(b"(", b"\\(").replace(b")", b"\\)"))
+        ops += [b"(" + escaped + b") Tj", b"0 -16 Td"]
+    ops.append(b"ET")
+    return _pdf_assemble([
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+        b"/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
+        _pdf_stream_object(b"\n".join(ops), compress=compress),
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ])
+
+
+def cjk_pdf(lines, *, ranges: bool = False, tounicode: bool = True) -> bytes:
+    """An Identity-H subset font — the shape every Word-exported 中文 PDF has.
+
+    页面字节是 CID（子集里的第几个字形），意思全在 ToUnicode CMap 里。
+    ``tounicode=False`` 把 CMap 摘掉，得到的就是「抽出来是乱码」的那一份；
+    ``ranges=True`` 换成 bfrange 数组写法，Word 最常写的正是这一种。
+    """
+    chars: list = []
+    for line in lines:
+        for char in line:
+            if char not in chars:
+                chars.append(char)
+    cid = {char: index + 1 for index, char in enumerate(chars)}
+    ops = [b"BT", b"/F1 12 Tf", b"72 720 Td"]
+    for line in lines:
+        hexed = "".join("%04X" % cid[char] for char in line).encode()
+        ops += [b"<" + hexed + b"> Tj", b"0 -16 Td"]
+    ops.append(b"ET")
+    if ranges:
+        block = (b"1 beginbfrange\n<0001> <%04X> [" % len(cid)
+                 + b"".join(b"<%04X>" % ord(char) for char in chars)
+                 + b"]\nendbfrange\n")
+    else:
+        block = (str(len(cid)).encode() + b" beginbfchar\n"
+                 + b"".join(b"<%04X> <%04X>\n" % (code, ord(char))
+                            for char, code in cid.items())
+                 + b"endbfchar\n")
+    cmap = (b"/CIDInit /ProcSet findresource begin 12 dict begin begincmap\n"
+            b"1 begincodespacerange\n<0000> <FFFF>\nendcodespacerange\n" + block
+            + b"endcmap CMapName currentdict /CMap defineresource pop end end")
+    to_unicode = b"/ToUnicode 6 0 R " if tounicode else b""
+    return _pdf_assemble([
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+        b"/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
+        _pdf_stream_object(b"\n".join(ops)),
+        b"<< /Type /Font /Subtype /Type0 /BaseFont /ABCDEF+SimSun /Encoding /Identity-H "
+        b"/DescendantFonts [7 0 R] " + to_unicode + b">>",
+        _pdf_stream_object(cmap),
+        b"<< /Type /Font /Subtype /CIDFontType2 /BaseFont /ABCDEF+SimSun "
+        b"/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> "
+        b"/FontDescriptor 8 0 R /DW 1000 >>",
+        b"<< /Type /FontDescriptor /FontName /ABCDEF+SimSun /Flags 4 "
+        b"/FontBBox [0 -200 1000 900] /ItalicAngle 0 /Ascent 900 /Descent -200 "
+        b"/CapHeight 700 /StemV 80 >>",
+    ])
+
+
+PNG_BYTES = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR" + b"\x00" * 16
+JPEG_BYTES = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01" + b"\x00" * 8
+GIF_BYTES = b"GIF89a" + b"\x00" * 16
+
+OOXML_MARKER = {"docx": "word", "xlsx": "xl", "pptx": "ppt"}
+
+
+def ooxml_zip(kind: str) -> bytes:
+    """The smallest thing that still *is* an OOXML container of that kind."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("[Content_Types].xml", "<Types/>")
+        archive.writestr(f"{OOXML_MARKER[kind]}/document.xml", "<x/>")
+    return buffer.getvalue()
+
+
+def plain_zip(names=("合同/正本.pdf", "合同/附件.xlsx")) -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        for name in names:
+            archive.writestr(name, b"x")
+    return buffer.getvalue()
+
+
+def xlsx_with_cached_formula() -> bytes:
+    """A workbook whose one interesting cell is ``=SUM(A2:A3)``, cached as 82.
+
+    RT-108 实测：anydoc 丢掉公式的**缓存值**，markitdown 保留。缓存值恰恰是
+    结论（总额 / CAGR / 峰值），这也是本 RT 把 xlsx 排成
+    openpyxl(data_only=True) → markitdown 而不是反过来的理由。
+    """
+    ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+    rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+    parts = {
+        "[Content_Types].xml":
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package'
+            '.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>'
+            '<Override PartName="/xl/workbook.xml" ContentType="application/vnd'
+            '.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+            '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd'
+            '.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>',
+        "_rels/.rels":
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/'
+            f'relationships"><Relationship Id="rId1" Type="{rel}/officeDocument" '
+            'Target="xl/workbook.xml"/></Relationships>',
+        "xl/workbook.xml":
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            f'<workbook xmlns="{ns}" xmlns:r="{rel}"><sheets>'
+            '<sheet name="市场测算" sheetId="1" r:id="rId1"/></sheets></workbook>',
+        "xl/_rels/workbook.xml.rels":
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/'
+            f'relationships"><Relationship Id="rId1" Type="{rel}/worksheet" '
+            'Target="worksheets/sheet1.xml"/></Relationships>',
+        "xl/worksheets/sheet1.xml":
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            f'<worksheet xmlns="{ns}"><dimension ref="A1:A4"/><sheetData>'
+            '<row r="1"><c r="A1" t="inlineStr"><is><t>金额</t></is></c></row>'
+            '<row r="2"><c r="A2"><v>40</v></c></row>'
+            '<row r="3"><c r="A3"><v>42</v></c></row>'
+            '<row r="4"><c r="A4"><f>SUM(A2:A3)</f><v>82</v></c></row>'
+            '</sheetData></worksheet>',
+    }
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        for name, text in parts.items():
+            archive.writestr(name, text)
+    return buffer.getvalue()
+
+
+@contextlib.contextmanager
+def stub_module(name: str, **attributes):
+    """Put a fake optional converter in ``sys.modules`` for the duration.
+
+    缺失分支在裸 CI 上天然覆盖（anydoc / markitdown 都不在），可**装上了会
+    怎样**恰恰是这次改动的主张——不这样做，成功分支就只能靠"在我机器上试过"
+    背书。``module_available`` 先看 sys.modules 正是为了让这条路可测。
+    """
+    previous = sys.modules.get(name)
+    module = types.ModuleType(name)
+    for key, value in attributes.items():
+        setattr(module, key, value)
+    sys.modules[name] = module
+    try:
+        yield module
+    finally:
+        if previous is None:
+            sys.modules.pop(name, None)
+        else:
+            sys.modules[name] = previous
+
+
+class FakeOptionalConverter:
+    """anydoc / markitdown 的最小替身，记下它被交到手里的那个路径。
+
+    路径要记，是因为两个转换器都按后缀选解析器：把嗅探出来的 docx 用一个没有
+    后缀的临时文件名递过去，它会安静地当纯文本处理，产物看不出错。
+    """
+
+    def __init__(self, text: str = "") -> None:
+        self.text = text
+        self.paths: list = []
+
+    def to_markdown(self, path: str) -> str:  # anydoc 的形状
+        self.paths.append(path)
+        return self.text
+
+    def MarkItDown(self):  # noqa: N802 - markitdown 的形状，照抄上游命名
+        outer = self
+
+        class _MarkItDown:
+            def convert(self, path):
+                outer.paths.append(path)
+                return types.SimpleNamespace(text_content=outer.text)
+
+        return _MarkItDown()
 
 
 # ── lineage identity ────────────────────────────────────────────────────────
@@ -248,6 +474,274 @@ class FormatFactoryDecisionTests(unittest.TestCase):
     def test_unknown_extension_takes_the_generic_placeholder_path(self) -> None:
         decision = ingest.decide_format("mystery.qqq", env={})
         self.assertEqual((decision.format, decision.expected_status), ("unknown", "placeholder"))
+
+
+# ── format factory v1.1: the converter table ────────────────────────────────
+
+
+class ConverterTableTests(unittest.TestCase):
+    """RT-046 转换器表：谁认领哪个后缀、链怎么排、缺了怎么记账。
+
+    表的价值全在「可读、可审、可反驳」：判决必须只由表决定，不由行序、不由
+    if 链的书写顺序、更不由某台机器上碰巧装了什么决定。
+    """
+
+    def test_every_suffix_is_claimed_by_exactly_one_row(self) -> None:
+        # 两行都认领 .docx 时，判决就取决于行序——读代码的人看不见的东西。
+        # 表在 import 期自检；这里把自检本身钉住，否则它明天可以被删掉。
+        self.assertEqual(ingest.FORMAT_BY_SUFFIX[".docx"].format, "docx")
+        self.assertEqual(ingest.FORMAT_BY_SUFFIX[".xlsm"].format, "xlsx")
+        with self.assertRaises(ingest.IngestError):
+            ingest.index_format_table(
+                ingest.FORMAT_TABLE + (ingest.FormatRow("shadow", (".docx",), ()),)
+            )
+
+    def test_the_table_is_the_one_the_rt_signed_off(self) -> None:
+        chains = {row.format: row.chain for row in ingest.FORMAT_TABLE}
+        self.assertEqual(chains["markdown"], ("passthrough",))
+        self.assertEqual(chains["docx"], ("docx-host", "anydoc"))
+        self.assertEqual(chains["xlsx"], ("openpyxl", "markitdown"))
+        self.assertEqual(chains["pdf"], ("pdf-text",))
+        # 没有转换器的格式要显式写成空链，而不是从表里消失：缺行会退回
+        # 「未知扩展名」，占位理由也就说不清是"不支持"还是"没装"。
+        self.assertEqual((chains["pptx"], chains["image"], chains["zip"]), ((), (), ()))
+
+    def test_every_chain_names_a_converter_the_table_defines(self) -> None:
+        known = set(ingest.TEXT_HANDLINGS) | {"passthrough", "xlsx-csv"}
+        for row in ingest.FORMAT_TABLE:
+            for name in row.chain:
+                with self.subTest(format=row.format, converter=name):
+                    self.assertIn(name, ingest.CONVERTERS)
+                    # materialise() 按 handling 分发；表里写一个它不认识的
+                    # handling，件会静静掉进末尾的通用占位分支。
+                    self.assertIn(ingest.CONVERTERS[name].handling, known)
+
+    def test_an_unknown_converter_name_is_an_error_not_a_quiet_false(self) -> None:
+        with self.assertRaises(ingest.IngestError):
+            ingest.converter_available("no-such-converter")
+
+    def test_docx_falls_through_to_anydoc_when_the_host_binary_is_absent(self) -> None:
+        with stub_module("anydoc", to_markdown=lambda path: ""):
+            decision = ingest.decide_format("x.docx", env=NO_CONVERTER)
+        self.assertEqual(
+            (decision.converter, decision.handling, decision.expected_status),
+            ("anydoc", "module-text", "converted"),
+        )
+
+    def test_the_host_binary_still_wins_when_both_are_installed(self) -> None:
+        # 装上 anydoc 不该无声改变既有产物：本机通路是这台机器上已验证的那条，
+        # 顺序换了等于把全库正文的来源换掉，而账上看不出发生过什么。
+        with tempfile.TemporaryDirectory() as tmp:
+            binary = Path(tmp) / "md2md"
+            binary.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            binary.chmod(0o755)
+            with stub_module("anydoc", to_markdown=lambda path: ""):
+                decision = ingest.decide_format(
+                    "x.docx", env={ingest.ENV_DOCX_CONVERTER: str(binary)}
+                )
+        self.assertEqual(decision.converter, "docx-host")
+
+    def test_xlsx_falls_through_to_markitdown_without_openpyxl(self) -> None:
+        with stub_module("markitdown"):
+            decision = ingest.decide_format("s.xlsx", env={}, has_openpyxl=False)
+        self.assertEqual((decision.converter, decision.handling),
+                         ("markitdown", "module-text"))
+
+    @unittest.skipIf(ingest.module_available("anydoc"), "本机装了 anydoc，缺失分支不成立")
+    def test_a_format_whose_whole_chain_is_missing_degrades_and_is_recorded(self) -> None:
+        # 反空转：静默跳过会让「没转成」和「不用转」在账上长得一模一样，
+        # 装上转换器那天也就没人问得出该重跑哪些件。
+        decision = ingest.decide_format("x.docx", env=NO_CONVERTER)
+        self.assertEqual(decision.expected_status, "placeholder")
+        self.assertEqual(decision.code, f"{ingest.CODE_CONVERTER_MISSING}:docx")
+        self.assertIn("docx-host/anydoc", decision.reason)
+
+    def test_a_format_with_no_converter_at_all_is_not_reported_as_missing(self) -> None:
+        # pptx 不是"没装"，是 v1.1 没承诺。两者的重跑价值完全不同，理由码
+        # 必须分得开。
+        decision = ingest.decide_format("deck.pptx", env={})
+        self.assertEqual(decision.code, "pptx-not-converted-in-v1")
+
+    def test_the_receipt_version_is_detected_never_read_off_the_pin(self) -> None:
+        # 回执写 0.1.9 只是因为表里写着 0.1.9——那对产物的字节零证明力。
+        self.assertEqual(ingest.CONVERTERS["anydoc"].pin, ingest.ANYDOC_PIN)
+        self.assertEqual(ingest.converter_version("pdf-text"),
+                         ingest.BUILTIN_CONVERTER_VERSION)
+        # 本机二进制回答不了版本问题（可能压根不认 --version），于是照实说
+        # unknown，把路径留在 converter_label 里，而不是编一个号出来。
+        self.assertEqual(ingest.converter_version("docx-host"), ingest.UNKNOWN_VERSION)
+
+    @unittest.skipIf(ingest.module_available("anydoc"), "本机装了 anydoc，探测结果不受控")
+    def test_an_optional_module_reports_its_own_version_or_unknown(self) -> None:
+        with stub_module("anydoc", to_markdown=lambda path: ""):
+            self.assertEqual(ingest.converter_version("anydoc"), ingest.UNKNOWN_VERSION)
+        with stub_module("anydoc", __version__="9.9.9-stub", to_markdown=lambda path: ""):
+            self.assertEqual(ingest.converter_version("anydoc"), "9.9.9-stub")
+
+    def test_the_label_keeps_the_host_detail_the_pair_cannot(self) -> None:
+        docx = ingest.FormatDecision("docx", "docx-convert", "converted", "",
+                                     converter="docx-host")
+        self.assertEqual(
+            ingest.converter_label(docx, {ingest.ENV_DOCX_CONVERTER: "/opt/bin/md2md"}),
+            "docx:/opt/bin/md2md",
+        )
+        pdf = ingest.FormatDecision("pdf", "pdf-text", "converted", "", converter="pdf-text")
+        self.assertEqual(ingest.converter_label(pdf, {}), "pdf:pdf-text")
+
+    @unittest.skipUnless(ingest.openpyxl_available(), "本机没有 openpyxl（可选 extra）")
+    def test_xlsx_keeps_the_cached_formula_value(self) -> None:
+        # 这条是 xlsx 链排成 openpyxl → markitdown 的**依据**（kb_ingest.py
+        # 的表里按名字引了它）：公式的缓存值就是结论，丢了它，表还在、结论
+        # 没了，而且检索侧一个字都问不出来。
+        sheets = ingest.convert_xlsx(xlsx_with_cached_formula())
+        text = "".join(sheets.values())
+        self.assertIn("82", text)
+        self.assertNotIn("SUM(", text, "公式文本不是结论，缓存值才是")
+
+
+# ── format factory v1.1: magic-byte sniffing ────────────────────────────────
+
+
+class MagicByteSniffTests(unittest.TestCase):
+    """无后缀件的判据面。投前库里三份关键流程文档就是这样进来的。"""
+
+    NO_SUFFIX = "2095046023776104474-无后缀"
+
+    def test_magic_bytes_name_the_format(self) -> None:
+        for data, expected in (
+            (b"%PDF-1.7\n%\xe2\xe3\xcf\xd3", ".pdf"),
+            (PNG_BYTES, ".png"),
+            (JPEG_BYTES, ".jpg"),
+            (GIF_BYTES, ".gif"),
+        ):
+            with self.subTest(expected=expected):
+                self.assertEqual(ingest.sniff_suffix(data), expected)
+
+    def test_a_zip_is_read_down_to_which_application_wrote_it(self) -> None:
+        # PK 头只说"这是个 zip"。docx 和 xlsx 的处置完全不同，停在 zip 这一层
+        # 等于把两份能转的正文一起判成占位。
+        self.assertEqual(ingest.sniff_suffix(ooxml_zip("docx")), ".docx")
+        self.assertEqual(ingest.sniff_suffix(ooxml_zip("xlsx")), ".xlsx")
+        self.assertEqual(ingest.sniff_suffix(ooxml_zip("pptx")), ".pptx")
+        self.assertEqual(ingest.sniff_suffix(plain_zip()), ".zip")
+
+    def test_a_pk_header_with_an_unreadable_directory_is_not_guessed_at(self) -> None:
+        # 名字从没声称这是压缩包，所以没有什么可以追究——判不出就是判不出。
+        # （被*命名*为 .zip 的坏档案仍然必红，那条声称来自源，见 §V。）
+        self.assertIsNone(ingest.sniff_suffix(ingest.ZIP_MAGIC + b"\x00" * 40))
+
+    def test_bytes_that_say_nothing_yield_nothing(self) -> None:
+        for data in (b"", "这就是一段中文正文，没有任何魔数。".encode("utf-8"),
+                     b"\x00\x01\x02\x03"):
+            with self.subTest(data=data[:8]):
+                self.assertIsNone(ingest.sniff_suffix(data))
+
+    def test_only_the_head_is_read(self) -> None:
+        # 嗅探不做全文启发式：正文里出现 "%PDF" 不算数，否则一份讨论 PDF 的
+        # 备忘录会被判成 PDF。
+        self.assertIsNone(ingest.sniff_suffix(b"x" * 32 + b"%PDF-1.4"))
+
+    def test_planning_has_no_bytes_and_says_so_instead_of_guessing(self) -> None:
+        # 计划期不下载，所以没有字节可读。这时给出的必须是"待嗅探"的占位，
+        # 而不是按文件名猜一个格式写进确认卡。
+        decision = ingest.decide_format(self.NO_SUFFIX, env={})
+        self.assertEqual((decision.expected_status, decision.code, decision.sniffed),
+                         ("placeholder", ingest.CODE_UNKNOWN_FORMAT, None))
+
+    def test_a_sniffed_pdf_enters_the_pdf_row_and_the_sniff_is_kept(self) -> None:
+        decision = ingest.decide_format(
+            self.NO_SUFFIX, env={}, data=latin_pdf(["RT-046 flow memo, no suffix"])
+        )
+        self.assertEqual(
+            (decision.format, decision.handling, decision.expected_status, decision.sniffed),
+            ("pdf", "pdf-text", "converted", ".pdf"),
+        )
+
+    def test_a_sniffed_docx_enters_the_docx_row_with_its_own_chain(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            binary = Path(tmp) / "md2md"
+            binary.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            binary.chmod(0o755)
+            decision = ingest.decide_format(
+                self.NO_SUFFIX, env={ingest.ENV_DOCX_CONVERTER: str(binary)},
+                data=ooxml_zip("docx"),
+            )
+        self.assertEqual((decision.format, decision.converter, decision.sniffed),
+                         ("docx", "docx-host", ".docx"))
+
+    def test_a_sniffed_image_is_a_placeholder_not_a_pretend_document(self) -> None:
+        decision = ingest.decide_format(self.NO_SUFFIX, env={}, data=PNG_BYTES)
+        self.assertEqual((decision.format, decision.expected_status, decision.sniffed),
+                         ("image", "placeholder", ".png"))
+
+    def test_undecidable_bytes_are_unknown_format_not_a_guess(self) -> None:
+        decision = ingest.decide_format(self.NO_SUFFIX, env={}, data=b"\x00\x01\x02\x03" * 8)
+        self.assertEqual((decision.format, decision.code),
+                         ("unknown", ingest.CODE_UNKNOWN_FORMAT))
+
+    def test_a_name_that_carries_a_suffix_is_never_sniffed(self) -> None:
+        # 名字说了话就以名字为准。反过来会让"内容以 %PDF 开头的 .md"变成 pdf，
+        # 而这类件（转换回执、日志）在库里真实存在。
+        decision = ingest.decide_format(
+            "a.md", env={}, data="%PDF-1.4 讨论稿\n".encode("utf-8")
+        )
+        self.assertEqual((decision.handling, decision.sniffed), ("passthrough", None))
+
+
+# ── format factory v1.1: PDF text, standard library only ────────────────────
+
+
+class PdfTextExtractionTests(unittest.TestCase):
+    """PDF 抽取的判据面：抽得出算数，抽不出必须说得出为什么。"""
+
+    LATIN = ["RT-046 format factory acceptance line", "second line of the flow memo"]
+    CJK = ["CMS投前阶段1流程诊断与补丁处理备忘录", "阶段一（S1）流程：立项、初筛、尽调"]
+
+    def test_a_flate_content_stream_comes_back_as_text(self) -> None:
+        text, reason = ingest.extract_pdf_text(latin_pdf(self.LATIN))
+        self.assertEqual(reason, "pdf-text-ok")
+        self.assertEqual(text, "\n".join(self.LATIN))
+
+    def test_an_uncompressed_content_stream_reads_the_same(self) -> None:
+        text, reason = ingest.extract_pdf_text(latin_pdf(self.LATIN, compress=False))
+        self.assertEqual((text, reason), ("\n".join(self.LATIN), "pdf-text-ok"))
+
+    def test_a_subset_cid_font_is_read_through_its_tounicode_cmap(self) -> None:
+        # Word 导出的中文 PDF 一律是 Identity-H 子集字体。没有 CMap 支持，
+        # 「支持 PDF」就退化成「每一份中文 PDF 都占位」——也就是没支持。
+        for ranges in (False, True):
+            with self.subTest(cmap="bfrange" if ranges else "bfchar"):
+                text, reason = ingest.extract_pdf_text(cjk_pdf(self.CJK, ranges=ranges))
+                self.assertEqual((text, reason), ("\n".join(self.CJK), "pdf-text-ok"))
+
+    def test_a_subset_font_without_a_cmap_is_refused_not_published_as_cids(self) -> None:
+        # 一份乱码正文比占位更坏：它进检索、进引文，而且哈希永远是绿的。
+        text, reason = ingest.extract_pdf_text(cjk_pdf(self.CJK, tounicode=False))
+        self.assertIsNone(text)
+        self.assertEqual(reason, "pdf-text-unreliable")
+
+    def test_a_page_with_no_text_operators_is_a_failure_not_an_empty_body(self) -> None:
+        text, reason = ingest.extract_pdf_text(latin_pdf([]))
+        self.assertIsNone(text)
+        self.assertEqual(reason, "pdf-text-empty")
+
+    def test_a_handful_of_characters_is_treated_as_a_failed_conversion(self) -> None:
+        text, reason = ingest.extract_pdf_text(latin_pdf(["ok"]))
+        self.assertIsNone(text)
+        self.assertEqual(reason, "pdf-text-too-short")
+
+    def test_bytes_that_are_not_a_pdf_are_refused_up_front(self) -> None:
+        self.assertEqual(ingest.extract_pdf_text(plain_zip())[1], "pdf-not-a-pdf")
+
+    def test_the_cmap_stream_is_not_mistaken_for_page_text(self) -> None:
+        # 内容流按 /Contents 结构解析，不是"扫所有 stream"：ToUnicode 流里也
+        # 全是 <hex> 形状的字节，扫进来就是一串控制字符，然后整份件被质量门
+        # 判成不可信——正文明明是好的。
+        data = cjk_pdf(self.CJK)
+        streams = ingest._pdf_content_streams(ingest._pdf_objects(data))
+        self.assertEqual(len(streams), 1)
+        self.assertIn(b"BT", streams[0])
+        self.assertNotIn(b"begincmap", streams[0])
 
 
 # ── routing ─────────────────────────────────────────────────────────────────
@@ -580,9 +1074,6 @@ class PlanValidationTests(unittest.TestCase):
 # ── run: the pipeline end to end ────────────────────────────────────────────
 
 
-NO_CONVERTER = {ingest.ENV_DOCX_CONVERTER: "/nonexistent/md2md"}
-
-
 class CountingBackend:
     """LocalFSBackend with a write counter.
 
@@ -637,8 +1128,22 @@ class IngestFixture(unittest.TestCase):
             sleep=lambda _s: None, now=now,
         )
 
+    def ingest_one(self, rel: str, body: bytes, *, env=NO_CONVERTER, has_openpyxl=False,
+                   runner=None) -> dict:
+        """Replace the fixture's markdown report with one item and run."""
+        write_mirror(self.mirror, rel, body)
+        self.report.unlink()
+        return self.execute(
+            self.make_plan(env=env, has_openpyxl=has_openpyxl),
+            env=env, has_openpyxl=has_openpyxl, runner=runner,
+        )
+
     def read_json_at(self, rel: str) -> dict:
         return json.loads(self.backend.read(rel).decode("utf-8"))
+
+    def provenance(self) -> list:
+        chain = self.backend.read(ingest.PROVENANCE_CHAIN_REL).decode("utf-8").splitlines()
+        return [json.loads(line) for line in chain]
 
     def tree(self) -> dict:
         from kb_ledger import scan_tree
@@ -979,16 +1484,6 @@ class J4ResumeTests(IngestFixture):
 class FormatFactoryExecutionTests(IngestFixture):
     """格式工厂 v1 的产出面：每种形态落什么、记什么状态。"""
 
-    def ingest_one(self, rel: str, body: bytes, *, env=NO_CONVERTER, has_openpyxl=False,
-                   runner=None) -> dict:
-        write_mirror(self.mirror, rel, body)
-        self.report.unlink()
-        report = self.execute(
-            self.make_plan(env=env, has_openpyxl=has_openpyxl),
-            env=env, has_openpyxl=has_openpyxl, runner=runner,
-        )
-        return report
-
     def test_docx_converts_through_the_host_binary(self) -> None:
         converter = self.base / "md2md"
         converter.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
@@ -1094,6 +1589,143 @@ class FormatFactoryExecutionTests(IngestFixture):
             reason="pptx-not-converted-in-v1",
         )
         self.assertEqual(first, second)
+
+
+class FormatFactoryV11ExecutionTests(IngestFixture):
+    """RT-046 的产出面：嗅探件、可选转换器、以及「转出 0 字」的下场。"""
+
+    NO_SUFFIX_REL = "2026-08/2026-08-14/2095046023776104474-无后缀"
+    NO_SUFFIX_KEY = "cwork:2095046023776104474"
+    FLOW = ["CMS投前阶段1流程诊断与补丁处理备忘录", "阶段一（S1）流程：立项、初筛、尽调"]
+
+    def entry(self, key: str) -> dict:
+        return self.read_json_at(ingest.RAW_INDEX_REL)["entries"][key]
+
+    def test_a_no_suffix_pdf_is_sniffed_converted_and_readable(self) -> None:
+        # 投前库三份关键流程文档就是这个形状：无后缀、PDF、中文子集字体。
+        # v1 把它们判成 unknown 占位，正文因此一个字都问不出来。
+        report = self.ingest_one(self.NO_SUFFIX_REL, cjk_pdf(self.FLOW))
+        self.assertEqual(report["counts"]["converted"], 1, report)
+        entry = self.entry(self.NO_SUFFIX_KEY)
+        self.assertEqual(entry["artifact_kind"], "document")
+        body = self.backend.read(entry["path"]).decode("utf-8")
+        self.assertIn("阶段一", body)
+        record = self.provenance()[-1]
+        self.assertEqual(record["converter"]["name"], "pdf-text")
+        # 嗅探结果进回执：同样的字节下次必须得到同样的判决，而"上次为什么
+        # 判成 pdf"只有这一行能回答。
+        self.assertEqual(record["conversion"]["sniffed"], ".pdf")
+        self.assertTrue(record["conversion"]["ok"])
+
+    def test_a_no_suffix_file_whose_bytes_say_nothing_is_a_recorded_unknown(self) -> None:
+        report = self.ingest_one(self.NO_SUFFIX_REL, b"\x00\x01\x02\x03" * 16)
+        self.assertEqual(report["counts"]["placeholder"], 1, report)
+        self.assertEqual(self.entry(self.NO_SUFFIX_KEY)["placeholder_reason"],
+                         ingest.CODE_UNKNOWN_FORMAT)
+        record = self.provenance()[-1]
+        self.assertFalse(record["conversion"]["ok"])
+        self.assertIsNone(record["conversion"]["sniffed"], "判不出就是没嗅出后缀")
+
+    def test_a_sniffed_pdf_that_holds_no_text_says_so_instead_of_landing_empty(self) -> None:
+        # 扫描件的正常下场。占位理由必须精确到"抽不出文本"，否则日后接
+        # OCR 时没人知道该重跑哪一批。
+        self.ingest_one(self.NO_SUFFIX_REL, latin_pdf([]))
+        self.assertEqual(self.entry(self.NO_SUFFIX_KEY)["placeholder_reason"], "pdf-text-empty")
+        self.assertFalse(self.provenance()[-1]["conversion"]["ok"])
+
+    @unittest.skipIf(ingest.module_available("anydoc"), "本机装了 anydoc，替身不成立")
+    def test_an_optional_module_converts_and_names_itself_in_the_receipt(self) -> None:
+        fake = FakeOptionalConverter("# 无后缀流程文档\n\n阶段一：立项、初筛、尽调。\n")
+        with stub_module("anydoc", to_markdown=fake.to_markdown, __version__=ingest.ANYDOC_PIN):
+            report = self.ingest_one(self.NO_SUFFIX_REL, ooxml_zip("docx"))
+        self.assertEqual(report["counts"]["converted"], 1, report)
+        record = self.provenance()[-1]
+        self.assertEqual(record["converter"], {"name": "anydoc", "version": ingest.ANYDOC_PIN})
+        self.assertEqual(record["conversion"]["sniffed"], ".docx")
+        # 两个转换器都按后缀选解析器：递一个没后缀的临时文件过去，嗅探出来的
+        # docx 会被当纯文本处理，产物看不出错、账上也看不出错。
+        self.assertTrue(fake.paths and fake.paths[0].endswith(".docx"), fake.paths)
+
+    @unittest.skipIf(ingest.module_available("anydoc"), "本机装了 anydoc，替身不成立")
+    def test_a_module_conversion_that_returns_nothing_is_a_failure_in_the_receipt(self) -> None:
+        # 反空转：转出 0 字按失败处理（蓝本 DI-006 的教训——转"成功"但 0 字
+        # 且静默）。件仍然落地，但落的是说得出原因的占位。
+        fake = FakeOptionalConverter("   \n  ")
+        with stub_module("anydoc", to_markdown=fake.to_markdown):
+            report = self.ingest_one(self.NO_SUFFIX_REL, ooxml_zip("docx"))
+        self.assertEqual(report["counts"]["placeholder"], 1, report)
+        entry = self.entry(self.NO_SUFFIX_KEY)
+        self.assertEqual(entry["placeholder_reason"], "anydoc-convert-empty")
+        self.assertGreater(entry["size"], 0, "占位件本身不许是空正文")
+        record = self.provenance()[-1]
+        self.assertEqual(record["conversion"], {
+            "ok": False, "reason": "anydoc-convert-empty",
+            "format": "docx", "handling": "module-text", "sniffed": ".docx",
+        })
+
+    @unittest.skipIf(ingest.module_available("anydoc"), "本机装了 anydoc，缺失分支不成立")
+    def test_a_missing_converter_lands_as_a_rerun_candidate_not_as_silence(self) -> None:
+        report = self.ingest_one(
+            "2026-08/2026-08-14/2095046023776104470-合同.docx", ooxml_zip("docx")
+        )
+        self.assertEqual(report["counts"]["placeholder"], 1, report)
+        entry = self.entry("cwork:2095046023776104470")
+        self.assertEqual(entry["placeholder_reason"], f"{ingest.CODE_CONVERTER_MISSING}:docx")
+        row = self.read_json_at(ingest.INGEST_STATE_REL)["items"]["cwork:2095046023776104470"]
+        self.assertEqual(row["status"], "placeholder")
+        # 状态账也要说得出理由：装上转换器那天，重跑名单是从这里查出来的。
+        self.assertEqual(row["reason"], f"{ingest.CODE_CONVERTER_MISSING}:docx")
+
+    def test_an_empty_source_never_becomes_a_zero_byte_raw_body(self) -> None:
+        # 直通面的反空转。空正文照样进索引、照样对得上哈希，只是永远问不出
+        # 东西——它在账上和一份好文档长得一模一样。
+        report = self.ingest_one("2026-08/2026-08-14/2095046023776104475-空件.md", b"\n  \n")
+        self.assertEqual(report["counts"]["placeholder"], 1, report)
+        entry = self.entry("cwork:2095046023776104475")
+        self.assertEqual(entry["placeholder_reason"], "passthrough-empty")
+
+
+class ReceiptChainTests(IngestFixture):
+    """RT-046 回执三链：converter{name,version} + 源 sha256 + 产物 sha256。
+
+    三链的用处只有一个——回答「现在库里的正文，是哪个转换器的哪个 build 造
+    的，从哪份字节造的」。所以两个 sha 必须能独立复算，而不是账里互相抄。
+    """
+
+    def test_a_converted_item_carries_all_three_links(self) -> None:
+        self.execute()
+        entry = self.read_json_at(ingest.RAW_INDEX_REL)["entries"]["cwork:2095046023776104449"]
+        record = self.provenance()[-1]
+        self.assertEqual(record["converter"],
+                         {"name": "passthrough", "version": ingest.BUILTIN_CONVERTER_VERSION})
+        self.assertEqual(record["origin_sha256"],
+                         ingest.sha256_bytes(self.backend.read(entry["originals"])))
+        self.assertEqual(record["artifact_sha256"],
+                         ingest.sha256_bytes(self.backend.read(entry["path"])))
+        self.assertTrue(record["conversion"]["ok"])
+
+    def test_the_receipt_separates_the_name_from_the_build(self) -> None:
+        # 一个把两者混在一起的字符串（docx:/opt/homebrew/bin/md2md）回答不了
+        # 「哪些正文是这一版转换器造的」，那正是换版时唯一要问的问题。
+        converter = self.base / "md2md"
+        converter.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        converter.chmod(0o755)
+        self.ingest_one(
+            "2026-08/2026-08-14/2095046023776104470-合同.docx", ooxml_zip("docx"),
+            env={ingest.ENV_DOCX_CONVERTER: str(converter)},
+            runner=lambda *a, **k: FakeProc(0, "# 合同正文\n\n足够长的一段内容。\n"),
+        )
+        record = self.provenance()[-1]
+        self.assertEqual(record["converter"],
+                         {"name": "docx-host", "version": ingest.UNKNOWN_VERSION})
+        self.assertEqual(record["converter_label"], f"docx:{converter}")
+
+    def test_a_skipped_item_still_gets_a_line_of_its_own(self) -> None:
+        self.ingest_one("2026-08/2026-08-14/2095046023776104473-附件.rar", b"Rar!\x1a\x07\x00")
+        record = self.provenance()[-1]
+        self.assertEqual(record["event"], "skipped")
+        self.assertEqual(record["converter"]["name"], "skip")
+        self.assertEqual(record["derived"], [])
 
 
 # ── status + reconcile ──────────────────────────────────────────────────────
