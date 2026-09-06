@@ -8,6 +8,15 @@ Usage::
         --backend local --root /path/to/kb --port 8787
     python3 scripts/kb_gateway.py --admin-key-env CWK_KB_ADMIN_KEY \\
         --backend nas --prefix libraries/工作库 --check
+    python3 scripts/kb_gateway.py --admin-key-env CWK_KB_ADMIN_KEY \\
+        --backend nas --prefix cwork-3m --kb docdb-touqian --kb spbp-2027 \\
+        --check
+
+Multi-library mode (RT-049).  ``--kb <prefix>`` (repeatable, NAS backend)
+mounts extra libraries behind one process; ``/query`` and ``/citation``
+take ``?kb=<kb_id>`` and the binding-token scope check answers for the
+*target* library.  ``--prefix`` stays the default library when ``kb`` is
+omitted, and single-library mode behaves exactly as before.
 
 Three verbs, all ``GET``, all answering ``application/json``:
 
@@ -95,7 +104,7 @@ from kb_storage import (  # noqa: E402
 )
 from kb_token import TokenDecision, TokenError, TokenFile  # noqa: E402
 
-GATEWAY_VERSION = "1.0.0"
+GATEWAY_VERSION = "1.1.0"
 GATEWAY_SCHEMA = "cwk.kb.gateway.v1"
 HEALTH_SCHEMA = "cwk.kb.gateway.health.v1"
 QUERY_SCHEMA = "cwk.kb.gateway.query.v1"
@@ -433,6 +442,7 @@ class GatewayApp:
         clock: Callable[[], object] = utc_now,
         tokens: Optional[TokenFile] = None,
         kb_id: str = "",
+        kb_mounts: Optional[Mapping[str, StorageBackend]] = None,
     ) -> None:
         self.backend = backend
         self.token = token
@@ -443,6 +453,14 @@ class GatewayApp:
         self.tokens = tokens
         #: This gateway's library identity, matched against ``token.kb_ids``.
         self.kb_id = kb_id
+        #: RT-049 mount table: kb_id -> backend.  The primary library is
+        #: always mounted under its own kb_id; ``kb_mounts`` carries the
+        #: ``--kb`` extras.  Nothing outside this table is reachable via
+        #: ``?kb=``.  Empty table = single-library mode: ``kb`` omitted
+        #: falls back to the primary backend (the v1 behaviour).
+        self.mounts: Dict[str, StorageBackend] = dict(kb_mounts or {})
+        if kb_id and kb_id not in self.mounts:
+            self.mounts[kb_id] = backend
 
     # -- auth ---------------------------------------------------------------
 
@@ -454,7 +472,7 @@ class GatewayApp:
         """
         return tokens_match(header_value(headers, TOKEN_HEADER), self.token)
 
-    def authorize(self, headers: Mapping[str, str]) -> Optional[Response]:
+    def authorize(self, headers: Mapping[str, str], kb_id: str = "") -> Optional[Response]:
         """``None`` when the caller may read; otherwise the refusal to send.
 
         Admin first, binding registry second.  The admin comparison runs
@@ -468,8 +486,10 @@ class GatewayApp:
         if self.tokens is None:
             return self.unauthorized("admin_token_mismatch")
 
+        # RT-049: the scope check answers for the *target* library — the
+        # resolved ``?kb=`` value, or the primary kb_id when omitted.
         decision: TokenDecision = self.tokens.decide(
-            presented, kb_id=self.kb_id, now=self.clock()
+            presented, kb_id=kb_id or self.kb_id, now=self.clock()
         )
         if decision.ok:
             return None
@@ -536,7 +556,12 @@ class GatewayApp:
         if path == "/health":
             return self.health()
 
-        refusal = self.authorize(headers)
+        # RT-049: ?kb= selects the target library for the two data routes.
+        # Resolved before the auth gate so a binding token's scope is judged
+        # against the library actually being asked about.
+        target_kb = (params.get("kb") or [""])[0].strip() or self.kb_id
+
+        refusal = self.authorize(headers, kb_id=target_kb)
         if refusal is not None:
             return refusal
 
@@ -588,16 +613,42 @@ class GatewayApp:
             return False, "后端可达，但库内没有 lineage 索引"
         return True, "后端可达，lineage 索引在位"
 
+    def _backend_for_kb(self, kb: str) -> Optional[StorageBackend]:
+        """RT-049: the backend serving ``kb``, or ``None`` when unknown.
+
+        An omitted ``kb`` resolves to the primary backend — exactly the v1
+        behaviour, in single- and multi-library mode alike.  An explicit
+        ``kb`` must name a mounted library: anything else is a 404 rather
+        than a silent fallthrough to the primary, because "asked for one
+        library, answered from another" is precisely the cross-library leak
+        this router exists to prevent.
+        """
+        if not kb:
+            return self.backend
+        return self.mounts.get(kb)
+
     def query(self, params: Mapping[str, List[str]]) -> Response:
         q = (params.get("q") or [""])[0]
         limit = (params.get("limit") or [str(DEFAULT_LIMIT)])[0]
+        backend = self._backend_for_kb((params.get("kb") or [""])[0].strip())
+        if backend is None:
+            return Response(
+                404,
+                error_payload(
+                    "unknown_kb",
+                    "kb 参数不在本网关的挂载面内",
+                ),
+            )
         try:
-            result = query_index(self.backend, q, limit=clamp_limit(limit))
+            result = query_index(backend, q, limit=clamp_limit(limit))
         except BackendUnavailable as exc:
             return Response(503, error_payload("backend_unavailable", str(exc)))
         except GatewayError as exc:
             return Response(400, error_payload("bad_request", str(exc)))
         payload = {"schema": QUERY_SCHEMA, "ok": True, "at": iso(self.clock())}
+        kb = (params.get("kb") or [""])[0].strip() or self.kb_id
+        if kb:
+            payload["kb"] = kb
         payload.update(result)
         return Response(200, payload)
 
@@ -614,8 +665,17 @@ class GatewayApp:
                 return Response(
                     400, error_payload("bad_request", f"version 必须是整数：{raw_version!r}")
                 )
+        backend = self._backend_for_kb((params.get("kb") or [""])[0].strip())
+        if backend is None:
+            return Response(
+                404,
+                error_payload(
+                    "unknown_kb",
+                    "kb 参数不在本网关的挂载面内",
+                ),
+            )
         try:
-            payload = build_citation(self.backend, lineage, version, now=self.clock())
+            payload = build_citation(backend, lineage, version, now=self.clock())
         except KeyError:
             return Response(
                 404,
@@ -772,6 +832,13 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--kb",
+        action="append",
+        default=[],
+        metavar="KB_ID",
+        help="附加挂载的库（nas prefix，可重复）；RT-049 多库路由：/query?kb=<KB_ID>",
+    )
+    parser.add_argument(
         "--check",
         action="store_true",
         help="只校验配置并输出启动卡 JSON，不绑定端口",
@@ -826,6 +893,12 @@ def tokens_card(app: GatewayApp) -> dict:
 
 def startup_card(args: argparse.Namespace, app: GatewayApp) -> dict:
     reachable, detail = app.probe()
+    card_extra: Dict[str, object] = {}
+    if len(app.mounts) > 1:
+        # Top level, next to ``routes``/``methods``: the mount table is a
+        # routing fact, not a storage fact — ``backend`` keeps describing the
+        # primary only.
+        card_extra["mounted_kbs"] = sorted(app.mounts)
     return {
         "schema": STARTUP_SCHEMA,
         "ok": True,
@@ -843,7 +916,12 @@ def startup_card(args: argparse.Namespace, app: GatewayApp) -> dict:
             "modes": ["admin"] + (["binding"] if app.tokens is not None else []),
         },
         "tokens": tokens_card(app),
-        "backend": {"kind": args.backend, "reachable": reachable, "detail": detail},
+        "backend": {
+            "kind": args.backend,
+            "reachable": reachable,
+            "detail": detail,
+        },
+        **card_extra,
         "note": "只读网关：进程内不含任何写动词（RT-044 两进程宪法）",
         "at": iso(utc_now()),
     }
@@ -853,18 +931,33 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     backend = None
     server = None
+    extra_backends: List[StorageBackend] = []
     try:
         assert_no_plaintext_credential_flags(argv)
         args = build_parser().parse_args(argv)
         token = token_from_env(args.admin_key_env)
         tokens = load_tokens(args)
+        primary_kb = (args.prefix or "").strip()
+        extra_kbs: List[str] = []
+        for kb in args.kb or []:
+            kb = (kb or "").strip()
+            if kb and kb != primary_kb and kb not in extra_kbs:
+                extra_kbs.append(kb)
+        if extra_kbs and args.backend != "nas":
+            raise GatewayError("--kb 附加挂载仅支持 nas 后端（local 后端一进程一根目录）")
         backend = build_backend(args.backend, root=parse_root(args.root), prefix=args.prefix)
+        kb_mounts: Dict[str, StorageBackend] = {}
+        for kb in extra_kbs:
+            mounted = build_backend("nas", prefix=kb)
+            kb_mounts[kb] = mounted
+            extra_backends.append(mounted)
         app = GatewayApp(
             backend,
             token,
             backend_kind=args.backend,
             tokens=tokens,
-            kb_id=(args.prefix or "").strip(),
+            kb_id=primary_kb,
+            kb_mounts=kb_mounts,
         )
         card = startup_card(args, app)
         sys.stdout.write(dumps(card).decode("utf-8"))
@@ -888,6 +981,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         if server is not None:  # pragma: no cover - only on shutdown
             server.server_close()
         close_backend(backend)
+        for extra in extra_backends:
+            close_backend(extra)
 
 
 if __name__ == "__main__":  # pragma: no cover - CLI entry

@@ -16,6 +16,10 @@ J5  全动词输出 JSON，Content-Type 为 application/json。
 RT-047 P2（``--tokens-file``）另有四条，见 ``BindingToken*Tests``：管理 token 先
 比、绑定登记表后查；命中即本库只读；吊销/过期 → 401；有效但不在授权面 → 403；
 不传 ``--tokens-file`` 时行为与 v1 逐字节一致。
+
+RT-049（多库路由）见 ``MultiLibrary*Tests``：``?kb=`` 选库、token scope 按
+目标库判、未挂载的库 404（``unknown_kb``，不回落主库）、CLI ``--kb`` 附加
+挂载（仅 nas 后端）。
 """
 
 from __future__ import annotations
@@ -157,6 +161,7 @@ def make_app(
     tokens=None,
     kb_id: str = "",
     now: datetime = FIXED_NOW,
+    kb_mounts=None,
 ) -> gateway.GatewayApp:
     return gateway.GatewayApp(
         backend,
@@ -165,6 +170,7 @@ def make_app(
         clock=lambda: now,
         tokens=tokens,
         kb_id=kb_id,
+        kb_mounts=kb_mounts,
     )
 
 
@@ -1224,6 +1230,243 @@ class CliTests(unittest.TestCase):
         )
         self.assertEqual(code, 2)
         self.assertEqual(payload["error"]["kind"], "PlaintextCredential")
+
+
+# ── RT-049: multi-library routing (?kb=) ────────────────────────────────────
+
+
+NEIGHBOUR_LINEAGE = "docdb:2091803503390433282"
+NEIGHBOUR_PATH = "raw/战略/2027路线图.md"
+NEIGHBOUR_BODY = "# 2027路线图\n\n三层业务结构：战略思想与逻辑、五年实施路线图、年度BP。" + "展开" * 40
+
+
+def seed_neighbour_kb() -> MemoryBackend:
+    """第二个库：与主库内容零交集，用来观察路由确实换了后端。"""
+    backend = MemoryBackend()
+    backend.write(
+        gateway.RAW_INDEX_REL,
+        dumps(
+            {
+                "schema": "cwk.kb.raw-index.v1",
+                "kb_code": "e" * 32,
+                "entries": {
+                    NEIGHBOUR_LINEAGE: {
+                        "path": NEIGHBOUR_PATH,
+                        "title": "2027战略路线图",
+                        "version": 1,
+                        "sha256": hashlib.sha256(NEIGHBOUR_BODY.encode("utf-8")).hexdigest(),
+                        "status": "ok",
+                        "artifact_kind": "document",
+                    }
+                },
+            }
+        ),
+    )
+    backend.write(NEIGHBOUR_PATH, NEIGHBOUR_BODY.encode("utf-8"))
+    return backend
+
+
+class MultiLibraryCase(unittest.TestCase):
+    """一只网关、两个库：主库 + 挂载进来的邻居。"""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name) / "kb"
+        self.primary = seed_local_kb(self.root)
+        self.neighbour = seed_neighbour_kb()
+        self.registry = Path(self.tmp.name) / "tokens.json"
+        self.record, self.bearer = issue_binding_token(self.registry)
+        self.tokens = kb_token.TokenFile(self.registry)
+        self.app = make_app(
+            self.primary,
+            tokens=self.tokens,
+            kb_id=KB_ID,
+            kb_mounts={OTHER_KB: self.neighbour},
+        )
+
+    def get(self, target: str, token: Optional[str] = TOKEN, *, app=None):
+        headers = {} if token is None else {gateway.TOKEN_HEADER: token}
+        return (app or self.app).dispatch("GET", target, headers)
+
+
+class MultiLibraryRoutingTests(MultiLibraryCase):
+    """RT-049 — ?kb= 选库；省略 = 主库（v1 行为）；未知库 404 不回落。"""
+
+    def test_an_omitted_kb_still_means_the_primary_library(self) -> None:
+        response = self.get("/query?q=供货")
+        self.assertEqual(response.status, 200)
+        self.assertEqual([h["lineage_id"] for h in response.payload["results"]], [LINEAGE])
+        self.assertEqual(response.payload.get("kb"), KB_ID)
+        # 邻居库的词在主库里问，就是问不到——路由不会回落到邻居
+        response = self.get("/query?q=路线图")
+        self.assertEqual(response.payload["matched"], 0)
+
+    def test_kb_selects_the_mounted_library(self) -> None:
+        response = self.get(f"/query?q=路线图&kb={OTHER_KB}")
+        self.assertEqual(response.status, 200)
+        self.assertEqual(
+            [h["lineage_id"] for h in response.payload["results"]], [NEIGHBOUR_LINEAGE]
+        )
+        self.assertEqual(response.payload["kb"], OTHER_KB)
+
+    def test_the_primary_is_reachable_by_its_own_kb_id(self) -> None:
+        response = self.get(f"/query?q=供货&kb={KB_ID}")
+        self.assertEqual(response.status, 200)
+        self.assertEqual(response.payload["results"][0]["lineage_id"], LINEAGE)
+        self.assertEqual(response.payload["kb"], KB_ID)
+
+    def test_citation_routes_by_kb(self) -> None:
+        response = self.get(f"/citation?lineage={NEIGHBOUR_LINEAGE}&kb={OTHER_KB}")
+        self.assertEqual(response.status, 200)
+        self.assertIn("三层业务结构", response.payload["excerpt"])
+        # 同一个 lineage 不带 kb：主库索引里没有它，404 而不是答非所问
+        for target in (
+            f"/citation?lineage={NEIGHBOUR_LINEAGE}",
+            f"/citation?lineage={NEIGHBOUR_LINEAGE}&kb={KB_ID}",
+        ):
+            with self.subTest(target=target):
+                self.assertEqual(self.get(target).status, 404)
+
+    def test_an_unknown_kb_is_404_and_discloses_nothing(self) -> None:
+        for target in (
+            "/query?q=合同&kb=libraries/不存在",
+            f"/citation?lineage={LINEAGE}&kb=nope",
+        ):
+            with self.subTest(target=target):
+                response = self.get(target)
+                self.assertEqual(response.status, 404)
+                self.assertEqual(response.payload["error"]["kind"], "unknown_kb")
+        # 404 的身体里没有挂载面——枚举不到下一个库
+        blob = json.dumps(
+            self.get("/query?q=合同&kb=libraries/不存在").payload, ensure_ascii=False
+        )
+        self.assertNotIn(OTHER_KB, blob)
+        self.assertNotIn(KB_ID, blob)
+
+    def test_the_router_answers_over_a_real_socket(self) -> None:
+        server = RunningGateway(self.app)
+        self.addCleanup(server.close)
+        status, _headers, payload = server.json(f"/query?q=路线图&kb={OTHER_KB}")
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["kb"], OTHER_KB)
+
+
+class MultiLibraryAuthTests(MultiLibraryCase):
+    """RT-049 — token 的 scope 按「目标库」判：授权面不含 ?kb= 指的库就是 403。"""
+
+    def test_a_single_scope_token_is_403_on_the_mounted_neighbour(self) -> None:
+        self.assertEqual(self.get("/query?q=路线图").status, 200)
+        response = self.get(f"/query?q=路线图&kb={OTHER_KB}", self.bearer)
+        self.assertEqual(response.status, 403)
+        self.assertEqual(response.payload["error"]["kind"], "forbidden")
+        # 403 不泄露网关挂了哪些库
+        blob = json.dumps(response.payload, ensure_ascii=False)
+        self.assertNotIn(OTHER_KB, blob)
+        # 邻居的 citation 也一样拒绝
+        self.assertEqual(
+            self.get(f"/citation?lineage={NEIGHBOUR_LINEAGE}&kb={OTHER_KB}", self.bearer).status,
+            403,
+        )
+
+    def test_a_token_scoped_to_both_libraries_reads_both(self) -> None:
+        self.registry.unlink()
+        _record, bearer = issue_binding_token(self.registry, kb_ids=(KB_ID, OTHER_KB))
+        app = make_app(
+            self.primary,
+            tokens=kb_token.TokenFile(self.registry),
+            kb_id=KB_ID,
+            kb_mounts={OTHER_KB: self.neighbour},
+        )
+        for target in ("/query?q=供货", f"/query?q=路线图&kb={OTHER_KB}"):
+            with self.subTest(target=target):
+                self.assertEqual(self.get(target, bearer, app=app).status, 200)
+
+    def test_the_admin_token_reads_every_mounted_library(self) -> None:
+        for target in ("/query?q=供货", f"/query?q=路线图&kb={OTHER_KB}"):
+            with self.subTest(target=target):
+                self.assertEqual(self.get(target, TOKEN).status, 200)
+
+    def test_a_wrong_token_is_401_whatever_kb_it_names(self) -> None:
+        response = self.get(f"/query?q=路线图&kb={OTHER_KB}", "wrong-token")
+        self.assertEqual(response.status, 401)
+
+
+class MultiLibraryCliTests(unittest.TestCase):
+    """RT-049 — CLI ``--kb``：local 后端拒绝；nas 后端进挂载表与启动卡。"""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name) / "kb"
+        seed_local_kb(self.root)
+
+    def run_cli(self, argv, env=None) -> Tuple[int, dict, str]:
+        out, err = io.StringIO(), io.StringIO()
+        patched = dict(os.environ)
+        patched.update(env or {})
+        with mock.patch.dict(os.environ, patched, clear=True):
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                code = gateway.main(argv)
+        return code, json.loads(out.getvalue()), err.getvalue()
+
+    def nas_argv(self, *extra: str) -> List[str]:
+        return [
+            "--admin-key-env",
+            "KB_ADMIN",
+            "--backend",
+            "nas",
+            "--prefix",
+            KB_ID,
+            "--check",
+            *extra,
+        ]
+
+    def test_extra_mounts_are_refused_on_the_local_backend(self) -> None:
+        code, payload, _err = self.run_cli(
+            [
+                "--admin-key-env",
+                "KB_ADMIN",
+                "--root",
+                str(self.root),
+                "--prefix",
+                KB_ID,
+                "--kb",
+                OTHER_KB,
+                "--check",
+            ],
+            env={"KB_ADMIN": ADMIN_KEY},
+        )
+        self.assertEqual(code, 2)
+        self.assertIn("nas", payload["error"]["message"])
+
+    def test_the_startup_card_lists_the_mounted_libraries(self) -> None:
+        primary = seed_local_kb(self.root)
+        neighbour = seed_neighbour_kb()
+
+        def fake_build(kind, root=None, prefix=""):
+            return primary if prefix == KB_ID else neighbour
+
+        # --kb 给两遍：重复项去重，挂载面仍是主库 + 邻居两个
+        with mock.patch.object(gateway, "build_backend", side_effect=fake_build):
+            code, payload, _err = self.run_cli(
+                self.nas_argv("--kb", OTHER_KB, "--kb", OTHER_KB),
+                env={"KB_ADMIN": ADMIN_KEY},
+            )
+        self.assertEqual(code, 0, payload)
+        self.assertEqual(payload["mounted_kbs"], sorted([KB_ID, OTHER_KB]))
+        self.assertTrue(payload["backend"]["reachable"])
+
+    def test_a_kb_equal_to_the_prefix_is_not_mounted_twice(self) -> None:
+        primary = seed_local_kb(self.root)
+        with mock.patch.object(gateway, "build_backend", return_value=primary):
+            code, payload, _err = self.run_cli(
+                self.nas_argv("--kb", KB_ID), env={"KB_ADMIN": ADMIN_KEY}
+            )
+        self.assertEqual(code, 0, payload)
+        # 只挂了主库一只：卡片不列 mounted_kbs（与 v1 卡片形状一致），
+        # 整张卡序列化后也不该出现这个词
+        self.assertNotIn("mounted_kbs", json.dumps(payload, ensure_ascii=False))
 
 
 if __name__ == "__main__":  # pragma: no cover
