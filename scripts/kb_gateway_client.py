@@ -29,7 +29,7 @@ from typing import Mapping, Optional
 ENV_URL = "CWK_KB_GW_URL"
 ENV_TOKEN = "CWK_KB_GW_TOKEN"
 TOKEN_HEADER = "X-KB-Token"
-DEFAULT_TIMEOUT = 5.0
+DEFAULT_TIMEOUT = 300.0
 
 OPERATIONS = (
     "capabilities",
