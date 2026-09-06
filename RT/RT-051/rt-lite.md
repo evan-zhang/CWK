@@ -250,3 +250,11 @@ refresh接线在所有source execute_plan和save_refresh_state最终收尾后；
   句柄跨类型/跨库隔离、过期恢复）；make test 快车道绿；双门禁绿。
   P1a 诚实边界：传输级有界读与 OPS 快照 builder 留 P1b；本层每请求全读
   是 citation 同款退化形式，full_sha_verified=true 正因实读验证。
+
+- 2026-09-06 P2 落地（提交见 feature 分支）：fakeNAS 出口判据收口
+  （分页穿 FileStation 到 EOF 逐字节拼回+SHA 对账；源覆写漂移 409 拒读）。
+  **真工具接线**：新增 scripts/kb_gateway_client.py（薄客户端：env 注入
+  连接配置、错误不带 URL、exit 0/1/2）+ kb_wizard 8 个 read-side 动词
+  （open=resolve 别名，无 backend 旗标，成功原样透传 v2 schema）。
+  专项 40+14 例绿、回归 204 绿、make test 快车道绿、双门禁绿。
+  剩余：P3 词法融合、P4 脱敏验收（A01–A12）。
