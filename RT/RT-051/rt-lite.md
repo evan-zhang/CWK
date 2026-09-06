@@ -258,3 +258,16 @@ refresh接线在所有source execute_plan和save_refresh_state最终收尾后；
   （open=resolve 别名，无 backend 旗标，成功原样透传 v2 schema）。
   专项 40+14 例绿、回归 204 绿、make test 快车道绿、双门禁绿。
   剩余：P3 词法融合、P4 脱敏验收（A01–A12）。
+
+- 2026-09-06 P3a 落地（提交 08b6d07）：scripts/kb_lexical.py 词法原语纯函数层——
+  tokenize（CJK 1/2/3-gram；ASCII 小写整词项，AB-017≠017）、chunk_body
+  （码点 800/硬 1200/重叠 ≤120、行边界优先、单块连续 span、双游标前向
+  pass 字节映射）、BM25（k1=1.5/b=0.75、idf=ln(1+(N-df+0.5)/(df+0.5)) 空集
+  0、每文档取最高块分）、best_spans（每文 ≤3 不重叠）、rrf=1/(60+rank)。
+  零存储依赖；正文抽取（CWork envelope/frontmatter）属 builder 层。
+  治理：code-ownership-manifest 增 R-runtime-rt051-controlled-read-lexical
+  （认领 kb_gateway_client+kb_lexical，P2 的孤儿账一并还清；合成基线
+  GA-STALE-RULE 抓到代表文件缺失——夹具清单同步 +2，交叉验证生效实证）。
+  测试 28 例 + 治理 62 + RT-051 回归 232 + 快车道 + 双门禁全绿。
+  剩余 P3b：builder（正文抽取→建代→原子发布）、gateway 融合路由
+  （cwk.kb.search.v2/RRF/同资格域）、refresh 最终点 hook；P4 验收。
