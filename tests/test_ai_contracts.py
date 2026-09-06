@@ -534,5 +534,89 @@ class AIContractTests(unittest.TestCase):
             self.assertIn("ai-quality-review", outputs)
 
 
+class CodexTransportTests(unittest.TestCase):
+    """RT-047 后续：CWK_AI_TRANSPORT=codex 走 codex exec（OPS 精编通道）."""
+
+    def _fake_codex_success(self, project, payload, captured=None):
+        def communicate(timeout=None, input=None):
+            if captured is not None:
+                captured["input"] = input
+            for prompt in project.glob("codex-test-*.txt"):
+                prompt.with_suffix(".last-message").write_text(
+                    json.dumps(payload, ensure_ascii=False), encoding="utf-8"
+                )
+            return ("stream noise", "")
+        return SimpleNamespace(returncode=0, communicate=communicate)
+
+    def test_codex_transport_builds_read_only_command_and_parses_last_message(self):
+        payload = {"schema_version": RECORD_SCHEMA, "report_id": "1"}
+        captured = {}
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory)
+            success = self._fake_codex_success(project, payload, captured)
+            with (
+                patch("cwk_ai_common.PROJECT", project),
+                patch("cwk_ai_common.subprocess.Popen", return_value=success) as popen,
+                patch("cwk_ai_common.subprocess.run") as cleanup,
+                patch.dict("os.environ", {
+                    "CWK_AI_TRANSPORT": "codex",
+                    "CWK_CODEX_BIN": "/fake/codex",
+                }, clear=False),
+            ):
+                result = invoke_openclaw_json("safe prompt", model="newapi/BD-glm", stage="codex-test", timeout_seconds=1, prompt_dir=project)
+        self.assertEqual(result, payload)
+        command = popen.call_args.args[0]
+        self.assertEqual(command[0], "/fake/codex")
+        self.assertEqual(command[1], "exec")
+        self.assertIn("read-only", command)
+        self.assertIn("BD-glm", command)  # provider 前缀已剥离
+        self.assertNotIn("newapi/BD-glm", command)
+        self.assertEqual(popen.call_args.kwargs["stdin"], subprocess.PIPE)
+        self.assertIn("safe prompt", captured["input"])
+        self.assertEqual(cleanup.call_count, 0)  # 无会话需要清理
+
+    def test_codex_transport_falls_back_to_stdout_when_last_message_missing(self):
+        payload = {"schema_version": RECORD_SCHEMA, "report_id": "2"}
+        proc = SimpleNamespace(returncode=0, communicate=lambda timeout=None, input=None: (json.dumps(payload), ""))
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory)
+            with (
+                patch("cwk_ai_common.PROJECT", project),
+                patch("cwk_ai_common.subprocess.Popen", return_value=proc),
+                patch("cwk_ai_common.subprocess.run"),
+                patch.dict("os.environ", {
+                    "CWK_AI_TRANSPORT": "codex",
+                    "CWK_CODEX_BIN": "/fake/codex",
+                }, clear=False),
+            ):
+                result = invoke_openclaw_json("safe prompt", model="newapi/BD-glm", stage="codex-test", timeout_seconds=1, prompt_dir=project)
+        self.assertEqual(result, payload)
+
+    def test_transport_rejects_unknown_value_mentioning_codex(self):
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory)
+            with patch.dict("os.environ", {"CWK_AI_TRANSPORT": "carrier-pigeon"}, clear=False):
+                with self.assertRaisesRegex(ValueError, "codex"):
+                    invoke_openclaw_json("p", model="newapi/BD-glm", stage="codex-test", timeout_seconds=1, prompt_dir=project)
+
+    def test_codex_prompt_and_last_message_files_are_cleaned_up(self):
+        payload = {"schema_version": RECORD_SCHEMA, "report_id": "3"}
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory)
+            success = self._fake_codex_success(project, payload)
+            with (
+                patch("cwk_ai_common.PROJECT", project),
+                patch("cwk_ai_common.subprocess.Popen", return_value=success),
+                patch("cwk_ai_common.subprocess.run"),
+                patch.dict("os.environ", {
+                    "CWK_AI_TRANSPORT": "codex",
+                    "CWK_CODEX_BIN": "/fake/codex",
+                }, clear=False),
+            ):
+                invoke_openclaw_json("safe prompt", model="newapi/BD-glm", stage="codex-test", timeout_seconds=1, prompt_dir=project)
+            leftovers = list(project.glob("codex-test-*"))
+        self.assertEqual(leftovers, [])
+
+
 if __name__ == "__main__":
     unittest.main()

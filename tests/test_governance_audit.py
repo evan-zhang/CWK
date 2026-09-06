@@ -82,6 +82,10 @@ _COPY_FILES = (
     "RT/RT-040/receipts/script-evolution-v2/rt040-reply-refresh-ord2.json",
     "RT/RT-040/migration-notes/rt040-reply-refresh-ord2.md",
     "RT/RT-040/rt-lite.md",
+    # RT-048：legacy 族 cwk_ai_common.py 的第三次演化（codex transport）。
+    "RT/RT-048/receipts/script-evolution-v2/rt048-codex-transport-ord1.json",
+    "RT/RT-048/migration-notes/rt048-codex-transport-ord1.md",
+    "RT/RT-048/rt-lite.md",
 )
 
 # 每条规则至少要有一个代表文件，否则会触发 GA-STALE-RULE（失效规则）。

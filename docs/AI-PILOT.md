@@ -71,6 +71,30 @@ pinned to `.cwk-ai-runtime`); the config-level zero-tool policy applies only
 to the default `agent` transport. Hosts that already provisioned the dedicated
 reviewer keep the default and are unaffected.
 
+## Codex CLI transport: `CWK_AI_TRANSPORT=codex`
+
+Production hosts whose OpenClaw is too old for `agent exec --model` (OPS sits
+on 2026.4.15 and runs a gateway service that a binary upgrade would disturb)
+can route AI calls through the host's logged-in Codex CLI instead (RT-048). Set:
+
+```bash
+CWK_AI_TRANSPORT=codex
+CWK_CODEX_BIN=codex          # optional: pin the binary path
+```
+
+Each call runs `codex exec --sandbox read-only --skip-git-repo-check` with the
+prompt on stdin (argv-limit safe) and the final reply captured through the
+`-o` last-message file (stdout is streaming process noise; the file is the
+authoritative output, stdout only a fallback). The model ID is stripped of
+the CWK provider prefix because Codex authenticates with the host's ChatGPT
+account. Everything else stays enforced: the CWK model allowlist (plus the
+`CWK_TEMP_GPT56_BATCH=1` time-boxed override for GPT-5.6), the JSON-only
+transform prompt, the secret-scrubbed subprocess environment, timeout with
+process-group termination, and retries. Isolation is invocation-level and
+read-only: the reviewer is a pure text-to-JSON transform and has no reason to
+write anywhere. Verified on OPS 2026-09-06 with codex-cli 0.153.4 and
+`gpt-5.6-terra`.
+
 ## Configuration
 
 ```bash

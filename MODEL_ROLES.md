@@ -12,6 +12,10 @@
 
 **禁止用于 CWK 流水线的模型**: `openai/gpt-*`, `claude-*`, `grok-*`, 以及其他任何非上述两个 ID 的模型。代码中的 `assert_cwk_model()` 会在每次 AI 调用前拒绝不在 allowlist 内的模型 ID。
 
+## 时间盒批跑通道（GPT-5.6，临时）
+
+代码层存在一个显式的时间盒批次覆盖（`TEMPORARY_GPT56_BATCH_MODELS`）：仅当人工设置 `CWK_TEMP_GPT56_BATCH=1` 时，`openai/gpt-5.6-sol` 与 `openai/gpt-5.6-terra` 追加进允许清单，供一次性精编冲刺使用；普通 CWK 运行仍拒绝 GPT 系。2026-09-06 实测（RT-048）：OPS 上经 `CWK_AI_TRANSPORT=codex` 直调 `gpt-5.6-terra` 返回合约 JSON 可用；lulu / 5.6-codex / 5.6-codex-mini 被 ChatGPT 账号拒绝，newapi 中转无 5.6 系（双路确认不可用）。
+
 ## 角色分配
 
 ### Role 1 — 云Wiki摘要编译 (cloud-wiki-compile)

@@ -285,6 +285,18 @@ def _parse_exec_result(stdout: str) -> dict[str, Any]:
     return extract_json_object(final_text)
 
 
+def _parse_codex_result(last_message: Path | None, stdout: str) -> dict[str, Any]:
+    """解析 codex exec：优先 -o 落盘的最终回复，缺失时退回 stdout。"""
+    text = ""
+    if last_message is not None and last_message.is_file():
+        text = last_message.read_text(encoding="utf-8", errors="replace")
+    if not text.strip():
+        text = stdout
+    if not text.strip():
+        raise RuntimeError("codex exec returned no model output")
+    return extract_json_object(text)
+
+
 def invoke_openclaw_json(
     prompt: str,
     *,
@@ -300,13 +312,15 @@ def invoke_openclaw_json(
     # RT-034：单 agent 沙箱部署没有第二个可配置的 Agent。transport="exec" 时
     # 走 `openclaw agent exec` 的一次性无头回合（用宿主已配置的模型凭据），
     # 不需要任何预配置 reviewer Agent；默认 transport="agent" 行为完全不变。
+    # RT-047 迁移后 OPS 的 openclaw 过旧（agent exec 无 --model），transport=
+    # "codex" 改走 `codex exec`（宿主 ChatGPT 登录态），同样是一次性无头回合。
     transport = os.environ.get("CWK_AI_TRANSPORT", "agent").strip().lower() or "agent"
-    if transport not in ("agent", "exec"):
+    if transport not in ("agent", "exec", "codex"):
         raise ValueError(
-            f"CWK_AI_TRANSPORT must be 'agent' or 'exec', got {transport!r}"
+            f"CWK_AI_TRANSPORT must be 'agent', 'exec' or 'codex', got {transport!r}"
         )
     agent_id: str | None = os.environ.get("CWK_AI_AGENT_ID", "cwk-ai-reviewer")
-    if transport == "exec":
+    if transport in ("exec", "codex"):
         agent_id = None
     else:
         assert_safe_ai_agent(agent_id)
@@ -321,6 +335,7 @@ def invoke_openclaw_json(
     for attempt in range(attempts):
         prompt_dir.mkdir(parents=True, exist_ok=True)
         prompt_path: Path | None = None
+        last_message_path: Path | None = None
         session_id = str(uuid.uuid4())
         try:
             with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=prompt_dir, prefix=f"{stage}-", suffix=".txt", delete=False) as handle:
@@ -329,7 +344,23 @@ def invoke_openclaw_json(
             # Start a new process group.  The OpenClaw CLI can leave its
             # gateway child alive after its own timeout; killing only the CLI
             # then leaves this caller blocked in ``communicate`` forever.
-            if agent_id is None:
+            if transport == "codex":
+                # codex exec：prompt 走 stdin（长文安全，避开 argv 上限），最终
+                # 回复落 -o 文件（stdout 是流式过程噪声）；read-only 沙箱——
+                # reviewer 调用是纯文本→JSON 变换，没有理由给它写盘。模型 ID
+                # 去掉 CWK 的 provider 前缀（codex 用自己的 ChatGPT 账号）。
+                last_message_path = prompt_path.with_suffix(".last-message")
+                command = [
+                    os.environ.get("CWK_CODEX_BIN", "codex"),
+                    "exec",
+                    "--sandbox", "read-only",
+                    "--skip-git-repo-check",
+                    "-C", str(runtime_workspace),
+                    "-m", model.split("/", 1)[-1],
+                    "-o", str(last_message_path),
+                    "-",
+                ]
+            elif agent_id is None:
                 command = [
                     "openclaw",
                     "agent",
@@ -370,12 +401,18 @@ def invoke_openclaw_json(
                 cwd=str(runtime_workspace),
                 env=sanitized_ai_environment(),
                 text=True,
+                stdin=subprocess.PIPE if transport == "codex" else None,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 start_new_session=True,
             )
             try:
-                stdout, stderr = proc.communicate(timeout=timeout_seconds + 30)
+                if transport == "codex":
+                    stdout, stderr = proc.communicate(
+                        input=instruction, timeout=timeout_seconds + 30
+                    )
+                else:
+                    stdout, stderr = proc.communicate(timeout=timeout_seconds + 30)
             except subprocess.TimeoutExpired:
                 try:
                     os.killpg(proc.pid, signal.SIGTERM)
@@ -391,11 +428,14 @@ def invoke_openclaw_json(
                     proc.communicate()
                 raise
             if proc.returncode == 0:
-                result = (
-                    _parse_exec_result(stdout)
-                    if agent_id is None
-                    else extract_json_object(stdout)
-                )
+                if transport == "codex":
+                    result = _parse_codex_result(last_message_path, stdout)
+                else:
+                    result = (
+                        _parse_exec_result(stdout)
+                        if agent_id is None
+                        else extract_json_object(stdout)
+                    )
                 if "error" in result and "schema_version" not in result:
                     raise RuntimeError(f"agent returned error: {compact(result.get('error'), 400)}")
                 return result
@@ -405,6 +445,8 @@ def invoke_openclaw_json(
         finally:
             if prompt_path and prompt_path.exists():
                 prompt_path.unlink()
+            if last_message_path and last_message_path.exists():
+                last_message_path.unlink()
             # Reviewer calls are one-shot transforms. Keeping their transcripts
             # indefinitely bloats the gateway session index and delays user turns.
             # exec 模式是一次性本地回合，不进 gateway 会话索引，无需清理。

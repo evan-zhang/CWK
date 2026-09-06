@@ -1,0 +1,11 @@
+{
+  "schema": "cwk.governance.script_evolution_receipt.v2",
+  "overlay_version": "v2",
+  "owner_rt": "RT-048",
+  "target_path": "scripts/cwk_ai_common.py",
+  "ordinal": 1,
+  "from_sha256": "47a6161fdcc62accd50ea43986888629b67639fe8d043d89971a0ee4e23d8eae",
+  "to_sha256": "08d70dc75bea8f421bd9cdec2cd88574d2628e941f3c09c19cb320a67b7ff634",
+  "migration_note_ref": "RT/RT-048/migration-notes/rt048-codex-transport-ord1.md",
+  "rt_ref": "RT/RT-048/rt-lite.md"
+}
