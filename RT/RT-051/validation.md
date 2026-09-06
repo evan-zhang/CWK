@@ -1,41 +1,35 @@
-# RT-051 文档验证回执
+# RT-051 本轮文档验证回执
 
-本轮检查对象仅RT设计资料，产品未实现/未验收。唯一设计见 [rt-lite.md](rt-lite.md)。
+检查日期2026-09-06。**修订基线effb1de；本轮只改已有RT文档，产品未实现/未验收。** 历史初稿检查（含44份sources核验）可用`git show effb1de:RT/RT-051/validation.md`读取；本轮没有重核44项，也没有生成新hash清单。
 
-## 检查结果
+## 本轮实际检查
 
-检查日期2026-09-06；系统时钟读取到2026-09-06T11:12:35Z（非推测）。最终本地commit及提交后范围核验以原会话交付回执为准，不在同一commit正文里伪造自引用commit ID。
+- AODW宪章、AGENTS、交互/overview/Git/判据/Spec-Lite已读；rigorous-plan-methodology和4份references完整读取作作者自查。
+- 初始HEAD `effb1decec71d30a73b3af4abbce78825b212347`、本树/暂存干净；9个worktree状态及branch-only非RT差异检查无本RT重叠开发。旧entity树仅未跟踪RT010目录，未读其内容。
+- main初检 `fe9f85870c6c7030d72e55a3d2d23c8697ea609e`：RT050新增vanished及ingest/测试/create Skill漂移已定向读diff；其RT050文档当时未提交。随后main为`a9209d3d5bcbe0a68ccbdd9e8284144687ff39b4`，仅新增RT050文档提交，复查main工作区干净。未合并、rebase或覆盖。
+- 定向源码观察仅evidence末尾列出的gateway/storage/wizard/ingest/query Skill/RT044 CLI合同及main差异；未访问真实库、凭据/.env/API。
+- `bash .aodw-next/tools/rt-guard.sh --root . --rt RT-051 --format json`：exit0，**pass12/error0/warn2**。保留G109（本分支index无051）、G001（共享pre-commit hook未安装），不改index/规范消红。G110扫描5篇但file:line/§匹配0，不将其当相对链接全部核验。
+- 自写内存检查器逐个解析5份Markdown相对文件链接、校验内部锚点（如有）、围栏配对/尾部空白；逐个解析rt-lite JSON示例，检查空文SHA/UTF8 bytes和完整工具schema分支。结果和计数由实际执行回执记录于下方，不把这些文档检查当产品行为测试。
+- 精确修改范围为rt-lite、acceptance-matrix、developer-handover、validation、meta、evidence六文件；sources.json保持历史字节。暂存前后`git diff --check`，精确暂存路径后cached范围/check；提交后由会话核实parent、show、clean状态及非RT/历史sources未改。
 
-| 检查 | 实际结果 | 结论边界 |
-|---|---|---|
-| Markdown围栏/尾部空白 | 初检发现evidence.md一行尾空白，已修复；复查5份Markdown无错误 | 初检失败未隐瞒；不修改产品代码 |
-| 相对文件链接 | 41处逐个解析，全部目标存在；无需要验证的内部anchor链接 | 不仅依赖AODW弱引用scanner；拟议新模块路径只写code文字，不伪造现有链接 |
-| 源码证据 | sources.json的44份文件：工作树字节、固定commit的git show字节、SHA/行数/区间相符；5份methodology文件摘要相符 | 只证明取证引用有效；不是实现或线上状态证明 |
-| `git diff --cached --check` | 精确暂存7份本RT文档后通过 | 覆盖未跟踪新文档加入后的diff，不仅检查meta |
-| 授权范围 | 暂存项全在RT/RT-051，产品scripts/tests、规范.aodw-next/AGENTS相对80b8b85无diff | 本轮未写实现/测试/配置/规范/运行数据 |
-| RT-051定向AODW | `bash .aodw-next/tools/rt-guard.sh --root . --rt RT-051 --format json`：pass12、error0、warn2、exit0 | G109索引快照未登记；G001共享pre-commit hook未安装 |
-| AODW引用细节 | `--scan-refs` exit0；扫描5篇但该格式识别的file:line/§共0条 | **零匹配不等于所有引用已查**，相对链接和sources.json另行实核 |
-| 只读花名册诊断 | 本worktree目录有RT-051，index快照无051；其余目录/index集合一致 | 不运行/声称全仓make aodw-check通过，也不修改index/规范消告警 |
-| 主线漂移 | main已前进到bb414a63c78371e8aca57d38ed96a18dc32582a3，只改RT-050/rt-lite.md和RT/index.yaml，四个kb入口无改动；main暂存区/工作树干净 | 另一会话补了051索引；G109仅描述本分支快照。本轮未合并/rebase/撤销该提交 |
-| 第三方工作树 | /tmp/yuxi-study在fd0d9c4f48ba0e4701457196a2f967232be6091c，复查工作树干净 | 未复制第三方实现，未安装依赖/跑模型 |
+## 内容一致性核对（作者直接读产出，不是独立验收）
 
-上述检查在最终暂存/提交前复跑。提交后另以 `git show --name-status`、commit-range `diff --check`、本worktree/main的status核对；精确commit写在最终回复，避免“文件声称已提交”作为唯一依据。
+1. C01–C06基础访问先于C07词法，P1/P2→P3；D项不再把用户已确认的完整访问列待选范围。
+2. 文档ref绑定源版本/SHA而不绑定generation；chunk命中与已知lineage都走同reader；安全byte/行范围可读，传输编码与SHA一致。
+3. source无法核验拒读，只有lexical坏不阻断已知文件；每页前后鉴权/映射核查，撤权不能由snapshot绕过。
+4. gateway零NAS/local持久写；OPS broker接受明确prepare、builder流式全SHA后发布，read不触发写；GC/TTL/重试/磁盘与任务预算分离。
+5. 旧v1行为冻结兼容，新版能力/schema强校验拒假200；当前版覆写拒旧ref，旧bytes不可得不冒充。
+6. inspect把raw读取完整、转换完整、模型实际审阅分开；title缺失、空件、部分解析不能假绿；2–3词零不代表无资料。
+7. 12项A01–A12覆盖Issue逐项缺口与真实ingest→工具→CLI→gateway→backend链、破坏反例；没有API200/字符串存在自证产品通过。
+8. future Skills/规范/工具注册仍需相应授权，reviewer零工具不改；handover/meta均停方案门/代码授权之前；Issue不关闭。
 
-## 内容自查所得修订
+## 未运行/证据限制
 
-- 区分库级快照许可与未实现的源侧实时逐文档ACL；已知源删除/撤权不能由旧缓存复活，未知上游变化不能假称可实时发现。
-- 引文只核验原文真实性，不凭verified字段自动判定支持题意；人工gold仍必须核实。
-- 固定byte span/双SHA，禁止classify旧版本指向新正文或只给前500字符。
-- 排除generation ID和易变账本摘要的循环哈希/非确定性；相同logical源、相同引擎构建必须幂等。
-- 写入屏障、独立builder与gateway只读界限清晰；refresh释放源锁后builder再取，避免嵌套死锁；源不可核实时不允许metadata fallback绕过。
-- 所有性能与容量数字未测、未批准；不把历史133件、已有黄金题或旧原子性测试当生产证明。
+- 没跑make test/make ci或任何产品测试、NAS流式实验、FTS5/BM25评估、实际Agent工具链；没有新增代码/测试/配置/Skill/规范。
+- Codex o40MC61R/effb1de为父会话交接静态GO WITH CHANGES，本轮无再次委派/模型评审；会话记忆检索不可用，未伪造原始审核记录。
+- 所有预算为建议未测；真实NAS Range/流式TLS错误封装/单宿主源屏障/宿主工具注册/长文资源仍待开发实验，生产启用还需D02/D03。
+- 无真实raw/凭据/API、GitHub写操作、推送/合并/部署、worktree清理或后台开发。最终commit见会话交付，避免在本commit伪造自引用ID。
 
-## 未运行与禁止项
+## 机械检查计数
 
-- 未运行make test/make ci、长全量产品测试或新RT产品测试；未启动网关/摄取、未生成运行数据。
-- 未连接NAS/DocDB/CWork/Yuxi模型或任何真实API；未读凭据/私有raw。
-- 未做FTS5可用性探针、中文token实验或BM25跑分，C08所有数字都是待批准建议。
-- 未改共享hook、规范、业务配置、scheduler；未合并、推送、部署、清理任何worktree，未委派/spawn。
-- 文档检查只证明格式、链接、证据字节和Git边界；人工gold、方案批准、产品行为与生产验收均未完成。
-
-**终态：设计准备完成，等待方案门及代码开发授权；RT不关闭，无后台开发。**
+实跑结果：5份Markdown，40处相对文件链接、0处内部锚点，围栏/空白无错误；3个JSON块可解析，空文SHA/byte一致，工具schema10操作分支字段闭合；sources.json与effb1de字节一致；改动恰为六份允许文档。

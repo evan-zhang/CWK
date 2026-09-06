@@ -1,51 +1,47 @@
 # RT-051 开发前交接
 
-## 接手边界
+**本轮只完成设计修订，仍停方案门/代码授权之前；没有后台开发。** 不新建RT、不改Issue、不合并推送部署。唯一方案为 [rt-lite.md](rt-lite.md)，状态/目录见 [meta.yaml](meta.yaml)。
 
-**先审方案，后拿代码开发授权。没有后台开发任务。** 本轮用户只授权登记RT、建立独立工作目录、完善设计与资料。不得把这份交接当“同意做完”。不要另起重复RT，也不要自动合并、推送、部署或清理。
+## 最短复核入口
 
-生命周期、分支、工作目录的唯一权威是 [meta.yaml](meta.yaml)。它保持intaking，notes明确方案门待批准；不得改done/parked-design-only冒充实现完成。
+1. 读rt-lite开头目标与D01–D04：完整访问已确认，不再问要不要list/open/read；工程师负责推荐实现，用户只决定代码授权、生产拓扑/成本/权限边界。
+2. 查C01–C06：当前权威映射签ref，不依赖BM25/generation；安全范围与分页、SHA/完整性、OPS prepare/builder、gateway零持久写、真实CLI/tool接线。
+3. 查C07/P1–P3：**P1基础reader → P2实际Agent工具 → P3词法增强**，词法命中复用同reader，不另建citation路径。
+4. 对照 [acceptance-matrix.md](acceptance-matrix.md) 的A01–A12；[evidence.md](evidence.md) 末尾本轮审核处理表；[validation.md](validation.md) 本轮文档检查。sources.json仅历史基线，未重核44文件。
 
-### 文件导航
+## 基线与并发
 
-1. [rt-lite.md](rt-lite.md)：唯一方案；先看D01–D07，再读C01–C10与P0–P5。
-2. [evidence.md](evidence.md)：代码现况/相关RT与第三方观察，帮助判断范围重叠。
-3. [sources.json](sources.json)：commit、源码路径、已读行区间和SHA，供独立核验。
-4. [acceptance-matrix.md](acceptance-matrix.md)：待开发行为与故障映射，不是测试通过回执。
-5. [validation.md](validation.md)：本轮文档级检查、告警及检查边界。
+- 修订起点 `effb1decec71d30a73b3af4abbce78825b212347`，分支 `feature/RT-051-body-lexical-retrieval`。
+- 工作目录 `/Users/evan/.openclaw/gateways/life/state/workspace-life/projects/CWK/.claude/worktrees/RT-051-body-lexical-retrieval`。
+- 初检main=`fe9f858`，已有RT-050 vanished补丁（ingest/测试/create Skill）及其文档未提交；后续main继续前进，最终值见validation。无本RT重叠改动，未合并/rebase。开发前必须重核main、各worktree、暂存及实际重叠，不按旧基线覆盖别人代码。
+- 历史产品基线80b8b85、占号d63097d、sources.json均保留，不把main meta-only误认方案缺失；本分支index未补051，既有G109告警不改规范消红。
 
-没有第二份设计、没有handoff目录、没有产品实现文件或测试实现。
+## 尚需工程实验，不是另向用户询问范围
 
-## 关键Git依据
+- FileStation流式transport（含TLS pin/error envelope/取消/deadline）和OPS broker可用性；不假定NAS Range。
+- 单宿主所有source写入口的锁/fence覆盖、prepare/status接线、原子快照与GC读锁/硬TTL续读。
+- 真实ingest输出的title缺失/placeholder/partial可判定程度；未知完整性必须null，不自称完整转换。
+- 宿主工具注册的真实落点和允许列表、无NAS token包装；reviewer零工具保持。
+- 长文资源/元数据有界解析/中文token与BM25效果；建议预算未测，超成本才升级D02/D04。
 
-- 占号前产品主线：`80b8b850dd25c2527c18822923ccacae104205e8`。
-- main占号提交：`d63097d7095ac02c13207d3fac24667593d0d523`，只有 `RT/RT-051/meta.yaml`。
-- 文档提交可用当前RT分支的HEAD读取；最终完整commit在原会话交付回执中。禁止把main上的meta-only误判为方案丢失。
-- 仓库入口：`/Users/evan/.openclaw/gateways/life/state/workspace-life/projects/CWK`。
-- 本会话未修改RT/index.yaml；另一会话已在main提交bb414a63c78371e8aca57d38ed96a18dc32582a3，仅更新RT-050文档与index（含051登记）。本worktree未同步，因此G109会告警；不要擅自为了全仓绿色去合并、改共享索引或改规则。主线与本分支的生命周期显示差异以本RT worktree/meta为设计交接依据。
+源码未来写面为gateway/wizard/client/storage、OPS reader/builder/broker、ingest源屏障/refresh收尾、相应测试；Skills/治理登记须相应授权，本轮没有实际修改。读方不能import写模块；主raw可完整读不等于sheet/OCR/原附件转换已完整。
 
-## 给开发Agent的接手提示（可原样转交）
+## 给开发Agent的接手提示
 
-> 接手CWK的RT-051，只做方案门评审直到用户明确授权代码开发。先读仓库AODW宪章、交互规则、AGENTS、overview及RT/Spec-Lite/Git/测试规则，再按meta.yaml进入本RT已有独立worktree。主线产品代码取证基线80b8b85，先重查当前main、index、所有worktrees与kb_ingest/kb_gateway重叠，不凭本次回执假定仍无并发变化。rt-lite.md是唯一方案；逐项回应D01–D07，特别是库快照授权与实时源撤权差距、单写宿主屏障、主件而非sheet/意见JSON的范围、Python vs FTS5待实验及预算未测。源证据见sources.json，Yuxi只参考不复制、不调用模型/API。未获明确代码开发授权不写业务/测试/配置/规范；获准后按P1–P4逐阶段实现与验收，新增治理登记仍需权限与owner确认。不能接管或修改PR-001冻结ABI/legacy专属脚本，不自动合并、推送、部署或清理。进入代码开发前通知Evan。
+> 先读AODW宪章、交互规则、AGENTS、overview及本RT。只审方案直到用户明确允许写代码。本次用户已确认受控完整访问和Issue #2同RT，勿重新立项/裁剪成仅BM25；先C01–C06和P1–P2，再P3。先重核活跃worktrees及main RT050漂移，按owner协调源写屏障。以A01–A12真实脱敏工具链行为证明，不能只API200/0测试/查字符串。未授权不接触真实raw/API/凭据，不改Skills/规范，不给reviewer扩权，不关闭Issue。全部通过后仍停用户收口门，不自动合并推送部署。
 
-## 父会话/独立核验者的最小只读检查
+## 父会话独立核验（最短只读命令）
 
-在meta指定的工作目录执行，不运行服务，不访问真实业务库：
+在上述worktree执行，检查本轮commit相对effb1de只改六份RT文档：
 
 ```bash
 git branch --show-current
-git status --porcelain=v1
-git log -3 --format='%H %s'
-git show --format=fuller --stat d63097d7095ac02c13207d3fac24667593d0d523
-git diff --name-status 80b8b850dd25c2527c18822923ccacae104205e8..HEAD
-git diff --check 80b8b850dd25c2527c18822923ccacae104205e8..HEAD
+git status --short
+git log -1 --format='%H %s'
+git diff --name-status effb1de..HEAD
+git diff --check effb1de..HEAD
+git diff --exit-code effb1de HEAD -- RT/RT-051/sources.json scripts tests skills skill config .aodw-next AGENTS.md
 bash .aodw-next/tools/rt-guard.sh --root . --rt RT-051 --format json
 ```
 
-预期变更只在RT/RT-051；工作区应干净。源码sha可与sources.json逐一比较，并用 `git show <commit>:<path>` 确认对应字节。本轮未跑产品测试或FTS5实验，不应期望看到实现验收PASS。
-
-### 建议给Evan的决策句
-
-“请先审RT-051方案，逐项确认D01–D07；方案批准后另行明确由哪位开发Agent接手代码开发。”
-
-本轮停在等待方案/代码授权，不创建新的开发会话，不使用‘下一步自动开工’承诺。
+最终commit以原会话交付回执为准。文档绿灯只说明文档/Git边界，不是产品已修。建议用户下一道门仅为“审阅本修订并明确是否授权代码开发”，不要求重答已确定的基础访问范围。

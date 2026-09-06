@@ -1,6 +1,6 @@
 # RT-051 代码证据与边界
 
-本文件只记取证，不另立方案。唯一设计为 [rt-lite.md](rt-lite.md)。
+本文件只记取证，不另立方案。原有各节为初稿历史证据；本轮增量见文末，不将历史44文件核验计成本轮。唯一设计为 [rt-lite.md](rt-lite.md)。
 
 ## 证据口径
 
@@ -73,3 +73,35 @@
 - 旧worktree提示（取证时相对占号前main）：`/private/tmp/cwk-ci-fix` 落后63、`/private/tmp/cwk-rt039` 落后59、`/private/tmp/cwk-rt041` 落后57；entity-retrieval工作树落后176且有未跟踪RT-010目录。RT-042/043/044工作树分别落后45/37/38。所有当前HEAD均无超出main的非RT差异，不构成本RT独立文档写面冲突；未进入这些未跟踪文档或私有运行目录。旧树不清理，不为了数量暂停安全的设计工作。
 - **本会话**在主线仅登记meta；未写RT/index.yaml。按宪章不为绿色回执扩大main修改范围。
 - 最终复查发现另一会话的 `bb414a63c78371e8aca57d38ed96a18dc32582a3`（提交时间2026-09-06T18:54:02+08:00）已在main更新RT-050文档和RT/index.yaml：050改completed、补051索引created。已核对d63097d..main变更路径仅这两份文档，四个kb模块字节无变化。本设计工作目录仍基于d63097d，不合并/rebase该提交；sources.json固定的是明确的取证基线而非声称main从未前进。G109/花名册差异仅适用于本worktree的index快照；当前main已有051登记。
+
+
+## 本轮增量证据与审核处理（2026-09-06，effb1de修订）
+
+来源边界：用户/父会话交接独立Codex `o40MC61R` 在 `effb1de` 的静态 **GO WITH CHANGES** 及Issue #2 OPEN/无评论；本轮未重新调用Codex或GitHub。会话memory检索不可用，没有因此编造审核原文。下面是作者定向源码复核及处理，不是再次独立审查。历史sources.json字节保持不变，未重核其全44项。
+
+| 本轮定向取证 | 观察与边界 |
+|---|---|
+| scripts/kb_gateway.py 205–398、610–700、530–580 | metadata匹配lineage/title/path，query只首page；citation现场全read/hash后text[:500]，handler不消费offset/limit；GET-only、scope先于mount。未执行服务。 |
+| scripts/kb_storage.py 214–244、665–708、795–852、949–973 | Protocol read->bytes，TLS pinned和普通HTTPS均response.read()，FileStation下载全对象；Range/stream未实现，不把事后len当内存边界。 |
+| scripts/kb_wizard.py 510–600 | query经build_backend直读，parser仅create/ingest/status/query，无read；客户端包装是待开发而非存在事实。 |
+| scripts/kb_ingest.py 2015–2067；main定向diff | upsert不写title，raw/origin SHA和版本独立；main fe9f858的vanished只报告不删除，不能作为ACL事件。相关测试diff只读，未运行。 |
+| skills/cwk-kb-query/SKILL.md 1–82 | from_env/read、walk_files、本机NAS gateway与管理凭据兜底、两三词零断言无资料须在开发阶段获准移除；本轮未改Skill，不读取其示例引用的任何凭据。 |
+| RT/RT-044/rt-lite.md；其references/CLI-SPEC.md | RT044链接CLI合同，wizard裁剪未实现read；定位实际CLI-SPEC文件复核read约定，不能按根references不存在路径假称已读。 |
+| AODW宪章/交互/overview/Git/判据/Spec-Lite、根AGENTS；rigorous-plan-methodology与4份references | 已读，按分类/编码/SoR状态机/量化候选门槛/证据边界自查；无新增方法论文件或hash清单。 |
+
+### 审核意见处理（意见来源为上述交接，不是逐字审核原文）
+
+| 意见/裁决 | 处理 | 合同/验收 |
+|---|---|---|
+| 先补完整访问，后词法 | 采纳；已授权list/metadata分页/open/read/continue与工具接线为基础，不再挂范围待确认 | C01–C06、P1/P2→P3；A01–A05 |
+| ref/cursor/完整性缺失 | 采纳安全目标，改为document_ref绑定源身份/SHA/expiry且不绑lexical generation；服务端防篡改游标、UTF8/span/覆盖回执 | C01–C03；A02–A07 |
+| 所有read依赖chunk | 不采纳该手段：chunk只作召回建议，已知lineage和安全范围独立打开，统一reader | C02/C07；A01/A03/A11 |
+| 全read/hash只返回500，建议分页 | 采纳分页目标、不照搬每页全对象下载；推荐OPS一次流式全SHA不可变快照，有界seek和每页引文 | C02/C06/C08；A03/A04/A09 |
+| 长文预算与只读冲突 | 纠正旧2MiB硬拒与缓存禁令：gateway仍零持久写，独立broker/builder写受控快照，prepare/status/续期/GC明确；大文按页完整可达 | C05/C06/C08；A04/A09 |
+| 版本覆写/撤权风险 | 采纳；新版只当前，拿不到确切旧bytes拒绝；每页前后校验源与权限，cache不绕撤权 | C03/C04/C06；A06–A08 |
+| 缺title/占位部分转换 | 采纳；null+来源标签，传输完整与源解析完整分开，未知不猜 | C01/C02；A02/A05 |
+| 工具真实接入/Skill凭据边界 | 采纳；优先扩现有wizard为token-only客户端，固定可调用包装、能力发现，未来移除NAS兜底；reviewer零工具不扩权 | C05；A01/A10/A12 |
+| 旧服务/注入/结论诚实 | 采纳；v1兼容冻结但新包装拒假200；任务覆盖不等于理解，2–3词零不得断言库无资料 | C03–C05；A10/A12 |
+| 缺实际验收 | 保留为开发硬门；12项真实ingest+脱敏backend+实际Agent工具链，未跑产品测试、不称产品已修 | C08/C09、A01–A12 |
+
+本轮Git并发检查：9个worktree，RT051初始干净/无暂存，所有分支相对main的branch-only非RT差异为空；main有RT050非重叠改动，entity旧树仅未跟踪RT010目录，未读其内容。此结论仅是当时快照，不是未来开发无冲突保证。最终漂移/检查结果见validation。

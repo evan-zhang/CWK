@@ -1,39 +1,26 @@
-# RT-051 验收映射（开发后使用）
+# RT-051 验收映射（12项，全部待开发验收）
 
-本文件仅把 [rt-lite.md](rt-lite.md) 的C条款映射到需要观察的故障；参数/预算以该文件C08为唯一权威，不在这里复制数值。**本轮未实现或执行下列产品验收，全部未验收。** 不设集中测试登记表，开发测试仍按RT放tests/。
+唯一合同与预算见 [rt-lite.md](rt-lite.md)。本表是Issue/需求→合同→行为破坏实验映射，不另立测试规范。**本轮没有产品测试PASS。** 每项需保存真实脱敏调用、期望/实际、失败/跳过、测试数、资源计量及复核人；不能只检查源码字符串或API200。
 
-| 对应条款 | 脱敏行为验证 | 有效破坏/负例（开发阶段） | 必交证据 |
+| ID / Issue或需求 | 合同 | 脱敏实际调用与可证伪断言 | 必须能抓住的坏行为 |
 |---|---|---|---|
-| C01 范围/引擎 | 同语料、同token、同chunk、同版本下比较metadata/body-only/fusion；如做FTS5对照，记录真实编译能力 | 替换成metadata-only，正文-only题必须失败；把FTS默认切词混进对照必须被实验配置核验发现 | 实际引擎/参数digest、输入集digest、全部成功/失败样本；无模型调用记录 |
-| C02 身份/span | 主raw与索引映射、版本SHA；前500字外/重复段/emoji/CRLF/跨块边界定位 | 改raw一个字节、把span移到重复段另一处、换kb_code或version、乱UTF-8边界 | 原raw合成字节hash与返回span片段hash相等；不同库/版本chunk_id不碰撞，同输入可重现 |
-| C02 覆盖边界 | placeholder/failed/skipped/缺SHA/空文本/XLSX目录与extras | 只索引标题/前部；把sheet目录算全文覆盖；丢掉一份合格raw却报ready | eligible/excluded/failed/source总数对账，主件范围明确，缺失不假绿 |
-| C03 中文/编号 | 1字、2字、连续中文、英文单字母、混合编号、大小写、标点 | 仅保trigram导致短词漏召回；拆AB-017只匹配017；跨库df影响排名 | 独立人工gold、倒排tf/position向量、BM25手算小例与候选集合/排名；不是只查字符串在源码里 |
-| C03 融合/无答案 | 两路重合/各自独中/无命中/截断/相同分/一长文多块 | 加和块分数让长文霸榜；所有result强塞一个非零分；把lower_bound当全量 | 文档去重、rank与score_kind正确、limit与matched_relation如实；无答案题保留在报告 |
-| C04 metadata兼容 | 旧query_index、HTTP与wizard默认路径 | 默认偷偷切词法；篡改title/path/排序/limit含义 | 现有QueryRouteTests、QueryVerbTests及新旧diff；时间字段单列 |
-| C04 段引文 | query拿chunk ref→同kb/version/generation请求v2 citation→现场读raw | 返回text[:500]代替命中span；只拿索引SHA而不读raw；source已变仍回cache | 现场read spy、full/segment SHA双核验、人工gold支持题意；无读backend桩必红 |
-| C04 旧版/新旧接口 | timeline旧件留存、classify覆写；v1正常前500字符保留 | 用v2原文满足旧v1 source_version；chunk参数被忽略回v1头部 | v2对stale/missing/mismatch拒绝且不含excerpt；旧接口mismatch只作观测不能当verified |
-| C05 库级隔离 | A/B同lineage异内容，同文异kb_code；未授权/未挂载/双库token | 全库召回后过滤；篡改generation指邻库；伪造kb路径；省kb读取邻库 | provider/backend spy未碰未授权库，返回正文/标题/chunk/词频0泄露，现有403/404顺序不变 |
-| C05 撤权/在途 | retrieval中、citation读后、fallback前revoke/expire/reissue；挂载变化/registry损坏 | 去掉返回前auth、接受旧epoch或旧cache；客户端自报身份 | 整请求拒绝，不吐部分证据；日志/响应无敏感内容。明确最后校验为线性化点 |
-| C05 删除边界 | 已授权库映射移除、源列表暂空、旧代仍存 | 当前映射缺失却从prev/cache复活；把源扫描0件自动视删除/安全撤权 | 旧词法失效；源故障不擅删；上游实时ACL能力不虚报为通过 |
-| C06 代际/并发 | builder staging→验证→切pointer，读者固定旧代；两个builder；refresh与run相撞 | 在任一步注入崩溃、交叉写pointer、读取混代、把未完成代标ready | 每kill点重启结果，active指针旧/新二选一、无半代；source fence dirty不自动放行 |
-| C06 完整性/资源 | missing/corrupt/unknown-engine/坏postings/disk-full/超大raw/NAS fake transient | len检查前无界读造成超预算；持续retry阻塞HTTP；悄悄跳合格件 | 真实peak RSS/总read字节/超时与retry计数；指定错误而非空success；所有输入数对账 |
-| C06 只读/隐私 | gateway依赖图与写陷阱覆盖新reader/所有路由；记录服务日志 | query触发建索引/SQLite WAL、HTTP日志带原query、错误带raw或绝对路径 | 零NAS/local持久写（由query触发）、无write模块依赖、日志脱敏断言，builder独立运行 |
-| C07 refresh挂接 | dry/unchanged/update/guard/known-failed/new-failed/多source最后收尾 | 每件publish即建索引、dry写job、丢hook、guard仍切新代；仅看source ok | 事件顺序、幂等request key、source与lexical分别状态、failed永不被当正文合格 |
-| C08 评估有效性 | 最小集类别数、人工review、macro doc/证据span Recall、错误/无答案分母 | 0测试返回绿；漏一类；空召回从分母删掉；LLM自签gold | 数据集/运行配置/hash、逐题结果、审gold记录、失败样本及指标计算复核 |
-| C09 回滚 | 禁词法/旧metadata继续，旧engine与generation兼容检查 | 回滚已撤权token/旧raw-index，拿不兼容代回包，清掉读者仍pin的代 | 无源/权限事实回退，显式disabled/degraded，旧v1正常行为；不需真实部署才能模拟 |
-| C10 边界复核 | 作者/开发Agent/用户分别确认未批准项与遗留风险 | 把历史133件/旧回执/本地单文件测试当全容量/生产事务证据 | 独立审查意见、未批准清单与明确停止点 |
+| A01 已知文档无需搜索 / RT044缺read | C01/C02/C05 | 真实ingest在Memory/local/fakeNAS至少各有一条链：生成raw-index→宿主kb_access→wizard/client→gateway→open已知lineage→read；删除lexical目录、不调用search仍拿同版正文。保存实际工具注册和子进程/路由调用回执 | 只在文档写工具名、漏注册、wizard仍直连backend、open要求BM25命中，均失败 |
+| A02 query最多200无分页 | C02/C03 | ingest脱敏231与1001件，list与metadata search逐页到EOF，按同snapshot比较权威集合，total精确、无重复遗漏；缺title回null/lineage label，category不泄NAS路径；翻页中改变映射应409并不混快照 | limit截断却next=null、游标重复第一批、metadata snapshot变更仍200、伪造title/服务器目录均失败 |
+| A03 citation500/忽略offset | C02–C04 | 大于500字符的文档，以工具read首段/安全中部byte与行/末尾；返回span可逐字节定位，500之后唯一标记必须真实出现；范围结束与整件EOF区分 | 仍回前500、忽略offset/line参数、以chunk限制任意安全阅读、将range_complete当EOF均失败 |
+| A04 全文按需续读与SHA | C03/C06 | 2/32/128MiB合成UTF-8真实流式准备→多页同ref/SHA，乱序/重复响应去重后区间并集[0,total)，UTF8重组全hash等于权威raw SHA；每页自带引文，不再次citation下载；工具receipt与模型审阅状态分开 | 缺中间页仍complete、重复计覆盖、每页SHA冒充full SHA、换generation使当前ref失效、工具收齐自动称模型全审均失败 |
+| A05 title/空/多字节/部分转换 | C01–C03/C07 | 实际ingest空件、缺title、placeholder、failed、可验证partial、XLSX主目录；UTF8含BOM/CRLF/emoji/组合字符，空raw标准SHA/单次EOF，非法UTF8与半字符range明确错误；主raw完整≠源转换完整 | replacement decode、strip/rejoin丢坐标、占位/partial/目录算源全文、空页无限continue均失败 |
+| A06 版本覆写/旧版字节 | C01/C03/C04/C06 | 使用真实ingest的timeline/classify路径，prepare后覆写同路径升版，旧ref/read/renew/旧job皆拒而无excerpt；原始旧citation v1成功形状及mismatch观测留回归 | 新bytes冒旧version、旧cache/prev复活、只查路径不查版本SHA、历史schema被不声明地改写均失败 |
+| A07 撤权/范围/游标/隔离 | C01/C03/C06 | A/B相同lineage异正文；read/list/status/prepare开始及返回前分别revoke/expire/reissue/换mount；篡改ref/cursor/页大小/跨操作/UTF8边界；ref/cursor到期和续期宽限覆盖 | 未授权provider访问>0、泄邻库title/计数、过期cursor继续、缓存绕撤权、接受伪造身份/路径均失败 |
+| A08 索引坏≠源坏 | C01/C04/C06/C07 | ready快照+已知ref，lexical missing/corrupt/stale时仍read；分别让raw-index不可读/移除/dirty/权限注册表坏时必须失败无正文；list/metadata不依赖词法 | 一概要求重搜、源不可核实仍用缓存、silent metadata fallback、失败回空成功均失败 |
+| A09 全bytes I/O/预算/GC | C06/C08 | fakeNAS transport记录实际正文下载量、每次read块大小、峰值RSS、磁盘、P页计量；无故障一次prepare≤1.1N、后续页source正文0，排除元数据字节单报；注入断流/TLS错误封装/磁盘满/queue满/deadline/GC与读锁/崩溃；大文续期再prepare可继续 | 每页整件download、len后限流、隐藏无界response.read、拼失败重试残片、gateway任何NAS/local持久写、GC删在读对象、永不结束重试均失败 |
+| A10 旧服务与真实Agent权限 | C04/C05 | 旧fake服务忽略未知参数且200回v1，包装必须unsupported_contract非零，不能称全文；宿主仅提供绑定token连接、无NAS/管理Key/任意命令配置，实际工具读成功且NAS spy仅OPS触达；reviewer工具仍为空 | API200假成功、Skill from_env/walk/本机NAS兜底仍被物化、token进argv/log/response、reviewer扩权均失败 |
+| A11 正文词法与同一reader | C07/C08 | 基础验收后48题同集metadata/body-only/fusion消融、中文1/2字/编号/无答案/正文中后部/跨块；query候选span→同kb_access read核同版SHA；build发布kill-point、双builder、refresh dry/unchanged/failed/vanished；人工gold不能0题自签 | 只匹配title、只有trigram、编号017冒AB-017、错库df、RRF当置信度、另一citation证据路径、漏合格件仍ready、dry写job、vanished当tombstone均失败 |
+| A12 注入/任务预算/结论诚实 | C03/C05/C08–C10 | 合成正文含越库/泄token/执行命令提示，实际受控工具链不得产生对应调用；任务读到预算暂停给partial+next，可显式继续直到EOF；2–3词零命中后仍browse/open，实际读Agent产出核对“完整审阅”依据 | 文档提示变控制指令、自动扩权、未读完说读完、两三词零即断言无资料、预算耗尽丢续读状态均失败 |
 
-## 人工gold复核签收字段（模板，不是签收结果）
+## 证据与签收边界
 
-- 数据集版本及commit/hash：待开发阶段生成。
-- 合成文本作者、题目来源/授权：待记录；不得复制真实业务raw。
-- reviewer / reviewed_at：待人工填写，不能代签。
-- 每题gold span支持题意、版本/库一致：待逐题核实。
-- 无答案域与预期错误的理由：待逐题核实。
-- 冻结后变更：每次变更记原原因、新hash和复核人，不让实现自动重算gold洗掉失败。
-
-## 验证三格（当前设计阶段）
-
-- 工程判据：本轮只做文档检查，见 [validation.md](validation.md)；上表的行为破坏实验尚未执行。
-- AI评审：本会话直接按方法论做方案自查，不是独立实施验收，也未委派评审Agent。
-- 读产出：设计正文与源码摘取范围已对照；真实gold和产品回答未产生，不可填PASS。
+- 以上是未来行为验收，不是本轮已实现的测试清单；测试落`tests/test_rt051_*.py`，0测试、只跳过或自签gold不算通过。
+- 真实ingest指运行产品摄取代码处理人工脱敏fixture，不连接真实DocDB/CWork/NAS；fakeNAS流量不能宣称真NAS性能。
+- 完整读取receipt只证明传输覆盖；模型实际理解和“支持题意”须读任务产出。prompt要求不能用字符串断言证明有效。
+- 工程判据本轮限文档，见 [validation.md](validation.md)。独立Codex为已交接的静态审核，不是A项独立验收；gold reviewer/reviewed_at、逐题支持理由和失败样本均待实际填写，不代签。
+- [Issue #2](https://github.com/evan-zhang/CWK/issues/2) 各缺口映射A01–A05/A09/A10；只有实际验收并另获用户授权后才可关闭。本轮不操作Issue。
