@@ -59,7 +59,7 @@ import time
 import zipfile
 import zlib
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from importlib import metadata as importlib_metadata
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
@@ -163,6 +163,7 @@ UNDATED_BUCKET = "_undated"
 RAW_INDEX_REL = "_system/raw-index.json"
 RAW_INDEX_PREV_REL = "_system/raw-index.prev.json"
 INGEST_STATE_REL = "_system/ingest-state.json"
+SOURCE_CONFIG_REL = "source.json"
 PROVENANCE_REL = "_system/provenance.json"
 PROVENANCE_CHAIN_REL = "_system/provenance.jsonl"
 
@@ -171,6 +172,7 @@ INGEST_STATE_SCHEMA = "cwk.kb.ingest-state.v1"
 PROVENANCE_SCHEMA = "cwk.kb.provenance.v1"
 CONFIRM_SCHEMA = "cwk.kb.ingest-confirm.v1"
 RUN_SCHEMA = "cwk.kb.ingest-run.v1"
+REFRESH_SCHEMA = "cwk.kb.ingest-refresh.v1"
 
 # Recorded on every index entry so a later model or rule change can re-run a
 # defined subset instead of the whole library (DOCDB-INGEST-DESIGN §III).
@@ -2691,6 +2693,23 @@ def build_parser() -> argparse.ArgumentParser:
         node.add_argument("--kb-root", help="库根（local 后端必填）")
         node.add_argument("--backend", default="local", choices=("local", "memory", "nas"))
         node.add_argument("--prefix", default="", help="nas 后端在 share 下的子路径")
+
+    refresh = sub.add_parser(
+        "refresh",
+        help="按库内 source.json 增量刷新（RT-050：夜间定时与手动更新同一入口）",
+    )
+    refresh.add_argument("--kb-root", help="库根（local 后端必填）")
+    refresh.add_argument("--backend", default="local", choices=("local", "memory", "nas"))
+    refresh.add_argument("--prefix", default="", help="nas 后端在 share 下的子路径")
+    refresh.add_argument(
+        "--cwork-mirror-root",
+        default="",
+        help="cwork 源的镜像 raw 目录；缺省取环境变量 " + ENV_MIRROR_ROOT,
+    )
+    refresh.add_argument("--since", help="覆盖库窗口的增量起点（YYYY-MM-DD）")
+    refresh.add_argument(
+        "--yes", action="store_true", help="确认执行；不给则只出只读刷新报告（零写入）"
+    )
     return parser
 
 
@@ -2758,11 +2777,272 @@ def cmd_reconcile(args: argparse.Namespace) -> int:
     return 0 if payload["ok"] else 1
 
 
+# ── RT-050: refresh —— 库内 source.json 驱动的增量刷新 ─────────────────────
+
+REFRESH_STATE_REL = "_system/refresh-state.json"
+REFRESH_STATE_SCHEMA = "cwk.kb.refresh-state.v1"
+REFRESH_HISTORY_CAP = 30
+SPIKE_MULTIPLIER = 3
+SPIKE_SLACK = 50
+ENV_MIRROR_ROOT = "CWK_MIRROR_ROOT"
+
+
+def load_refresh_state(backend: StorageBackend) -> dict:
+    try:
+        data = read_json(backend, REFRESH_STATE_REL)
+    except NotFound:
+        return {"schema": REFRESH_STATE_SCHEMA, "sources": {}}
+    data.setdefault("sources", {})
+    return data
+
+
+def save_refresh_state(
+    backend: StorageBackend, state: dict, *, kb_code: str, now: datetime
+) -> None:
+    record_write(backend, REFRESH_STATE_REL, dumps(state))
+    record_changed_paths(backend, [REFRESH_STATE_REL], reason="refresh", at=now)
+    refresh_manifest(
+        backend,
+        kb_code=kb_code,
+        generated_at=now,
+        allow_new=[REFRESH_STATE_REL],
+        # record_changed_paths 刚追加了批次，账本必须允许这个已签名文件被替换，
+        # 否则下一行重签就是 LedgerViolation（与 execute_plan 的收尾同构）。
+        allow_replaced=[REFRESH_STATE_REL, CHANGED_PATHS_REL],
+    )
+
+
+def window_since(window: Optional[dict], now: datetime) -> Optional[str]:
+    """库窗口 → since 起点。auto-3m = 当天往前 90 天；其余（含无窗口）= 全量。"""
+    if str((window or {}).get("mode") or "") == "auto-3m":
+        return (now - timedelta(days=90)).date().isoformat()
+    return None
+
+
+def refresh_plan_for_source(
+    source: dict,
+    *,
+    kb_root: str,
+    mirror_root: str,
+    since_override: Optional[str] = None,
+    env: Optional[Dict[str, str]] = None,
+    runner: Optional[Callable[..., object]] = None,
+    retries: int = 3,
+    sleep: Callable[[float], None] = time.sleep,
+    now: Optional[datetime] = None,
+) -> dict:
+    st = str(source.get("source_type") or "")
+    if st == "docdb":
+        root = str(source.get("root_folder") or "")
+        if not root:
+            raise IngestError("source.json 的 docdb 源缺 root_folder，无法刷新")
+        adapter, since = "docdb", since_override
+    elif st == "cwork":
+        if not mirror_root:
+            raise IngestError(
+                "cwork 源刷新需要镜像 raw 目录：--cwork-mirror-root 或环境变量 "
+                + ENV_MIRROR_ROOT
+            )
+        adapter, root = "cwork-mirror", mirror_root
+        since = since_override or window_since(source.get("window"), now or utc_now())
+    else:
+        raise IngestError(f"source.json 里有未知 source_type {st!r}，无法刷新")
+    kwargs: Dict[str, object] = {"retries": retries, "sleep": sleep}
+    if runner is not None:
+        kwargs["runner"] = runner
+    return build_plan(
+        adapter=adapter,
+        root=root,
+        kb_root=kb_root,
+        route_mode=str(source.get("route") or "") or None,
+        since=since,
+        env=env,
+        **kwargs,
+    )
+
+
+def evaluate_refresh_guard(
+    plan: dict, *, baseline_items: int, prev_plan_count: Optional[int]
+) -> Optional[dict]:
+    """夜间保险丝：像源故障的计划不执行，宁可这一晚不刷新。
+
+    0 件而库非空 → 像源消失（而不是源真的清空）；件数相对上次计划暴涨
+    → 像扫进了非源目录。两种部拒，留人工确认。
+    """
+    n = int(plan.get("item_count") or 0)
+    if n == 0 and baseline_items > 0:
+        return {
+            "kind": "empty",
+            "detail": f"源扫描 0 件，但库里已有 {baseline_items} 件——像源故障而非清空，拒绝执行",
+        }
+    if (
+        prev_plan_count is not None
+        and prev_plan_count > 0
+        and n > SPIKE_MULTIPLIER * prev_plan_count + SPIKE_SLACK
+    ):
+        return {
+            "kind": "spike",
+            "detail": (
+                f"计划 {n} 件超上次 {prev_plan_count} 件的 {SPIKE_MULTIPLIER} 倍"
+                f"+{SPIKE_SLACK}——像扫进了非源目录，拒绝执行"
+            ),
+        }
+    return None
+
+
+def refresh_library(
+    backend: StorageBackend,
+    *,
+    kb_code: str,
+    kb_root: str,
+    mirror_root: str,
+    apply: bool,
+    since_override: Optional[str] = None,
+    env: Optional[Dict[str, str]] = None,
+    runner: Optional[Callable[..., object]] = None,
+    retries: int = 3,
+    sleep: Callable[[float], None] = time.sleep,
+    now: Optional[datetime] = None,
+) -> dict:
+    """RT-050: 一个库，按它自己的 source.json 增量刷新。
+
+    增量语义全部来自 execute_plan（unchanged / 升版 / failed 补跑 / 快照
+    不删）；本函数只做三件它没做的事：把源参数从库内读出来（单一
+    权威，夜间跑不需要人再传一遍）、加护栏（空扫与暴涨拒绝执行）、
+    把已知失败与新失败分开——夜间不因历史存量失败天天红。
+    """
+    at = now or utc_now()
+    try:
+        sources = read_json(backend, SOURCE_CONFIG_REL).get("sources") or []
+    except NotFound:
+        raise IngestError(
+            "库根下没有 source.json——refresh 依赖库内源配置，无法刷新"
+        ) from None
+    if not sources:
+        raise IngestError("source.json 的 sources 为空——无法刷新")
+    _index, state = load_accounts_readonly(backend)
+    baseline_items = len(state["items"])
+    prev_failed = {
+        lineage
+        for lineage, row in state["items"].items()
+        if row.get("status") == "failed"
+    }
+    rstate = load_refresh_state(backend)
+
+    reports: List[dict] = []
+    new_failed: List[str] = []
+    guard_hit: Optional[dict] = None
+    applied = False
+    for source in sources:
+        plan = refresh_plan_for_source(
+            source,
+            kb_root=kb_root,
+            mirror_root=mirror_root,
+            since_override=since_override,
+            env=env,
+            runner=runner,
+            retries=retries,
+            sleep=sleep,
+            now=at,
+        )
+        key = f"{plan.get('source')}:{plan.get('root')}"
+        prev_count = (rstate["sources"].get(key) or {}).get("last_plan_count")
+        guard = evaluate_refresh_guard(
+            plan, baseline_items=baseline_items, prev_plan_count=prev_count
+        )
+        row: Dict[str, object] = {
+            "source": key,
+            "plan_count": plan["item_count"],
+            "expected_status_counts": plan.get("expected_status_counts"),
+            "since": plan.get("since"),
+        }
+        if guard is not None:
+            guard_hit = guard
+            row["action"] = "skipped_guard"
+            row["guard"] = guard
+            reports.append(row)
+            continue
+        if not apply:
+            row["action"] = "dry"
+            reports.append(row)
+            continue
+        run_kwargs: Dict[str, object] = {"retries": retries, "sleep": sleep}
+        if runner is not None:
+            run_kwargs["runner"] = runner
+        report = execute_plan(backend, plan, kb_code=kb_code, env=env, **run_kwargs)
+        applied = True
+        fresh = [
+            str(r["lineage_id"])
+            for r in report.get("results") or []
+            if r.get("status") == "failed" and str(r["lineage_id"]) not in prev_failed
+        ]
+        new_failed.extend(fresh)
+        row["action"] = "applied"
+        row["counts"] = report.get("counts")
+        row["failed"] = report.get("failed")
+        row["new_failed"] = fresh
+        reports.append(row)
+        entry = rstate["sources"].setdefault(key, {})
+        history = entry.setdefault("history", [])
+        history.append(
+            {"at": iso(at), "plan_count": plan["item_count"], "new_failed": len(fresh)}
+        )
+        del history[:-REFRESH_HISTORY_CAP]
+        entry["last_plan_count"] = plan["item_count"]
+        entry["last_at"] = iso(at)
+
+    if applied:
+        rstate["schema"] = REFRESH_STATE_SCHEMA
+        rstate["kb_code"] = kb_code
+        save_refresh_state(backend, rstate, kb_code=kb_code, now=at)
+
+    if not apply:
+        note = "只读刷新报告（零写入）：确认后加 --yes 执行"
+    else:
+        note = (
+            "护栏：计划 0 件而库非空、或件数超上次 %d 倍+%d → 拒绝执行；已知失败"
+            "不计红，仅新失败计红" % (SPIKE_MULTIPLIER, SPIKE_SLACK)
+        )
+    return {
+        "schema": REFRESH_SCHEMA,
+        "ok": applied and guard_hit is None and not new_failed,
+        "applied": applied,
+        "guard": guard_hit,
+        "baseline_items": baseline_items,
+        "new_failed": new_failed,
+        "sources": reports,
+        "note": note,
+        "at": iso(at),
+    }
+
+
+def cmd_refresh(args: argparse.Namespace) -> int:
+    backend = None
+    try:
+        backend = open_backend(args, args.kb_root)
+        kb_code = read_kb_code(backend)
+        payload = refresh_library(
+            backend,
+            kb_code=kb_code,
+            kb_root=str(args.kb_root or "nas://%s" % (getattr(args, "prefix", "") or "")),
+            mirror_root=str(
+                args.cwork_mirror_root or os.environ.get(ENV_MIRROR_ROOT, "")
+            ).strip(),
+            apply=bool(args.yes),
+            since_override=args.since,
+        )
+    finally:
+        close_backend(backend)
+    emit(payload)
+    return 0 if (not args.yes) or payload["ok"] else 1
+
+
 COMMANDS: Dict[str, Callable[[argparse.Namespace], int]] = {
     "plan": cmd_plan,
     "run": cmd_run,
     "status": cmd_status,
     "reconcile": cmd_reconcile,
+    "refresh": cmd_refresh,
 }
 
 

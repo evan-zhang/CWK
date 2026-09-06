@@ -55,23 +55,24 @@ python3 scripts/kb_doctor.py verify --all --backend nas --prefix <prefix> --json
 全绿判据：counts.failed=0、reconcile 各清单空、doctor 五项（raw/manifest/collection-state/changed-paths/tree）ok=true。有差异必须解释到件——参考 2026-09-05 Case 1 实例：基线 451 → 入库 453 = 月份目录 447 + unknown/ 目录 6 + 重复 ID 归并 − 3 件无日期 fail-closed 排除，差异全解释即零缺件。
 最后告诉用户：库已就绪，用 cwk-kb-query Skill 提问。
 
-## 库更新（手动增量，已验证可用 2026-09-06）
+## 库更新（增量，已验证可用 2026-09-06）
 
-库是快照语义：源变了不会自动同步，用户说「更新库/重新摄取」时重跑同一条 plan→run 即可。引擎增量语义（spbp-2027 实战验证）：
+库是快照语义：源变了不会自动同步。**用户说「更新库/重新摄取」时，用 `refresh` 子命令**（比手搓 plan→run 少传一遍源参数，夜间定时也走它）：
+```bash
+python3 scripts/kb_ingest.py refresh --backend nas --prefix <prefix>            # 干跑：只出报告零写入
+python3 scripts/kb_ingest.py refresh --backend nas --prefix <prefix> --yes      # 执行
+# cwork 源需镜像目录：--cwork-mirror-root <路径> 或环境变量 CWK_MIRROR_ROOT
+# 例外时临时覆盖窗口：--since YYYY-MM-DD
+```
+引擎增量语义（spbp-2027 实战验证）：
 - 同字节件 → `unchanged` 跳过，零写入（originals 内容寻址，天然幂等）
 - 源变更件 → 自动升 v2/v3，raw 新版本落原位旁，索引/账本/引文链自动级联；classify 路由当前文件指向新版，timeline 路由新旧并存
-- 上次 failed 件 → 自动补跑（failed 非终态）
-- 源删了的件 → 库里保留（快照语义，不逆向删除）
-- 新增件 → 自动入册
-```bash
-# 与首次摄取完全同参，重跑一遍即可（docdb 源用同一 fileId）
-python3 scripts/kb_ingest.py plan --source docdb --root <fileId> \
-  --kb-root nas://<prefix> --backend nas --prefix <prefix> --out /tmp/<prefix>-plan-r<N>.json
-# 念给用户：item_count 与 counts（新件数/升版数）
-python3 scripts/kb_ingest.py run --plan /tmp/<prefix>-plan-r<N>.json --backend nas --prefix <prefix> --yes
-# 事后体检：kb_doctor verify --all 全绿才交回执；网关无需重启，新版本立即可查
-```
-实战参考（spbp-2027 首次摄取 12 天后重跑）：109 件 → 102 unchanged + 5 源变更升 v2 + 2 已知源侧空件；增量写入后 doctor 五项全绿、网关无重启查到 v2、引文 matches_index=true。
+- 上次 failed 件 → 自动补跑（failed 非终态）；**已知失败不再报红，仅新失败报红**
+- 源删了的件 → 库里保留（快照语义，不逆向删除）；新增件 → 自动入册
+- **护栏**：计划 0 件而库非空、或件数超上次 3 倍+50 → 拒绝执行（像源故障/扫错目录，留人工确认）；护栏状态记在库内 `_system/refresh-state.json`
+- 事后体检：doctor verify --all 全绿才交回执；网关无需重启，新版本立即可查
+- 夜间定时（OPS 23:30 launchd）也走同一入口，报告落 `~/CWK/ops/logs/kb-refresh-*.json`
+实战参考（spbp-2027 首次摄取当天重跑）：109 件 → 102 unchanged + 5 源变更升 v2 + 2 已知源侧空件；增量写入后 doctor 五项全绿、网关无重启查到 v2、引文 matches_index=true。
 
 ## 故障速查
 - FileStation code=400 且发生在建目录：DSM 拒「数字开头」目录名——引擎已自动加 `d-`/`c-` 前缀（commit 175d532 / 885d2fd）；复现说明有新形态，查 `kb_ingest.py` 的 `_device_safe_dir`

@@ -2175,5 +2175,227 @@ class NasSmokeTests(unittest.TestCase):
             kb_storage.close_backend(backend)
 
 
+# ── RT-050: refresh —— 库内 source.json 驱动的增量刷新 ─────────────────────
+
+
+class RefreshGuardTests(unittest.TestCase):
+    """护栏是纯函数：先把它钉死，再谈集成。"""
+
+    def plan(self, n: int) -> dict:
+        return {"item_count": n}
+
+    def test_a_zero_item_plan_over_a_populated_library_is_refused(self) -> None:
+        guard = ingest.evaluate_refresh_guard(self.plan(0), baseline_items=453, prev_plan_count=453)
+        self.assertIsNotNone(guard)
+        self.assertEqual(guard["kind"], "empty")
+
+    def test_a_zero_item_plan_on_an_empty_library_is_fine(self) -> None:
+        self.assertIsNone(
+            ingest.evaluate_refresh_guard(self.plan(0), baseline_items=0, prev_plan_count=None)
+        )
+
+    def test_a_spike_relative_to_the_last_plan_is_refused(self) -> None:
+        guard = ingest.evaluate_refresh_guard(
+            self.plan(3 * 100 + 51), baseline_items=100, prev_plan_count=100
+        )
+        self.assertIsNotNone(guard)
+        self.assertEqual(guard["kind"], "spike")
+
+    def test_growth_within_bounds_passes(self) -> None:
+        for n in (100, 101, 350, 3 * 100 + 50):
+            with self.subTest(n=n):
+                self.assertIsNone(
+                    ingest.evaluate_refresh_guard(
+                        self.plan(n), baseline_items=100, prev_plan_count=100
+                    )
+                )
+
+    def test_no_previous_plan_means_no_spike_check(self) -> None:
+        self.assertIsNone(
+            ingest.evaluate_refresh_guard(self.plan(10_000), baseline_items=5, prev_plan_count=None)
+        )
+
+    def test_window_since_auto_3m_is_90_days_back(self) -> None:
+        self.assertEqual(ingest.window_since({"mode": "auto-3m"}, FIXED_NOW), "2026-06-07")
+        for window in (None, {}, {"mode": "manual"}):
+            with self.subTest(window=window):
+                self.assertIsNone(ingest.window_since(window, FIXED_NOW))
+
+
+class RefreshFixture(unittest.TestCase):
+    """一个真 RT-042 库（docdb 源）+ FakeDocdb，走 refresh_library 全链。"""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.base = Path(self.tmp.name)
+        self.kb = self.base / "kb"
+        self.kb_code = make_kb(self.kb, sources=("docdb",))
+        self.backend = CountingBackend(self.kb)
+        skill = self.base / "cms-docdb"
+        for part in ("browse", "query"):
+            (skill / "scripts" / part).mkdir(parents=True)
+        self.env = {
+            ingest.ENV_DOCDB_SKILL_DIR: str(skill),
+            "XG_BIZ_API_KEY": "fake-key-not-a-real-secret",
+        }
+        self.folders = {
+            "/玄关/合同": [
+                {"fileId": "301", "name": "301-年度计划.md", "type": "2",
+                 "updateTime": "2026-08-14 09:30:00"},
+            ]
+        }
+
+    def refresh(self, fake=None, *, apply=True, folders=None, blobs=None, **kw):
+        runner = fake if fake is not None else FakeDocdb(
+            folders if folders is not None else self.folders,
+            blobs=blobs,
+        )
+        return ingest.refresh_library(
+            self.backend,
+            kb_code=self.kb_code,
+            kb_root=str(self.kb),
+            mirror_root="",
+            apply=apply,
+            env=self.env,
+            runner=runner,
+            sleep=lambda _s: None,
+            now=FIXED_NOW,
+            **kw,
+        )
+
+
+class RefreshApplyTests(RefreshFixture):
+    def test_first_refresh_ingests_and_records_baseline(self) -> None:
+        report = self.refresh(blobs={"301": b"# plan\n"})
+        self.assertTrue(report["ok"], report)
+        self.assertEqual(report["sources"][0]["counts"]["converted"], 1)
+        state = json.loads((self.kb / "_system" / "refresh-state.json").read_text("utf-8"))
+        key = report["sources"][0]["source"]
+        self.assertEqual(state["sources"][key]["last_plan_count"], 1)
+
+    def test_second_refresh_is_all_unchanged_and_zero_new_writes(self) -> None:
+        self.refresh(blobs={"301": b"# plan\n"})
+        before = list(self.backend.writes)
+        report = self.refresh(blobs={"301": b"# plan\n"})
+        self.assertTrue(report["ok"])
+        self.assertEqual(report["sources"][0]["counts"]["unchanged"], 1)
+        # 账本收尾（refresh-state/changed-paths/manifest 重签）仍要写，但业务件零重写
+        data_writes = [
+            p
+            for p in self.backend.writes[len(before):]
+            if not p.startswith("_system") and p != "root-manifest.json"
+        ]
+        self.assertEqual(data_writes, [])
+
+    def test_a_changed_document_lands_as_v2(self) -> None:
+        self.refresh(blobs={"301": b"# plan v1\n"})
+        report = self.refresh(blobs={"301": b"# plan v2 changed\n"})
+        self.assertTrue(report["ok"])
+        row = report["sources"][0]
+        self.assertEqual(row["counts"].get("unchanged", 0), 0)
+        self.assertEqual(row["counts"].get("converted", 0), 1)
+        idx = json.loads((self.kb / "_system" / "raw-index.json").read_text("utf-8"))
+        entry = idx["entries"]["docdb:301"]
+        self.assertEqual(entry["version"], 2)
+
+
+class RefreshFailureSemanticsTests(RefreshFixture):
+    def test_a_new_failure_is_red_but_a_known_one_is_not(self) -> None:
+        """夜间不因存量失败天天红：只有新面孔失败才计红。"""
+        fake = FakeDocdb(self.folders, blobs={"301": b"# ok\n"}, fail_ids={"301"})
+        first = self.refresh(fake)
+        self.assertFalse(first["ok"])
+        self.assertIn("docdb:301", first["new_failed"])
+
+        second = self.refresh(fake)
+        self.assertTrue(second["ok"], second)
+        self.assertEqual(second["new_failed"], [])
+        row = second["sources"][0]
+        self.assertIn("docdb:301", row["failed"])  # 仍然失败，只是不再新
+
+    def test_a_recovered_failure_leaves_no_trace(self) -> None:
+        self.refresh(FakeDocdb(self.folders, blobs={"301": b"# x\n"}, fail_ids={"301"}))
+        report = self.refresh(blobs={"301": b"# fixed\n"})
+        self.assertTrue(report["ok"])
+        self.assertEqual(report["sources"][0]["counts"].get("converted"), 1)
+
+
+class RefreshGuardIntegrationTests(RefreshFixture):
+    def test_an_empty_scan_over_a_populated_library_skips_execution(self) -> None:
+        self.refresh(blobs={"301": b"# plan\n"})
+        report = self.refresh(folders={})
+        self.assertFalse(report["applied"])
+        self.assertEqual(report["guard"]["kind"], "empty")
+        self.assertEqual(report["sources"][0]["action"], "skipped_guard")
+
+    def test_a_spike_after_a_small_baseline_skips_execution(self) -> None:
+        self.refresh(blobs={"301": b"# plan\n"})
+        big = {
+            "/玄关/合同": [
+                {"fileId": str(400 + i), "name": f"{400 + i}-新件-{i}.md", "type": "2",
+                 "updateTime": "2026-08-20 10:00:00"}
+                for i in range(400)
+            ]
+        }
+        report = self.refresh(folders=big)
+        self.assertFalse(report["applied"])
+        self.assertEqual(report["guard"]["kind"], "spike")
+
+
+class RefreshDryRunTests(RefreshFixture):
+    def test_dry_run_writes_nothing_and_reports_the_plan(self) -> None:
+        report = self.refresh(apply=False, blobs={"301": b"# plan\n"})
+        self.assertFalse(report["applied"])
+        self.assertEqual(report["sources"][0]["action"], "dry")
+        self.assertEqual(report["sources"][0]["plan_count"], 1)
+        self.assertEqual(self.backend.writes, [])
+        self.assertFalse((self.kb / "_system" / "refresh-state.json").exists())
+
+
+class RefreshCworkSourceTests(unittest.TestCase):
+    """cwork 源：窗口从库内 source.json 读，镜像目录从参数拿。"""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.base = Path(self.tmp.name)
+        self.kb = self.base / "kb"
+        self.kb_code = make_kb(self.kb, sources=("cwork",))
+        self.backend = CountingBackend(self.kb)
+        self.mirror = self.base / "mirror"
+        write_mirror(self.mirror, "2026-08/2026-08-14/2095046023776104449-周报.md", "# 周\n".encode("utf-8"))
+
+    def test_cwork_refresh_uses_the_library_window(self) -> None:
+        report = ingest.refresh_library(
+            self.backend,
+            kb_code=self.kb_code,
+            kb_root=str(self.kb),
+            mirror_root=str(self.mirror),
+            apply=True,
+            env=NO_CONVERTER,
+            sleep=lambda _s: None,
+            now=FIXED_NOW,
+        )
+        self.assertTrue(report["ok"], report)
+        row = report["sources"][0]
+        self.assertEqual(row["action"], "applied")
+        self.assertEqual(row["since"], "2026-06-07")  # auto-3m 窗口：FIXED_NOW 往前 90 天
+
+    def test_cwork_refresh_without_a_mirror_refuses(self) -> None:
+        with self.assertRaises(ingest.IngestError) as ctx:
+            ingest.refresh_library(
+                self.backend,
+                kb_code=self.kb_code,
+                kb_root=str(self.kb),
+                mirror_root="",
+                apply=True,
+                env=NO_CONVERTER,
+                sleep=lambda _s: None,
+                now=FIXED_NOW,
+            )
+        self.assertIn("CWK_MIRROR_ROOT", str(ctx.exception))
+
+
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()
