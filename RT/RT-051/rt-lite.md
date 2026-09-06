@@ -238,3 +238,15 @@ refresh接线在所有source execute_plan和save_refresh_state最终收尾后；
 ## 遗留事项
 
 没有新建或转出DI，不用转出问题关闭本RT。非目标与启用决策见开头；本目标仍未开发/未验收，不关Issue、不合并推送部署。最短接手入口为 [developer-handover.md](developer-handover.md)。
+
+- 2026-09-06 开发启动（Evan 21:19 授权 D01）：main（含 RT-050 vanished）并入
+  feature 分支基线 f3fbfa5，273 测试绿。**P1a 落地**（提交 8ee5746）：
+  `/v2/kb/*` 受控读取面 8 操作（capabilities/list/search metadata/resolve/
+  inspect/read/continue/renew），HMAC 不透明句柄（ref 15 分钟 TTL + renew
+  10 分钟宽限 + 签发 nonce）、read 三模式互斥 + UTF-8 边界 416 + 服务端游标
+  + 页预算冻结、每请求全读全 SHA 复核（漂移 409）、list/search 游标绑快照
+  digest（换快照 409）、lexical 显式 503 + allow_degraded、日志 URL 脱敏。
+  测试 test_rt051_gateway_v2.py 38 例绿（含分页拼回逐字节 SHA、码点边界、
+  句柄跨类型/跨库隔离、过期恢复）；make test 快车道绿；双门禁绿。
+  P1a 诚实边界：传输级有界读与 OPS 快照 builder 留 P1b；本层每请求全读
+  是 citation 同款退化形式，full_sha_verified=true 正因实读验证。

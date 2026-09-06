@@ -3,7 +3,7 @@ title: Agent 受控完整访问与正文词法召回
 type: Feature
 profile: Spec-Lite
 execution_mode: collaborative
-status: intaking
+status: in_progress
 modules: [kb-wizard-gateway, kb-ingest, kb-platform-storage]
 branch: feature/RT-051-body-lexical-retrieval
 worktree: .claude/worktrees/RT-051-body-lexical-retrieval
