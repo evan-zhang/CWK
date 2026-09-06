@@ -1,0 +1,18 @@
+id: RT-051
+title: 正文级词法召回与元数据召回融合 v1
+type: Feature
+profile: Spec-Lite
+execution_mode: collaborative
+status: created
+modules: [kb-wizard-gateway, kb-ingest, kb-storage]
+branch: feature/RT-051-body-lexical-retrieval
+worktree: .claude/worktrees/RT-051-body-lexical-retrieval
+tool: unknown
+owner: Evan
+created_at: 2026-09-06T10:48:10Z
+updated_at: 2026-09-06T10:48:10Z
+closed_at: null
+notes: >
+  用户仅授权立项、独立 worktree 与开发前设计资料；方案门待用户/开发Agent批准。
+  不得据此开始代码开发、调用真实模型/API、部署、合并、推送或清理。
+  本次是正文词法+元数据融合，不是 dense+BM25 混合；rt-lite.md 为唯一方案权威。
