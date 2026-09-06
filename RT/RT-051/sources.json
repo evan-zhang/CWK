@@ -1,0 +1,867 @@
+{
+  "schema": "cwk.rt051.design-evidence.v1",
+  "captured_at": "2026-09-06T11:06:12.582043+00:00",
+  "cwk_base_commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+  "yuxi_commit": "fd0d9c4f48ba0e4701457196a2f967232be6091c",
+  "notes": "Static source inspection only; no credentials, private raw, API/model calls or performance runs.",
+  "sources": [
+    {
+      "repo": "cwk",
+      "path": "scripts/kb_gateway.py",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "14e1bf5830b1f53da3073110021f67f4521e0b9b47ca415fb3c17caa4f3b3198",
+      "line_count": 989,
+      "read_ranges": [
+        [
+          205,
+          398
+        ],
+        [
+          435,
+          509
+        ],
+        [
+          530,
+          690
+        ],
+        [
+          716,
+          741
+        ],
+        [
+          778,
+          788
+        ]
+      ],
+      "evidence_ids": [
+        "E01",
+        "E02",
+        "E03",
+        "E12"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": "scripts/kb_wizard.py",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "6f347bf7589099d51354d9365b579798db9f8e82e31f94256aac3c2cfa0f918a",
+      "line_count": 620,
+      "read_ranges": [
+        [
+          65,
+          105
+        ],
+        [
+          522,
+          536
+        ],
+        [
+          580,
+          598
+        ]
+      ],
+      "evidence_ids": [
+        "E04"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": "scripts/kb_ingest.py",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "a0f6a418b98eb50eba42aac3792089c36d922bd02ff56ece2e571fb5689dabc9",
+      "line_count": 3064,
+      "read_ranges": [
+        [
+          1648,
+          1788
+        ],
+        [
+          1934,
+          2176
+        ],
+        [
+          2258,
+          2490
+        ],
+        [
+          2549,
+          2633
+        ],
+        [
+          2790,
+          3048
+        ]
+      ],
+      "evidence_ids": [
+        "E05",
+        "E06",
+        "E09",
+        "E10"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": "scripts/kb_storage.py",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "9317a736265f89f856f7a5ebcbacb9ce2aede150f3a327ff0ab40bbcd18b2cf5",
+      "line_count": 1122,
+      "read_ranges": [
+        [
+          146,
+          299
+        ],
+        [
+          495,
+          539
+        ],
+        [
+          791,
+          845
+        ],
+        [
+          864,
+          914
+        ],
+        [
+          957,
+          969
+        ]
+      ],
+      "evidence_ids": [
+        "E07",
+        "E08"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": "scripts/kb_token.py",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "1b3e6ec066ccfcfb38b9e78a0b957bc0258eb63de8dccce91d6b5ed45972c240",
+      "line_count": 1160,
+      "read_ranges": [
+        [
+          809,
+          881
+        ]
+      ],
+      "evidence_ids": [
+        "E11"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": "scripts/cwk_wiki_query.py",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "41b936cc515372209ead3513a8d19166ecb8da4696fdbe7000ac9e372217c8f2",
+      "line_count": 3408,
+      "read_ranges": [
+        [
+          126,
+          146
+        ],
+        [
+          351,
+          435
+        ],
+        [
+          453,
+          565
+        ],
+        [
+          2175,
+          2215
+        ]
+      ],
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": "scripts/cwk_wiki_search_index.py",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "1033f3b080154c90ad30a232ac4bc301d95336b87a89356547c670fac61958cd",
+      "line_count": 316,
+      "read_ranges": [
+        [
+          115,
+          173
+        ]
+      ],
+      "evidence_ids": [
+        "E13"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": "tests/test_kb_gateway.py",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "cbf556916b67b558598051aa0a5020bb7c6e441d20c7d384cc4e0342b9069733",
+      "line_count": 1484,
+      "read_ranges": [
+        [
+          226,
+          258
+        ],
+        [
+          474,
+          550
+        ],
+        [
+          588,
+          775
+        ],
+        [
+          1293,
+          1403
+        ]
+      ],
+      "evidence_ids": [
+        "T01",
+        "T02",
+        "T03"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": "tests/test_kb_ingest.py",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "6297c7723dfa6e5381840d0a4512c4840ea3a0d8d493543f24d11485ff68acad",
+      "line_count": 2401,
+      "read_ranges": [
+        [
+          1365,
+          1465
+        ],
+        [
+          2268,
+          2353
+        ]
+      ],
+      "evidence_ids": [
+        "T04",
+        "T05"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": "tests/test_kb_wizard.py",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "687c22701cf67e284b80559ba9dad1226b1cd2953100f801450310c8e264e29b",
+      "line_count": 654,
+      "read_ranges": [
+        [
+          510,
+          557
+        ]
+      ],
+      "evidence_ids": [
+        "T06"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": "tests/test_kb_storage.py",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "29981058d0283da55fbfcbd9ecdba63e5883ed660aa157aa6e6d08f3f53633d9",
+      "line_count": 1036,
+      "read_ranges": [
+        [
+          262,
+          327
+        ],
+        [
+          585,
+          623
+        ]
+      ],
+      "evidence_ids": [
+        "T07"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": "RT/RT-049/rt-lite.md",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "cea234609f217423806b032595533f33f516a6349baab08ba1c08c32c633298e",
+      "line_count": 69,
+      "read_ranges": [
+        [
+          1,
+          69
+        ]
+      ],
+      "evidence_ids": [
+        "related-rt"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": "RT/RT-050/rt-lite.md",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "469311684a1b6993b00cb8ec3e711b4f1b3a0b67e504f14236dcf64ede3b9996",
+      "line_count": 51,
+      "read_ranges": [
+        [
+          1,
+          51
+        ]
+      ],
+      "evidence_ids": [
+        "related-rt"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": "RT/RT-021/rt-intake.md",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "1445bb3b79ee73aef38cdb2533e34378b526173707309661df13193fb1368027",
+      "line_count": 54,
+      "read_ranges": [
+        [
+          1,
+          54
+        ]
+      ],
+      "evidence_ids": [
+        "related-rt"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": "RT/RT-021/specs/技术方案.md",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "f6c416bf4843e8bf4032021e4fa45d13d26a61924f6309c08a894b1a569eeed7",
+      "line_count": 134,
+      "read_ranges": [
+        [
+          1,
+          134
+        ]
+      ],
+      "evidence_ids": [
+        "related-rt"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": "RT/RT-022/rt-intake.md",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "8b649c1eb8fdfdc36312cc5a79a635689a02f6f7fa31b70db6d98fef86c425ab",
+      "line_count": 91,
+      "read_ranges": [
+        [
+          1,
+          91
+        ]
+      ],
+      "evidence_ids": [
+        "related-rt"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": "RT/RT-022/specs/技术方案.md",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "192df326d5ee0b607afc5e80842a66cce4326fe232f20e2f7c7f42ee73e877da",
+      "line_count": 198,
+      "read_ranges": [
+        [
+          1,
+          198
+        ]
+      ],
+      "evidence_ids": [
+        "related-rt"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": "RT/RT-044/rt-lite.md",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "f007698d90709af2dcf207188dfe499e57a814aa7951f0dddb40ab8d5e3412b3",
+      "line_count": 50,
+      "read_ranges": [
+        [
+          1,
+          50
+        ]
+      ],
+      "evidence_ids": [
+        "related-rt"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": "RT/RT-045/rt-lite.md",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "610514ea43f038a36c42f5e57a6d0b64c9121be9bd9d6a76320cf08473595f6c",
+      "line_count": 7,
+      "read_ranges": [
+        [
+          1,
+          7
+        ]
+      ],
+      "evidence_ids": [
+        "related-rt"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": "RT/RT-045/golden-questions.md",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "e879453be4671bef1c095742ce6b488ceb54418364843aa2e9de05e7cff665f3",
+      "line_count": 31,
+      "read_ranges": [
+        [
+          1,
+          31
+        ]
+      ],
+      "evidence_ids": [
+        "related-rt"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": "RT/index.yaml",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "460fd30dc9c4471f5976f5d2e5499aa798ff13d12c7a64c400024e35c69b6218",
+      "line_count": 292,
+      "read_ranges": [
+        [
+          1,
+          292
+        ]
+      ],
+      "evidence_ids": [
+        "related-rt"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": "RT/_deferred-items.md",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "5884d0cd7220971d02a291abe2273925674cdca2cd20f68710f705ccad9e5f49",
+      "line_count": 153,
+      "read_ranges": [
+        [
+          1,
+          153
+        ]
+      ],
+      "evidence_ids": [
+        "related-rt"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": "RT/RT-022/reports/migrations/stage-06-cwk-wiki-query-ord1.md",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "cfad26588e771b24e0c4124ef65aab1717516e9f49a0779e961f4d34b3318565",
+      "line_count": 38,
+      "read_ranges": [
+        [
+          18,
+          38
+        ]
+      ],
+      "evidence_ids": [
+        "related-rt"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": "PR/PR-001-multitenant-knowledge-spaces/DESIGN.md",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "523345b1967df86c354ca78594628add21b3831fd0afa0c638eff46ab2b61af0",
+      "line_count": 1128,
+      "read_ranges": [
+        [
+          514,
+          555
+        ],
+        [
+          799,
+          806
+        ]
+      ],
+      "evidence_ids": [
+        "pr-boundary"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": ".aodw-next/01-core/aodw-constitution.md",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "fae73992332d1ec4f5fa2a078b8a045393dc259516bf300835c24d5e1b27b4fb",
+      "line_count": 165,
+      "read_ranges": [
+        [
+          1,
+          165
+        ]
+      ],
+      "evidence_ids": [
+        "rules"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": ".aodw-next/01-core/ai-interaction-rules.md",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "d1cd4fb556d0c45d140f4463e8ad901b68117b7823a9fe988bb9ad46b57cd1ee",
+      "line_count": 60,
+      "read_ranges": [
+        [
+          1,
+          60
+        ]
+      ],
+      "evidence_ids": [
+        "rules"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": "AGENTS.md",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "45f1d80270358274496f822a15b1d6524d8e2aafa7cada60a9544a46d9ba8217",
+      "line_count": 79,
+      "read_ranges": [
+        [
+          1,
+          79
+        ]
+      ],
+      "evidence_ids": [
+        "rules"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": ".aodw-next/06-project/ai-overview.md",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "3de809f58db6ee851445308875f8cc11f161f5e9c49d3586df47c9f3f836c357",
+      "line_count": 81,
+      "read_ranges": [
+        [
+          1,
+          81
+        ]
+      ],
+      "evidence_ids": [
+        "rules"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": ".aodw-next/02-workflow/rt-manager.md",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "85088aed9e61fbd0233cb60351116ba8f848453048bdc3f59210605aa22c31df",
+      "line_count": 118,
+      "read_ranges": [
+        [
+          1,
+          118
+        ]
+      ],
+      "evidence_ids": [
+        "rules"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": ".aodw-next/02-workflow/spec-lite-profile.md",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "aa076b0c493e89a97326804fa72b140307526b44b57e3fab519b8225620169fc",
+      "line_count": 93,
+      "read_ranges": [
+        [
+          1,
+          93
+        ]
+      ],
+      "evidence_ids": [
+        "rules"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": ".aodw-next/templates/rt-lite.template.md",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "3d5ed06d4a1276d595494253ed743f9d277a096bc995b170d1a21166885dc94c",
+      "line_count": 36,
+      "read_ranges": [
+        [
+          1,
+          36
+        ]
+      ],
+      "evidence_ids": [
+        "rules"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": ".aodw-next/templates/rt-meta-template.yaml",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "160dd6eff5c604dbe92d4d3c6ff7805ae7aa26523aa972cd7bbacff54ab29fb3",
+      "line_count": 69,
+      "read_ranges": [
+        [
+          1,
+          69
+        ]
+      ],
+      "evidence_ids": [
+        "rules"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": ".aodw-next/01-core/git-discipline.md",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "2d47d3f6d6e16d16389e079e455dc7b642b0c87c943d4953dd71ec133bbc6773",
+      "line_count": 112,
+      "read_ranges": [
+        [
+          1,
+          112
+        ]
+      ],
+      "evidence_ids": [
+        "rules"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": ".aodw-next/01-core/test-discipline.md",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "9fc6d73ccd4e810dfc49020c009923b432b7aa30dbc570228ee17fba726c56be",
+      "line_count": 122,
+      "read_ranges": [
+        [
+          1,
+          122
+        ]
+      ],
+      "evidence_ids": [
+        "rules"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": ".aodw-next/06-project/governance/code-ownership-manifest.json",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "7a427f0929b7af701899e3e5896d2266bcc26636ee9753ccdbcab0c385f9c373",
+      "line_count": 632,
+      "read_ranges": [
+        [
+          235,
+          277
+        ],
+        [
+          449,
+          467
+        ],
+        [
+          584,
+          594
+        ]
+      ],
+      "evidence_ids": [
+        "ownership"
+      ]
+    },
+    {
+      "repo": "cwk",
+      "path": ".aodw-next/06-project/aodw-check.sh",
+      "commit": "80b8b850dd25c2527c18822923ccacae104205e8",
+      "sha256": "ff9e61c1893750b85fb75cde60d6b9a1c3cb2d486db0bc030edd5a48c623917f",
+      "line_count": 147,
+      "read_ranges": [
+        [
+          1,
+          130
+        ]
+      ],
+      "evidence_ids": [
+        "validation-scope"
+      ]
+    },
+    {
+      "repo": "yuxi",
+      "path": "backend/package/yuxi/knowledge/implementations/milvus.py",
+      "commit": "fd0d9c4f48ba0e4701457196a2f967232be6091c",
+      "sha256": "cf555eaf44d9157fcf90d6c8a2bd4d76545ca992c8a6d3d8fe9d47a1824561e0",
+      "line_count": 1355,
+      "read_ranges": [
+        [
+          36,
+          41
+        ],
+        [
+          396,
+          445
+        ],
+        [
+          830,
+          1035
+        ]
+      ],
+      "evidence_ids": [
+        "Y01"
+      ]
+    },
+    {
+      "repo": "yuxi",
+      "path": "backend/package/yuxi/knowledge/chunking/ragflow_like/dispatcher.py",
+      "commit": "fd0d9c4f48ba0e4701457196a2f967232be6091c",
+      "sha256": "d8a3761c3e6b4d02eda07ed2e28468cc166068e3f28a821f58d53864652affe8",
+      "line_count": 85,
+      "read_ranges": [
+        [
+          1,
+          85
+        ]
+      ],
+      "evidence_ids": [
+        "Y02"
+      ]
+    },
+    {
+      "repo": "yuxi",
+      "path": "backend/package/yuxi/knowledge/chunking/ragflow_like/parsers/general.py",
+      "commit": "fd0d9c4f48ba0e4701457196a2f967232be6091c",
+      "sha256": "dd32a7e3b675287528e75ff98dc4f21559b6a55d5e3a82c34cfc37cfe56e2905",
+      "line_count": 68,
+      "read_ranges": [
+        [
+          1,
+          68
+        ]
+      ],
+      "evidence_ids": [
+        "Y03"
+      ]
+    },
+    {
+      "repo": "yuxi",
+      "path": "backend/package/yuxi/knowledge/eval/metrics.py",
+      "commit": "fd0d9c4f48ba0e4701457196a2f967232be6091c",
+      "sha256": "a48e5d61adc5066031d966450c6fdc1ffecc8d67cd2c21b2b2bd306cecb9f0ec",
+      "line_count": 141,
+      "read_ranges": [
+        [
+          1,
+          141
+        ]
+      ],
+      "evidence_ids": [
+        "Y04"
+      ]
+    },
+    {
+      "repo": "yuxi",
+      "path": "backend/package/yuxi/knowledge/eval/evaluator.py",
+      "commit": "fd0d9c4f48ba0e4701457196a2f967232be6091c",
+      "sha256": "dc193892d0b85f888397ba0aebffb0907b079e0990cb82a4c5a217e88a83f031",
+      "line_count": 137,
+      "read_ranges": [
+        [
+          1,
+          137
+        ]
+      ],
+      "evidence_ids": [
+        "Y05"
+      ]
+    },
+    {
+      "repo": "yuxi",
+      "path": "backend/package/yuxi/knowledge/eval/benchmark_generation.py",
+      "commit": "fd0d9c4f48ba0e4701457196a2f967232be6091c",
+      "sha256": "05eae0254b33b86697fd45f0b30c23236238d122dbb59899d0ff7be38316c5cd",
+      "line_count": 389,
+      "read_ranges": [
+        [
+          1,
+          100
+        ],
+        [
+          185,
+          285
+        ]
+      ],
+      "evidence_ids": [
+        "Y06"
+      ]
+    },
+    {
+      "repo": "yuxi",
+      "path": "backend/test/unit/knowledge/eval/test_metrics.py",
+      "commit": "fd0d9c4f48ba0e4701457196a2f967232be6091c",
+      "sha256": "b2890b1f32e64d21c79c11ea272d48252fc50726b508b750ea6b92080f44e359",
+      "line_count": 50,
+      "read_ranges": [
+        [
+          10,
+          50
+        ]
+      ],
+      "evidence_ids": [
+        "Y07"
+      ]
+    },
+    {
+      "repo": "yuxi",
+      "path": "LICENSE",
+      "commit": "fd0d9c4f48ba0e4701457196a2f967232be6091c",
+      "sha256": "93ae1dca19d82831cfd514eb0f148f326a27f8d2d757662e8e2703a48658543e",
+      "line_count": 21,
+      "read_ranges": [
+        [
+          1,
+          21
+        ]
+      ],
+      "evidence_ids": [
+        "Y08"
+      ]
+    }
+  ],
+  "methodology": [
+    {
+      "path": "/Users/evan/.openclaw/gateways/life/state/workspace-life/skills/rigorous-plan-methodology/SKILL.md",
+      "sha256": "38a1bf9c8a7c48fc779a4be57df94a6e56a57513600091ee5868faf68456fa16",
+      "read_scope": "complete",
+      "line_count": 47
+    },
+    {
+      "path": "/Users/evan/.openclaw/gateways/life/state/workspace-life/skills/rigorous-plan-methodology/references/classification-methodology.md",
+      "sha256": "f061316f84c2dd304e6ce2a6f206f6ab15d9f07e0ec3f4fb6895e2bc01de3445",
+      "read_scope": "complete",
+      "line_count": 33
+    },
+    {
+      "path": "/Users/evan/.openclaw/gateways/life/state/workspace-life/skills/rigorous-plan-methodology/references/coding-scheme.md",
+      "sha256": "998fd73e6092d88fb91058767fcc3572750fd264ecc3b28e7733462855b1f56f",
+      "read_scope": "complete",
+      "line_count": 30
+    },
+    {
+      "path": "/Users/evan/.openclaw/gateways/life/state/workspace-life/skills/rigorous-plan-methodology/references/governance-checklist.md",
+      "sha256": "2156d6ba854695a876cd6e815708a8470608d3fd9932f18f9bdc15986ab1d3cf",
+      "read_scope": "complete",
+      "line_count": 39
+    },
+    {
+      "path": "/Users/evan/.openclaw/gateways/life/state/workspace-life/skills/rigorous-plan-methodology/references/self-audit-templates.md",
+      "sha256": "929f4e4b5a68822417bce9a932cf5642af0532e35948d62007c1783299681311",
+      "read_scope": "complete",
+      "line_count": 40
+    }
+  ]
+}

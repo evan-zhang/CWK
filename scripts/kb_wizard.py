@@ -59,6 +59,7 @@ sys.path.insert(0, str(PROJECT / "scripts"))
 
 import kb_create  # noqa: E402
 import kb_doctor  # noqa: E402
+import kb_gateway_client as gw_client  # noqa: E402
 from kb_gateway import RAW_INDEX_REL, parse_root, query_index  # noqa: E402
 from kb_ledger import (  # noqa: E402
     MANIFEST_REL,
@@ -100,7 +101,13 @@ ROUTE_MODES = ("timeline", "classify")
 #: chatty pipeline cannot turn one card into a log file.
 CAPTURE_CHARS = 2000
 
-VERBS = ("create", "ingest", "status", "query")
+# RT-051 P2: v2 网关 read-side 动词与 build_parser 里 GW_READSIDE_VERBS
+# 的键一一对应（J5 断言两头一致；这里写死避免模块级前向引用）。
+VERBS = (
+    "create", "ingest", "status", "query",
+    "capabilities", "list", "search", "open",
+    "inspect", "read", "continue", "renew",
+)
 
 
 class WizardRefused(Exception):
@@ -531,6 +538,58 @@ def verb_query(args: argparse.Namespace) -> int:
     return 0
 
 
+# ── RT-051 P2: read-side verbs over the v2 gateway face ─────────────────────
+#
+# 这些动词只说网关，刻意不接 --backend/--prefix/--kb-root（C05）：Agent
+# 拿不到存储凭据也不需要；连接配置（URL+token）由宿主环境变量注入，
+# 不走 argv。open 是 resolve 的 CLI 别名，不设第二事实路径。
+
+GW_READSIDE_VERBS: Dict[str, Dict[str, object]] = {
+    "capabilities": {"op": "capabilities", "params": ()},
+    "list": {"op": "list", "params": ("page_size", "cursor")},
+    "search": {
+        "op": "search",
+        "params": ("q", "page_size", "cursor", "retrieval_mode", "allow_degraded"),
+    },
+    "open": {"op": "resolve", "params": ("lineage", "version")},
+    "inspect": {"op": "inspect", "params": ()},
+    "read": {
+        "op": "read",
+        "params": ("max_bytes", "start_byte", "end_byte", "line_start", "line_end", "cursor"),
+    },
+    "continue": {"op": "continue", "params": ()},
+    "renew": {"op": "renew", "params": ()},
+}
+
+
+def verb_gw_readside(args: argparse.Namespace) -> int:
+    spec = GW_READSIDE_VERBS[args.verb]
+    params: Dict[str, object] = {"kb": args.kb}
+    for name in ("document_ref", "cursor"):
+        value = getattr(args, name, None)
+        if value:
+            params[name] = value
+    for name in spec["params"]:
+        value = getattr(args, name, None)
+        if value is not None:
+            params[name] = value
+    try:
+        payload = gw_client.call(str(spec["op"]), params)
+    except gw_client.ClientError as exc:
+        # 错误也保持 v2 形状；stderr 一行脱敏诊断（无 URL/无 token）。
+        emit({
+            "schema": "cwk.kb.error.v2",
+            "ok": False,
+            "error": {"code": exc.code, "message": exc.message, "retryable": False},
+            "verb": args.verb,
+        })
+        print(f"网关调用失败：{exc.code}（exit {exc.exit_code()}）", file=sys.stderr)
+        return exc.exit_code()
+    # 成功响应原样透传（含 schema/完整性字段），不包第二层信封、不截 excerpt。
+    emit(payload)
+    return 0
+
+
 # ── CLI ─────────────────────────────────────────────────────────────────────
 
 
@@ -585,6 +644,28 @@ def build_parser() -> argparse.ArgumentParser:
     query.add_argument("--q", required=True, help="查询词（子串匹配）")
     query.add_argument("--limit", type=int, default=20)
 
+    # RT-051 P2: read-side verbs——只说 v2 网关，连接配置走环境变量。
+    # 刻意不接 --backend/--prefix/--kb-root（C05）。
+    for name, spec in GW_READSIDE_VERBS.items():
+        node = sub.add_parser(
+            name,
+            help=f"v2 网关受控读：{spec['op']}（连接配置 CWK_KB_GW_URL/CWK_KB_GW_TOKEN 走环境变量）",
+        )
+        node.add_argument("--kb", required=True, help="目标库 id（NAS prefix）")
+        if name in ("inspect", "read", "continue", "renew"):
+            node.add_argument("--document-ref", required=True, help="resolve 签发的不透明句柄")
+        if name == "continue":
+            node.add_argument("--cursor", required=True, help="上一次 read 返回的续读游标")
+        if name in ("search",):
+            node.add_argument("--q", required=True, help="查询词")
+        for param in spec["params"]:
+            if param in ("q", "cursor"):
+                continue  # q/cursor 上面已按动词语义注册
+            if param in ("page_size", "max_bytes", "start_byte", "end_byte", "line_start", "line_end", "version"):
+                node.add_argument(f"--{param.replace('_', '-')}", type=int, dest=param)
+            else:
+                node.add_argument(f"--{param.replace('_', '-')}", dest=param)
+
     return parser
 
 
@@ -593,6 +674,7 @@ HANDLERS = {
     "ingest": verb_ingest,
     "status": verb_status,
     "query": verb_query,
+    **{name: verb_gw_readside for name in GW_READSIDE_VERBS},
 }
 
 

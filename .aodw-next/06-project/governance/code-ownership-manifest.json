@@ -277,6 +277,21 @@
       "rationale": "RT-044 个人 KB 平台的操作面：建库向导 CLI（create/ingest/status/query，输出一律 JSON）与只读查询网关（/health /query /citation，管理 Key 派生 token）。两个文件同属一条规则，因为它们是同一份两进程宪法的两半——写面与读面必须同进同出地被审。逐条 exact_set 而非前缀：scripts/ 是 exact-only 区，且 R-runtime-pr001-managed-scripts 委派给上游的是一个封闭声明集合（namespace_pattern 只能展开登记表已有路径），这两个新文件不在该集合内，必须由本清单直管。不建 script-evolution-v2 槽位：GA-V2-SLOT 要求叠加目标先存在于 v1 evolvable_paths，新脚本不满足（同 RT-040 R-runtime-rt040-reply-refresh、RT-042 R-runtime-rt042-kb-platform 先例）。"
     },
     {
+      "id": "R-runtime-rt051-controlled-read-lexical",
+      "domain": "runtime",
+      "kind": "exact_set",
+      "paths": [
+        "scripts/kb_gateway_client.py",
+        "scripts/kb_lexical.py",
+        "scripts/kb_lexical_builder.py"
+      ],
+      "owner": "RT-051",
+      "management_domain": "cwk-governance-v1",
+      "change_entry": "RT → rt-lite.md 记录理由 → 改动 → make governance-audit + tests/test_rt051_gateway_v2.py + tests/test_rt051_wizard_readside.py + tests/test_rt051_lexical.py",
+      "evolution_path": "repo-standard-change",
+      "rationale": "RT-051 受控完整访问与正文词法召回的两个新脚本：kb_gateway_client.py（v2 网关薄客户端）、kb_lexical.py（词法原语纯函数层）与 kb_lexical_builder.py（词法建代 builder，写面独立进程）。同属一条规则因为它们是同一合同的两半——客户端说网关协议，词法层供 builder 与网关融合共用，必须同进同出地被审。逐条 exact_set 而非前缀：scripts/ 是 exact-only 区，R-runtime-pr001-managed-scripts 委派的封闭集合只覆盖 cwk_* 命名空间，这两个 kb_* 新脚本不在其内，必须由本清单直管（同 RT-044 R-runtime-rt044-kb-wizard-gateway 先例）。tests/ 下三个 test_rt051_*.py 由 R-test-suite 前缀规则认领，不在此重复。不建 script-evolution-v2 槽位：GA-V2-SLOT 要求叠加目标先存在于 v1 evolvable_paths，新脚本不满足。"
+    },
+    {
       "id": "R-runtime-adapters",
       "domain": "runtime",
       "kind": "prefix",

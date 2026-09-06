@@ -3009,6 +3009,17 @@ def refresh_library(
         rstate["kb_code"] = kb_code
         save_refresh_state(backend, rstate, kb_code=kb_code, now=at)
 
+    # RT-051 P3c: 增量落账后重建词法代（收尾点=所有 execute_plan 与
+    # save_refresh_state 之后）。已发布词法代的库才跟（opt-in，未启用
+    # 不自动创建）；失败只进报告字段不拖垮 refresh 本身。
+    lexical: Optional[dict] = None
+    if applied:
+        try:
+            from kb_lexical_builder import refresh_hook  # 延迟导入：读面模块不进导入图
+            lexical = refresh_hook(backend, kb_code=kb_code)
+        except Exception as exc:  # noqa: BLE001 - 隔离边界
+            lexical = {"status": "failed", "error": f"{type(exc).__name__}: {exc}"}
+
     # 源侧消失清单（RT-050 补丁）：库里已知、本次全量扫描没看见的件。
     # 只报告、不删库——快照语义下源侧删除是业务常态，库保留原件正是审计
     # 价值；但「悄悄少了 20 件」不该无人知晓。护栏命中时整轮计划已判
@@ -3044,6 +3055,7 @@ def refresh_library(
         "baseline_items": baseline_items,
         "new_failed": new_failed,
         "vanished": vanished,
+        "lexical": lexical,
         "sources": reports,
         "note": note,
         "at": iso(at),
