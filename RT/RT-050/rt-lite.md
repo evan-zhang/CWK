@@ -93,3 +93,19 @@
   库保留原件正是审计价值；但「悄悄少了 N 件」必须可见
 - 测试：RefreshVanishedTests 4 例（部分删除上报且库内保留 / 窗口源
   不判 / 截断标记 / 护栏轮次零清单）；全量回归 168 OK；双门禁绿
+
+## 补丁二：touqian 双源恢复（A 方案，2026-09-06 20:32 Evan 批）
+
+- source.json 经账本路径改写（record_write 写后读回对账 →
+  record_changed_paths 留痕 → refresh_manifest 重签，allow_replaced=
+  [source.json]）：单源指旧项目根 → 双源指两个新顶层目录
+  （2087521342634180609 投前系统_项目管理部 93 件 /
+  2087521796046831618 投前系统_玄关开发 40 件），schema/字段零变更
+- OPS 同步部署 vanished 版 kb_ingest.py（备份 kb_ingest.py.bak-
+  20260906-pre-vanished，指纹 d4d10924 本地=远端）
+- 实测链：干跑 93+40=133、护栏零触发、vanished 空 → `--yes` 实刷
+  133 全 unchanged、零新失败、rc=0 → doctor 五绿 → refresh-state
+  双源基线落账（93/40 @ 12:32:33Z）→ 网关 `?kb=docdb-touqian` 可查
+  （体外模拟 matched=19）
+- 新代码首战自证：vanished 首轮即验证「133/133 全找到 → 空清单」，
+  与 19:28 考古的人工对账结论一致
