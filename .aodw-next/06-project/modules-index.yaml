@@ -75,6 +75,16 @@ modules:
       - RT/RT-043/references/INGEST-AND-TAXONOMY.md
       - scripts/kb_storage.py
       - scripts/kb_ledger.py
+  - name: rt051-controlled-read-lexical
+    path: RT/RT-051/rt-lite.md
+    root: scripts
+    related_files:
+      - scripts/kb_gateway_client.py
+      - scripts/kb_lexical.py
+      - tests/test_rt051_gateway_v2.py
+      - tests/test_rt051_wizard_readside.py
+      - tests/test_rt051_lexical.py
+
   - name: kb-wizard-gateway
     path: RT/RT-044/references/CLI-SPEC.md
     root: scripts
