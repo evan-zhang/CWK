@@ -48,4 +48,64 @@
   失败语义（新失败红、已知失败不红仍列名、恢复后无痕）、护栏集成
   （空扫/暴涨跳过执行）、干跑零写入、cwork 源（窗口生效/缺镜像拒）
 - 全量回归 test_kb_ingest 164 tests OK；双门禁绿
-- OPS 实测（部署后回填）：三库干跑 → spbp 可见增量 → launchd 定时验证
+
+## 部署与实测回填（2026-09-06）
+
+- 提交 `80b8b85` 推送，CI smoke 绿（run 34027288178）；OPS 文件复制部署
+  （旧版备份 `kb_ingest.py.bak-20260906-pre-refresh`，指纹与 HEAD 逐字一致）
+- wrapper `~/CWK/ops/run-kb-refresh.sh`（700，双 env：ops/env + env-nightly
+  ——单 env 不够，NAS 凭据与 DocDB 钥匙分居两个文件；`CWK_MIRROR_ROOT`
+  指向镜像 raw）+ launchd `com.cwk.kb-refresh` 每日 23:30（不动 22:30 主管道）；
+  逐库失败隔离，报告落 `~/CWK/ops/logs/kb-refresh-<date>.json`
+- **真实增量实测**（手动触发，与定时同一入口）：
+  - spbp-2027：109 基线 → converted 15（当天研讨会新资料：12 md +
+    2 xlsx + 1 pptx，非 md 因 OPS 无 md2md 落 placeholder 3）/ unchanged 104 /
+    failed 2（已知源侧空件，豁免不计红）→ ok=true
+  - cwork-3m：453 基线 → converted 30（新周报）/ unchanged 384 → ok=true
+  - docdb-touqian：扫出 0 件，**护栏拦截**（empty）——源侧 root
+    folder 2082734860367093762 直查返回空数组（库内 133 件快照不受
+    影响，可正常查询）
+    - **更正（2026-09-06 19:28 考古）**：当时疑「目录被清空/移走」，
+      随后逐件 fileId 直连 + get-level1-folders 复核推翻——实为**源侧
+      按部门重组**：08-12 建了两个新顶层目录（投前系统_项目管理部
+      2087521342634180609 / 投前系统_玄关开发 2087521796046831618），
+      09-05 摄取后老结构被整体搬入、项目根清空。两新目录递归 133 件
+      与库内 133/133 逐 fileId 完全对账，零缺失零新增。教训：建库
+      root 应指稳定子目录而非项目根。修复走 Evan 拍板的 A 方案
+      （source.json 双源改指两新目录），见下方补丁二
+- 增量后 doctor 两库五项全绿（raw/manifest/collection-state/changed-
+  paths/tree）；网关无重启可见新件（全天研讨会 matched=2、主持人手册
+  matched=1、周报 matched=22）
+- 注：本次实测中 18:25 网关重启杀掉的是本地轮询连接，远端 refresh
+  进程照常跑完（结果文件完整落盘）——逐件追加+账本级联的中断安全
+  语义得到一次意外实证
+
+## 补丁：源侧消失报告（vanished，2026-09-06 19:48 Evan 批）
+
+- 动机：touqian 重组事件暴露的盲区——暴涨有护栏、缩水无人知晓（133 件
+  被删 20 件 → 下次计划 113 件全 unchanged，静默）
+- `refresh_library` 增 vanished 清单：库里已知、本次**全量**扫描没看见
+  的件，按源 label 聚合上报（count + 前 50 件 + truncated 标记）
+- 三条防误报边界：带 since 窗口的计划不判定（窗外件看不见 ≠ 消失）；
+  多源聚合到 label 级再判（同库多根不互报）；护栏命中的轮次整轮跳过
+  （清单只会是噪声，护栏自己会红）
+- 语义：**只报告、不删库、不计红**——快照语义下源侧删除是业务常态，
+  库保留原件正是审计价值；但「悄悄少了 N 件」必须可见
+- 测试：RefreshVanishedTests 4 例（部分删除上报且库内保留 / 窗口源
+  不判 / 截断标记 / 护栏轮次零清单）；全量回归 168 OK；双门禁绿
+
+## 补丁二：touqian 双源恢复（A 方案，2026-09-06 20:32 Evan 批）
+
+- source.json 经账本路径改写（record_write 写后读回对账 →
+  record_changed_paths 留痕 → refresh_manifest 重签，allow_replaced=
+  [source.json]）：单源指旧项目根 → 双源指两个新顶层目录
+  （2087521342634180609 投前系统_项目管理部 93 件 /
+  2087521796046831618 投前系统_玄关开发 40 件），schema/字段零变更
+- OPS 同步部署 vanished 版 kb_ingest.py（备份 kb_ingest.py.bak-
+  20260906-pre-vanished，指纹 d4d10924 本地=远端）
+- 实测链：干跑 93+40=133、护栏零触发、vanished 空 → `--yes` 实刷
+  133 全 unchanged、零新失败、rc=0 → doctor 五绿 → refresh-state
+  双源基线落账（93/40 @ 12:32:33Z）→ 网关 `?kb=docdb-touqian` 可查
+  （体外模拟 matched=19）
+- 新代码首战自证：vanished 首轮即验证「133/133 全找到 → 空清单」，
+  与 19:28 考古的人工对账结论一致

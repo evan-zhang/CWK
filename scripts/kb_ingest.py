@@ -2785,6 +2785,7 @@ REFRESH_HISTORY_CAP = 30
 SPIKE_MULTIPLIER = 3
 SPIKE_SLACK = 50
 ENV_MIRROR_ROOT = "CWK_MIRROR_ROOT"
+VANISHED_REPORT_CAP = 50
 
 
 def load_refresh_state(backend: StorageBackend) -> dict:
@@ -2928,6 +2929,7 @@ def refresh_library(
         if row.get("status") == "failed"
     }
     rstate = load_refresh_state(backend)
+    plans_by_label: Dict[str, set] = {}
 
     reports: List[dict] = []
     new_failed: List[str] = []
@@ -2950,6 +2952,17 @@ def refresh_library(
         guard = evaluate_refresh_guard(
             plan, baseline_items=baseline_items, prev_plan_count=prev_count
         )
+        if guard is None and plan.get("since") is None:
+            # 源侧消失判定只对全量扫描有意义：带 since 的计划看不见窗口外的
+            # 件，拿它当「消失」会误报；护栏命中的空扫不判（护栏自己会红，
+            # 再列全量消失清单是噪声）。多源聚合到 label 级后再统一判。
+            label = str(plan.get("source") or "")
+            ids = {
+                str(item.get("lineage_id") or "")
+                for item in plan.get("items") or []
+            }
+            ids.discard("")
+            plans_by_label.setdefault(label, set()).update(ids)
         row: Dict[str, object] = {
             "source": key,
             "plan_count": plan["item_count"],
@@ -2996,12 +3009,32 @@ def refresh_library(
         rstate["kb_code"] = kb_code
         save_refresh_state(backend, rstate, kb_code=kb_code, now=at)
 
+    # 源侧消失清单（RT-050 补丁）：库里已知、本次全量扫描没看见的件。
+    # 只报告、不删库——快照语义下源侧删除是业务常态，库保留原件正是审计
+    # 价值；但「悄悄少了 20 件」不该无人知晓。护栏命中时整轮计划已判
+    # 不可信，消失清单只会是噪声——guard 自己会红。
+    vanished: Dict[str, dict] = {}
+    for label, ids in (plans_by_label.items() if guard_hit is None else ()):
+        known = {
+            lineage
+            for lineage in state["items"]
+            if lineage.startswith(f"{label}:")
+        }
+        gone = sorted(known - ids)
+        if gone:
+            vanished[label] = {
+                "count": len(gone),
+                "items": gone[:VANISHED_REPORT_CAP],
+                "truncated": len(gone) > VANISHED_REPORT_CAP,
+            }
+
     if not apply:
         note = "只读刷新报告（零写入）：确认后加 --yes 执行"
     else:
         note = (
             "护栏：计划 0 件而库非空、或件数超上次 %d 倍+%d → 拒绝执行；已知失败"
-            "不计红，仅新失败计红" % (SPIKE_MULTIPLIER, SPIKE_SLACK)
+            "不计红，仅新失败计红；源侧消失仅报告（vanished，快照语义不删件，"
+            "带窗口的源不判定防误报）" % (SPIKE_MULTIPLIER, SPIKE_SLACK)
         )
     return {
         "schema": REFRESH_SCHEMA,
@@ -3010,6 +3043,7 @@ def refresh_library(
         "guard": guard_hit,
         "baseline_items": baseline_items,
         "new_failed": new_failed,
+        "vanished": vanished,
         "sources": reports,
         "note": note,
         "at": iso(at),
