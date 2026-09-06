@@ -30,10 +30,12 @@ from test_kb_gateway import (  # noqa: E402
     BODY_V1,
     FIXED_NOW,
     LINEAGE,
+    RAW_PATH,
     TOKEN,
     seed_local_kb,
     seed_memory_kb,
 )
+from test_kb_storage import fake_nas  # noqa: E402
 
 H = {gateway.TOKEN_HEADER: TOKEN}
 KB = "cwork-3m"
@@ -422,6 +424,74 @@ class V2LocalFSEquivalenceTests(unittest.TestCase):
                     break
             joined = b"".join(chunks)
             self.assertEqual(hashlib.sha256(joined).hexdigest(), hashlib.sha256(BODY_V1.encode()).hexdigest())
+
+
+class V2FakeNASTests(unittest.TestCase):
+    """P1 出口判据（C09）：v2 读取面在 FileStation 传输层上完整可达，
+    且覆写漂移被拒。传输层不是 memory/local 的另一个分叉——同一条
+    GatewayApp 代码，只换 backend。"""
+
+    def _seed_fake_nas(self):
+        backend = fake_nas()
+        entry = {
+            "path": RAW_PATH,
+            "title": "供货协议",
+            "version": 2,
+            "sha256": hashlib.sha256(BODY_V1.encode("utf-8")).hexdigest(),
+            "status": "ok",
+            "artifact_kind": "document",
+        }
+        backend.mkdir("_system")
+        backend.write(gateway.RAW_INDEX_REL, gateway.dumps({
+            "schema": "cwk.kb.raw-index.v1",
+            "kb_code": "f" * 32,
+            "entries": {LINEAGE: entry},
+        }))
+        backend.mkdir("raw/合同")
+        backend.write(RAW_PATH, BODY_V1.encode("utf-8"))
+        return backend
+
+    def test_paged_read_to_eof_over_filestation_reassembles_the_bytes(self) -> None:
+        app = gateway.GatewayApp(
+            self._seed_fake_nas(), TOKEN,
+            backend_kind="nas", clock=lambda: FIXED_NOW, kb_id=KB,
+        )
+        ref = resolve_ref(app)
+        chunks: list[bytes] = []
+        cursor = None
+        for _ in range(50):
+            path = f"/v2/kb/read?kb={KB}&document_ref={ref}&max_bytes=64"
+            r = get(app, path + (f"&cursor={cursor}" if cursor else ""))
+            self.assertEqual(r.status, 200, r.payload)
+            p = r.payload
+            self.assertTrue(p["full_sha_verified"])
+            chunks.append(p["text"].encode("utf-8"))
+            cursor = p["next_cursor"]
+            if p["eof"]:
+                break
+        else:
+            self.fail("分页循环没到 eof")
+        joined = b"".join(chunks)
+        self.assertEqual(
+            hashlib.sha256(joined).hexdigest(),
+            hashlib.sha256(BODY_V1.encode("utf-8")).hexdigest(),
+        )
+
+    def test_a_source_overwrite_between_reads_is_refused(self) -> None:
+        backend = self._seed_fake_nas()
+        app = gateway.GatewayApp(
+            backend, TOKEN,
+            backend_kind="nas", clock=lambda: FIXED_NOW, kb_id=KB,
+        )
+        ref = resolve_ref(app)
+        r1 = get(app, f"/v2/kb/read?kb={KB}&document_ref={ref}&max_bytes=32")
+        self.assertEqual(r1.status, 200)
+        # 源被覆写：字节不再等于索引记录的 SHA——续读必须拒，不是把新内容
+        # 当旧版发出去（这正是快照/版本链要防的事）。
+        backend.write(RAW_PATH, ("篡改后的正文" * 80).encode("utf-8"))
+        r2 = get(app, f"/v2/kb/read?kb={KB}&document_ref={ref}&max_bytes=32")
+        self.assertEqual(r2.status, 409)
+        self.assertEqual(r2.payload["error"]["code"], "stale_reference")
 
 
 if __name__ == "__main__":  # pragma: no cover
