@@ -50,3 +50,20 @@ launchd plist + 更新拓扑文档；而鉴权层（kb_token 登记表）早已�
   177 例零改动通过（单库兼容）
 - OPS 部署（8787 挂三库升级重启，8788/8789 保留）+ 245 端到端验证：
   部署后回填本节
+
+## 部署与端到端回执（2026-09-06）
+
+- OPS：`~/CWK` 非 git 仓（文件复制式部署），旧版先备份
+  （`kb_gateway.py.bak-20260906-1.0.0`）；plist 备份
+  （`.bak-20260906-single`）后加 `--kb docdb-touqian --kb spbp-2027`，
+  bootstrap 重启；`--check` 预检：v1.1.0、mounted_kbs 三库、NAS 可达、
+  登记表 2 条
+- OPS 路由矩阵 10/10：spbp/touqian 经 `?kb=` 可查且回执带 kb；默认
+  kb=cwork-3m；unknown_kb→admin 404 不回显挂载面；错/无 token 401；
+  citation 跨库 200 matches_index=true、同 lineage 不带 kb 404；8788/8789
+  旧实例健康存活（过渡期别名）
+- 245 端到端（绑定 token）：三库通查、引文链 matches_index=true。验证
+  脚本曾预期「绑定 token 问未挂载库→404」，实测 403——这是正确语义
+  （scope 判定在挂载面之前，不泄露挂载面），已补单测钉住：
+  `test_a_binding_token_asking_for_an_unmounted_kb_is_403_not_404`
+- 结论：建新库 = 摄取 + 登记表一行，零端口零 plist（RT-049 目标达成）

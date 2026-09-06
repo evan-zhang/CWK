@@ -1391,6 +1391,17 @@ class MultiLibraryAuthTests(MultiLibraryCase):
         response = self.get(f"/query?q=路线图&kb={OTHER_KB}", "wrong-token")
         self.assertEqual(response.status, 401)
 
+    def test_a_binding_token_asking_for_an_unmounted_kb_is_403_not_404(self) -> None:
+        """auth gate 在挂载面之前：未知库对绑定持有者永远是 scope 问题（403），
+        不会先泄露「这个库挂没挂」。只有 admin 才能走到 404 unknown_kb。"""
+        response = self.get("/query?q=x&kb=ghost-lib", self.bearer)
+        self.assertEqual(response.status, 403)
+        self.assertEqual(response.payload["error"]["kind"], "forbidden")
+        # 身体里既没有挂载面，也没有被问的那个名字——403 只说 scope 不含
+        blob = json.dumps(response.payload, ensure_ascii=False)
+        self.assertNotIn(KB_ID, blob)
+        self.assertNotIn(OTHER_KB, blob)
+
 
 class MultiLibraryCliTests(unittest.TestCase):
     """RT-049 — CLI ``--kb``：local 后端拒绝；nas 后端进挂载表与启动卡。"""

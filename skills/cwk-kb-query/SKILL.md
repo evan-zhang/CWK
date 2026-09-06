@@ -7,16 +7,21 @@ description: "知识库问答：「问知识库」「查知识库」触发；网
 
 对已建知识库提问。铁律：**每个事实性回答必须带实时引文**——citation 的 sha256 是网关现场从存储后端拉字节算出来的，`matches_index` 必须为 true；没有命中就直说没有，不许拿记忆或猜测作答。
 
-## 网关拓扑（生产优先，2026-09-05 起）
+## 网关拓扑（RT-049 合一后，2026-09-06 起）
 
-**先用 OPS 生产网关**（192.168.91.72，launchd 常驻、开机自愈）：
+**8787 单进程多库网关（v1.1.0）**（192.168.91.72，launchd 常驻、开机自愈）：`?kb=<kb_id>` 选库，kb_id 即 NAS prefix：
 
-- `cwork-3m`（个人工作协同近 3 个月）→ `http://192.168.91.72:8787`
-- `docdb-touqian`（投前流程系统建设）→ `http://192.168.91.72:8788`
+- `cwork-3m`（个人工作协同近 3 个月）→ `http://192.168.91.72:8787`（不带 kb 参数的默认库，v1 兼容）
+- `docdb-touqian`（投前流程系统建设）→ 同 8787 + `?kb=docdb-touqian`（8788 过渡期别名保留）
+- `spbp-2027`（2027集团SP&BP）→ 同 8787 + `?kb=spbp-2027`（8789 过渡期别名保留）
+- 新库不再开端口、不再写 plist：摄取 + 登记表一行后直接 `?kb=<prefix>` 查
 
 ```bash
 curl -s -m 6 http://192.168.91.72:8787/health   # /health 免鉴权；ok=true 即用 OPS
+curl -s -H "X-KB-Token: $TOKEN" 'http://192.168.91.72:8787/query?q=战略&kb=spbp-2027'
 ```
+
+语义要点（RT-049 定死，有单测钉住）：不带 kb = 主库 cwork-3m；query 成功回执带 `kb` 字段可自检；kb 未挂载 → admin 见 404 `unknown_kb`（不回落主库、不回显挂载面），绑定 token 见 403（scope 判定在挂载面之前）。
 
 OPS 不可达（内网隔离/维护窗）才**兜底本机起网关**（仅限本机装有 CWK 仓库与凭据时）：
 
@@ -26,7 +31,7 @@ python3 scripts/kb_gateway.py --admin-key-env CWK_KB_ADMIN_KEY --backend nas \
   --prefix <prefix> --host 127.0.0.1 --port <port> &
 ```
 
-其他库：问用户 prefix；OPS 侧为新库加 launchd 实例后再用（新库上 OPS 是运维动作，不在会话里即兴做）。
+其他库：问用户 prefix，`?kb=<prefix>` 直查；未挂载会得 404/403（语义见上），那是运维面问题（OPS 侧挂载表加一行 --kb），不在会话里即兴做。
 
 ## 查询（鉴权双通道，绝不打印 Key/token 本身）
 
@@ -59,7 +64,7 @@ curl -s -H "X-KB-Token: $TOKEN" 'http://192.168.91.72:<port>/query?q=<关键词>
 ## 引文（每条引用的事实都要拉）
 
 ```bash
-curl -s -H "X-KB-Token: $TOKEN" 'http://192.168.91.72:<port>/citation?lineage=<lineage_id>[&version=N]'
+curl -s -H "X-KB-Token: $TOKEN" 'http://192.168.91.72:8787/citation?lineage=<lineage_id>&kb=<kb_id>[&version=N]'
 ```
 
 - 核对 `matches_index=true`；`excerpt` 是原文开头；`bytes` 是全文长度

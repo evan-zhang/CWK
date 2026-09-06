@@ -282,6 +282,6 @@ entries:
   created: 2026-09-06
 - id: RT-049
   title: 网关合一（8787 单进程多库路由 ?kb=）
-  status: created
+  status: completed
   profile: Spec-Lite
   created: 2026-09-06
