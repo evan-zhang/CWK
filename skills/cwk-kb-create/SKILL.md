@@ -70,6 +70,7 @@ python3 scripts/kb_ingest.py refresh --backend nas --prefix <prefix> --yes      
 - 上次 failed 件 → 自动补跑（failed 非终态）；**已知失败不再报红，仅新失败报红**
 - 源删了的件 → 库里保留（快照语义，不逆向删除）；新增件 → 自动入册
 - **护栏**：计划 0 件而库非空、或件数超上次 3 倍+50 → 拒绝执行（像源故障/扫错目录，留人工确认）；护栏状态记在库内 `_system/refresh-state.json`
+- **源侧消失报告**：库里已有、源里已删的件 → 报告列在回执 `vanished`（只报告不删库，快照语义保原件；带时间窗的源不判定防误报）
 - 事后体检：doctor verify --all 全绿才交回执；网关无需重启，新版本立即可查
 - 夜间定时（OPS 23:30 launchd）也走同一入口，报告落 `~/CWK/ops/logs/kb-refresh-*.json`
 实战参考（spbp-2027 首次摄取当天重跑）：109 件 → 102 unchanged + 5 源变更升 v2 + 2 已知源侧空件；增量写入后 doctor 五项全绿、网关无重启查到 v2、引文 matches_index=true。

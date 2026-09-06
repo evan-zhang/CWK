@@ -24,6 +24,7 @@ import sys
 import tempfile
 import types
 import unittest
+from unittest import mock
 import zipfile
 import zlib
 from datetime import datetime, timezone
@@ -2341,6 +2342,75 @@ class RefreshGuardIntegrationTests(RefreshFixture):
         report = self.refresh(folders=big)
         self.assertFalse(report["applied"])
         self.assertEqual(report["guard"]["kind"], "spike")
+
+
+class RefreshVanishedTests(RefreshFixture):
+    """源侧消失报告：只报告、不删库；窗口源不判定；护栏不重复报。"""
+
+    def folders_two(self) -> dict:
+        return {
+            "/玄关/合同": [
+                {"fileId": "301", "name": "301-年度计划.md", "type": "2",
+                 "updateTime": "2026-08-14 09:30:00"},
+                {"fileId": "302", "name": "302-季度总结.md", "type": "2",
+                 "updateTime": "2026-08-20 10:00:00"},
+            ]
+        }
+
+    def test_a_partial_deletion_is_reported_not_removed(self) -> None:
+        self.refresh(folders=self.folders_two(), blobs={"301": b"# a\n", "302": b"# b\n"})
+        only_one = {
+            "/玄关/合同": [self.folders_two()["/玄关/合同"][0]],
+        }
+        report = self.refresh(folders=only_one, blobs={"301": b"# a\n"})
+        self.assertTrue(report["ok"], report)  # 消失不计红
+        vanished = report["vanished"]["docdb"]
+        self.assertEqual(vanished["count"], 1)
+        self.assertEqual(vanished["items"], ["docdb:302"])
+        self.assertFalse(vanished["truncated"])
+        # 库里那件还在（快照语义：不逆向删除）
+        state = json.loads(
+            (self.kb / "_system" / "ingest-state.json").read_text("utf-8")
+        )
+        self.assertEqual(state["items"]["docdb:302"]["status"], "converted")
+
+    def test_a_windowed_plan_does_not_judge_vanished(self) -> None:
+        """带 since 的计划看不见窗口外的件，不能当消失。"""
+        self.refresh(folders=self.folders_two(), blobs={"301": b"# a\n", "302": b"# b\n"})
+        # 301 日期 08-14 在窗口外被过滤，只看得见 302；但 301 不能被判成消失
+        report = self.refresh(
+            folders=self.folders_two(), since_override="2026-08-16", blobs={"302": b"# b\n"}
+        )
+        self.assertEqual(report["sources"][0]["plan_count"], 1)
+        self.assertEqual(report["vanished"], {})
+
+    def test_the_listing_is_capped_and_marked_truncated(self) -> None:
+        three = {
+            "/玄关/合同": [
+                {"fileId": "301", "name": "301-年度计划.md", "type": "2",
+                 "updateTime": "2026-08-14 09:30:00"},
+                {"fileId": "302", "name": "302-季度总结.md", "type": "2",
+                 "updateTime": "2026-08-20 10:00:00"},
+                {"fileId": "303", "name": "303-补充协议.md", "type": "2",
+                 "updateTime": "2026-08-21 10:00:00"},
+            ]
+        }
+        self.refresh(folders=three, blobs={"301": b"# a\n", "302": b"# b\n", "303": b"# c\n"})
+        with mock.patch.object(ingest, "VANISHED_REPORT_CAP", 1):
+            report = self.refresh(
+                folders={"/玄关/合同": three["/玄关/合同"][:1]},
+                blobs={"301": b"# a\n"},
+            )
+        vanished = report["vanished"]["docdb"]
+        self.assertEqual(vanished["count"], 2)
+        self.assertEqual(len(vanished["items"]), 1)
+        self.assertTrue(vanished["truncated"])
+
+    def test_a_guard_hit_does_not_pile_on_a_vanished_list(self) -> None:
+        self.refresh(blobs={"301": b"# a\n"})
+        report = self.refresh(folders={})
+        self.assertEqual(report["guard"]["kind"], "empty")
+        self.assertEqual(report["vanished"], {})
 
 
 class RefreshDryRunTests(RefreshFixture):
