@@ -287,6 +287,11 @@ entries:
   created: 2026-09-06
 - id: RT-050
   title: 定时增量摄取（refresh 子命令 + OPS 夜间挂载）
+  status: completed
+  profile: Spec-Lite
+  created: 2026-09-06
+- id: RT-051
+  title: 正文级词法召回与元数据召回融合 v1
   status: created
   profile: Spec-Lite
   created: 2026-09-06
