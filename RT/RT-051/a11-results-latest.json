@@ -1,8 +1,9 @@
 {
  "header": {
   "spec": "RT/RT-051/rt-lite.md 词法行（48 题 / 2 合成库 / 8 类 × 6）",
-  "reviewer": null,
-  "reviewed_at": null
+  "reviewer": "independent-reviewer-session",
+  "reviewed_at": "2026-09-07T06:11+08:00",
+  "review_report": "RT/RT-051/a11-review.md"
  },
  "results": [
   {
