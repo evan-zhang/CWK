@@ -204,6 +204,61 @@ class A02EnumerationTests(AcceptanceBase):
         self.assertEqual(r2.payload["error"]["code"], "metadata_changed")
 
 
+# ── A02 千件档：1001 件独立库（首次摄取，护栏语义不适用） ────────────────
+
+
+class A02ThousandItemTests(AcceptanceBase):
+    """A02 的 1001 件档。
+
+    刻意用独立新库做首次摄取：护栏的 3 倍+50 拒绝针对的是「既有基线上
+    的暴涨」（防扫错目录），首次建库无基线不受限——这不绕护栏，是按
+    护栏自己的语义组织 fixture。231 档只走 3 页；这里强制 11 页翻页，
+    游标链与快照绑定在更长链条上复验。
+    """
+
+    N = 1001
+
+    def test_first_ingest_and_full_walk_to_eof(self) -> None:
+        items, blobs = [], {}
+        for i in range(self.N):
+            fid = f"{900000 + i}"
+            items.append({
+                "fileId": fid, "name": f"{fid}-大库件{i:04d}.md", "type": "2",
+                "updateTime": "2026-08-14 09:30:00",
+            })
+            blobs[fid] = (f"# 大库件{i:04d}\n\n正文编号 {fid}。\n").encode("utf-8")
+        self.ingest_items({ROOT: items}, blobs)
+        self.start_gateway("acc-a")
+        idx = read_json(self.backend, "_system/raw-index.json")
+        want = set(idx["entries"])
+        self.assertEqual(len(want), self.N)
+
+        seen, cursor, r = [], None, None
+        for _ in range(30):
+            path = "/v2/kb/list?kb=acc-a&page_size=100"
+            r = self.raw_get(path + (f"&cursor={cursor}" if cursor else ""))
+            self.assertEqual(r.status, 200, r.payload)
+            seen.extend(i["lineage_id"] for i in r.payload["items"])
+            cursor = r.payload["next_cursor"]
+            if r.payload["eof"]:
+                break
+        self.assertEqual(r.payload["total"], self.N)
+        self.assertEqual(set(seen), want)  # 11 页无重复无遗漏
+
+        # metadata search 同库逐页到 EOF（查询词命中全部大库件）
+        hits, cursor, r = [], None, None
+        for _ in range(30):
+            path = "/v2/kb/search?kb=acc-a&q=%E5%A4%A7%E5%BA%93%E4%BB%B6&page_size=100"
+            r = self.raw_get(path + (f"&cursor={cursor}" if cursor else ""))
+            self.assertEqual(r.status, 200, r.payload)
+            hits.extend(i["lineage_id"] for i in r.payload["items"])
+            cursor = r.payload["next_cursor"]
+            if r.payload["eof"]:
+                break
+        self.assertEqual(r.payload["total"], self.N)
+        self.assertEqual(set(hits), {f"docdb:{900000 + i}" for i in range(self.N)})
+
+
 # ── A03: 500 字之后可达 / 范围与 EOF 语义 ───────────────────────────────────
 
 
