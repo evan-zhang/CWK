@@ -290,3 +290,37 @@ refresh接线在所有source execute_plan和save_refresh_state最终收尾后；
   RRF 双路/资格域隔离/span 字节读回/陈旧代 503+显式降级/重建恢复）；
   RT-051+治理回归 308 绿；快车道+双门禁绿。剩余 P3c refresh hook、
   P4 验收（A01–A12）。
+
+- 2026-09-07 P3c+P4 落地（提交 b2a8aa4、9e03941）：
+  **P3c refresh 词法钩子**：refresh 最终点对已发布词法代对账——语料未变
+  零写入（unchanged）、已变触发重建（rebuilt）、未发布不自动创建
+  （opt-in）、dry 零副作用、builder 故障只进报告不拖垮 refresh 本身。
+  专项 5 例（tests/test_rt051_lexical_fusion.py RefreshHookTests）。
+  **P4 A01–A10+A12**（tests/test_rt051_acceptance.py，22 例，真 ingest→
+  回环 socket 网关→wizard CLI 全链）：A01 已知件无搜索直读（删词法索引
+  仍可读）；A02 231+1001 双档 list/search 逐页到 EOF 无重无漏、翻页中
+  变更 409（千件档独立新库首摄取——护栏 3x+50 语义本就不适用于首建）；
+  A03 500 字后标记可达、范围完≠EOF、续读链拼回 SHA 对账；A04 2MiB
+  多页并集 SHA（32/128MiB 档属 P1b 快照架构，显式顺延）；A05 BOM/
+  CRLF/emoji 逐字保真、非法 UTF-8 422+inspect encoding=null、
+  placeholder 如实标注；A06 覆写升 v2 旧 ref/旧版本 resolve 全 409；
+  A07 撤权即刻 401、篡改句柄 400、跨库句柄 400；A08 词法 missing/
+  corrupt/stale → 503 而 read 照常、raw-index 坏 → 503 无正文；A09
+  fakeNAS 正文单次下载+网关零写（累计带宽判据 P1b）；A10 v1 服务 200
+  回 v1 schema → unsupported_contract exit 2、404 无 v2 错误信封同；
+  A12 注入文本原文照回当数据、零命中诚实报 0 且可续盘点。
+  **P4 A11**（tests/test_rt051_a11_lexical_eval.py，48 题/2 合成库/
+  8 类×6，一方法跑全矩阵）：macro doc Recall@10=1.00（阈值 0.90）、
+  body-only/短词各 6/6（≥5/6）、gold span Recall@10=1.00（≥0.85）、
+  隔离泄露 0、错版 0；消融可证伪——正文-only 题 metadata 单路全灭、
+  元数据题 body_rank 全 None（元数据件正文纯 ASCII，避开中文 1-gram
+  撞词的假阳/假阴）；Phase 0 语料自证（marker 唯一性/零命中词逐字
+  不在库）。逐题 rationale 落 RT/RT-051/a11-results-latest.json，
+  reviewer/reviewed_at 留空——gold 不自签，待独立复核人签收。
+  **验收抓到并修复的真 bug**：①网关词法代缓存按 generation 命中会跳过
+  corpus_digest 复核（Q39 抓到）——源升版后旧代在同进程内继续冒充；
+  digest 复核移到缓存命中之前。②客户端 404 仅对 capabilities 映射
+  unsupported_contract（C04 收紧：404 无 v2 错误信封一律映射）。
+  验证链：专项全绿 + make test 快车道 2382 绿 + 双门禁绿。
+  边界如实记：A04 大档/A09 累计带宽属 P1b；gold 人工签收待复核人；
+  D02–D04 启用前停点未动；用户收口门未过，不并 main。
