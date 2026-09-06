@@ -55,6 +55,24 @@ python3 scripts/kb_doctor.py verify --all --backend nas --prefix <prefix> --json
 全绿判据：counts.failed=0、reconcile 各清单空、doctor 五项（raw/manifest/collection-state/changed-paths/tree）ok=true。有差异必须解释到件——参考 2026-09-05 Case 1 实例：基线 451 → 入库 453 = 月份目录 447 + unknown/ 目录 6 + 重复 ID 归并 − 3 件无日期 fail-closed 排除，差异全解释即零缺件。
 最后告诉用户：库已就绪，用 cwk-kb-query Skill 提问。
 
+## 库更新（手动增量，已验证可用 2026-09-06）
+
+库是快照语义：源变了不会自动同步，用户说「更新库/重新摄取」时重跑同一条 plan→run 即可。引擎增量语义（spbp-2027 实战验证）：
+- 同字节件 → `unchanged` 跳过，零写入（originals 内容寻址，天然幂等）
+- 源变更件 → 自动升 v2/v3，raw 新版本落原位旁，索引/账本/引文链自动级联；classify 路由当前文件指向新版，timeline 路由新旧并存
+- 上次 failed 件 → 自动补跑（failed 非终态）
+- 源删了的件 → 库里保留（快照语义，不逆向删除）
+- 新增件 → 自动入册
+```bash
+# 与首次摄取完全同参，重跑一遍即可（docdb 源用同一 fileId）
+python3 scripts/kb_ingest.py plan --source docdb --root <fileId> \
+  --kb-root nas://<prefix> --backend nas --prefix <prefix> --out /tmp/<prefix>-plan-r<N>.json
+# 念给用户：item_count 与 counts（新件数/升版数）
+python3 scripts/kb_ingest.py run --plan /tmp/<prefix>-plan-r<N>.json --backend nas --prefix <prefix> --yes
+# 事后体检：kb_doctor verify --all 全绿才交回执；网关无需重启，新版本立即可查
+```
+实战参考（spbp-2027 首次摄取 12 天后重跑）：109 件 → 102 unchanged + 5 源变更升 v2 + 2 已知源侧空件；增量写入后 doctor 五项全绿、网关无重启查到 v2、引文 matches_index=true。
+
 ## 故障速查
 - FileStation code=400 且发生在建目录：DSM 拒「数字开头」目录名——引擎已自动加 `d-`/`c-` 前缀（commit 175d532 / 885d2fd）；复现说明有新形态，查 `kb_ingest.py` 的 `_device_safe_dir`
 - 502：DSM 对不存在文件回裸 502，引擎已消歧为 NotFound；持续 502=服务忙，等 30s 重试
