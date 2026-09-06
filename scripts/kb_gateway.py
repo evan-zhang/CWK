@@ -1139,8 +1139,9 @@ class GatewayApp:
             if lex is not None:
                 return self._v2_fusion_payload(kb, q, needle, page_size, index, digest, lex)
         degraded = mode == "lexical_fusion_v1"
+        # C02：metadata 搜索回 documents.v2；cwk.kb.search.v2 只属于融合路
         payload: dict = {
-            "schema": SEARCH_SCHEMA,
+            "schema": DOCUMENTS_SCHEMA,
             "ok": True,
             "kb": kb,
             "q": q,
@@ -1180,9 +1181,9 @@ class GatewayApp:
         gen = str(payload.get("generation") or "")
         if not gen:
             return None
-        cached = self._v2_lexical.get(kb)
-        if cached is not None and cached[0] == gen:
-            return cached[1]
+        # 每次调用都重算资格域投影并复核 corpus_digest——陈旧代哪怕进程内
+        # 缓存命中也不得返回旧候选；缓存只省 index 反序列化，不省一致性
+        # 检查（否则源升版而 builder 未追上时，旧代会在同进程内继续冒充）。
         try:
             entries = load_index(backend)
             rows = eligible_rows(
@@ -1193,6 +1194,9 @@ class GatewayApp:
             return None
         if corpus_digest(rows) != str(payload.get("corpus_digest") or ""):
             return None
+        cached = self._v2_lexical.get(kb)
+        if cached is not None and cached[0] == gen:
+            return cached[1]
         try:
             payload["__index__"] = from_json_payload(payload.get("index") or {})
         except (TypeError, ValueError, KeyError):

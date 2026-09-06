@@ -42,6 +42,19 @@ OPERATIONS = (
     "renew",
 )
 
+#: 每个操作成功响应必须携带的 schema（A10：HTTP200 不是能力证据，
+#: v1 服务忽略未知参数回 200 也会在这里被 unsupported_contract 拒掉）
+EXPECTED_SCHEMAS = {
+    "capabilities": ("cwk.kb.capabilities.v2",),
+    "list": ("cwk.kb.documents.v2",),
+    "search": ("cwk.kb.search.v2", "cwk.kb.documents.v2"),
+    "resolve": ("cwk.kb.document.v2",),
+    "inspect": ("cwk.kb.document.v2",),
+    "read": ("cwk.kb.read.v2",),
+    "continue": ("cwk.kb.read.v2",),
+    "renew": ("cwk.kb.document.v2",),
+}
+
 
 class ClientError(Exception):
     """A structured failure: HTTP status, machine code, message."""
@@ -122,6 +135,17 @@ def call(
     if not isinstance(payload, dict):
         raise ClientError(status, "protocol", "网关响应不是 JSON 对象")
     if status != 200 or not payload.get("ok"):
+        if status == 404 and not (
+            isinstance(payload.get("error"), dict) and payload["error"].get("code")
+        ):
+            # C04：404 且没有 v2 错误信封 = 对端没有这条 /v2/kb/* 路由。
+            # 不限于 capabilities——HTTP 404 从来不是能力证据。带 v2 错误
+            # 信封的 404（真 v2 网关的未知操作）保留网关自己的错误码。
+            raise ClientError(
+                0,
+                "unsupported_contract",
+                "对端没有 /v2/kb/* 路由——旧 v1 网关（C04：404 即 unsupported_contract）",
+            )
         err = payload.get("error")
         if isinstance(err, dict):
             raise ClientError(
@@ -130,4 +154,21 @@ def call(
                 str(err.get("message") or "网关返回非成功响应"),
             )
         raise ClientError(status, "error", "网关返回非成功响应")
+    got = str(payload.get("schema") or "")
+    if got not in EXPECTED_SCHEMAS[op]:
+        raise ClientError(
+            0,
+            "unsupported_contract",
+            f"操作 {op} 期望 schema {'/'.join(EXPECTED_SCHEMAS[op])}，实得 {got or '缺失'}"
+            "——对端不是 v2 网关（旧服务会忽略未知参数回 200，不能当能力证据）",
+        )
+    if op == "search":
+        mode = str(params.get("retrieval_mode") or "metadata")
+        want = "cwk.kb.search.v2" if mode == "lexical_fusion_v1" else "cwk.kb.documents.v2"
+        if got != want:
+            raise ClientError(
+                0,
+                "unsupported_contract",
+                f"search({mode}) 期望 {want}，实得 {got}",
+            )
     return payload

@@ -15,6 +15,7 @@ import hashlib
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 PROJECT = Path(__file__).resolve().parents[1]
@@ -26,6 +27,7 @@ import kb_lexical_builder as builder  # noqa: E402
 from kb_ledger import dumps, read_json  # noqa: E402
 from kb_storage import LocalFSBackend  # noqa: E402
 from test_kb_gateway import FIXED_NOW, TOKEN  # noqa: E402
+from test_kb_ingest import RefreshFixture  # noqa: E402
 
 KB = "lexlib"
 H = {gateway.TOKEN_HEADER: TOKEN}
@@ -237,6 +239,73 @@ class FusionRouteTests(unittest.TestCase):
         self.assertIn(p["matched_relation"], ("exact", "lower_bound"))
         # Top-K 不冒充全量：eof=True 但语义上只是「本轮候选返回完」
         self.assertTrue(p["candidate_truncated"] is False or p["total"] > len(p["items"]))
+
+
+class RefreshHookTests(RefreshFixture):
+    """P3c：refresh 收尾自动重建词法代（真 ingest 链，FakeDocdb 源）。
+
+    四条合同：未发布不自动创建（opt-in）；dry 零副作用；语料未变零写入；
+    builder 故障只进报告不拖垮 refresh 本身。
+    """
+
+    def publish_lexical(self) -> str:
+        report = builder.build_lexical_index(self.backend, kb_code=self.kb_code)
+        builder.publish(self.backend, kb_code=self.kb_code, report=report)
+        return report["generation"]
+
+    def test_a_library_without_lexical_stays_missing(self) -> None:
+        r = self.refresh(blobs={"301": b"# plan\n"})
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["lexical"], {"status": "missing"})  # opt-in：不自动创建
+        self.assertFalse((self.kb / "_system" / "lexical-index.json").exists())
+
+    def test_a_dry_refresh_has_no_lexical_side_effect(self) -> None:
+        self.refresh(blobs={"301": b"# plan\n"})
+        self.publish_lexical()
+        r = self.refresh(apply=False, blobs={"301": b"# plan\n"})
+        self.assertFalse(r["applied"])
+        self.assertIsNone(r["lexical"])  # dry：钩子不跑
+
+    def test_unchanged_corpus_rebuilds_nothing(self) -> None:
+        self.refresh(blobs={"301": b"# plan\n"})
+        gen = self.publish_lexical()
+        lexical_before = (self.kb / "_system" / "lexical-index.json").read_bytes()
+        r = self.refresh(blobs={"301": b"# plan\n"})
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["lexical"], {"status": "unchanged", "generation": gen})
+        # 零写入指词法代文件逐字节不变（refresh 自身的 state/账本重签不在口径内）
+        self.assertEqual(
+            (self.kb / "_system" / "lexical-index.json").read_bytes(), lexical_before
+        )
+
+    def test_a_new_item_triggers_a_rebuild(self) -> None:
+        self.refresh(blobs={"301": b"# plan\n"})
+        gen = self.publish_lexical()
+        self.folders["/玄关/合同"].append(
+            {"fileId": "302", "name": "302-风险清单.md", "type": "2",
+             "updateTime": "2026-08-20 10:00:00"}
+        )
+        r = self.refresh(blobs={"301": b"# plan\n", "302": "# 风险：体外模拟节点延期\n".encode("utf-8") * 30})
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(r["lexical"]["status"], "rebuilt")
+        self.assertNotEqual(r["lexical"]["generation"], gen)
+        published = read_json(self.backend, "_system/lexical-index.json")
+        self.assertEqual(published["eligible_docs"], 2)
+
+    def test_builder_failure_is_isolated_from_refresh(self) -> None:
+        self.refresh(blobs={"301": b"# plan\n"})
+        self.publish_lexical()
+        self.folders["/玄关/合同"].append(
+            {"fileId": "302", "name": "302-新增.md", "type": "2",
+             "updateTime": "2026-08-20 10:00:00"}
+        )
+        with mock.patch.object(
+            builder, "build_lexical_index", side_effect=RuntimeError("boom")
+        ):
+            r = self.refresh(blobs={"301": b"# plan\n", "302": "# 新件\n".encode("utf-8")})
+        self.assertTrue(r["ok"], r)  # refresh 本身没被拖垮
+        self.assertEqual(r["lexical"]["status"], "failed")
+        self.assertIn("boom", r["lexical"]["error"])
 
 
 if __name__ == "__main__":  # pragma: no cover

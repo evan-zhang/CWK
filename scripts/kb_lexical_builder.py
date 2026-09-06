@@ -131,6 +131,8 @@ def published_generation(backend) -> Optional[str]:
         return str(read_json(backend, LEXICAL_INDEX_REL).get("generation") or "")
     except NotFound:
         return None
+    except (ValueError, KeyError):  # 损坏的代文件视同未发布（重建覆盖）
+        return None
 
 
 def build_lexical_index(backend, *, kb_code: str) -> dict:
@@ -156,7 +158,7 @@ def build_lexical_index(backend, *, kb_code: str) -> dict:
 
 def publish(backend, *, kb_code: str, report: dict) -> dict:
     """Write the lexical index through the ledger (idempotent by generation)."""
-    if report.get("up_to_date"):
+    if report.get("up_to_date") and published_generation(backend) is not None:
         return {
             "schema": "cwk.kb.lexical.publish.v1",
             "ok": True,
@@ -198,6 +200,36 @@ def publish(backend, *, kb_code: str, report: dict) -> dict:
     )
     return {"schema": "cwk.kb.lexical.publish.v1", "ok": True, "wrote": True,
             "generation": gen}
+
+
+def refresh_hook(backend, *, kb_code: str) -> dict:
+    """RT-051 P3c: refresh 收尾钩子——增量落账后重建词法代。
+
+    unchanged 快路径：generation 只依赖 raw-index 资格投影（lineage/
+    version/sha），语料没变就不读正文、零写入。变了才走完整建代+发布
+    （发布内部仍逐件复核 SHA）。失败抛 :class:`BuildError`，由调用方
+    （kb_ingest.refresh_library）隔离成报告字段，不拖垮 refresh 本身。
+    """
+    entries = load_index(backend)
+    rows = eligible_rows(
+        (lineage, e.version, e.sha256, e.status)
+        for lineage, e in entries.items()
+    )
+    gen = generation_of(rows)
+    pub = published_generation(backend)
+    if pub is None:
+        # opt-in：从未发布过词法代的库不因 refresh 自动创建（首次走显式 build --yes）
+        return {"status": "missing"}
+    if pub == gen:
+        return {"status": "unchanged", "generation": gen}
+    report = build_lexical_index(backend, kb_code=kb_code)
+    result = publish(backend, kb_code=kb_code, report=report)
+    return {
+        "status": "rebuilt" if result.get("wrote") else "unchanged",
+        "generation": gen,
+        "chunks": report["chunks"],
+        "excluded_counts": report["excluded_counts"],
+    }
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
