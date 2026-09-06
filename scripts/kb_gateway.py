@@ -96,6 +96,17 @@ sys.path.insert(0, str(PROJECT / "scripts"))
 # primitives; the names bound here are the reading half of each and nothing
 # else — ``tests/test_kb_gateway.py`` parses this file to keep it that way.
 from kb_ledger import dumps, iso, read_json, utc_now  # noqa: E402
+from kb_lexical import (  # noqa: E402  纯函数层，读面安全
+    CANDIDATE_K,
+    ELIGIBLE_STATUSES,
+    LEXICAL_INDEX_REL,
+    best_spans,
+    bm25_rank,
+    corpus_digest,
+    eligible_rows,
+    from_json_payload,
+    rrf,
+)
 from kb_storage import (  # noqa: E402
     NotFound,
     StorageBackend,
@@ -202,11 +213,12 @@ _V2_OP_PARAMS: Dict[str, Tuple[str, ...]] = {
 class V2Error(Exception):
     """A v2 request error carrying its HTTP status and machine code."""
 
-    def __init__(self, status: int, code: str, message: str) -> None:
+    def __init__(self, status: int, code: str, message: str, *, retryable: bool = False) -> None:
         super().__init__(message)
         self.status = status
         self.code = code
         self.message = message
+        self.retryable = retryable
 
 
 def v2_error_payload(code: str, message: str, *, retryable: bool = False) -> dict:
@@ -609,6 +621,9 @@ class GatewayApp:
         #: RT-051 P1a: v2 句柄的进程内签名密钥。重启即轮换——旧 ref/cursor
         #: 全部失效，客户端重新 resolve，这不是事故是设计（C06 零落盘）。
         self._v2_key = os.urandom(32)
+        #: RT-051 P3b: 已解析词法代的进程内缓存（kb → (generation, payload)）。
+        #: 零落盘红线允许内存缓存；换代/过时白 _v2_load_lexical 的投影复核拒掉。
+        self._v2_lexical: Dict[str, Tuple[str, dict]] = {}
 
     # -- auth ---------------------------------------------------------------
 
@@ -865,7 +880,7 @@ class GatewayApp:
                 raise V2Error(404, "unknown_kb", "kb 参数不在本网关的挂载面内")
             return Response(200, getattr(self, f"_v2_{op}")(clean, backend, clean["kb"]))
         except V2Error as exc:
-            return Response(exc.status, v2_error_payload(exc.code, exc.message))
+            return Response(exc.status, v2_error_payload(exc.code, exc.message, retryable=exc.retryable))
         except BackendUnavailable as exc:
             return Response(
                 503, v2_error_payload("source_unavailable", str(exc), retryable=True)
@@ -1040,7 +1055,7 @@ class GatewayApp:
             },
             "offset_unit": "byte_0based_halfopen",
             "prepare_transport": {"supported": False},
-            "lexical_modes": [],
+            "lexical_modes": ["lexical_fusion_v1"],
             "at": iso(self.clock()),
         }
 
@@ -1111,13 +1126,19 @@ class GatewayApp:
                 raise V2Error(400, "invalid_cursor", "q 或 page_size 与游标不一致")
             offset = int(cur.get("a") or 0)
         page = keys[offset : offset + page_size]
+        if mode == "lexical_fusion_v1":
+            lex = self._v2_load_lexical(backend, kb)
+            if lex is None and degraded_to != "metadata":
+                raise V2Error(
+                    503,
+                    "lexical_unavailable",
+                    "词法代未发布或已过时（missing/stale/corrupt）——先跑 kb_lexical_builder"
+                    " 后重试；如需显式降级传 allow_degraded=metadata",
+                    retryable=True,
+                )
+            if lex is not None:
+                return self._v2_fusion_payload(kb, q, needle, page_size, index, digest, lex)
         degraded = mode == "lexical_fusion_v1"
-        if degraded and degraded_to != "metadata":
-            raise V2Error(
-                503,
-                "lexical_unavailable",
-                "词法召回（lexical_fusion_v1）尚未启用——P3 交付；如需显式降级传 allow_degraded=metadata",
-            )
         payload: dict = {
             "schema": SEARCH_SCHEMA,
             "ok": True,
@@ -1127,7 +1148,7 @@ class GatewayApp:
             "requested_mode": mode,
             "effective_mode": "metadata",
             "degraded": degraded,
-            "reason": "lexical_fusion_v1 未启用（P3），显式降级到 metadata" if degraded else None,
+            "reason": ("lexical generation 未发布或已过时，显式降级到 metadata" if degraded else None),
             "total": len(keys),
             "returned": len(page),
             "items": [self._v2_document_row(kb, k, index[k]) for k in page],
@@ -1142,6 +1163,119 @@ class GatewayApp:
                  "a": offset + page_size, "e": self._v2_now_ts() + V2_REF_TTL_SECONDS}
             )
         return payload
+
+    def _v2_load_lexical(self, backend, kb) -> Optional[dict]:
+        """读已发布词法代；missing/stale/corrupt 一律 None（C07）。
+
+        过时代不得返回旧候选：这里用当前 raw-index 的资格域投影重算
+        corpus_digest，与发布代不一致就拒绝——宁可 503 让人重建，不拿
+        旧代候选冒充当前真相。
+        """
+        try:
+            payload = read_json(backend, LEXICAL_INDEX_REL)
+        except NotFound:
+            return None
+        except (StorageError, ValueError):
+            return None
+        gen = str(payload.get("generation") or "")
+        if not gen:
+            return None
+        cached = self._v2_lexical.get(kb)
+        if cached is not None and cached[0] == gen:
+            return cached[1]
+        try:
+            entries = load_index(backend)
+            rows = eligible_rows(
+                (lineage, e.version, e.sha256, e.status)
+                for lineage, e in entries.items()
+            )
+        except BackendUnavailable:
+            return None
+        if corpus_digest(rows) != str(payload.get("corpus_digest") or ""):
+            return None
+        try:
+            payload["__index__"] = from_json_payload(payload.get("index") or {})
+        except (TypeError, ValueError, KeyError):
+            return None
+        self._v2_lexical[kb] = (gen, payload)
+        return payload
+
+    def _v2_fusion_payload(self, kb, q, needle, page_size, index, digest, lex) -> dict:
+        """cwk.kb.search.v2 融合响应（C07）：body BM25 + metadata 子串 RRF。
+
+        两路同资格域（当前合格件）；每路 candidate_k 封顶；rank 从 1 起；
+        RRF=1/(60+rank) 缺路 0；hit 带 document_ref 与候选 span 的**raw 绝对
+        字节坐标**——客户端拿它走同一条 read 路出引文，不另立证据路径。
+        """
+        eligible = {
+            lineage
+            for lineage, entry in index.items()
+            if entry.status in ELIGIBLE_STATUSES and entry.sha256
+        }
+        meta_all = [
+            k for k in sorted(index) if k in eligible and needle in index[k].haystack()
+        ]
+        lex_index = lex["__index__"]
+        body_all = bm25_rank(lex_index, q)
+        relation = (
+            "lower_bound"
+            if len(meta_all) > CANDIDATE_K or len(body_all) > CANDIDATE_K
+            else "exact"
+        )
+        meta_rank = {lin: i + 1 for i, lin in enumerate(meta_all[:CANDIDATE_K])}
+        body_rank = {lin: i + 1 for i, (lin, _s) in enumerate(body_all[:CANDIDATE_K])}
+        fused = sorted(
+            (
+                (lin, rrf(body_rank.get(lin, 0), meta_rank.get(lin)))
+                for lin in set(meta_rank) | set(body_rank)
+            ),
+            key=lambda t: (-t[1], t[0]),
+        )
+        hits: List[dict] = []
+        for lineage, score in fused[:page_size]:
+            row = self._v2_document_row(kb, lineage, index[lineage])
+            row.update(
+                {
+                    "body_rank": body_rank.get(lineage),
+                    "metadata_rank": meta_rank.get(lineage),
+                    "rrf_score": score,
+                    "candidate_spans": [
+                        {
+                            "chunk_id": cid,
+                            "start_byte": lex_index.chunk_bytes.get(cid, (0, 0))[0],
+                            "end_byte": lex_index.chunk_bytes.get(cid, (0, 0))[1],
+                            "score": sc,
+                        }
+                        for cid, _s, _e, sc in best_spans(lex_index, lineage, q)
+                    ],
+                }
+            )
+            hits.append(row)
+        return {
+            "schema": SEARCH_SCHEMA,
+            "ok": True,
+            "kb": kb,
+            "q": q,
+            "query_kind": "fusion",
+            "requested_mode": "lexical_fusion_v1",
+            "effective_mode": "lexical_fusion_v1",
+            "degraded": False,
+            "reason": None,
+            "generation": lex.get("generation"),
+            "engine": lex.get("engine"),
+            "coverage_complete": bool(lex.get("coverage_complete")),
+            "excluded_counts": lex.get("excluded_counts") or {},
+            "matched_relation": relation,
+            "candidate_truncated": len(fused) > page_size,
+            "score_kind": "rrf_rank_v1",
+            "total": len(fused),
+            "returned": len(hits),
+            "items": hits,
+            "metadata_snapshot": digest,
+            "eof": True,
+            "next_cursor": None,
+            "at": iso(self.clock()),
+        }
 
     def _v2_resolve(self, clean, backend, kb) -> dict:
         lineage = clean.get("lineage", "").strip()

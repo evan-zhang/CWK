@@ -32,10 +32,11 @@ geometry and the math so both sides share one implementation.
 
 from __future__ import annotations
 
+import hashlib
 import math
 import re
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
 # ── C07 constants ──────────────────────────────────────────────────────────
 
@@ -46,6 +47,18 @@ CHUNK_TARGET_CP = 800
 CHUNK_MAX_CP = 1200
 CHUNK_OVERLAP_CP = 120
 MAX_SPANS_PER_DOC = 3
+CANDIDATE_K = 100
+MAX_CANDIDATE_K = 500
+
+TOKENIZER_VERSION = "cwk-lex-tok-v1"
+CHUNKER_VERSION = "cwk-lex-chunk-v1"
+BM25_VERSION = "bm25-v1"
+FUSION_VERSION = "rrf_rank_v1"
+
+
+def engine_string() -> str:
+    """确定性引擎标识：进 generation core hash，参数变了就换代。"""
+    return "|".join((TOKENIZER_VERSION, CHUNKER_VERSION, BM25_VERSION, FUSION_VERSION))
 
 CJK_RE = re.compile("[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\U00020000-\U0002a6df]")
 #: ASCII 词项：小写、保连字符/下划线连接的完整编号（AB-017 是单词项）。
@@ -201,6 +214,11 @@ class LexicalIndex:
     chunk_lengths: Dict[str, int]  # chunk_id -> term count (dl)
     chunk_spans: Dict[str, Tuple[int, int]]  # chunk_id -> (start_cp, end_cp)
     lineages: Dict[str, str]  # chunk_id -> lineage
+    chunk_bytes: Dict[str, Tuple[int, int]] = None  # chunk_id -> (abs byte span)
+
+    def __post_init__(self) -> None:
+        if self.chunk_bytes is None:
+            self.chunk_bytes = {}
 
     @property
     def n_chunks(self) -> int:
@@ -231,6 +249,7 @@ def build_index(
     chunk_terms: Dict[str, Dict[str, int]] = {}
     lengths: Dict[str, int] = {}
     spans: Dict[str, Tuple[int, int]] = {}
+    byte_spans: Dict[str, Tuple[int, int]] = {}
     lineages: Dict[str, str] = {}
     for lineage, chunks in docs:
         for idx, chunk in enumerate(chunks):
@@ -245,6 +264,7 @@ def build_index(
             chunk_terms[cid] = local
             lengths[cid] = sum(local.values())
             spans[cid] = (chunk.start_cp, chunk.end_cp)
+            byte_spans[cid] = (chunk.start_byte, chunk.end_byte)
             lineages[cid] = lineage
             for term, tf in local.items():
                 terms.setdefault(term, []).append(
@@ -256,6 +276,7 @@ def build_index(
         chunk_lengths=lengths,
         chunk_spans=spans,
         lineages=lineages,
+        chunk_bytes=byte_spans,
     )
 
 
@@ -357,3 +378,131 @@ def rrf(rank_1: int, rank_2: Optional[int], *, k: float = RRF_K) -> float:
     if rank_2 is not None and rank_2 > 0:
         total += 1.0 / (k + rank_2)
     return total
+
+
+# ── corpus construction helpers（builder 侧用，仍纯函数） ──────────────────
+
+
+def extract_body(text: str) -> Tuple[str, int]:
+    """普通 Markdown frontmatter 后正文；无 fence 则全文即正文。
+
+    只认最保守形状：首行恰为 ``---`` 且后续存在一行恰为 ``---`` 的收尾
+    线；任一不满足按全文处理（C07「边界歧义不猜」）。返回
+    ``(body_text, body_start_byte)``——后者把块字节坐标平移到 raw 绝对坐标。
+    """
+    lines = text.split("\n")
+    if not lines or lines[0] != "---":
+        return text, 0
+    for i in range(1, len(lines)):
+        if lines[i] == "---":
+            head = "\n".join(lines[: i + 2 - 1])  # 到收尾线（含）
+            head = head + "\n"
+            if not text.startswith(head):  # 防御：收尾线是末行且无尾换行
+                return text, 0
+            return text[len(head):], len(head.encode("utf-8"))
+    return text, 0
+
+
+def eligible_rows(
+    entries: Iterable[Tuple[str, int, str, str]]
+) -> List[Tuple[str, int, str]]:
+    """资格域投影：status ∈ ELIGIBLE_STATUSES 且 sha 非空，排序稳定。
+
+    builder 与 gateway 各自从 raw-index 取 entries，用同一函数得到同一
+    投影——generation 一致性检查的两端必须并到同一实现上。
+    """
+    return sorted(
+        (str(lineage), int(version), str(sha))
+        for lineage, version, sha, status in entries
+        if str(status) in ELIGIBLE_STATUSES and str(sha)
+    )
+
+
+# ── serialisation（builder 写盘 / gateway 读盘共用一份） ───────────────────
+
+LEXICAL_INDEX_SCHEMA = "cwk.kb.lexical.index.v1"
+LEXICAL_INDEX_REL = "_system/lexical-index.json"
+ELIGIBLE_STATUSES = ("ok", "converted")
+
+
+def corpus_digest(rows: Sequence[Tuple[str, int, str]]) -> str:
+    """资格域投影摘要：换代判定用（lineage, version, sha256 排序后哈希）。"""
+    h = hashlib.sha256()
+    for lineage, version, sha in sorted(rows):
+        h.update(f"{lineage}\x1f{version}\x1f{sha}\x1e".encode("utf-8"))
+    return h.hexdigest()
+
+
+def generation_of(rows: Sequence[Tuple[str, int, str]]) -> str:
+    """确定性代 id：语料投影 + 引擎串，不含时间戳（C07）。"""
+    return hashlib.sha256(
+        (corpus_digest(rows) + "\x1f" + engine_string()).encode("utf-8")
+    ).hexdigest()
+
+
+def chunk_id_of(kb_code: str):
+    """C07 域分离 chunk_id：绑定事实（库/lineage/版本/SHA/坐标），不含代。"""
+
+    def make(lineage: str, chunk: "Chunk", _idx: int) -> str:
+        core = "\x1f".join(
+            (
+                "cwk.kb.lexical.chunk.v1",
+                kb_code,
+                lineage,
+                str(chunk.start_cp),
+                str(chunk.end_cp),
+                str(chunk.start_byte),
+                str(chunk.end_byte),
+            )
+        )
+        return hashlib.sha256(core.encode("utf-8")).hexdigest()
+
+    return make
+
+
+def to_json_payload(index: LexicalIndex) -> dict:
+    return {
+        "terms": {
+            term: {p.chunk_id: p.tf for p in postings}
+            for term, postings in index.terms.items()
+        },
+        "chunk_lengths": index.chunk_lengths,
+        "chunk_spans": {cid: list(sp) for cid, sp in index.chunk_spans.items()},
+        "chunk_bytes": {cid: list(sp) for cid, sp in index.chunk_bytes.items()},
+        "lineages": index.lineages,
+    }
+
+
+def from_json_payload(payload: dict) -> LexicalIndex:
+    terms: Dict[str, Tuple[Posting, ...]] = {}
+    spans: Dict[str, Tuple[int, int]] = {
+        cid: (sp[0], sp[1]) for cid, sp in (payload.get("chunk_spans") or {}).items()
+    }
+    lineages: Dict[str, str] = dict(payload.get("lineages") or {})
+    for term, posts in (payload.get("terms") or {}).items():
+        terms[term] = tuple(
+            Posting(
+                chunk_id=cid,
+                lineage=lineages.get(cid, ""),
+                span_start_cp=spans.get(cid, (0, 0))[0],
+                span_end_cp=spans.get(cid, (0, 0))[1],
+                tf=int(tf),
+            )
+            for cid, tf in posts.items()
+        )
+    chunk_terms: Dict[str, Dict[str, int]] = {cid: {} for cid in lineages}
+    for term, postings in terms.items():
+        for post in postings:
+            bucket = chunk_terms.get(post.chunk_id)
+            if bucket is not None:
+                bucket[term] = post.tf
+    return LexicalIndex(
+        terms=terms,
+        chunk_terms=chunk_terms,
+        chunk_lengths=dict(payload.get("chunk_lengths") or {}),
+        chunk_spans=spans,
+        lineages=lineages,
+        chunk_bytes={
+            cid: (sp[0], sp[1]) for cid, sp in (payload.get("chunk_bytes") or {}).items()
+        },
+    )

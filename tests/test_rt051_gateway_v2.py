@@ -77,7 +77,7 @@ class V2CapabilitiesTests(unittest.TestCase):
             p["supported_operations"],
             ["capabilities", "list", "search", "resolve", "inspect", "read", "continue", "renew"],
         )
-        self.assertEqual(p["lexical_modes"], [])  # P3 未交付，如实报空
+        self.assertEqual(p["lexical_modes"], ["lexical_fusion_v1"])  # P3b 交付
         self.assertEqual(p["offset_unit"], "byte_0based_halfopen")
         self.assertEqual(p["limits"]["page_size_max"], 200)
 
