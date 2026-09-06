@@ -271,3 +271,22 @@ refresh接线在所有source execute_plan和save_refresh_state最终收尾后；
   测试 28 例 + 治理 62 + RT-051 回归 232 + 快车道 + 双门禁全绿。
   剩余 P3b：builder（正文抽取→建代→原子发布）、gateway 融合路由
   （cwk.kb.search.v2/RRF/同资格域）、refresh 最终点 hook；P4 验收。
+
+- 2026-09-06 P3b 落地（提交 3fddcbf）：**lexical_fusion_v1 正式开放**。
+  kb_lexical.py 增序列化层（to/from_json_payload、generation_of 确定性
+  建代=corpus 投影+引擎串无时间戳、chunk_id_of 域分离、extract_body
+  保守 frontmatter 剥离、eligible_rows 资格域投影、引擎四段版本串）。
+  新增 scripts/kb_lexical_builder.py（写面独立进程）：资格域逐件读回
+  复核 SHA（漂移/缺件=build_refused 硬失败，不悄悄少件）、UTF8/空正文
+  显式 excluded 计账、coverage_complete 口径（indexed==eligible）、同代
+  幂等零写入、发布走账本（写后对账→留痕→重签）、publish 前重走 _collect
+  断言 generation 一致。网关 _v2_load_lexical（missing/stale/corrupt 一律
+  None：用当前 raw-index 资格域投影重算 corpus_digest 复核，过时代拒服务）
+  + _v2_fusion_payload（cwk.kb.search.v2：两路同资格域、candidate_k=100、
+  RRF=1/(60+rank)、matched_relation、hit 带 document_ref+候选 span 的 raw
+  绝对字节坐标——同一条 read 路出引文、不另立证据路径）。
+  capabilities lexical_modes=['lexical_fusion_v1']。测试 14 例（builder
+  干跑/幂等/确定性/漂移拒发/坏行拒建/排除计账 + 融合 body-only 命中/
+  RRF 双路/资格域隔离/span 字节读回/陈旧代 503+显式降级/重建恢复）；
+  RT-051+治理回归 308 绿；快车道+双门禁绿。剩余 P3c refresh hook、
+  P4 验收（A01–A12）。
