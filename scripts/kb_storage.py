@@ -82,6 +82,7 @@ ENV_HOST = "CWK_NAS_KB_HOST"
 ENV_CERT = "CWK_NAS_KB_CERT_SHA256"
 ENV_USER = "CWK_NAS_KB_USER"
 ENV_PASSWORD = "CWK_NAS_KB_PASSWORD"
+ENV_TIMEOUT = "CWK_NAS_KB_TIMEOUT"
 ENV_SHARE = "CWK_NAS_KB_SHARE"
 
 # Flags that would put a secret into the process table.  Rejected on sight.
@@ -604,6 +605,16 @@ class FileStationBackend:
     ) -> "FileStationBackend":
         source = os.environ if env is None else env
         kwargs.setdefault("cert_sha256", source.get(ENV_CERT) or None)
+        # 大宗传输（词法代 payload 等）在短超时下必然假性失败；
+        # CWK_NAS_KB_TIMEOUT（秒，浮点）允许环境按负载调宽，默认不变。
+        raw_timeout = (source.get(ENV_TIMEOUT) or "").strip()
+        if raw_timeout:
+            try:
+                kwargs.setdefault("timeout", float(raw_timeout))
+            except ValueError:
+                raise MissingCredentials(
+                    f"{ENV_TIMEOUT}={raw_timeout!r} 不是合法秒数"
+                ) from None
         return cls(credentials_from_env(env), **kwargs)
 
     # -- path helpers -------------------------------------------------------
