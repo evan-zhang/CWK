@@ -31,9 +31,12 @@ def _now() -> datetime:
 def registry_projection(path: Path, now: datetime) -> tuple[list[dict], str | None]:
     try:
         raw = json.loads(path.read_text("utf-8"))
-        records = raw["records"]
+        # kb_token.py 的 canonical registry 字段是 ``tokens``。短暂开发版
+        # 曾使用 ``records``；读侧兼容它，写侧仍不存在，避免 OPS 升级时
+        # 把正常登记表误报成 registry_unavailable。
+        records = raw.get("tokens", raw.get("records"))
         if not isinstance(records, list):
-            raise ValueError("records")
+            raise ValueError("tokens")
     except (OSError, ValueError, KeyError, TypeError, UnicodeDecodeError):
         return [], "registry_unavailable"
     out = []

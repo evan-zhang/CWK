@@ -73,6 +73,29 @@ class OpsTests(unittest.TestCase):
             payload, code = kb_ops.status({}, reg); rendered = json.dumps(payload)
             self.assertEqual(code, 2); self.assertNotIn("LEAK", rendered); self.assertNotIn("owner_ref", rendered); self.assertEqual(payload["registry_status"], "registry_unavailable")
 
+    def test_canonical_tokens_registry_is_projected_without_secret_fields(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            reg = Path(tmp) / "tokens.json"
+            reg.write_text(json.dumps({"schema": "cwk.kb.token-registry.v1", "tokens": [{
+                "token_id": "kbtk_1234567890abcdef",
+                "token_sha256": "LEAK-DIGEST",
+                "owner_ref": "LEAK-OWNER",
+                "identity_probe": {"receipt": "LEAK-RECEIPT"},
+                "agent_binding_id": "binding-safe",
+                "kb_ids": ["a"],
+                "created_at": "2026-09-01T00:00:00Z",
+                "expires_at": "2026-10-01T00:00:00Z",
+                "revoked": False,
+                "revoked_at": None,
+            }]}), "utf-8")
+            rows, error = kb_ops.registry_projection(reg, NOW)
+        rendered = json.dumps(rows)
+        self.assertIsNone(error)
+        self.assertEqual(rows[0]["token_id_suffix"], "90abcdef")
+        self.assertEqual(rows[0]["status"], "active")
+        for secret in ("LEAK-DIGEST", "LEAK-OWNER", "LEAK-RECEIPT", "token_sha256", "owner_ref"):
+            self.assertNotIn(secret, rendered)
+
     def test_injected_survey_reads_readiness_not_lexical_index_and_never_mutates(self):
         backend = seeded()
         before = dict(backend.files)
