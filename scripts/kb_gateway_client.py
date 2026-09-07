@@ -28,6 +28,7 @@ from typing import Mapping, Optional
 
 ENV_URL = "CWK_KB_GW_URL"
 ENV_TOKEN = "CWK_KB_GW_TOKEN"
+ENV_ACCESS_DIR = "CWK_KB_ACCESS_DIR"
 TOKEN_HEADER = "X-KB-Token"
 DEFAULT_TIMEOUT = 300.0
 
@@ -81,11 +82,31 @@ class ClientError(Exception):
         return 1
 
 
-def connection_from_env(env: Optional[Mapping[str, str]] = None) -> tuple[str, str]:
+def connection_from_env(
+    env: Optional[Mapping[str, str]] = None, *, kb_id: str = ""
+) -> tuple[str, str]:
+    """Resolve an explicit connection first, else the one-KB local store.
+
+    ``CWK_KB_GW_TOKEN`` remains the compatibility override.  When it is
+    absent, both URL and token come from the installed file selected by the
+    request's ``kb`` value, so one library's bearer cannot silently be sent
+    to a different endpoint.
+    """
     source = os.environ if env is None else env
     base = (source.get(ENV_URL) or "").strip().rstrip("/")
     token = (source.get(ENV_TOKEN) or "").strip()
-    return base, token
+    if token:
+        return base, token
+    if not kb_id:
+        return "", ""
+    from kb_access_file import DEFAULT_ACCESS_DIR, load_installed_access  # noqa: PLC0415
+
+    access_dir = (source.get(ENV_ACCESS_DIR) or "").strip() or str(DEFAULT_ACCESS_DIR)
+    try:
+        access = load_installed_access(kb_id, access_dir)
+    except Exception as exc:  # noqa: BLE001 - normalize to the client contract
+        raise ClientError(0, "missing_connection", f"本地未安装该库的有效授权：{exc}") from None
+    return str(access["gateway_url"]), str(access["token"])
 
 
 def call(
@@ -104,7 +125,8 @@ def call(
     """
     if op not in OPERATIONS:
         raise ClientError(0, "bad_request", f"未知 v2 操作 {op!r}")
-    base, token = connection_from_env(env)
+    kb_id = str(params.get("kb") or "")
+    base, token = connection_from_env(env, kb_id=kb_id)
     if not base or not token:
         raise ClientError(
             0,
