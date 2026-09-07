@@ -302,6 +302,6 @@ entries:
   created: 2026-09-07
 - id: RT-053
   title: 单库共享授权文件与 Agent 自助导入
-  status: in_progress
+  status: completed
   profile: Spec-Lite
   created: 2026-09-07
