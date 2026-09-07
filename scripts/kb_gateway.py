@@ -627,7 +627,6 @@ class GatewayApp:
         #: RT-051 P3b: 已解析词法代的进程内缓存（kb → (generation, payload)）。
         #: 零落盘红线允许内存缓存；换代/过时白 _v2_load_lexical 的投影复核拒掉。
         self._v2_lexical: Dict[str, Tuple[str, dict]] = {}
-        self._libraries_scope: Optional[set] = None
 
     # -- auth ---------------------------------------------------------------
 
@@ -727,10 +726,10 @@ class GatewayApp:
         # must not be routed through the default kb (which would reject a
         # token that is valid for an attached library only).
         if path == V2_PREFIX + "libraries":
-            refusal = self.authorize_libraries(headers)
+            refusal, scope = self.authorize_libraries(headers)
             if refusal is not None:
                 return Response(refusal.status, v2_error_payload("unauthorized", "认证失败"))
-            return self.v2_dispatch("libraries", params, libraries=True, headers=headers)
+            return self.v2_dispatch("libraries", params, libraries_scope=scope)
 
         # RT-049: ?kb= selects the target library for the two data routes.
         # Resolved before the auth gate so a binding token's scope is judged
@@ -882,30 +881,44 @@ class GatewayApp:
 
     # ── RT-051 P1a: /v2/kb/* controlled-read face ───────────────────────────
 
-    def authorize_libraries(self, headers: Mapping[str, str]) -> Optional[Response]:
-        """Targetless discovery authorization: admin first, one registry scan."""
+    def authorize_libraries(
+        self, headers: Mapping[str, str]
+    ) -> Tuple[Optional[Response], set]:
+        """Targetless discovery authorization: admin first, one registry scan.
+
+        The authorized set is returned as request-local data.  It must never
+        be stored on ``self``: one GatewayApp serves concurrent requests, so
+        shared auth state could leak one holder's library set to another.
+        """
         presented = header_value(headers, TOKEN_HEADER)
         if tokens_match(presented, self.token):
-            self._libraries_scope = set(self.mounts)
-            return None
+            return None, set(self.mounts)
         if self.tokens is None:
-            return self.unauthorized("registry_unavailable")
+            return self.unauthorized("registry_unavailable"), set()
         decision = self.tokens.decide_scope(presented, now=self.clock())
         if not decision.ok:
             # For a targetless request a valid but empty scope is not forbidden.
-            return self.unauthorized(decision.reason)
-        self._libraries_scope = set(decision.scope).intersection(self.mounts)
-        return None
+            return self.unauthorized(decision.reason), set()
+        return None, set(decision.scope).intersection(self.mounts)
 
-    def v2_dispatch(self, op: str, params: Mapping[str, List[str]], *, libraries: bool = False,
-                    headers: Optional[Mapping[str, str]] = None) -> Response:
+    def v2_dispatch(
+        self,
+        op: str,
+        params: Mapping[str, List[str]],
+        *,
+        libraries_scope: Optional[set] = None,
+    ) -> Response:
         """Whitelist → mount → handler, with v2-shaped errors throughout."""
         if op not in V2_OPERATIONS:
             return Response(404, v2_error_payload("not_found", f"未知操作 {op!r}"))
         try:
             clean = self._v2_clean_params(op, params)
             if op == "libraries":
-                return Response(200, self._v2_libraries(headers or {}), {"Cache-Control": "no-store"})
+                return Response(
+                    200,
+                    self._v2_libraries(libraries_scope or set()),
+                    {"Cache-Control": "no-store"},
+                )
             backend = self._backend_for_kb(clean["kb"])
             if backend is None:
                 raise V2Error(404, "unknown_kb", "kb 参数不在本网关的挂载面内")
@@ -917,9 +930,8 @@ class GatewayApp:
                 503, v2_error_payload("source_unavailable", str(exc), retryable=True)
             )
 
-    def _v2_libraries(self, headers: Mapping[str, str]) -> dict:
+    def _v2_libraries(self, allowed: set) -> dict:
         """Small, authorization-filtered discovery projection; never loads lexical index."""
-        allowed = self._libraries_scope if self._libraries_scope is not None else set()
         rows = []
         complete = True
         for kb in sorted(allowed):
