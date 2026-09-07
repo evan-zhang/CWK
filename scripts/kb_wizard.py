@@ -105,7 +105,7 @@ CAPTURE_CHARS = 2000
 # 的键一一对应（J5 断言两头一致；这里写死避免模块级前向引用）。
 VERBS = (
     "create", "ingest", "status", "query",
-    "capabilities", "list", "search", "open",
+    "libraries", "capabilities", "list", "search", "open",
     "inspect", "read", "continue", "renew",
 )
 
@@ -545,6 +545,7 @@ def verb_query(args: argparse.Namespace) -> int:
 # 不走 argv。open 是 resolve 的 CLI 别名，不设第二事实路径。
 
 GW_READSIDE_VERBS: Dict[str, Dict[str, object]] = {
+    "libraries": {"op": "libraries", "params": ()},
     "capabilities": {"op": "capabilities", "params": ()},
     "list": {"op": "list", "params": ("page_size", "cursor")},
     "search": {
@@ -564,7 +565,7 @@ GW_READSIDE_VERBS: Dict[str, Dict[str, object]] = {
 
 def verb_gw_readside(args: argparse.Namespace) -> int:
     spec = GW_READSIDE_VERBS[args.verb]
-    params: Dict[str, object] = {"kb": args.kb}
+    params: Dict[str, object] = {} if args.verb == "libraries" else {"kb": args.kb}
     for name in ("document_ref", "cursor"):
         value = getattr(args, name, None)
         if value:
@@ -651,7 +652,8 @@ def build_parser() -> argparse.ArgumentParser:
             name,
             help=f"v2 网关受控读：{spec['op']}（连接配置 CWK_KB_GW_URL/CWK_KB_GW_TOKEN 走环境变量）",
         )
-        node.add_argument("--kb", required=True, help="目标库 id（NAS prefix）")
+        if name != "libraries":
+            node.add_argument("--kb", required=True, help="目标库 id（NAS prefix）")
         if name in ("inspect", "read", "continue", "renew"):
             node.add_argument("--document-ref", required=True, help="resolve 签发的不透明句柄")
         if name == "continue":

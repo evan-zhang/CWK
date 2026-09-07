@@ -32,6 +32,7 @@ TOKEN_HEADER = "X-KB-Token"
 DEFAULT_TIMEOUT = 300.0
 
 OPERATIONS = (
+    "libraries",
     "capabilities",
     "list",
     "search",
@@ -45,6 +46,7 @@ OPERATIONS = (
 #: 每个操作成功响应必须携带的 schema（A10：HTTP200 不是能力证据，
 #: v1 服务忽略未知参数回 200 也会在这里被 unsupported_contract 拒掉）
 EXPECTED_SCHEMAS = {
+    "libraries": ("cwk.kb.libraries.v2",),
     "capabilities": ("cwk.kb.capabilities.v2",),
     "list": ("cwk.kb.documents.v2",),
     "search": ("cwk.kb.search.v2", "cwk.kb.documents.v2"),

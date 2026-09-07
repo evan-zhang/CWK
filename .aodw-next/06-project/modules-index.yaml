@@ -84,6 +84,15 @@ modules:
       - tests/test_rt051_gateway_v2.py
       - tests/test_rt051_wizard_readside.py
       - tests/test_rt051_lexical.py
+  - name: rt052-kb-discovery-ops
+    path: RT/RT-052/rt-lite.md
+    root: scripts
+    related_files:
+      - scripts/kb_gateway.py
+      - scripts/kb_token.py
+      - scripts/kb_lexical_builder.py
+      - scripts/kb_ops.py
+      - tests/test_rt052_discovery_ops.py
 
   - name: kb-wizard-gateway
     path: RT/RT-044/references/CLI-SPEC.md

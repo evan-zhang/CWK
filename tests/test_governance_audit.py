@@ -97,6 +97,7 @@ _REPRESENTATIVE_TRACKED = (
     "scripts/kb_ingest.py",
     "scripts/kb_wizard.py",
     "scripts/kb_gateway.py",
+    "scripts/kb_ops.py",
     "scripts/kb_gateway_client.py",
     "scripts/kb_lexical.py",
     "scripts/kb_lexical_builder.py",

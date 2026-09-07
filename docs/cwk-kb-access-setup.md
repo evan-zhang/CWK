@@ -78,7 +78,17 @@ chmod 600 ~/.openclaw/cwk/kb-bind.env
 
 ⚠️ 铁律：token 绝不打印到对话/日志，绝不进命令行参数（history 会留痕）或 git；绝不向任何人索要管理 Key（CWK_KB_ADMIN_KEY 不会下发）。
 
-### B2. 四步验证（全绿才算接入完成）
+### B2. 第 0 步：先发现授权库
+
+不要再从本文复制库名。配置 token 后先运行：
+
+```bash
+curl -s -m 30 -H "X-KB-Token: $CWK_KB_BIND_TOKEN" http://192.168.91.72:8787/v2/kb/libraries
+```
+
+从返回的 `libraries[].kb_id` 选择后续查询目标。200 空列表表示 token 有效但当前没有已挂载授权库；401 才是 token 或登记表问题。
+
+### B3. 四步验证（全绿才算接入完成）
 
 ```bash
 set -a; source ~/.openclaw/cwk/kb-bind.env; set +a
