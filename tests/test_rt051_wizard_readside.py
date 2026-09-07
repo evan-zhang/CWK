@@ -15,7 +15,9 @@ from __future__ import annotations
 import io
 import json
 import os
+import secrets
 import sys
+import tempfile
 import threading
 import unittest
 import contextlib
@@ -27,6 +29,7 @@ sys.path.insert(0, str(PROJECT / "scripts"))
 sys.path.insert(0, str(PROJECT / "tests"))
 
 import kb_gateway as gateway  # noqa: E402
+import kb_access_file as kb_access  # noqa: E402
 import kb_gateway_client as gw_client  # noqa: E402
 import kb_wizard  # noqa: E402
 from test_kb_gateway import (  # noqa: E402
@@ -80,6 +83,57 @@ class LiveGatewayCase(unittest.TestCase):
 
 
 class ClientUnitTests(unittest.TestCase):
+    def test_explicit_env_token_keeps_highest_priority(self) -> None:
+        base, token = gw_client.connection_from_env(
+            {gw_client.ENV_URL: "https://explicit.example.test", gw_client.ENV_TOKEN: "explicit"},
+            kb_id=KB,
+        )
+        self.assertEqual((base, token), ("https://explicit.example.test", "explicit"))
+
+    def test_missing_env_token_selects_the_local_file_by_kb(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            access_dir = Path(tmp) / "access"
+            token = secrets.token_hex(32)
+            payload = {
+                "schema": kb_access.ACCESS_FILE_SCHEMA,
+                "kb_id": KB,
+                "gateway_url": "https://local.example.test",
+                "token": token,
+                "token_id": "tok-" + "a" * 16,
+                "issued_at": "2026-09-07T08:00:00Z",
+                "expires_at": "2026-10-07T08:00:00Z",
+            }
+            kb_access.write_access_file(
+                kb_access.access_path_for_kb(KB, access_dir), payload
+            )
+            base, selected = gw_client.connection_from_env(
+                {gw_client.ENV_ACCESS_DIR: str(access_dir)}, kb_id=KB
+            )
+            self.assertEqual(base, "https://local.example.test")
+            self.assertEqual(selected, token)
+
+    def test_local_store_does_not_fall_back_to_another_kb(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            access_dir = Path(tmp) / "access"
+            token = secrets.token_hex(32)
+            kb_access.write_access_file(
+                kb_access.access_path_for_kb(KB, access_dir),
+                {
+                    "schema": kb_access.ACCESS_FILE_SCHEMA,
+                    "kb_id": KB,
+                    "gateway_url": "https://local.example.test",
+                    "token": token,
+                    "token_id": "tok-" + "b" * 16,
+                    "issued_at": "2026-09-07T08:00:00Z",
+                    "expires_at": "2026-10-07T08:00:00Z",
+                },
+            )
+            with self.assertRaises(gw_client.ClientError) as ctx:
+                gw_client.connection_from_env(
+                    {gw_client.ENV_ACCESS_DIR: str(access_dir)}, kb_id="another-kb"
+                )
+            self.assertEqual(ctx.exception.code, "missing_connection")
+
     def test_missing_connection_refuses_before_any_network(self) -> None:
         with self.assertRaises(gw_client.ClientError) as ctx:
             gw_client.call("capabilities", {"kb": KB}, env={})

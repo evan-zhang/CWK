@@ -991,6 +991,47 @@ class BindingTokenAuthTests(BindingTokenCase):
             self.assertNotIn(secret, blob)
 
 
+class SharedKBTokenAuthTests(BindingTokenCase):
+    """RT-053: shared_kb records use the unchanged read-only Gateway face."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        data = kb_token.load_registry(self.registry)
+        self.shared_record, self.shared_bearer = kb_token.issue_shared_token(
+            data, kb_id=KB_ID, now=FIXED_NOW, actor="test", reason="rt053"
+        )
+        kb_token.save_registry(self.registry, data, now=FIXED_NOW)
+
+    def test_shared_token_is_200_for_its_kb_403_elsewhere_then_401_after_revoke(self) -> None:
+        self.assertEqual(self.get("/query?q=合同", self.shared_bearer).status, 200)
+        neighbour = make_app(self.backend, tokens=self.tokens, kb_id=OTHER_KB)
+        self.assertEqual(
+            self.get("/query?q=合同", self.shared_bearer, app=neighbour).status, 403
+        )
+
+        data = kb_token.load_registry(self.registry)
+        kb_token.revoke_token(
+            data,
+            token_id=self.shared_record["token_id"],
+            now=FIXED_NOW,
+            actor="test",
+            reason="rt053-revoke",
+        )
+        kb_token.save_registry(self.registry, data, now=FIXED_NOW)
+        self.assertEqual(self.get("/query?q=合同", self.shared_bearer).status, 401)
+
+    def test_shared_token_does_not_add_a_management_or_write_face(self) -> None:
+        for path in MANAGEMENT_PROBES:
+            with self.subTest(path=path):
+                self.assertEqual(self.get(path, self.shared_bearer).status, 404)
+        for method in ("POST", "PUT", "PATCH", "DELETE"):
+            with self.subTest(method=method):
+                response = self.app.dispatch(
+                    method, "/query", {gateway.TOKEN_HEADER: self.shared_bearer}
+                )
+                self.assertEqual(response.status, 405)
+
+
 class BackwardCompatibilityTests(BindingTokenCase):
     """不传 --tokens-file 时，行为与今天完全一致（admin-only）。"""
 

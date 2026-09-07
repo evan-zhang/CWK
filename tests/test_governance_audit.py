@@ -102,6 +102,8 @@ _REPRESENTATIVE_TRACKED = (
     "scripts/kb_lexical.py",
     "scripts/kb_lexical_builder.py",
     "scripts/kb_token.py",
+    "scripts/kb_access_file.py",
+    "skills/cwk-kb-authorize/SKILL.md",
     "skills/cwk-kb-create/SKILL.md",
     "skills/cwk-kb-query/SKILL.md",
     "scripts/cwk_wiki_batch_driver.sh",
