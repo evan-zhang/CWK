@@ -5,88 +5,139 @@
 
 ## 方案（给人看）
 
-- **做什么**：把大库的正文词法融合检索改为「发布时预计算、查询时只核对小型当前指针并使用已验证快照」。cwork-3m 的 482 件、66,500 chunks 在 `q=会议`、`lexical_fusion_v1`、`page_size=1` 下仍返回正确的 121 条和 generation `eabcb725…`，但冷请求已达 425.685 秒、后续一笔在 300 秒超时；spbp 的 128 件也已知超过 60 秒。本 RT 要消除这条查询路径的重复 NAS 大对象传输，不靠加长 timeout。
-- **为什么**：现状每次融合搜索都会下载整个词法索引、再次读取完整 raw-index，并把大 JSON 还原为 Python 索引后扫描全部 chunks。大库慢的主因是这条同步全量 NAS 读取与反序列化/全量评分路径；不是搜索时逐候选读正文或逐候选 SHA 复核。后两者在 builder 和后续 `read`/`inspect` 路径发生，仍有各自的 P1b 问题但不能被误归为本次 425 秒。
-- **推荐**：新增一个由现有可信写面发布的、不可变且带 SHA 的查询快照，以及一个很小的「当前词法指针」。搜索在授权之后只读指针；指针确认 source corpus digest 与 generation 同代才允许用内存中已验 SHA 的快照。冷态下载指针和一份快照，热态只读指针；绝不回读 raw-index、候选正文或旧 generation 补救。
-- **代价**：发布/摄取写面需原子维护指针失效与重新就绪；每个已热库占受控内存，builder 的发布物多一份。换来的不是缓存猜测：源换代会立即令指针不匹配，下一次搜索 fail-closed，重建完成后无需重启网关即可见新代。
-- **这次故意不做什么**：不改产品代码、测试、存储协议、timeout、NAS/生产或部署；不改 RT-053；不把 P1a 的正文分页/全件 SHA 验证一并重构；不做跨库搜索、向量索引、FTS5、压缩格式或后台网关写缓存。
-- **用户怎样算成功**：批准后，cwork-3m 的融合搜索从数分钟级变为有固定上限的冷/热请求，且旧代、损坏快照、撤权、未授权库、源换代、错 SHA 都宁可失败也不返回错误候选；原有 span/read、仅当前版和 GET 零写语义不变。
-- **建议**：**推荐**先实施这一最小 P1b。它直接去掉每次查询的重复大对象 NAS 往返，同时复用 RT-051 的 generation、corpus digest、文档身份和 builder 信任边界；若真实基准仍不能过阈值，再用数据决定是否做索引格式实验。
+- **做什么**：先用 P0 单变量分段计时找出 cwork-3m 融合搜索慢在哪里；只有数据证明后，才实施「单一当前指针 + 不可变查询快照 + postings 驱动评分」的最小 P1b。它同时减少 NAS 往返和消除当前评分的重复全量扫描。
+- **为什么**：用户提供的生产观察是 cwork-3m（482 docs、66,500 chunks）在 `q=会议`、`lexical_fusion_v1`、`page_size=1` 下功能正确（`total=121`、generation `eabcb725…`），冷请求 425.685s、后续一笔 300s 超时；spbp（128 docs）也有 60s+。这些数字证明有严重问题，**尚不能证明 NAS 是首因**。静态代码还发现 BM25 当前会在每个 chunk 评分时重算全库 `avgdl` 并重分词 query，最坏近似 O(chunks²)，故快照而不改算法不足以达标。
+- **推荐**：P0 先隔离测量；P0 数据通过实施门后，P1b 才采用单库单写者、stale+epoch fence、双 collect 校验和一代一缓存的查询快照。查询授权后只读小指针；冷态读取指针和已验证快照，热态复核指针后使用缓存。评分只遍历 query token 的 postings，预存 `n_chunks`/`avgdl`，一次 tokenization、一次每候选分数计算。
+- **代价**：写面必须统一经过 fence，builder 多一次一致性 collect 和额外不可变发布物；网关限定每库一代内存。代价换来可证明的换代、回滚、崩溃和拒绝旧结果，而非用 timeout 或猜测缓存掩盖问题。
+- **这次故意不做什么**：不改产品代码、测试、存储实现、timeout、NAS/生产或部署；不改 RT-053；不在 P0 数据完成前锁定最终实现；不把 P1a 正文分页/每次完整正文 SHA 验证混入本 RT；不做跨库、向量、FTS5、网关持久 cache 或隐式 metadata 降级。
+- **用户怎样算成功**：批准实现且完成验收后，真实大库的冷/热融合搜索在固定时间、请求数、字节和内存上限内完成；源换代、撤权、错误/回放快照、双 builder、OOM 前置拒绝都不会返回旧候选。document_ref、span/read SHA、only-current、授权先于 I/O 和 GET 零持久写保持不变。
+- **建议**：**推荐**先批准 P0 诊断授权而非直接锁定 P1b 实现。P0 会在不改业务行为的前提下给出可比较分段数据；若它推翻网络首因假设，则按数据调整实现，不能拿本稿预设覆盖证据。
 
 ## 假设与现状
 
-- 基线是 `origin/main` 的 `0033b26`（2026-09-07 本地 refs）；本分支从它创建。RT-053 是平行未合并工作，未作为本 RT 的事实或依赖。
-- 已按要求阅读 RT-051 的方案、证据、验收和 A11 独立复核，以及 RT-052 方案与 Codex 的 GO-WITH-CHANGES 评审。RT-052 已确立：readiness 小投影不得以加载 15MB+ 词法索引冒充轻量读取，且授权域必须先过滤才可发生 NAS I/O。它是设计证据，不使 RT-052 成为本实现前置。
-- RT-051 已诚实记录 P1a：`read` 逐请求读完整正文并复核 SHA，P1b 快照/传输有界顺延；它也把 A04 大档与 A09 累计带宽留为后续工作。当前 builder 在发布时逐合格件读取正文、核对 raw SHA、构建 generation/corpus digest，并已原子写 lexical index 与小型 readiness。
-- 生产数值由用户提供，未在本轮连接生产/NAS复测：cwork-3m 482 docs、66,500 chunks；正确结果 `total=121`、generation `eabcb725…`；冷 425.685s，后续一笔 300s 超时；spbp 128 docs、60s+。因此路径归因有源码证据，425 秒中网络传输、JSON 解析与评分的精确秒数仍待实现阶段仪表验证。
+- 基线是 `origin/main` 的 `0033b26`（本分支从此创建）。RT-053 是平行未合并工作，未读取、修改或作为本 RT 依赖。
+- 独立 Codex 评审裁决为 **GO-WITH-CHANGES**；本稿吸收其八项阻断意见。RT-051 的 P1a 保持独立范围：`read`/`inspect` 仍会读目标全文并复核 SHA；本 RT 的 search 不读取候选正文，也不因此声称解决 P1a 大文成本。
+- 当前 `_v2_search` 读一次 raw-index；`_v2_load_lexical` 下载完整 lexical index 又读一次 raw-index，并解析整个 JSON。融合还全量扫描 metadata、对所有 chunks 调 BM25、为返回 hit 再扫描 chunks 取 span。builder `_collect` 才逐合格正文 read+SHA；search 本身不做候选正文 read/SHA。
+- `LexicalIndex.avgdl` 每次求值都遍历 `chunk_lengths`；`bm25_rank` 对每个 chunk 调 `chunk_score`，`chunk_score` 又对同一 query 调 `tokenize`。因此在 N chunks 时，单 query 的 `avgdl` 路径为 N 次 × O(N)，近似 O(N²)，另有 N 次相同 tokenization；`best_spans` 还会重复评分。该结论来自静态代码路径，P0 要测其真实占比。
+- gateway 是刻意的单线程 `HTTPServer`：单个 FileStation session 一次只服务一个请求。不得用并发共享 session 伪造吞吐改善；single-flight 仍须定义，保证未来内部加载路径、测试直调和两个连续冷请求不会重复下载/接纳未验证对象。
+- 本轮不连接生产/NAS、不运行真实 builder/gateway，不报告任何新生产性能数字。
 
-### 静态成本模型（一次 `GET /v2/kb/search?...retrieval_mode=lexical_fusion_v1&page_size=1`）
+## P0：先测量，再决定
 
-| 路径 | NAS `read` / 传输 | CPU/内存 | 是否是候选正文 SHA |
-|---|---:|---|---|
-| `_v2_search` 预检 | 1×完整 raw-index | 解析 index、第一次 metadata 子串扫全部条目 | 否 |
-| `_v2_load_lexical` | 1×完整 lexical-index，随后再 1×完整 raw-index | JSON 解析、反序列化 postings/chunk maps、重算资格域 digest | 否 |
-| `_v2_fusion_payload` | 0×正文 | eligibility/metadata 再扫；BM25 对全部 chunks 评分；`page_size=1` 仍为命中文档扫描 chunks 取 spans；最多各 100 候选再去重/RRF/排序 | 否 |
-| builder publish | 每一合格文档 1×正文 | 全件 SHA、UTF-8/body/chunk/BM25 建代 | **是，发布时** |
-| `read` / `inspect` | raw-index + 每次目标正文完整下载 | 全件 SHA；`read` 再切 span/JSON | **是，读取时** |
+P0 是唯一可以进入实现前的诊断阶段；只可加入临时、零写、默认关闭的计时/计数装置并在授权环境运行。**P0 数据、原始样本、分段总和及结论未完成前，不得锁定最终 P1b 文件格式、阈值归因或实现选型。**
 
-结论：单次融合搜索至少有 3 次完整元数据/索引下载；FileStation 的登录、重试与 TLS 是这些 `read` 的附加请求，具体次数取决于连接状态。候选去重上限仅 200 个，不能解释 425 秒；全量 chunks 评分/反序列化会放大耗时，但在没有逐段时间计数前，不把它伪称为已量出的首因。首因是每次请求同步拉取大型词法发布物（并重复 raw-index），这也是唯一能同时解释冷慢、后续仍超时和 RT-052 15MB+ 警告的代码路径。
+### 单变量、可复现实验
 
-## 实现备注（用户不问可不展开）
+固定：同一 KB/current generation、同一 query、`page_size=1`、同一 token、同一 gateway 进程、无候选正文 read、无 timeout 改动。每个实验仅改变一项，并记录 monotonic clock 的以下段：
 
-### P1b 最小架构
+| 段 | 直接回答的问题 | 单变量对照 |
+|---|---|---|
+| auth + pointer/index 获取 | 授权或小元数据是否在阻塞 | 同请求仅替换已验证内存 bytes，不改变认证 |
+| raw-index / lexical download | NAS payload、登录、重试、TLS 各占多少 | 同一已下载 bytes 做离线解析；保留逻辑与物理请求数/字节 |
+| JSON + structure parse | 大对象反序列化是否首因 | 同 bytes、同机器、跳过网络 |
+| metadata filter | 字段扫描是否显著 | 同已解析 index，固定 query |
+| tokenize / BM25 / span | O(N²)、全 chunk 扫描和重复评分各占多少 | 同 index，对旧算法和候选 postings 算法逐段计时、比较逐项结果 |
+| RRF / JSON encode | 输出层是否显著 | 固定候选/分数，只编码 |
 
-1. **源当前态（写面）**：所有会改变 raw-index 资格域的既有受控 source publish，在同一账本/clean-fence 提交中先使 `lexical-query-current` 变为 `stale`，并写入新的 `source_corpus_digest`/source revision；不能原子证明此关系就不发布为 searchable。读面遇 missing、corrupt、stale、未知 schema 或不匹配一律 `503 lexical_unavailable`，不得回退读取 raw-index 或旧 snapshot。
-2. **builder（唯一预计算者）**：沿用现有逐件正文读取与 raw SHA 复核；成功时一次生成不可变 `lexical-query-snapshot-<generation>.json`。它把当前融合搜索必需的资格域文档投影（lineage、version、raw SHA、status、metadata haystack）和 lexical postings/chunk byte spans 放在同一 generation 内，并记录 `snapshot_sha256`、`corpus_digest`、engine、coverage/excluded 及 schema。快照内容 SHA 不符、字段不齐或 generation/digest 不自洽即拒用。
-3. **原子可见性**：先写并核对快照，再通过既有 ledger/manifest 让小型 `lexical-query-current.json` 从 stale 切到 ready；指针仅包含 schema、source digest/revision、generation、snapshot relative id、snapshot SHA、engine/coverage。崩溃只能看见 stale 或一整套 ready，不能看见半快照。旧 snapshot 仅按 maintenance 留存/回收，网关从不写它。
-4. **gateway GET 路径**：先完成 token/库授权，再读一个小指针；用它同当前授权库绑定并检验 `ready`、source digest、generation。内存缓存键为 `(kb, generation, snapshot_sha256)`；未命中才读一次 snapshot、计算 SHA、严格解析并缓存。热命中不跳过指针检查。响应仍由快照中的同版 lineage/version/raw SHA 签发 document_ref，仍返回现有 raw absolute spans；正文引文继续走现有 read 合同。
-5. **换代和 fail-closed**：source publish 后下一请求不重启也读到 stale 指针并拒绝；builder 成功发布新指针后下一请求装载新 generation。缓存绝不因 TTL、旧 generation 或“上次能读”通过。候选 SHA 的可证性来自 builder 已逐件复核的快照 provenance；实际正文 read 仍按其当前 P1a 合同再次验证，因此不会把搜索快照当正文读取授权。
+每条记录必须包含 KB 匿名标识、generation、docs/chunks、query 类别、冷/热定义、阶段 elapsed、logical/physical requests 与 payload/wire bytes、重试次数、RSS 峰值和错误；不得记录原文、token、路径或 NAS 凭据。先做至少 5 次同条件全过的诊断样本；若要报告 P50/P95，样本数必须 **≥20**。P0 输出应能证伪「NAS 首因」及「O(N²) 首因」任一假设。
 
-### 不可破坏的合同
+### P0 实施门
 
-- only-current-version：snapshot 行和 document_ref 必须是 source pointer 所指的同一 current corpus；历史 version、过期/旧 generation 都不响应。
-- stale：每次搜索先查 current 指针；source digest/generation/snapshot SHA/schema 任一不符即 fail-closed，响应不含旧 hits、标题、span 或正文。
-- 授权先于 I/O：未授权 token、跨库 ref、隐藏库在读指针、snapshot、raw-index、正文前就拒绝；测试须以「一读即抛」backend 证明。
-- GET-only 零写：gateway 不建目录、不写 cache、WAL、指针、快照、ledger 或 manifest；缓存只在进程内。builder/ingest 是显式写面。
-- span/read：snapshot 保存 raw 绝对 byte span；span 必须落在同一 `(kb,lineage,version,raw_sha)`，随后仍由现有 UTF-8 边界、cursor、full-SHA read 路验证。搜索不返回缓存 snippet，不扩大正文。
-- 资源：解析前限制指针和 snapshot 的 bytes/schema/entries/chunks/postings；超限/内存预算不足返回可诊断的 503，不降级到原始 NAS 扫描。
+仅当下列全部成立才可固定 P1b 设计：
 
-### 量化验收合同（实现后，以真实 cwork-3m、spbp 和脱敏 fakeNAS 分别证明）
+1. 计时覆盖上述所有阶段，阶段和与端到端误差在 5% 或 50ms（取较大者）内；异常/超时单列，不能删样本。
+2. 旧逻辑与离线重放结果在同 generation 下逐 hit 的 lineage、version、raw SHA、body/metadata rank、RRF、candidate span、total、排序完全一致；任何差异先解释或阻断。
+3. 数据显示下载/解析或当前 O(N²) 之一对超时有实质贡献；若两者都不成立，停在方案门，带数据重选方案。
+4. 存储读侧能在解析前证明大小上限/流式上限，且 source writer 能接入同一 epoch fence；任一做不到，不启动 P1b。
 
-| 面 | 条件与阈值 |
+## 实现备注（P0 通过后才生效）
+
+### 1. 单一权威、digest 与不可变快照
+
+`_system/lexical-query-current.v1.json` 是 P1b search 的**唯一** readiness/pointer 权威；旧 `lexical-readiness.json` 仅可作 libraries 展示，不能授权 search、不能作为 fallback。它有 `kb_code`、schema、`state: stale|ready`、单调 `epoch`、`query_corpus_digest`、generation、engine、snapshot locator、snapshot SHA、size/limits 与创建者状态。未知字段/版本、缺字段、跨库、非 ready、digest/epoch 不符全部 503 fail-closed。
+
+`query_corpus_digest` 不是只对 `(lineage,version,SHA)` 哈希。它对**所有影响 search 可见结果**的规范化投影做 domain-separated SHA-256：资格状态、lineage、current version、raw SHA、artifact/readability/reason、title/display label/source、metadata haystack、每个 document raw size、chunk id/owner、byte span、term/posting/tf、候选顺序规则、coverage/excluded，以及其 schema/normalizer 版本。编码为 UTF-8 canonical JSON：对象键 Unicode code-point 升序、数组明确排序、整数十进制、字符串 NFC；metadata/title 与 query 使用同一标明版本的 Unicode normalize + case-fold 函数，禁止语言/locale 隐式差异。
+
+`generation = SHA256("cwk.lexical-query.generation.v1\\x1f" + query_corpus_digest + "\\x1f" + engine + "\\x1f" + snapshot_schema)`。快照 locator 固定为 `_system/lexical-query/v1/<generation>.json`，不含其自身 SHA，避免循环哈希；pointer 另存 snapshot SHA。builder 只允许首次创建：locator 已存在但 bytes/SHA 不同立即拒绝，完全相同才幂等成功，绝不覆盖。snapshot 自身不写 pointer SHA；读取后计算 SHA 与 pointer 比对，才允许结构解析。
+
+结构验证必须在评分前完成：schema/kb/generation/digest/engine 精确一致；所有 map key 唯一；每 posting 指向存在 chunk、term/tf 为正、chunk owner 属同一文档；`n_chunks`/预存 `avgdl` 与 chunk lengths 可复算；每 span `0 <= start < end <= raw_size`、同文档 raw SHA/version 一致、chunk 不跨文档；候选排序所需字段完整。缺、重复、截断、错库、错 SHA、回放旧 epoch、指针指向另一代或结构不自洽一律拒绝，不以旧 cache、raw-index 或 metadata 路补答。
+
+### 2. 单库写者、S0/S1 与 epoch fence
+
+每 KB 一个受 ledger 保护、含 owner/request id/expiry 的可恢复写锁；所有 raw-index 资格域写者、builder、pointer rollback 共用它。锁已存在、owner/epoch 不可验证、租约过期但无法安全接管时拒绝而不是双写。gateway 从不取此锁也不写。
+
+1. source writer 取得锁，读 S0，令 `epoch+1` 的 current pointer 原子落为 `stale`，再与 raw-index/current projection 同一 commit/fence 发布；写失败或崩溃留下 stale，不能留 ready 旧代。
+2. builder 取得同锁，第一次 `collect` 读并逐件流式 SHA 验证，得到 S0 `(epoch, query_corpus_digest, rows)`；写入并核对 immutable snapshot。
+3. builder 第二次完整 `collect` 得 S1；只有 S0 == S1、pointer 仍为同一 stale epoch、锁仍归属自己时，才原子写 ready pointer。两次 collect 的 I/O、bytes、耗时必须独立计入验收，不能把第二次藏进“发布”。
+4. 任一差异、source 新 epoch、lock loss、snapshot verification failure 都删/退休 staging、保持 stale；不得发布部分覆盖、不得回退旧 ready。
+
+gateway 在授权后读取 P0 ready pointer；在评分**前**再次读取/比较 P1，在返回前读取 P2 并进行返回前 token/库授权复核。P0=P1=P2、epoch/digest/generation/snapshot SHA 均相同才返回；任一变化、撤权或鉴权失败都丢弃计算结果。最后成功核验只是未来字节未送出前的准许点，不声称撤回已送响应。
+
+### 3. 快照算法与等价性
+
+快照预存 `n_chunks`、`sum_chunk_lengths`、`avgdl`、query-visible metadata projection、倒排 `term -> postings` 和每 posting 所需 document/chunk/span/tf。每请求：query 仅 tokenize 一次；对去重 query terms 查 postings；只为命中的 chunk 累计 BM25，按 document 取 best score；每 `(query,chunk)` 只算一次并复用给 rank 和 `best_spans`；metadata 仍按同一规范化 projection 计算；RRF/candidate_k/tie-break 与旧合同不变。空 term/posting 正确返回 0，不扫描全 chunks。
+
+新旧等价测试用同一脱敏 corpus 与固定 query matrix，逐字段比较，包含 CJK 1/2/3-gram、ASCII、空查询拒绝、无答案、tie、重复词、正文-only、metadata-only、融合、最多三 non-overlap spans、candidate_k 截断和跨库隔离。性能优化若改变任一既有合法结果，先修等价性，不以更快为通过。
+
+### 4. 缓存、下载与资源边界
+
+服务器当前是单线程；加载器仍做每 `(kb,epoch,generation,snapshot_sha)` single-flight，第二个冷请求只等待同一个已开始的验证，不再启动下载。只有完整下载/流式 SHA、大小限制、解析、结构校验、P1 指针比较都成功后才可入缓存；失败对象绝不缓存。每 KB 同时仅保留 current 一代；pointer 前进时先退休旧代并释放，再可装入新代，跨库缓存键永远含 kb_code。
+
+硬限制须在分配/解析**之前**执行：pointer max bytes、snapshot compressed/wire bytes、decoded bytes、docs/chunks/postings、单 query postings work、单库已验证缓存和进程总缓存均有常量上限。读取采用 StorageBackend 新增的只读受限/流式读合同：先取可信大小元数据或以 `max_bytes+1` 流式计数，超限中止；同时流式 SHA，禁止 `read()->bytes` 后才检查长度。builder 正文校验也走流式 SHA；P1a endpoint 语义仍独立，不能借本 RT 静默改变它。
+
+在 cwork 上限内预先估算「wire + decoded + parser 工作区 + current cache」；若将超过每库 256MiB、进程 512MiB 或单请求额外 64MiB，必须在下载/解析前 503 `capacity_exceeded`，不驱逐仍可能服务的另一库、不越过 OOM 后才处理。单线程并不豁免此硬门。
+
+### 5. 回滚与恢复
+
+**代码回滚**：先停止把新 gateway binary 投入流量；旧 binary 只走其已支持的 legacy 词法路径，不能解释 P1b pointer 就必须显式 lexical unavailable，不能把未知快照当旧索引。**指针回滚**：仅在单库写锁内，目标 immutable snapshot 的 SHA/schema/kb/engine 与当前 raw `query_corpus_digest` 完全一致时，才可把 ready pointer 切回；否则保持 stale 并重建。回滚也增加 epoch，禁止 replay 旧 ready pointer。崩溃恢复从 pointer+snapshot 验证开始；stale/half-written/staging 无一可响应。
+
+## 可执行验收合同（P1b）
+
+### 口径与性能门
+
+冷态 = 新建 GatewayApp、该 KB 的 pointer/snapshot 缓存为零、无 in-flight、同一已 ready generation；报告 NAS/OS cache 与连接复用状态，不能把它叫“物理冷盘”。热态 = 同进程同 KB 已验证 current snapshot，仍每次读/复核 pointer。连续 **5 次独立冷态必须全部**低于阈值，故不报告 P95；热态与 P0 若报告 P95，样本 **≥20**（本方案用 30）。
+
+| 面 | 通过条件 |
 |---|---|
-| cwork-3m 冷搜索 | 清空该库进程内缓存后，`q=会议, lexical_fusion_v1, page_size=1` 连续 5 次独立冷态：每次 ≤10s，P95 ≤10s；结果仍 `total=121`、generation 与当前指针一致。不得通过提高客户端/服务端 timeout 达标。 |
-| cwork-3m 热搜索 | 同一已验证 generation 连续 30 次：P95 ≤2s、最大值 ≤3s；结果/排序、span、total 与冷态一致。 |
-| spbp | 同口径冷态 P95 ≤5s、热态 P95 ≤1s；如实记录其当前 generation/total，不拿 cwork 结果代替。 |
-| NAS 读取 | 每次冷态最多 2 个 FileStation download：1×小 current 指针 + 1×snapshot；热态最多 1×小指针。两种状态均为 0×raw-index、0×候选正文、0×写请求；登录/重试独立计数且无无限重试。 |
-| 内存 | cwork 热缓存的该库增量 RSS ≤256MiB；单请求峰值相对热基线额外 ≤64MiB。越界必须拒绝/逐出已验证旧缓存，不能无界增长。 |
-| 无重启换代 | source 资格域换代后，已运行网关的下一搜索 503 stale；新 snapshot 发布后无需重启即只返回新 generation，旧 hit/old raw SHA 为 0。 |
-| 回归/突变 | 既有 RT-051/052/存储全回归与 `make ci` 绿；新增 fakeNAS 计数、WriteTrap、hidden-backend、损坏/截断/snapshot-SHA、pointer stale、source digest、generation、授权、span/UTF-8、内存上限测试。逐一破坏「不读 pointer」「接受 SHA 不符」「stale 时返回缓存」「授权后置」「GET 写入」应红，恢复后绿。 |
+| cwork-3m | 冷态 5/5 `≤10s`；热态 30 次 P95 `≤2s`、max `≤3s`；`会议` 仍 total=121，generation 与 current pointer 一致。P0 若证明此阈值不可行，先回方案门，不加 timeout。 |
+| spbp | 冷态 5/5 `≤5s`；热态 30 次 P95 `≤1s`；如实记载 generation/total。 |
+| logical NAS | cold ≤2 logical StorageBackend reads（pointer+snapshot），hot ≤1（pointer）；两者均 0 raw-index、0 候选正文、0 gateway writes。 |
+| physical NAS / bytes | 分别记录 logical read 调用、每次 FileStation HTTP（含 login/retry/download）和响应 wire bytes、业务 payload bytes；cold/hot 对每一类给 min/max/total。重试不是免费次数，超预算失败。 |
+| 内存 | 满足每库/进程/请求硬门；以 RSS 与受控对象计量双报。故意构造临界大 snapshot 必须在 OOM 前 503，缓存、指针、文件与 ledger 均不变。 |
 
-性能计时必须把 pointer 下载、snapshot 下载、JSON 校验/解析、BM25、metadata、span、认证、FileStation login/retry 分段上报；这样可证伪本次归因，而不是用一个总耗时掩盖未解决的部分。真实生产基准只在另获授权后运行，不在本 RT 文档阶段执行。
+### 行为、故障和突变门
 
-### 备选与不选原因
+- builder 两次 collect 的文档数、SHA、digest 一致才 ready；第二次额外 NAS I/O/bytes/elapsed 明细必报。测试双 builder、source 在两 collect 中换代、builder 崩溃、锁失效，均只见 stale 或完整 ready。
+- 正式把 RT-051 Q39 类源升级场景升级为**所有 writer 的 epoch fence**判据：每个受控 raw-index writer 的突变必须使 next search 在无重启下 stale；新 builder ready 后只给新 version/SHA。漏接任一 writer 必红。
+- 双冷请求验证 single-flight 只有一份 snapshot download；跨库相同 generation/SHA 不得命中彼此 cache；旧 pointer/snapshot/replay、截断、hash 篡改、错误 locator、错 schema、span 越界、重复 posting 全 fail-closed。
+- 评分前/返回前分别突变 pointer、source、token/撤权；不得输出 hit。hidden backend、无 token、跨库 token 的 I/O trap 证明授权先于任何 pointer/snapshot/raw/body I/O。
+- WriteTrap 证明全部 GET 与 cache hit/miss 零持久写；候选正文 read trap 证明 search 从不读正文；无 lexical 时只有显式既有 metadata 请求可走 metadata，`lexical_fusion_v1` 不隐式降级。
+- 新旧算法等价矩阵、既有 RT-051/052/存储回归、`make ci` 全绿；每项关键判据做真实行为突变（断掉 pointer 复核、恢复全量扫描、缓存未验证对象、移除返回前鉴权、允许覆写 locator）并确认变红后还原。
+- 读产出：人工核 cwork/spbp 的 total、generation、排序、version/SHA、span 和 P0 分段原始记录；测试绿灯不替代真实性能/安全读数。
+
+## 风险与不选方案
 
 | 方案 | 不选原因 |
 |---|---|
-| 把 timeout 从 300s 加大 | 只掩盖同步全量读取；不会减少 NAS 请求、超时堆积或 stale 风险。 |
-| 每次搜索继续读 raw-index + lexical index，只加 Python 缓存 | 冷态仍差，且若不每次验证 current digest 会服务旧代；若每次读两个大文件则没有达成请求数目标。 |
-| 查询时逐候选读取/复核正文 | 与现有 search 路径不符且会把小 `page_size` 变成更多 NAS 往返；完整性应在 builder snapshot 和 read 合同分别保证。 |
-| 只信 readiness，不让 source publish 使其失效 | source 更新后会将旧 generation 当 current，违反 stale/only-current。 |
-| FTS5/向量/网关持久 cache | 引入新引擎、写权限、部署/回滚和更大安全面；没有先证明现有预计算快照不能达标，不在最小 P1b 范围。 |
+| 增大 300s timeout | 不减少任何请求、字节、O(N²) 或队头阻塞，只把故障拖长。 |
+| 仅 cache 当前 JSON | 不解决冷态或 O(N²)；不加 epoch/fence 会服务旧 generation。 |
+| 仅做快照、不改评分 | 仍反复全量 `avgdl`/tokenize/chunk 扫描，P0 已要求量化并阻断。 |
+| search 逐候选读正文/SHA | 违反本 RT 边界并增加 NAS 往返；正文证据仍只走 P1a read 合同。 |
+| 多线程共享 FileStation 或网关写磁盘 cache | 破坏单 session/GET-only 边界且扩大状态面，不能当性能捷径。 |
+| FTS5/向量 | 新引擎、格式、部署和回滚面超出最小 P1b；除非 P0+P1b 证据失败才另立决定。 |
 
 ## 验证
 
-- **本轮已完成**：静态代码/RT/测试调查；基线与并行 worktree 检查；本 RT 的 YAML/治理门禁。未调用生产、NAS、真实 token、builder 或网关，也未跑产品测试。
-- **方案批准后的判据**：上述三类真实/脱敏基准、FileStation 读取计量、突变测试与全 CI；每条判据要能抓住真实坏行为，不能只断言文案。
-- **AI 评审**：实现完成后请独立评审聚焦「指针失效是否覆盖全部 source publish、快照是否会泄漏旧候选、授权是否真的先于任何 I/O、性能判据能否被 timeout/缓存假绿」。
-- **读产出**：人工核对 cwork-3m 的 `会议` 命中 121、generation、候选 version/SHA/span 和换代前后拒绝/恢复记录；性能数字要保留分段原始测量。
+- **本轮已完成**：根据独立评审修订方案；复核当前 query、builder、storage 和单线程 server 的静态路径。没有改产品代码/测试，未调用生产、NAS、真实 token、builder 或 gateway。
+- **方案批准后的判据**：P0 实施门、上述性能/故障/突变/回归合同；任何未完成数据只能标未测，不能称性能已治理。
+- **AI 评审**：实现收口前独立复核所有 writer 是否接入 fence、回滚是否能重放旧代、指针是否真为单一权威、限额是否在下载/解析前、性能判据能否被 cache/timeout 假绿。
 
 ## 变更记录
 
-- 2026-09-07：创建方案稿。没有产品行为变化、没有部署；等待用户通过方案门后才可实现。
+- 2026-09-07：创建方案稿；无产品行为变化、无部署。
+- 2026-09-07：吸收独立 Codex GO-WITH-CHANGES 八项阻断意见：P0 单变量测量、O(N²) 修复、单一 pointer/epoch、双 collect、不可变快照、single-flight/限额、受限流式读和可执行回滚验收。仍等待方案门。
 
 ## 遗留事项
 
-- P1a 正文分页每请求完整下载与 SHA 的传输优化仍是独立问题；本 RT 只确保融合搜索不额外读取候选正文，不能声称已解决 read/inspect 的大文成本。
-- 若快照的真实 cwork-3m 冷/热阈值仍失败，保留分段证据后再决定格式/FTS 实验，不预先登记未创建的产品文件或 ownership。
+- P1a 正文分页每请求完整下载/SHA 的传输优化保持独立；本 RT 不让 search 读取候选正文，也不宣称消除此成本。
+- P0 若证明瓶颈不是网络、解析或现有评分，或 fence/受限流式读不能落地，带原始数据回方案门；不得预先登记尚未创建的产品文件或 ownership。
