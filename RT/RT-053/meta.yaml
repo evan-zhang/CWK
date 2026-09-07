@@ -3,14 +3,14 @@ title: 单库共享授权文件与 Agent 自助导入
 type: Feature
 profile: Spec-Lite
 execution_mode: collaborative
-status: created
+status: in-progress
 modules: [kb-token, kb-authorize-skill, kb-query-skill]
 branch: feature/RT-053-kb-access-file
 worktree: .claude/worktrees/RT-053-kb-access-file
 tool: openclaw
 owner: Evan
 created_at: 2026-09-07T07:49:04Z
-updated_at: 2026-09-07T07:49:04Z
+updated_at: 2026-09-07T08:02:00Z
 closed_at: null
 notes: >
   MVP 采用单库共享授权文件：创建者通过独立授权 Skill 生成文件，经 IM 自行分发；
