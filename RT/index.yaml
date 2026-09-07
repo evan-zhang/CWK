@@ -295,3 +295,8 @@ entries:
   status: in_progress
   profile: Spec-Lite
   created: 2026-09-06
+- id: RT-052
+  title: 知识库发现端点与 OPS 盘点面
+  status: intaking
+  profile: Spec-Lite
+  created: 2026-09-07
