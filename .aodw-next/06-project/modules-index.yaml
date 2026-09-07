@@ -94,6 +94,17 @@ modules:
       - scripts/kb_ops.py
       - tests/test_rt052_discovery_ops.py
 
+  - name: rt054-lexical-snapshot-performance
+    path: RT/RT-054/rt-lite.md
+    root: scripts
+    related_files:
+      - scripts/kb_gateway.py
+      - scripts/kb_lexical.py
+      - scripts/kb_lexical_builder.py
+      - scripts/kb_storage.py
+      - tests/test_rt051_lexical_fusion.py
+      - tests/test_rt051_acceptance.py
+
   - name: kb-wizard-gateway
     path: RT/RT-044/references/CLI-SPEC.md
     root: scripts

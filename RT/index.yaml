@@ -300,3 +300,8 @@ entries:
   status: intaking
   profile: Spec-Lite
   created: 2026-09-07
+- id: RT-054
+  title: 大库词法融合检索快照/预计算性能治理
+  status: intaking
+  profile: Spec-Lite
+  created: 2026-09-07

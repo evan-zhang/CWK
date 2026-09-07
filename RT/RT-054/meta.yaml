@@ -1,0 +1,17 @@
+id: RT-054
+title: 大库词法融合检索快照/预计算性能治理
+type: Infrastructure
+profile: Spec-Lite
+execution_mode: collaborative
+status: intaking
+modules: [rt051-controlled-read-lexical, kb-wizard-gateway, kb-platform-storage]
+branch: feature/RT-054-lexical-snapshot-performance
+worktree: .worktrees/openclaw-worktree-rt054-performance-spec
+owner: Evan
+created_at: 2026-09-07T00:00:00Z
+updated_at: 2026-09-07T00:00:00Z
+closed_at: null
+notes: >
+  仅诊断和方案。基线为 origin/main 0033b26；RT-053 在独立工作区并行，
+  本 RT 不读取、修改或依赖其未合并内容。方案门未通过：不得改产品代码、测试、
+  NAS、生产配置或部署。
