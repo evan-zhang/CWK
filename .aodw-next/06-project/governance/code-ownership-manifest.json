@@ -587,7 +587,8 @@
       "kind": "exact_set",
       "paths": [
         "skills/cwk-kb-create/SKILL.md",
-        "skills/cwk-kb-query/SKILL.md"
+        "skills/cwk-kb-query/SKILL.md",
+        "skills/cwk-kb-query/references/v2-read-chain.md"
       ],
       "owner": "RT-045",
       "management_domain": "cwk-governance-v1",
