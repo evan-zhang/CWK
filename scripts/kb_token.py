@@ -796,6 +796,10 @@ class TokenDecision:
     agent_binding_id: str = ""
     membership_epoch: int = 0
     generation: int = 0
+    #: RT-052: complete authorized kb set — populated by ``decide_scope``
+    #: (targetless discovery).  Empty for per-kb ``decide`` verdicts, which
+    #: answer a different question ("may I read *this* library").
+    scope: List[str] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -848,6 +852,48 @@ def decide(
     return TokenDecision("ok", "authorized", **identity)
 
 
+def decide_scope(
+    data: Mapping[str, Any],
+    presented: str,
+    *,
+    now: Optional[datetime] = None,
+) -> TokenDecision:
+    """Targetless variant for discovery endpoints (RT-052).
+
+    Answers "who is this and what is their **complete** authorized set", with
+    no library argument: ``ok`` carries the full ``kb_ids`` on the decision
+    (``scope`` field), unauthorized/expired/revoked/registry errors keep the
+    same three-valued semantics as :func:`decide`.  The gateway must NOT
+    re-derive digests/expiry/revocation itself, and must not call ``decide``
+    once per library (re-reads + races + a mount-count side channel) — this
+    is the single-scan read-side extension the Codex review required.
+    """
+    moment = now or utc_now()
+    digest = token_digest(presented)
+    match: Optional[Mapping[str, Any]] = None
+    for row in records(data):
+        stored = str(row.get("token_sha256") or "")
+        if len(stored) == DIGEST_HEX_LEN and hmac.compare_digest(digest, stored):
+            match = row
+    if match is None:
+        return TokenDecision("unauthorized", "unknown_token")
+    identity = {
+        "token_id": str(match.get("token_id", "")),
+        "owner_ref": str(match.get("owner_ref", "")),
+        "agent_binding_id": str(match.get("agent_binding_id", "")),
+        "membership_epoch": int(match.get("membership_epoch", 0) or 0),
+        "generation": int(match.get("generation", 0) or 0),
+    }
+    status = record_status(match, moment)
+    if status == STATUS_REVOKED:
+        return TokenDecision("unauthorized", "revoked", **identity)
+    if status == STATUS_EXPIRED:
+        return TokenDecision("unauthorized", "expired", **identity)
+    return TokenDecision(
+        "ok", "authorized", scope=[str(item) for item in match.get("kb_ids", [])], **identity
+    )
+
+
 @dataclass
 class TokenFile:
     """A registry path that is re-read on every lookup.
@@ -879,6 +925,18 @@ class TokenFile:
             return TokenDecision("unauthorized", "registry_unreadable")
         self._last_error = ""
         return decide(data, presented, kb_id=kb_id, now=now)
+
+    def decide_scope(
+        self, presented: str, *, now: Optional[datetime] = None
+    ) -> TokenDecision:
+        """Targetless variant (RT-052): one registry read, full kb_ids set."""
+        try:
+            data = self.load()
+        except TokenError as exc:
+            self._last_error = str(exc)
+            return TokenDecision("unauthorized", "registry_unreadable")
+        self._last_error = ""
+        return decide_scope(data, presented, now=now)
 
     def summary(self, *, now: Optional[datetime] = None) -> dict:
         """Counts and the epoch — nothing that identifies a holder."""

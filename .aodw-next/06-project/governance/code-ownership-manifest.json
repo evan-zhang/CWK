@@ -292,6 +292,17 @@
       "rationale": "RT-051 受控完整访问与正文词法召回的两个新脚本：kb_gateway_client.py（v2 网关薄客户端）、kb_lexical.py（词法原语纯函数层）与 kb_lexical_builder.py（词法建代 builder，写面独立进程）。同属一条规则因为它们是同一合同的两半——客户端说网关协议，词法层供 builder 与网关融合共用，必须同进同出地被审。逐条 exact_set 而非前缀：scripts/ 是 exact-only 区，R-runtime-pr001-managed-scripts 委派的封闭集合只覆盖 cwk_* 命名空间，这两个 kb_* 新脚本不在其内，必须由本清单直管（同 RT-044 R-runtime-rt044-kb-wizard-gateway 先例）。tests/ 下三个 test_rt051_*.py 由 R-test-suite 前缀规则认领，不在此重复。不建 script-evolution-v2 槽位：GA-V2-SLOT 要求叠加目标先存在于 v1 evolvable_paths，新脚本不满足。"
     },
     {
+      "id": "R-runtime-rt052-kb-discovery-ops",
+      "domain": "runtime",
+      "kind": "exact",
+      "path": "scripts/kb_ops.py",
+      "owner": "RT-052",
+      "management_domain": "cwk-governance-v1",
+      "change_entry": "RT → rt-lite.md → tests/test_rt052_discovery_ops.py + make governance-audit",
+      "evolution_path": "repo-standard-change",
+      "rationale": "RT-052 的只读 OPS 盘点面；scripts/ 是 exact-only 区，创建时逐条登记。"
+    },
+    {
       "id": "R-runtime-adapters",
       "domain": "runtime",
       "kind": "prefix",

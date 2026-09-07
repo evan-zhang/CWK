@@ -87,7 +87,12 @@ modules:
   - name: rt052-kb-discovery-ops
     path: RT/RT-052/rt-lite.md
     root: scripts
-    related_files: []   # 实现落地时补 kb_ops.py / test_rt052_* 引用
+    related_files:
+      - scripts/kb_gateway.py
+      - scripts/kb_token.py
+      - scripts/kb_lexical_builder.py
+      - scripts/kb_ops.py
+      - tests/test_rt052_discovery_ops.py
 
   - name: kb-wizard-gateway
     path: RT/RT-044/references/CLI-SPEC.md

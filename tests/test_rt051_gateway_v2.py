@@ -75,7 +75,7 @@ class V2CapabilitiesTests(unittest.TestCase):
         self.assertEqual(p["schema"], "cwk.kb.capabilities.v2")
         self.assertEqual(
             p["supported_operations"],
-            ["capabilities", "list", "search", "resolve", "inspect", "read", "continue", "renew"],
+        ["libraries", "capabilities", "list", "search", "resolve", "inspect", "read", "continue", "renew"],
         )
         self.assertEqual(p["lexical_modes"], ["lexical_fusion_v1"])  # P3b 交付
         self.assertEqual(p["offset_unit"], "byte_0based_halfopen")

@@ -119,7 +119,7 @@ class WizardVerbHappyPaths(LiveGatewayCase):
         code, p, _ = self.cli(["capabilities", "--kb", KB])
         self.assertEqual(code, 0)
         self.assertEqual(p["schema"], "cwk.kb.capabilities.v2")
-        self.assertEqual(len(p["supported_operations"]), 8)
+        self.assertEqual(len(p["supported_operations"]), 9)
 
     def test_list_paginates_and_searches(self) -> None:
         code, p, _ = self.cli(["list", "--kb", KB, "--page-size", "2"])

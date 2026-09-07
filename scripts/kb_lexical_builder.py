@@ -158,13 +158,33 @@ def build_lexical_index(backend, *, kb_code: str) -> dict:
 
 def publish(backend, *, kb_code: str, report: dict) -> dict:
     """Write the lexical index through the ledger (idempotent by generation)."""
+    readiness = {
+        "schema": "cwk.kb.lexical-readiness.v1",
+        "generation": report["generation"], "corpus_digest": report["corpus_digest"],
+        "engine": report["engine"], "coverage_complete": report["indexed_docs"] == report["eligible_docs"],
+        "excluded_counts": report["excluded_counts"],
+    }
+    readiness_rel = "_system/lexical-readiness.json"
     if report.get("up_to_date") and published_generation(backend) is not None:
+        try:
+            already = read_json(backend, readiness_rel)
+        except (NotFound, ValueError, KeyError):
+            already = None
+        if already == readiness:
+            return {
+                "schema": "cwk.kb.lexical.publish.v1", "ok": True, "wrote": False,
+                "generation": report["generation"], "reason": "generation 未变，零写入",
+            }
+        # Upgrade compatibility: publish the small projection without rebuilding
+        # or rewriting the potentially large lexical index.
+        record_write(backend, readiness_rel, dumps(readiness))
+        record_changed_paths(backend, [readiness_rel], reason="lexical-readiness")
+        refresh_manifest(backend, kb_code=kb_code, allow_new=[readiness_rel],
+                         allow_replaced=[readiness_rel, CHANGED_PATHS_REL])
         return {
             "schema": "cwk.kb.lexical.publish.v1",
-            "ok": True,
-            "wrote": False,
-            "generation": report["generation"],
-            "reason": "generation 未变，零写入",
+            "ok": True, "wrote": False, "readiness_wrote": True,
+            "generation": report["generation"], "reason": "generation 未变，补写 readiness",
         }
     docs, excluded, rows = _collect(backend)
     gen = generation_of(rows)
@@ -191,12 +211,13 @@ def publish(backend, *, kb_code: str, report: dict) -> dict:
         "index": to_json_payload(index),
     }
     record_write(backend, LEXICAL_INDEX_REL, dumps(payload))
-    record_changed_paths(backend, [LEXICAL_INDEX_REL], reason="lexical-build")
+    record_write(backend, readiness_rel, dumps(readiness))
+    record_changed_paths(backend, [LEXICAL_INDEX_REL, readiness_rel], reason="lexical-build")
     refresh_manifest(
         backend,
         kb_code=kb_code,
-        allow_new=[LEXICAL_INDEX_REL],
-        allow_replaced=[LEXICAL_INDEX_REL, CHANGED_PATHS_REL],
+        allow_new=[LEXICAL_INDEX_REL, readiness_rel],
+        allow_replaced=[LEXICAL_INDEX_REL, readiness_rel, CHANGED_PATHS_REL],
     )
     return {"schema": "cwk.kb.lexical.publish.v1", "ok": True, "wrote": True,
             "generation": gen}
