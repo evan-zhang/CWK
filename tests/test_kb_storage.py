@@ -980,8 +980,13 @@ class CertificatePinningTests(unittest.TestCase):
 
 # ── J7: real-machine smoke ──────────────────────────────────────────────────
 
-_HAS_NAS_CREDS = bool(os.environ.get(storage.ENV_HOST))
-_SKIP_REASON = "SKIP-reason: no NAS creds (CWK_NAS_KB_HOST unset)"
+_PURE_LOCAL = os.environ.get("CWK_RT054_PURE_LOCAL") == "1"
+_HAS_NAS_CREDS = not _PURE_LOCAL and bool(os.environ.get(storage.ENV_HOST))
+_SKIP_REASON = (
+    "SKIP-reason: RT-054 pure-local gate"
+    if _PURE_LOCAL
+    else "SKIP-reason: no NAS creds (CWK_NAS_KB_HOST unset)"
+)
 
 try:  # pytest is not installed in CI, and `make test` runs plain unittest.
     import pytest  # type: ignore

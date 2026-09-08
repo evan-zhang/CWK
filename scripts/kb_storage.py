@@ -72,9 +72,12 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
-from typing import Callable, Dict, Iterable, List, Optional, Protocol, Sequence, TypeVar
+from contextlib import contextmanager
+from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Protocol, Sequence, TypeVar
 
 SCHEMA = "cwk.kb.storage.v1"
+MAX_ERROR_ENVELOPE_BYTES = 8192
+BOUNDED_TRANSPORT_ATTEMPT_BUDGET = 6
 
 # Environment variables that carry NAS credentials.  Nothing else in this
 # repository may hold them; see KB-PARAMETERS §F.5.
@@ -139,6 +142,228 @@ class ServerBusyError(TransientStorageError):
 
 class RemoteStorageError(StorageError):
     """A failure the remote reported as permanent."""
+
+
+class BoundedReadError(StorageError):
+    """The deliberately redacted failure surface for ``read_bounded``."""
+
+    CODES = frozenset({
+        "not_found", "bounded_read_unavailable", "capacity_exceeded",
+        "integrity_mismatch", "incomplete_stream", "deadline_exceeded",
+        "cancelled", "transient_exhausted", "transport_failed",
+        "tls_verification_failed", "filestation_error", "consumer_failed",
+    })
+
+    def __init__(self, code: str) -> None:
+        if code not in self.CODES:
+            raise ValueError("invalid bounded read code")
+        self.code = code
+        super().__init__(code)
+
+
+@dataclass(frozen=True)
+class BoundedReadReceipt:
+    """Non-identifying evidence for one successful bounded callback read."""
+
+    logical_read_id: str
+    object_version: str
+    payload_bytes: int
+    sha256: str
+    expected_sha256_present: bool
+    integrity_basis: str
+    transport_attempts: Dict[str, Dict[str, int]]
+    wire_bytes: int | str
+    peak_in_memory_bytes: int
+    started_monotonic: float
+    finished_monotonic: float
+    deadline_met: bool
+    cancelled: bool
+
+
+@dataclass
+class _BoundedSource:
+    stream: Any
+    length: Optional[int]
+    version: Optional[str]
+    tls_verified: bool = True
+    wire_bytes: int | str = "unknown"
+
+
+class _FileStationEnvelope(StorageError):
+    pass
+
+
+class _FileStationPayloadStream:
+    """Fail closed on a brace-prefixed FileStation response before delivery."""
+
+    def __init__(self, raw: Any, check: Callable[[], None]) -> None:
+        self.raw = raw
+        self._check = check
+        self._first = True
+
+    def _read_raw(self, size: int) -> bytes:
+        """Check around every socket read, including envelope lookahead."""
+        self._check()
+        chunk = self.raw.read(size)
+        self._check()
+        return chunk
+
+    def read(self, size: int) -> bytes:
+        # ``size`` is the bounded reader's exact remaining-budget probe.  In
+        # particular, the error-envelope lookahead must never turn a one-byte
+        # probe into an arbitrary 4 KiB socket read.
+        if not isinstance(size, int) or size <= 0:
+            return b""
+        chunk = self._read_raw(size)
+        if not self._first or not chunk or chunk[:1] != b"{":
+            self._first = False
+            return chunk
+        self._first = False
+        buffered = bytearray(chunk)
+        while len(buffered) <= MAX_ERROR_ENVELOPE_BYTES:
+            more = self._read_raw(min(size, MAX_ERROR_ENVELOPE_BYTES + 1 - len(buffered)))
+            if not more:
+                try:
+                    payload = json.loads(bytes(buffered).decode("utf-8"))
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    raise RemoteStorageError()
+                if FileStationBackend._is_error_envelope(payload):
+                    raise _FileStationEnvelope()
+                raise RemoteStorageError()
+            buffered.extend(more)
+        raise RemoteStorageError()
+
+    def close(self) -> None:
+        self.raw.close()
+
+
+def _bounded_read(
+    path: str, *, max_bytes: int, chunk_size: int, deadline: float,
+    cancel: Callable[[], bool], expected_sha256: Optional[str],
+    on_chunk: Callable[[bytes], None],
+    open_source: Callable[[float, Callable[[], None]], _BoundedSource],
+    require_tls_pin: bool = False, max_attempts: int = BOUNDED_TRANSPORT_ATTEMPT_BUDGET,
+    control_attempts: Optional[Dict[str, Dict[str, int]]] = None,
+) -> BoundedReadReceipt:
+    """Shared callback-only bounded reader; it never owns consumer memory."""
+    normalize_path(path)
+    if not isinstance(max_bytes, int) or max_bytes < 0 or not isinstance(chunk_size, int) or chunk_size <= 0:
+        raise BoundedReadError("bounded_read_unavailable")
+    if not isinstance(deadline, (int, float)) or not callable(cancel) or not callable(on_chunk):
+        raise BoundedReadError("bounded_read_unavailable")
+    if expected_sha256 is not None and (not isinstance(expected_sha256, str) or len(expected_sha256) != 64):
+        raise BoundedReadError("bounded_read_unavailable")
+
+    started = time.monotonic()
+    attempts = 0
+    delivered = False
+    baseline: Optional[tuple[Optional[int], Optional[str]]] = None
+    digest = hashlib.sha256()
+    payload_bytes = 0
+    peak = 0
+    wire_bytes: int | str = "unknown"
+
+    def check() -> None:
+        # A caller supplied callback is untrusted input too: it must never
+        # smuggle an exception message onto this deliberately redacted API.
+        try:
+            cancelled = cancel()
+        except BaseException:
+            raise BoundedReadError("cancelled") from None
+        if cancelled:
+            raise BoundedReadError("cancelled")
+        if time.monotonic() >= deadline:
+            raise BoundedReadError("deadline_exceeded")
+
+    while attempts < max_attempts:
+        source: Optional[_BoundedSource] = None
+        try:
+            check()
+            attempts += 1
+            remaining_timeout = deadline - time.monotonic()
+            if remaining_timeout <= 0:
+                raise BoundedReadError("deadline_exceeded")
+            source = open_source(remaining_timeout, check)
+            if require_tls_pin and not source.tls_verified:
+                raise BoundedReadError("tls_verification_failed")
+            current = (source.length, source.version)
+            if baseline is None:
+                baseline = current
+                if (source.length is None or source.version is None) and expected_sha256 is None:
+                    raise BoundedReadError("bounded_read_unavailable")
+                if source.length is not None and source.length < 0:
+                    raise BoundedReadError("bounded_read_unavailable")
+                if source.length is not None and source.length > max_bytes:
+                    raise BoundedReadError("capacity_exceeded")
+            elif current != baseline:
+                raise BoundedReadError("integrity_mismatch")
+            if (source.length is None or source.version is None) and expected_sha256 is None:
+                raise BoundedReadError("bounded_read_unavailable")
+
+            while True:
+                check()
+                remaining = max_bytes - payload_bytes
+                # The +1 is intentional: it proves a preflight size did not grow.
+                size = min(chunk_size, remaining + 1)
+                peak = max(peak, size)
+                chunk = source.stream.read(size)
+                check()
+                if not isinstance(chunk, bytes):
+                    raise BoundedReadError("transport_failed")
+                peak = max(peak, len(chunk))
+                if not chunk:
+                    break
+                if len(chunk) > size or len(chunk) > remaining:
+                    raise BoundedReadError("capacity_exceeded")
+                digest.update(chunk)
+                try:
+                    on_chunk(chunk)
+                except Exception:
+                    raise BoundedReadError("consumer_failed") from None
+                delivered = True
+                payload_bytes += len(chunk)
+            if source.length is not None and payload_bytes != source.length:
+                raise BoundedReadError("incomplete_stream")
+            actual = digest.hexdigest()
+            if expected_sha256 is not None and actual != expected_sha256.lower():
+                raise BoundedReadError("integrity_mismatch")
+            basis = "version_bound_length" if source.length is not None and source.version is not None else "expected_sha256"
+            if basis == "version_bound_length" and (source.length is None or source.version is None):
+                raise BoundedReadError("bounded_read_unavailable")
+            wire_bytes = source.wire_bytes
+            finished = time.monotonic()
+            return BoundedReadReceipt(
+                logical_read_id=secrets.token_hex(16), object_version=source.version or "unknown",
+                payload_bytes=payload_bytes, sha256=actual,
+                expected_sha256_present=expected_sha256 is not None, integrity_basis=basis,
+                transport_attempts={"login": dict((control_attempts or {}).get("login", {"success": 0, "error": 0})),
+                                    "api": dict((control_attempts or {}).get("api", {"success": 0, "error": 0})),
+                                    "download": {"success": 1, "error": attempts - 1}},
+                wire_bytes=wire_bytes, peak_in_memory_bytes=peak,
+                started_monotonic=started, finished_monotonic=finished,
+                deadline_met=finished <= deadline, cancelled=False,
+            )
+        except BoundedReadError:
+            raise
+        except NotFound:
+            raise BoundedReadError("not_found") from None
+        except _FileStationEnvelope:
+            raise BoundedReadError("filestation_error") from None
+        except TransientStorageError:
+            if delivered:
+                raise BoundedReadError("transport_failed") from None
+            if attempts >= max_attempts or time.monotonic() >= deadline:
+                raise BoundedReadError("transient_exhausted") from None
+            continue
+        except (OSError, RemoteStorageError, StorageError):
+            raise BoundedReadError("transport_failed") from None
+        finally:
+            if source is not None:
+                try:
+                    source.stream.close()
+                except Exception:
+                    pass
+    raise BoundedReadError("transient_exhausted")
 
 
 # ── path safety (J3) ────────────────────────────────────────────────────────
@@ -231,6 +456,13 @@ class StorageBackend(Protocol):
     def read(self, path: str) -> bytes:
         """Return the bytes at ``path``; raise :class:`NotFound` if absent."""
 
+    def read_bounded(
+        self, path: str, *, max_bytes: int, chunk_size: int, deadline: float,
+        cancel: Callable[[], bool], expected_sha256: Optional[str],
+        on_chunk: Callable[[bytes], None],
+    ) -> BoundedReadReceipt:
+        """Opt-in callback read; never returns object bytes or a partial receipt."""
+
     def exists(self, path: str) -> bool:
         """True when a file or directory lives at ``path``."""
 
@@ -296,6 +528,35 @@ class LocalFSBackend:
         if not target.is_file():
             raise NotFound(f"文件不存在：{path}")
         return target.read_bytes()
+
+    def read_bounded(
+        self, path: str, *, max_bytes: int, chunk_size: int, deadline: float,
+        cancel: Callable[[], bool], expected_sha256: Optional[str],
+        on_chunk: Callable[[bytes], None],
+    ) -> BoundedReadReceipt:
+        safe = normalize_path(path)
+
+        def open_source(_timeout: float, _check: Callable[[], None]) -> _BoundedSource:
+            target = self._path(safe)
+            try:
+                handle = target.open("rb")
+            except FileNotFoundError:
+                raise NotFound()
+            try:
+                stat = os.fstat(handle.fileno())
+                version = hashlib.sha256(
+                    f"{stat.st_dev}:{stat.st_ino}:{stat.st_mtime_ns}:{stat.st_size}".encode()
+                ).hexdigest()[:24]
+                return _BoundedSource(handle, stat.st_size, version, wire_bytes="unknown")
+            except Exception:
+                handle.close()
+                raise
+
+        return _bounded_read(
+            safe, max_bytes=max_bytes, chunk_size=chunk_size, deadline=deadline,
+            cancel=cancel, expected_sha256=expected_sha256, on_chunk=on_chunk,
+            open_source=open_source,
+        )
 
     def exists(self, path: str) -> bool:
         try:
@@ -385,6 +646,25 @@ class MemoryBackend:
         if safe not in self.files:
             raise NotFound(f"文件不存在：{path}")
         return self.files[safe]
+
+    def read_bounded(
+        self, path: str, *, max_bytes: int, chunk_size: int, deadline: float,
+        cancel: Callable[[], bool], expected_sha256: Optional[str],
+        on_chunk: Callable[[bytes], None],
+    ) -> BoundedReadReceipt:
+        safe = normalize_path(path)
+
+        def open_source(_timeout: float, _check: Callable[[], None]) -> _BoundedSource:
+            if safe not in self.files:
+                raise NotFound()
+            value = self.files[safe]
+            return _BoundedSource(io.BytesIO(value), len(value), sha256_bytes(value), wire_bytes="unknown")
+
+        return _bounded_read(
+            safe, max_bytes=max_bytes, chunk_size=chunk_size, deadline=deadline,
+            cancel=cancel, expected_sha256=expected_sha256, on_chunk=on_chunk,
+            open_source=open_source,
+        )
 
     def exists(self, path: str) -> bool:
         safe = normalize_path(path)
@@ -569,6 +849,35 @@ class PinnedHTTPSConnection(http.client.HTTPSConnection):
         self.pin_verified = True
 
 
+class _HTTPRawStream:
+    """Own a response and, for pinned requests, its verified socket."""
+
+    def __init__(self, response: Any, connection: Optional[http.client.HTTPConnection] = None) -> None:
+        self._response = response
+        self._connection = connection
+        length = response.getheader("Content-Length") if hasattr(response, "getheader") else None
+        try:
+            self.content_length = int(length) if length is not None else None
+        except (TypeError, ValueError):
+            self.content_length = None
+        self.object_version = (
+            response.getheader("ETag") or response.getheader("X-SYNO-Version")
+            if hasattr(response, "getheader") else None
+        )
+        self.tls_verified = connection.pin_verified if isinstance(connection, PinnedHTTPSConnection) else True
+        self.wire_bytes: int | str = "unknown"
+
+    def read(self, size: int) -> bytes:
+        return self._response.read(size)
+
+    def close(self) -> None:
+        try:
+            self._response.close()
+        finally:
+            if self._connection is not None:
+                self._connection.close()
+
+
 class FileStationBackend:
     """Synology FileStation backend over HTTPS.
 
@@ -585,6 +894,7 @@ class FileStationBackend:
         *,
         prefix: str = "",
         transport: Optional[Callable[[urllib.request.Request], bytes]] = None,
+        streaming_transport: Optional[Callable[..., Any]] = None,
         retry: Optional[RetryPolicy] = None,
         verify_tls: bool = True,
         cert_sha256: Optional[str] = None,
@@ -596,8 +906,72 @@ class FileStationBackend:
         self.timeout = timeout
         self.verify_tls = verify_tls
         self.cert_sha256 = (cert_sha256 or "").strip().lower() or None
+        self._uses_default_transport = transport is None
         self._transport = transport or self._https_transport
+        # Deliberately separate from the legacy bytes transport.  A bounded
+        # read can never silently fall back to ``read``/``_download``.
+        self._streaming_transport = streaming_transport or self._https_streaming_transport
         self._sid: Optional[str] = None
+        # P0 installs this only around one local ``read`` call.  It is never
+        # configurable from an HTTP request and has no persistence side effect.
+        self._p0_observer: Optional[Callable[..., None]] = None
+
+    @contextmanager
+    def p0_transport_observer(self, observer: Callable[..., None]) -> Iterator[None]:
+        previous = self._p0_observer
+        self._p0_observer = observer
+        try:
+            yield
+        finally:
+            self._p0_observer = previous
+
+    @staticmethod
+    def _p0_error_reason(exc: BaseException) -> str:
+        """Return a fixed diagnostic category, never an exception message."""
+        if isinstance(exc, ServerBusyError):
+            return "server_busy"
+        if isinstance(exc, TransientStorageError):
+            return "transient_storage"
+        if isinstance(exc, NotFound):
+            return "not_found"
+        if isinstance(exc, RemoteStorageError):
+            return "remote_storage"
+        if isinstance(exc, StorageError):
+            return "storage_error"
+        return "internal_error"
+
+    def _observe_transport(self, kind: str, attempt: int, *, outcome: str = "success",
+                           payload_bytes: Optional[int] = None,
+                           retry_ordinal: Optional[int] = None,
+                           retry_reason: Optional[str] = None) -> None:
+        if self._p0_observer is not None:
+            self._p0_observer(kind, attempt=attempt, outcome=outcome,
+                              payload_bytes=payload_bytes, wire_bytes=None,
+                              retry_ordinal=retry_ordinal,
+                              retry_reason=retry_reason)
+
+    def _transport_with_observation(self, request: urllib.request.Request, kind: str) -> bytes:
+        last: Optional[BaseException] = None
+        for attempt in range(self.retry.attempts):
+            try:
+                raw = self._transport(request)
+                self._observe_transport(kind, attempt + 1, payload_bytes=len(raw))
+                return raw
+            except TransientStorageError as exc:
+                last = exc
+                self._observe_transport(kind, attempt + 1, outcome="error",
+                                        retry_ordinal=(attempt + 2
+                                                       if attempt < self.retry.attempts - 1 else None),
+                                        retry_reason=self._p0_error_reason(exc))
+                if attempt == self.retry.attempts - 1:
+                    break
+                self.retry.sleep(self.retry.delay_for(attempt))
+            except Exception as exc:
+                self._observe_transport(kind, attempt + 1, outcome="error",
+                                        retry_reason=self._p0_error_reason(exc))
+                raise
+        assert last is not None
+        raise last
 
     @classmethod
     def from_env(
@@ -658,10 +1032,13 @@ class FileStationBackend:
         return context
 
     def _pinned_connection(self, host: str, port: int) -> "PinnedHTTPSConnection":
+        return self._pinned_connection_with_timeout(host, port, self.timeout)
+
+    def _pinned_connection_with_timeout(self, host: str, port: int, timeout: float) -> "PinnedHTTPSConnection":
         return PinnedHTTPSConnection(
             host,
             port,
-            timeout=self.timeout,
+            timeout=timeout,
             context=self._ssl_context(),
             cert_sha256=self.cert_sha256 or "",
         )
@@ -719,8 +1096,125 @@ class FileStationBackend:
         except TimeoutError as exc:
             raise TransientStorageError("FileStation 请求超时") from exc
 
+    def _https_streaming_transport(self, request: urllib.request.Request, *, timeout: float) -> Any:
+        """Open, but do not materialize, a raw response for ``read_bounded``.
+
+        This is intentionally separate from the legacy bytes transport.  The
+        unpinned path returns the actual ``urlopen`` response; pinned mode
+        returns the response from the same ``PinnedHTTPSConnection`` whose
+        peer certificate was just verified.
+        """
+        if timeout <= 0:
+            raise TransientStorageError("bounded deadline elapsed")
+        if self.cert_sha256:
+            split = urllib.parse.urlsplit(request.full_url)
+            target = split.path or "/"
+            if split.query:
+                target = f"{target}?{split.query}"
+            headers = {key: value for key, value in request.header_items()}
+            body = request.data
+            if body is not None:
+                headers.setdefault("Content-type", "application/x-www-form-urlencoded")
+            connection = self._pinned_connection_with_timeout(
+                split.hostname or "", split.port or 5001, timeout
+            )
+            try:
+                connection.request(request.get_method(), target, body=body, headers=headers)
+                response = connection.getresponse()
+                if response.status >= 500 or response.status == 429:
+                    response.close()
+                    raise ServerBusyError("FileStation HTTP transient")
+                if response.status >= 400:
+                    response.close()
+                    raise RemoteStorageError("FileStation HTTP failure")
+                return _HTTPRawStream(response, connection)
+            except StorageError:
+                connection.close()
+                raise
+            except OSError as exc:
+                connection.close()
+                raise TransientStorageError("FileStation connection failure") from exc
+        try:
+            response = urllib.request.urlopen(request, timeout=timeout, context=self._ssl_context())
+            return _HTTPRawStream(response)
+        except urllib.error.HTTPError as exc:
+            exc.close()
+            if exc.code >= 500 or exc.code == 429:
+                raise ServerBusyError("FileStation HTTP transient") from None
+            raise RemoteStorageError("FileStation HTTP failure") from None
+        except (urllib.error.URLError, TimeoutError) as exc:
+            raise TransientStorageError("FileStation connection failure") from exc
+
+    def _bounded_control_bytes(self, request: urllib.request.Request, timeout: float) -> bytes:
+        """Issue one bounded-read control-plane request with its remaining timeout."""
+        if timeout <= 0:
+            raise BoundedReadError("deadline_exceeded")
+        if self._uses_default_transport:
+            raw = self._https_streaming_transport(request, timeout=timeout)
+            try:
+                # FileStation control replies are JSON, not object bodies.
+                return raw.read(64 * 1024)
+            finally:
+                raw.close()
+        try:
+            return self._transport(request, timeout=timeout)
+        except TypeError:
+            # Existing injected bytes fakes predate the bounded seam.  They
+            # are local synchronous test doubles, never a production fallback.
+            return self._transport(request)
+
+    def _bounded_login(
+        self, deadline: float, attempts: Dict[str, Dict[str, int]], cancel: Callable[[], bool],
+    ) -> str:
+        if self._sid:
+            return self._sid
+        query = urllib.parse.urlencode({
+            "api": "SYNO.API.Auth", "version": "6", "method": "login",
+            "account": self.credentials.user, "passwd": self.credentials.password,
+            "session": "FileStation", "format": "sid",
+        })
+        request = urllib.request.Request(
+            f"{self._base_url()}/auth.cgi", data=query.encode("utf-8"), method="POST"
+        )
+        def check() -> None:
+            try:
+                cancelled = cancel()
+            except BaseException:
+                raise BoundedReadError("cancelled") from None
+            if cancelled:
+                raise BoundedReadError("cancelled")
+            if time.monotonic() >= deadline:
+                raise BoundedReadError("deadline_exceeded")
+
+        while sum(v["success"] + v["error"] for v in attempts.values()) < BOUNDED_TRANSPORT_ATTEMPT_BUDGET:
+            check()
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise BoundedReadError("deadline_exceeded")
+            try:
+                raw = self._bounded_control_bytes(request, remaining)
+                payload = json.loads(raw.decode("utf-8"))
+                data = self._check(payload) if isinstance(payload, dict) else None
+                sid = data.get("sid") if isinstance(data, dict) else None
+                if not isinstance(sid, str) or not sid:
+                    raise RemoteStorageError()
+                attempts["login"]["success"] += 1
+                self._sid = sid
+                return sid
+            except TransientStorageError:
+                attempts["login"]["error"] += 1
+                # Check before the next retry; do not open another request
+                # after a cancellation or elapsed deadline.
+                check()
+                continue
+            except (UnicodeDecodeError, json.JSONDecodeError, StorageError):
+                attempts["login"]["error"] += 1
+                raise BoundedReadError("transport_failed") from None
+        raise BoundedReadError("transient_exhausted")
+
     def _call(self, request: urllib.request.Request) -> dict:
-        raw = retry_call(self.retry, lambda: self._transport(request))
+        kind = "login" if request.full_url.endswith("/auth.cgi") else "api"
+        raw = self._transport_with_observation(request, kind)
         try:
             payload = json.loads(raw.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -836,7 +1330,31 @@ class FileStationBackend:
                         raise NotFound(f"FileStation 下载目标不存在：{remote}") from exc
                 raise
 
-        raw = retry_call(self.retry, _attempt)
+        # Keep the missing-file disambiguation inside an observed attempt.
+        # It is still an API probe, while the requested object remains a
+        # download; neither is silently folded into the other.
+        last: Optional[BaseException] = None
+        for attempt in range(self.retry.attempts):
+            try:
+                raw = _attempt()
+                self._observe_transport("download", attempt + 1, payload_bytes=len(raw))
+                break
+            except TransientStorageError as exc:
+                last = exc
+                self._observe_transport("download", attempt + 1, outcome="error",
+                                        retry_ordinal=(attempt + 2
+                                                       if attempt < self.retry.attempts - 1 else None),
+                                        retry_reason=self._p0_error_reason(exc))
+                if attempt == self.retry.attempts - 1:
+                    raise
+                self.retry.sleep(self.retry.delay_for(attempt))
+            except Exception as exc:
+                self._observe_transport("download", attempt + 1, outcome="error",
+                                        retry_reason=self._p0_error_reason(exc))
+                raise
+        else:  # pragma: no cover - loop either breaks or raises
+            assert last is not None
+            raise last
         # A failed download returns a JSON error envelope instead of bytes.
         # Most files in this KB *are* JSON, so "starts with a brace" cannot
         # mean "is an error": the body is only read as an envelope when it
@@ -977,6 +1495,59 @@ class FileStationBackend:
             },
         )
 
+    def read_bounded(
+        self, path: str, *, max_bytes: int, chunk_size: int, deadline: float,
+        cancel: Callable[[], bool], expected_sha256: Optional[str],
+        on_chunk: Callable[[bytes], None],
+    ) -> BoundedReadReceipt:
+        safe = normalize_path(path)
+        control_attempts = {"login": {"success": 0, "error": 0}, "api": {"success": 0, "error": 0}}
+        try:
+            if cancel():
+                raise BoundedReadError("cancelled")
+        except BoundedReadError:
+            raise
+        except BaseException:
+            raise BoundedReadError("cancelled") from None
+        sid = self._bounded_login(deadline, control_attempts, cancel)
+
+        def open_source(timeout: float, check: Callable[[], None]) -> _BoundedSource:
+            # Control and body share one monotonic deadline and one six-call
+            # budget.  The body itself remains on the raw stream seam.
+            merged = {
+                "api": "SYNO.FileStation.Download", "version": "2",
+                "method": "download", "path": json.dumps(self._remote(safe)),
+                "mode": "open", "_sid": sid,
+            }
+            request = urllib.request.Request(
+                f"{self._base_url()}/entry.cgi?{urllib.parse.urlencode(merged)}", method="GET"
+            )
+            raw = self._streaming_transport(request, timeout=timeout)
+            length = getattr(raw, "content_length", None)
+            version = getattr(raw, "object_version", None)
+            if not isinstance(length, int):
+                length = None
+            if not isinstance(version, str) or not version:
+                version = None
+            tls_verified = bool(getattr(raw, "tls_verified", not self.cert_sha256))
+            return _BoundedSource(
+                _FileStationPayloadStream(raw, check), length, version, tls_verified,
+                getattr(raw, "wire_bytes", "unknown"),
+            )
+
+        used = sum(v["success"] + v["error"] for v in control_attempts.values())
+        # Login, API and body opens share one hard budget.  Exhausting it on
+        # the control plane must not permit even one object download.
+        if used >= BOUNDED_TRANSPORT_ATTEMPT_BUDGET:
+            raise BoundedReadError("transient_exhausted")
+        return _bounded_read(
+            safe, max_bytes=max_bytes, chunk_size=chunk_size, deadline=deadline,
+            cancel=cancel, expected_sha256=expected_sha256, on_chunk=on_chunk,
+            open_source=open_source, require_tls_pin=bool(self.cert_sha256),
+            max_attempts=BOUNDED_TRANSPORT_ATTEMPT_BUDGET - used,
+            control_attempts=control_attempts,
+        )
+
     def _remote_exists(self, remote: str) -> bool:
         try:
             data = self._get(
@@ -1104,6 +1675,7 @@ def build_backend(
 
 __all__ = [
     "SCHEMA",
+    "MAX_ERROR_ENVELOPE_BYTES",
     "ENV_HOST",
     "ENV_USER",
     "ENV_PASSWORD",
@@ -1116,6 +1688,8 @@ __all__ = [
     "NasCredentials",
     "RetryPolicy",
     "StorageError",
+    "BoundedReadError",
+    "BoundedReadReceipt",
     "UnsafePath",
     "NotFound",
     "MissingCredentials",
