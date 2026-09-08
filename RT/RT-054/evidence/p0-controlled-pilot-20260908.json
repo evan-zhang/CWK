@@ -53,7 +53,7 @@
     "physical_payload_budget_candidate": null,
     "wire_budget_candidate": null,
     "root_cause_distribution": {"lexical_unavailable": 1},
-    "safety_stop": "first cold error required six download attempts and 1496819471 payload bytes; no hot, second-library, or 20-sample replay was run",
+    "safety_stop": "first cold error produced six unexplained download events and 1496819471 observed successful-payload bytes; no hot, second-library, or 20-sample replay was run",
     "p1b_status": "NO_GO"
   }
 }
