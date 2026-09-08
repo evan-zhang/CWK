@@ -303,6 +303,20 @@
       "rationale": "RT-052 的只读 OPS 盘点面；scripts/ 是 exact-only 区，创建时逐条登记。"
     },
     {
+      "id": "R-runtime-rt054-p0-diagnostics",
+      "domain": "runtime",
+      "kind": "exact_set",
+      "paths": [
+        "scripts/kb_p0.py",
+        "scripts/kb_p0_benchmark.py"
+      ],
+      "owner": "RT-054",
+      "management_domain": "cwk-governance-v1",
+      "change_entry": "RT → rt-lite.md → tests/test_rt054_p0.py + make governance-audit",
+      "evolution_path": "repo-standard-change",
+      "rationale": "RT-054 P0 的默认关闭、零持久写分段诊断与仅合成夹具离线 postings 对照。scripts/ 是 exact-only 区，故两个实际存在的新增脚本逐条登记；不预登记 P1b pointer、epoch、cache 或存储文件。"
+    },
+    {
       "id": "R-runtime-adapters",
       "domain": "runtime",
       "kind": "prefix",

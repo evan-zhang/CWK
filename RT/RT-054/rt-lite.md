@@ -1,7 +1,7 @@
 # RT-Lite: RT-054 - 大库词法融合检索快照/预计算性能治理
 
 > profile: Spec-Lite | execution_mode: collaborative
-> 唯一方案权威。仅诊断和规划；本文件不是实现授权。
+> 唯一方案权威。P0 零写诊断获用户明确授权；P1b 仍不是实现授权。
 
 ## 方案（给人看）
 
@@ -58,6 +58,13 @@ P1b 之前先采用不可放宽的结构上限：pointer payload `<=64KiB`；冷
 2. 旧逻辑与离线重放结果在同 generation 下逐 hit 的 lineage、version、raw SHA、body/metadata rank、RRF、candidate span、total、排序完全一致；任何差异先解释或阻断。
 3. 数据显示下载/解析或当前 O(N²) 之一对超时有实质贡献；若两者都不成立，停在方案门，带数据重选方案。
 4. 存储读侧能在解析前证明大小上限/流式上限，正式 writer 清单已穷尽并逐一接入 epoch fence，且上节 numeric physical NAS budget 已由 P0 固化并获方案门批准；任一做不到，不启动 P1b。
+
+### P0 诊断工具（本阶段实现）
+
+- `scripts/kb_p0.py` 只提供进程内计时、匿名化和离线候选 postings 参考实现；它没有后端构造、环境读取或写入能力。`kb_gateway.py --p0-diagnostics` 默认关闭，开启后仅把受控的 `p0_diagnostic` JSON 加在调用方响应内；GET 不写库、不写 NAS、不建 cache。
+- 记录只保留匿名 KB hash 后缀、generation 后缀、docs/chunks、查询类别/长度桶、冷/热 legacy-payload 定义、阶段耗时/次数/payload bytes、RSS 和错误类别。query、token、title、路径、正文、身份、凭据和异常原文均不进入记录。当前 `StorageBackend` 未暴露 login/retry/download/wire 层，故这些物理字段显式 `null` + `storage_backend_transport_not_observable`，不得拿它们编造 NAS 结论。
+- 授权环境运行方式（本轮未运行）：以既有受控启动参数增加 `--p0-diagnostics`，对固定的一条已授权 `GET /v2/kb/search?...&retrieval_mode=lexical_fusion_v1` 收集响应内记录；每态至少 20 个有效样本才计算 P50/P95，异常/超时保留。不得把 query/token 放进新的日志、文件或命令行。合成离线等价基准可运行 `python3 scripts/kb_p0_benchmark.py`，它不接触 KB/NAS/token/gateway，候选 postings 不会被生产 search 导入。
+- 本工具仅测量 legacy 读取与评分路径；它不是 pointer/epoch、写锁/fence、immutable snapshot、single-flight、生产 cache、受限流式存储合同或算法替换。physical 数据、容量前置限制与 P1b writer/fence 前提仍为 **NOT_RUN / NO-GO**。
 
 ## 实现备注（P0 通过后才生效）
 
@@ -153,6 +160,7 @@ gateway 在授权后读取 P0 ready pointer；在评分**前**再次读取/比�
 - 2026-09-07：创建方案稿；无产品行为变化、无部署。
 - 2026-09-07：吸收独立 Codex GO-WITH-CHANGES 八项阻断意见：P0 单变量测量、O(N²) 修复、单一 pointer/epoch、双 collect、不可变快照、single-flight/限额、受限流式读和可执行回滚验收。仍等待方案门。
 - 2026-09-08：第二次独立评审后更新合并基线（main `09c8aff`、branch merge `d40e36b`）；P0 获准、P1b 保持 NO-GO。补入 RT-053 shared-token 返回前撤权、正式/动态 writer 审计、FileStation 无事务恢复前提和 physical NAS 数值预算固化门。
+- 2026-09-08：实现默认关闭、响应内存零写 P0 分段诊断与合成离线 postings 对照；物理 FileStation transport 未在当前抽象可靠可观测，字段显式 unknown。本轮只跑脱敏本地测试，未连接生产/NAS/真实凭据。
 
 ## 遗留事项
 

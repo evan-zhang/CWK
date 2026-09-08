@@ -107,6 +107,7 @@ from kb_lexical import (  # noqa: E402  纯函数层，读面安全
     from_json_payload,
     rrf,
 )
+from kb_p0 import P0Trace, TraceBackend  # noqa: E402  RT-054 P0, default off
 from kb_storage import (  # noqa: E402
     NotFound,
     StorageBackend,
@@ -568,6 +569,12 @@ class Response:
     headers: Dict[str, str] = field(default_factory=dict)
 
     def body(self) -> bytes:
+        trace = getattr(self, "_p0_trace", None)
+        if trace is None:
+            return dumps(self.payload)
+        with trace.stage("json_encode"):
+            dumps(self.payload)
+        self.payload["p0_diagnostic"] = trace.record()
         return dumps(self.payload)
 
 
@@ -603,6 +610,7 @@ class GatewayApp:
         tokens: Optional[TokenFile] = None,
         kb_id: str = "",
         kb_mounts: Optional[Mapping[str, StorageBackend]] = None,
+        p0_diagnostics: bool = False,
     ) -> None:
         self.backend = backend
         self.token = token
@@ -627,6 +635,8 @@ class GatewayApp:
         #: RT-051 P3b: 已解析词法代的进程内缓存（kb → (generation, payload)）。
         #: 零落盘红线允许内存缓存；换代/过时白 _v2_load_lexical 的投影复核拒掉。
         self._v2_lexical: Dict[str, Tuple[str, dict]] = {}
+        self.p0_diagnostics = bool(p0_diagnostics)
+        self._p0: Optional[P0Trace] = None
 
     # -- auth ---------------------------------------------------------------
 
@@ -694,6 +704,31 @@ class GatewayApp:
     # -- routes -------------------------------------------------------------
 
     def dispatch(self, method: str, target: str, headers: Mapping[str, str]) -> Response:
+        """Dispatch, optionally attaching a sanitized P0 measurement record."""
+        trace: Optional[P0Trace] = None
+        if self.p0_diagnostics:
+            parsed = urllib.parse.urlsplit(target or "/")
+            params = urllib.parse.parse_qs(parsed.query, keep_blank_values=True)
+            kb = ((params.get("kb") or [""])[0].strip() or self.kb_id)
+            trace = P0Trace(kb=kb, query=(params.get("q") or [""])[0])
+            self._p0 = trace
+        try:
+            response = self._dispatch(method, target, headers)
+        except Exception as exc:  # noqa: BLE001 - preserve existing boundary behavior
+            if trace is not None:
+                trace.fail(exc)
+            raise
+        finally:
+            self._p0 = None
+        if trace is not None:
+            if response.status >= 400:
+                error = response.payload.get("error") or {}
+                trace.error_category = str(error.get("code") or error.get("kind") or "request_error")
+            response.payload["p0_diagnostic"] = trace.record()
+            setattr(response, "_p0_trace", trace)
+        return response
+
+    def _dispatch(self, method: str, target: str, headers: Mapping[str, str]) -> Response:
         """Method gate → health → auth gate → route table → 404.
 
         The order is the contract.  The method gate runs first so a write
@@ -726,7 +761,11 @@ class GatewayApp:
         # must not be routed through the default kb (which would reject a
         # token that is valid for an attached library only).
         if path == V2_PREFIX + "libraries":
-            refusal, scope = self.authorize_libraries(headers)
+            if self._p0 is None:
+                refusal, scope = self.authorize_libraries(headers)
+            else:
+                with self._p0.stage("auth"):
+                    refusal, scope = self.authorize_libraries(headers)
             if refusal is not None:
                 return Response(refusal.status, v2_error_payload("unauthorized", "认证失败"))
             return self.v2_dispatch("libraries", params, libraries_scope=scope)
@@ -736,7 +775,11 @@ class GatewayApp:
         # against the library actually being asked about.
         target_kb = (params.get("kb") or [""])[0].strip() or self.kb_id
 
-        refusal = self.authorize(headers, kb_id=target_kb)
+        if self._p0 is None:
+            refusal = self.authorize(headers, kb_id=target_kb)
+        else:
+            with self._p0.stage("auth"):
+                refusal = self.authorize(headers, kb_id=target_kb)
         if refusal is not None:
             if path.startswith(V2_PREFIX):
                 err = refusal.payload.get("error", {})
@@ -1202,9 +1245,19 @@ class GatewayApp:
         )
         if mode == "lexical_fusion_v1" and clean.get("cursor"):
             raise V2Error(400, "bad_request", "lexical Top-K 不支持分页游标")
-        index = load_index(backend)
+        traced_backend = TraceBackend(backend, self._p0) if self._p0 is not None else backend
+        if self._p0 is None:
+            index = load_index(traced_backend)
+        else:
+            with self._p0.stage("json_decode"):
+                index = load_index(traced_backend)
+            self._p0.docs = len(index)
         digest = _v2_index_digest(index)
-        keys = [k for k in sorted(index) if needle in index[k].haystack()]
+        if self._p0 is None:
+            keys = [k for k in sorted(index) if needle in index[k].haystack()]
+        else:
+            with self._p0.stage("metadata"):
+                keys = [k for k in sorted(index) if needle in index[k].haystack()]
         offset = 0
         if clean.get("cursor"):
             cur = self._v2_open(clean["cursor"], kind="search")
@@ -1216,7 +1269,7 @@ class GatewayApp:
             offset = int(cur.get("a") or 0)
         page = keys[offset : offset + page_size]
         if mode == "lexical_fusion_v1":
-            lex = self._v2_load_lexical(backend, kb)
+            lex = self._v2_load_lexical(traced_backend, kb)
             if lex is None and degraded_to != "metadata":
                 raise V2Error(
                     503,
@@ -1262,7 +1315,11 @@ class GatewayApp:
         旧代候选冒充当前真相。
         """
         try:
-            payload = read_json(backend, LEXICAL_INDEX_REL)
+            if self._p0 is None:
+                payload = read_json(backend, LEXICAL_INDEX_REL)
+            else:
+                with self._p0.stage("json_decode"):
+                    payload = read_json(backend, LEXICAL_INDEX_REL)
         except NotFound:
             return None
         except (StorageError, ValueError):
@@ -1285,12 +1342,24 @@ class GatewayApp:
             return None
         cached = self._v2_lexical.get(kb)
         if cached is not None and cached[0] == gen:
+            if self._p0 is not None:
+                self._p0.cold_state = "hot_legacy_lexical_payload"
+                self._p0.generation = gen
+                self._p0.chunks = cached[1].get("__index__").n_chunks
             return cached[1]
         try:
-            payload["__index__"] = from_json_payload(payload.get("index") or {})
+            if self._p0 is None:
+                payload["__index__"] = from_json_payload(payload.get("index") or {})
+            else:
+                with self._p0.stage("structure_recovery"):
+                    payload["__index__"] = from_json_payload(payload.get("index") or {})
         except (TypeError, ValueError, KeyError):
             return None
         self._v2_lexical[kb] = (gen, payload)
+        if self._p0 is not None:
+            self._p0.cold_state = "cold_legacy_lexical_payload"
+            self._p0.generation = gen
+            self._p0.chunks = payload["__index__"].n_chunks
         return payload
 
     def _v2_fusion_payload(self, kb, q, needle, page_size, index, digest, lex) -> dict:
@@ -1309,7 +1378,11 @@ class GatewayApp:
             k for k in sorted(index) if k in eligible and needle in index[k].haystack()
         ]
         lex_index = lex["__index__"]
-        body_all = bm25_rank(lex_index, q)
+        if self._p0 is None:
+            body_all = bm25_rank(lex_index, q)
+        else:
+            with self._p0.stage("tokenize_bm25_span"):
+                body_all = bm25_rank(lex_index, q)
         relation = (
             "lower_bound"
             if len(meta_all) > CANDIDATE_K or len(body_all) > CANDIDATE_K
@@ -1317,13 +1390,13 @@ class GatewayApp:
         )
         meta_rank = {lin: i + 1 for i, lin in enumerate(meta_all[:CANDIDATE_K])}
         body_rank = {lin: i + 1 for i, (lin, _s) in enumerate(body_all[:CANDIDATE_K])}
-        fused = sorted(
-            (
-                (lin, rrf(body_rank.get(lin, 0), meta_rank.get(lin)))
-                for lin in set(meta_rank) | set(body_rank)
-            ),
-            key=lambda t: (-t[1], t[0]),
-        )
+        if self._p0 is None:
+            fused = sorted(((lin, rrf(body_rank.get(lin, 0), meta_rank.get(lin)))
+                            for lin in set(meta_rank) | set(body_rank)), key=lambda t: (-t[1], t[0]))
+        else:
+            with self._p0.stage("rrf"):
+                fused = sorted(((lin, rrf(body_rank.get(lin, 0), meta_rank.get(lin)))
+                                for lin in set(meta_rank) | set(body_rank)), key=lambda t: (-t[1], t[0]))
         hits: List[dict] = []
         for lineage, score in fused[:page_size]:
             row = self._v2_document_row(kb, lineage, index[lineage])
@@ -1339,7 +1412,10 @@ class GatewayApp:
                             "end_byte": lex_index.chunk_bytes.get(cid, (0, 0))[1],
                             "score": sc,
                         }
-                        for cid, _s, _e, sc in best_spans(lex_index, lineage, q)
+                        for cid, _s, _e, sc in (
+                            best_spans(lex_index, lineage, q)
+                            if self._p0 is None else self._p0_best_spans(lex_index, lineage, q)
+                        )
                     ],
                 }
             )
@@ -1369,6 +1445,11 @@ class GatewayApp:
             "next_cursor": None,
             "at": iso(self.clock()),
         }
+
+    def _p0_best_spans(self, index, lineage, query):
+        assert self._p0 is not None
+        with self._p0.stage("tokenize_bm25_span"):
+            return best_spans(index, lineage, query)
 
     def _v2_resolve(self, clean, backend, kb) -> dict:
         lineage = clean.get("lineage", "").strip()
@@ -1756,6 +1837,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="只校验配置并输出启动卡 JSON，不绑定端口",
     )
+    parser.add_argument(
+        "--p0-diagnostics",
+        action="store_true",
+        help="RT-054 P0：响应内返回脱敏、零写分段记录（默认关闭）",
+    )
     return parser
 
 
@@ -1872,6 +1958,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             tokens=tokens,
             kb_id=primary_kb,
             kb_mounts=kb_mounts,
+            p0_diagnostics=args.p0_diagnostics,
         )
         card = startup_card(args, app)
         sys.stdout.write(dumps(card).decode("utf-8"))
