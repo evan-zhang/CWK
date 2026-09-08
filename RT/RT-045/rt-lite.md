@@ -13,3 +13,8 @@
   CI run 34069821059 三个 governance 测试红（GA-ORPHAN）。
 - 处置：并入 R-runtime-rt045-kb-skills exact_set（同 owner RT-045、同变更入口，
   安装副本同步口径不变）。`make governance-audit` 复验通过（730 文件全有主）。
+
+## 变更记录（AODW 收口回填）
+
+- 2026-09-05：两真库黄金题与反空转验收由 `b867b51` 收口，结构化回执保存在 `receipts/`。
+- 2026-09-08：补齐 `status=done`、`closed_at` 与 `retrospective.md`。

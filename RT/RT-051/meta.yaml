@@ -3,18 +3,16 @@ title: Agent 受控完整访问与正文词法召回
 type: Feature
 profile: Spec-Lite
 execution_mode: collaborative
-status: in_progress
+status: done
 modules: [kb-wizard-gateway, kb-ingest, kb-platform-storage]
 branch: feature/RT-051-body-lexical-retrieval
 worktree: .claude/worktrees/RT-051-body-lexical-retrieval
 tool: unknown
 owner: Evan
 created_at: 2026-09-06T10:48:10Z
-updated_at: 2026-09-06T12:58:12Z
-closed_at: null
+updated_at: 2026-09-07T06:30:29+08:00
+closed_at: 2026-09-07T06:30:29+08:00
 notes: >
-  用户20:39授权补全开发前设计及本RT文档精确本地提交，同源Issue #2已纳入。
-  先完成单库受控list/metadata分页、inspect/open/read/continue及真实CLI/tool接线，
-  再正文词法+metadata融合；rt-lite.md为唯一方案权威，不是dense+BM25。
-  仍停方案门/代码授权之前；status保持intaking，不得开发、调用真实API、修改Skills/规范、
-  合并推送部署或修改关闭Issue。Codex o40MC61R/effb1de为既有静态审核，非本轮独立复审。
+  受控完整读取、正文词法与元数据融合、refresh 钩子和 A01-A12 验收均已完成；
+  A11 经独立复核 PASS，PR #3 合并 main 后 CI 通过。Issue #2 关闭、D02-D04
+  启用停点及 P1b 快照性能治理不属于本 RT 收口目标。

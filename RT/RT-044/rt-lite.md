@@ -48,3 +48,8 @@
 
 遗留（不在本 RT 范围）：NAS 专用只读账号 `_kbquery` 列 v1.x，v1 用现账号 + 网关侧禁写兜底；
 对话式 `cwk-kb` Skill 包装层在 RT-045 交付。
+
+## 变更记录（AODW 收口回填）
+
+- 2026-09-05：向导与只读网关由 `f21424e` 合并，并由 `03cfae9` 完成 OPS 跨机验证。
+- 2026-09-08：补齐 `status=done`、`closed_at` 与 `retrospective.md`。

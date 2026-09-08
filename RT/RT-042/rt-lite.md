@@ -65,3 +65,8 @@
 - 新脚本全部 cwk_ 前缀 + index.yaml 登记 + 回执齐全
 - CI（GitHub Actions 快车道）绿
 - Codex 安全评审 + Grok 红队各一轮（针对 storage/账本/越权面），发现按复核-采纳流程
+
+## 变更记录（AODW 收口回填）
+
+- 2026-09-05：存储基座合并进入 `main`，并由 OPS 跨机验收 `03cfae9` 确认生产可用。
+- 2026-09-08：补齐 `status=done`、`closed_at` 与 `retrospective.md`；不改变产品代码或既有验收结论。

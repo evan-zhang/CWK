@@ -333,3 +333,8 @@ refresh接线在所有source execute_plan和save_refresh_state最终收尾后；
   Issue #2 关闭需另行授权未随 PR 自动关闭；D02–D04 启用停点未动；P1b
   快照架构（A04 大档/A09 累计带宽）与 OPS 部署（网关 1.2.0 + builder）
   为后续独立工作。
+
+## 变更记录（AODW 收口回填）
+
+- 2026-09-07：独立复核通过后，PR #3 合并 `main`，收口注记由 `b3c582d` 记录。
+- 2026-09-08：将滞留的 `in_progress` 回填为 `done`，补齐 `closed_at` 与 `retrospective.md`。

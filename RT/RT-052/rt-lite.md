@@ -92,3 +92,8 @@ RT-051 后多 Agent 接入成为现实（docs/cwk-kb-access-setup.md）。缺口
 
 - 当前 3 库：记录 libraries 端点 NAS 请求数（每库 ≤3 次小读）/下载字节/总耗时进验收工件；**阈值**：挂载库 >10 或端点 P95 >2s 时改分页或快照，不在单线程网关内并发复用 FileStation session 掩盖线性增长。
 - readiness 投影随 builder publish 演进；旧库补一次幂等 publish。
+
+## 变更记录（AODW 收口回填）
+
+- 2026-09-07：PR #4 交付发现与盘点面，PR #5 修复生产登记表 schema；三库生产验收完成。
+- 2026-09-08：补建缺失的 `meta.yaml` 与 `retrospective.md`，索引由 `intaking` 回填为 `done`。

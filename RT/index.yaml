@@ -247,32 +247,32 @@ entries:
   created: 2026-09-03
 - id: RT-042
   title: 存储层 NAS 化 + 建库基座
-  status: completed
+  status: done
   profile: Spec-Lite
   created: 2026-09-04
 - id: RT-043
   title: 摄取管道 v1（拉取→originals→格式工厂→raw+index）
-  status: completed
+  status: done
   profile: Spec-Lite
   created: 2026-09-05
 - id: RT-044
   title: 建库向导 + 查询网关 v1
-  status: completed
+  status: done
   profile: Spec-Lite
   created: 2026-09-05
 - id: RT-045
   title: 端到端验收（两真库 + 黄金题）
-  status: completed
+  status: done
   profile: Spec-Lite
   created: 2026-09-05
 - id: RT-046
   title: 格式工厂 v1.1（转换器表 + 回执三链 + 无后缀嗅探）
-  status: completed
+  status: done
   profile: Spec-Lite
   created: 2026-09-05
 - id: RT-047
   title: 三机生产部署（OPS 网关服务化 + token 多租户 + 245 接入 + 备份演练）
-  status: completed
+  status: done
   profile: Spec-Lite
   created: 2026-09-05
 - id: RT-048
@@ -292,12 +292,12 @@ entries:
   created: 2026-09-06
 - id: RT-051
   title: 正文级词法召回与元数据召回融合 v1
-  status: in_progress
+  status: done
   profile: Spec-Lite
   created: 2026-09-06
 - id: RT-052
   title: 知识库发现端点与 OPS 盘点面
-  status: intaking
+  status: done
   profile: Spec-Lite
   created: 2026-09-07
 - id: RT-053

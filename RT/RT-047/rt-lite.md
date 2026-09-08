@@ -15,3 +15,8 @@
 - P4 备份演练：NAS 快照策略确认；从备份恢复一个库；manifest 对账通过。
 - 反空转：OPS 网关停 NAS 连接必红；gateway 进程环境扫描无工厂写者凭据；
   非成员库访问 404/403。
+
+## 变更记录（AODW 收口回填）
+
+- 2026-09-05：OPS 服务化、245 接入与恢复演练由 `01ce3d0` 收口，阶段回执保存在 `receipts/`。
+- 2026-09-08：补齐 `status=done`、`closed_at` 与 `retrospective.md`。

@@ -3,7 +3,7 @@ title: 三机生产部署（OPS 网关服务化 + token 多租户 + 245 接入 +
 type: Feature
 profile: Spec-Lite
 execution_mode: autonomous
-status: in-progress
+status: done
 modules: []
 modules_note: >
   承接 EXECUTION-PLAN v1.1 D6（三机生产）。分四阶段：
@@ -18,7 +18,8 @@ tool: claude-code
 owner: 雷锋(BD-glm)
 base_commit: d7c61b0
 created_at: 2026-09-05T17:50:00+08:00
-updated_at: 2026-09-05T17:50:00+08:00
+updated_at: 2026-09-05T20:21:59+08:00
+closed_at: 2026-09-05T20:21:59+08:00
 external_ids:
   jira: null
   github: null
