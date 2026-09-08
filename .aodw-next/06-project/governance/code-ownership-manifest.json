@@ -335,7 +335,7 @@
       "sensitive": true,
       "pin": {
         "mode": "100644",
-        "sha256": "ea0b94c17d0d70b07bebf1366dc409d0a2d3fa5956181a24d23476f635602247"
+        "sha256": "6dd9b38df0073c0d96ca37b74c86358da939ac6c13df88517c61c567cff7fb7d"
       },
       "owner": "RT-030",
       "management_domain": "cwk-governance-v1",

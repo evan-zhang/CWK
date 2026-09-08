@@ -1,7 +1,9 @@
 .PHONY: doctor test test-full aodw-check governance-audit ci ci-full smoke smoke-ai smoke-ai-degraded wiki-lint wiki-smoke clean
 
 PYTHON ?= python3
-TEST_TMPDIR ?= $(shell $(PYTHON) -c 'import os,tempfile; print(os.path.realpath(tempfile.gettempdir()))')
+# Keep AF_UNIX test fixtures below the platform pathname limit, independent of
+# a desktop session's long per-user TMPDIR.  Tests only need a local directory.
+TEST_TMPDIR ?= $(shell $(PYTHON) -c 'import os; print("/private/tmp" if os.path.isdir("/private/tmp") else "/tmp")')
 SMOKE_RUN ?= ci-smoke
 SMOKE_DATE ?= 2026-01-01
 SMOKE_AI_RUN ?= ci-smoke-ai
@@ -27,7 +29,7 @@ doctor:
 test:
 	$(MAKE) doctor
 	$(PYTHON) -m py_compile scripts/*.py
-	cd tests && TMPDIR="$(TEST_TMPDIR)" $(PYTHON) -m unittest $(shell cd tests && find . -maxdepth 1 -name 'test_*.py' ! -name 'test_pr001_*.py' -exec basename {} .py \; | sort | tr '\n' ' ')
+	cd tests && env -i PATH="$(PATH)" LANG=C LC_ALL=C TMPDIR="$(TEST_TMPDIR)" $(PYTHON) -m unittest $(shell cd tests && find . -maxdepth 1 -name 'test_*.py' ! -name 'test_pr001_*.py' -exec basename {} .py \; | sort | tr '\n' ' ')
 	$(MAKE) smoke
 	$(MAKE) smoke-ai
 	$(MAKE) smoke-ai-degraded
@@ -35,7 +37,7 @@ test:
 test-full:
 	$(MAKE) doctor
 	$(PYTHON) -m py_compile scripts/*.py
-	TMPDIR="$(TEST_TMPDIR)" $(PYTHON) -m unittest discover -s tests -p 'test_*.py'
+	env -i PATH="$(PATH)" LANG=C LC_ALL=C TMPDIR="$(TEST_TMPDIR)" $(PYTHON) -m unittest discover -s tests -p 'test_*.py'
 	$(MAKE) smoke
 	$(MAKE) smoke-ai
 	$(MAKE) smoke-ai-degraded
