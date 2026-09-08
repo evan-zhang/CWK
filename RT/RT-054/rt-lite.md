@@ -156,8 +156,8 @@ gateway 在授权后读取 P0 ready pointer；在评分**前**再次读取/比�
 ## 验证
 
 - **本轮已完成**：受限读取已经实现；独立复审发现默认 streaming 仅 fake、envelope 绕预算、控制面脱离 deadline/attempt、cancel 泄漏及 coverage 缺口六项阻断，本轮逐项返修。默认 streaming 现为真实 raw response，pin 在同一验证 socket；所有 bounded response/connection 路径关闭。未调用生产、NAS、真实 token、真实 builder 或真实 gateway。
-- **验证实录（2026-09-08）**：独立评审曾记录 `make test`: 2419 tests in 166.519s, skipped 9, exit 0；这只是历史评审证据。本轮受限读取定向组合为 **87 tests / OK**：21 bounded-read + 50 storage + 16 P0（此前 85 = 19 + 50 + 16）；完整 `make test` 为 **2450 tests / OK, skipped=9, 188.815s**。本次 B-01 回归新增「首 `{` 后 cancel/deadline」两例：每次 envelope 底层 raw read 前后均执行同一脱敏 cancel/deadline 检查，首 read 返回后触发即关闭，不进行第二次 raw read，且不能被 FileStation envelope 覆盖。真实 pilot、NAS、凭据和 P1b 未测且仍 NO-GO。
-- **受限读取本地验收（2026-09-08，本次）**：仅以 LocalFS、Memory 和 fake FileStation/raw socket 实现并验证单一 callback `read_bounded`；旧 `read` 与 injected bytes transport 保持不变。定向组合为 **87 tests / OK**。静态 guard 证明 gateway/builder/ingest 无 `read_bounded` 接线；未接 P1b、pointer/cache/writer fence/search route，未调用 NAS、生产、凭据或真实 payload。P0 safe sink 仍未实现；任何将来的接线须另有独立工作集上限。
+- **历史证据更正（2026-09-08）**：早先记录的 **87 tests / OK** 组合在当时父环境中可选中 NAS smoke，故不得再作为纯本地受限读取证据；它仅保留为安全类别记录，不记载主机、路径或凭据，也不声称已对外确认清理。
+- **受限读取纯本地验收（2026-09-08，本次）**：唯一入口 `make rt054-pure-local` 由独立 runner 从最小白名单重建子进程环境，并强制 `CWK_RT054_PURE_LOCAL=1`；不继承 NAS、应用 key、token、password、secret 或 key 变量。**90 tests / OK, skipped=1**（21 bounded-read + 50 storage + 16 P0 + 3 pure-local guard）；verbose 摘要明确为 `NasSmokeTests` 的 `SKIP-reason: RT-054 pure-local gate`。父进程伪 NAS/凭据 canary 在子进程仍获 skip；backend-instantiation trap 未调用，证明零网络/零写。单模块 bounded-read 为 **21 tests / OK**。仅 LocalFS、Memory 和 fake FileStation/raw socket 被调用；旧 `read` 与 injected bytes transport 保持不变。静态 guard 证明 gateway/builder/ingest 无 `read_bounded` 接线；未接 P1b、pointer/cache/writer fence/search route，未调用 NAS、生产、真实凭据或真实 payload。P0 safe sink 仍未实现；任何将来的接线须另有独立工作集上限。
 - **当前授权边界**：P0 零写诊断获允许；P1b 仍 NO-GO，必须先通过 P0 数据、numeric physical budget、容量实测、writer 穷尽与 FileStation 排他/恢复原语方案门。任何未完成数据只能标未测，不能称性能已治理。
 - **AI 评审**：实现收口前独立复核所有 writer 是否接入 fence、回滚是否能重放旧代、指针是否真为单一权威、限额是否在下载/解析前、性能判据能否被 cache/timeout 假绿。
 
@@ -172,6 +172,7 @@ gateway 在授权后读取 P0 ready pointer；在评分**前**再次读取/比�
 - 2026-09-08：按新增独立评审阻断意见重写 bounded-read 合同：唯一 callback API 与 `expected_sha256`、callback 所有权、固定脱敏 code/完整 receipt、首 chunk 后零重试、可信完整性、每 read 上限、阻塞 deadline/cancel、FileStation 有界 envelope、consumer 内存边界和拒绝接线护栏全部可由 fake matrix 证伪。证据仍仅称 **6 个无法解释的 download events**；现有验证仍仅为 **16 个 P0 tests**，不冒充新合同验收。四道门保持 P1b NO-GO。
 - 2026-09-08：受限读取实施后独立复审发现六项阻断；本轮返修真实 unpinned/pinned raw streaming、envelope 逐 read 预算、统一 control/body monotonic deadline 与总 attempts、cancel 脱敏、close 和本地 fake coverage。仅本地验证；P0 pilot 与 P1b 继续 NO-GO。
 - 2026-09-08：第三次复审唯一阻断 B-01：FileStation brace-envelope lookahead 曾在首 raw chunk 后绕过外层 cancel/deadline 检查。现将同一脱敏安全检查传入 wrapper，并置于每一次底层 raw read 前后；新增 cancel 与 deadline 的完整错误 envelope、`chunk_size=1` 回归，证明首 read 后触发时无 lookahead、stream/connection 关闭、无 callback delivery/receipt，结果仅为 `cancelled` 或 `deadline_exceeded`。仅本地 fake 验证；真实 pilot 与 P1b 继续 NO-GO。
+- 2026-09-08：安全事件后将 RT-054 验收收束为唯一 pure-local runner：最小环境白名单重建 + 强制 NAS smoke skip，并以伪父环境 canary、skip 摘要和 backend-instantiation trap 证明不实例化 NAS backend、零网络/零写。早先 87 组合不再作为纯本地证据；未访问 NAS 或请求外部清理确认。P1b 继续 NO-GO。
 
 ## 遗留事项
 
