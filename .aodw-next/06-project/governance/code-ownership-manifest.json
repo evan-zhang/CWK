@@ -309,13 +309,14 @@
       "paths": [
         "scripts/kb_p0.py",
         "scripts/kb_p0_benchmark.py",
-        "scripts/rt054_pure_local.py"
+        "scripts/rt054_pure_local.py",
+        "scripts/rt054_pure_local_launcher.sh"
       ],
       "owner": "RT-054",
       "management_domain": "cwk-governance-v1",
       "change_entry": "RT → rt-lite.md → tests/test_rt054_p0.py + tests/test_rt054_pure_local.py + make rt054-pure-local + make governance-audit",
       "evolution_path": "repo-standard-change",
-      "rationale": "RT-054 P0 的默认关闭、零持久写分段诊断、仅合成夹具离线 postings 对照，及 bounded-read 验收的纯本地子进程入口。runner 使用固定 Make outer env、绝对解释器 -I -S bootstrap、受控临时 HOME/TMPDIR 与 socket/FileStation/.env fail-closed trap，并强制 NAS smoke skip；scripts/ 是 exact-only 区，故三个实际存在的新增脚本逐条登记；不预登记 P1b pointer、epoch、cache 或存储文件。"
+      "rationale": "RT-054 P0 的默认关闭、零持久写分段诊断、仅合成夹具离线 postings 对照，及 bounded-read 验收的纯本地子进程入口。Make 从自身 realpath 固定 launcher，launcher 只接受绝对受信解释器并令第一个 Python 即 -I -S；runner 的受控临时 HOME/TMPDIR、socket/FileStation/.env audit 与标准 Python open-route fail-closed trap 强制 NAS smoke skip。scripts/ 是 exact-only 区，故四个实际存在的新增脚本逐条登记；不预登记 P1b pointer、epoch、cache 或存储文件。"
     },
     {
       "id": "R-runtime-adapters",
@@ -336,7 +337,7 @@
       "sensitive": true,
       "pin": {
         "mode": "100644",
-        "sha256": "1b8ebf862f8661e6b707b911205213775e699f451cfcd7aee47bf51feb2923d9"
+        "sha256": "57227bf66a3fbdbe96555c10a11b1521233d0e91de03c6741357b0981a43bb78"
       },
       "owner": "RT-030",
       "management_domain": "cwk-governance-v1",

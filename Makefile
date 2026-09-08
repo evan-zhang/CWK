@@ -1,6 +1,18 @@
 .PHONY: doctor test test-full rt054-pure-local aodw-check governance-audit ci ci-full smoke smoke-ai smoke-ai-degraded wiki-lint wiki-smoke clean
 
 PYTHON ?= python3
+# RT-054's pure-local entry must not inherit make's command-line shell, cwd,
+# interpreter, or makeflags.  `realpath` is a GNU make builtin: it does not
+# spawn a caller-selected shell.  Keep these as override assignments so both
+# command-line variables and MAKEFLAGS assignments lose to this file.
+override SHELL := /bin/sh
+override .SHELLFLAGS := -eu -c
+override RT054_MAKEFILE := $(realpath $(lastword $(MAKEFILE_LIST)))
+override RT054_ROOT := $(patsubst %/,%,$(dir $(RT054_MAKEFILE)))
+override RT054_LAUNCHER := $(RT054_ROOT)/scripts/rt054_pure_local_launcher.sh
+empty :=
+space := $(empty) $(empty)
+rt054_shell_quote = '$(subst ','"'"'",$(1))'
 # Keep AF_UNIX test fixtures below the platform pathname limit, independent of
 # a desktop session's long per-user TMPDIR.  Tests only need a local directory.
 TEST_TMPDIR ?= $(shell $(PYTHON) -c 'import os; print("/private/tmp" if os.path.isdir("/private/tmp") else "/tmp")')
@@ -8,8 +20,6 @@ SMOKE_RUN ?= ci-smoke
 SMOKE_DATE ?= 2026-01-01
 SMOKE_AI_RUN ?= ci-smoke-ai
 SMOKE_AI_DEGRADED_RUN ?= ci-smoke-ai-degraded
-# This closed search deliberately ignores $(PYTHON) and the operator's PATH.
-override RT054_PYTHON := $(shell for p in /opt/homebrew/bin/python3 /usr/local/bin/python3 /usr/bin/python3; do test -x $$p && { echo $$p; break; }; done)
 
 doctor:
 	$(PYTHON) scripts/cwk_doctor.py --check-only --config skill/templates/CONFIG.example.json
@@ -48,7 +58,7 @@ test-full:
 # The runner rebuilds the child environment from a minimal whitelist and
 # forcibly selects the pure-local NAS-smoke gate before importing tests.
 rt054-pure-local:
-	/usr/bin/env -i PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin HOME=/tmp LANG=C LC_ALL=C $(RT054_PYTHON) $(CURDIR)/scripts/rt054_pure_local.py
+	/bin/sh -eu -c 'exec $(call rt054_shell_quote,$(RT054_LAUNCHER))'
 
 # 方法层自检：AODW 框架 fixture + 受管 RT 门禁 + RT 花名册一致性。
 # 判据和作用域都写在 .aodw-next/ 里，这里只留一个稳定入口。

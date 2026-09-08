@@ -12,6 +12,7 @@ from unittest import mock
 
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "scripts"))
+sys.path.insert(0, str(PROJECT / "tests"))
 import rt054_pure_local  # noqa: E402
 
 
@@ -56,19 +57,23 @@ class RT054PureLocalTests(unittest.TestCase):
         importlib.reload(test_kb_storage)
 
     def test_temp_root_is_private_local_and_contains_only_a_guard_canary(self) -> None:
-        root = rt054_pure_local.controlled_temp_root()
+        owned = os.environ.get("CWK_RT054_PURE_LOCAL") != "1"
+        root = rt054_pure_local.controlled_temp_root() if owned else Path(os.environ["TMPDIR"])
         try:
             self.assertIn(root.parent, (Path("/private/tmp"), Path("/tmp")))
             self.assertEqual(stat.S_IMODE(root.stat().st_mode), 0o700)
-            self.assertEqual((root / ".env").read_text(encoding="utf-8"), "CANARY_DOTENV_MUST_NOT_BE_READ=1\n")
+            self.assertTrue((root / ".env").is_file())
+            if owned:
+                self.assertEqual((root / ".env").read_text(encoding="utf-8"), "CANARY_DOTENV_MUST_NOT_BE_READ=1\n")
         finally:
-            import shutil
-            shutil.rmtree(root)
+            if owned:
+                import shutil
+                shutil.rmtree(root)
 
     def test_main_passes_absolute_isolated_fixed_child_contract(self) -> None:
         completed = subprocess.CompletedProcess([], 0)
         root = Path("/tmp/cwk-rt054-fixed")
-        with mock.patch.object(rt054_pure_local, "controlled_temp_root", return_value=root), mock.patch.object(rt054_pure_local, "trusted_interpreter", return_value="/trusted/python"), mock.patch.object(rt054_pure_local.shutil, "rmtree") as cleanup, mock.patch.object(rt054_pure_local.subprocess, "run", return_value=completed) as run:
+        with mock.patch.object(rt054_pure_local, "controlled_temp_root", return_value=root), mock.patch.object(rt054_pure_local.sys, "executable", "/trusted/python"), mock.patch.object(rt054_pure_local.sys, "flags", type("Flags", (), {"isolated": 1, "no_site": 1})()), mock.patch.object(rt054_pure_local.shutil, "rmtree") as cleanup, mock.patch.object(rt054_pure_local.subprocess, "run", return_value=completed) as run:
             self.assertEqual(rt054_pure_local.main(()), 0)
         command = run.call_args.args[0]
         self.assertEqual(command[:4], ["/trusted/python", "-I", "-S", "-c"])
@@ -82,11 +87,55 @@ class RT054PureLocalTests(unittest.TestCase):
 
     def test_bootstrap_contract_has_no_dotenv_or_network_escape(self) -> None:
         bootstrap = rt054_pure_local.BOOTSTRAP
+        self.assertIn("sys.addaudithook(audit)", bootstrap)
+        self.assertIn("builtins.open = guarded_builtin_open", bootstrap)
+        self.assertIn("io.open = guarded_io_open", bootstrap)
+        self.assertIn("Path.open = guarded_path_open", bootstrap)
+        self.assertIn("os.open = guarded_os_open", bootstrap)
         self.assertIn("socket.socket.connect = blocked_socket", bootstrap)
         self.assertIn("socket.create_connection = blocked_socket", bootstrap)
         self.assertIn("FileStationBackend.from_env", bootstrap)
-        self.assertIn("candidate.name == \".env\"", bootstrap)
+        self.assertIn("event == \"open\"", bootstrap)
+        self.assertIn("RT054_GUARD interpreter", bootstrap)
         self.assertIn("RT054_PURE_LOCAL_BOOTSTRAP=1", bootstrap)
+
+    def test_makefile_ignores_direct_and_makeflags_injection_in_dry_run(self) -> None:
+        canary = "RT054_CANARY_MUST_NOT_APPEAR"
+        env = dict(os.environ, MAKEFLAGS=f"SHELL={canary} CURDIR={canary} RT054_PYTHON={canary} PATH={canary}")
+        result = subprocess.run(
+            ["/usr/bin/make", "-n", "rt054-pure-local", f"SHELL={canary}", f"CURDIR={canary}", f"RT054_PYTHON={canary}", f"PATH={canary}"],
+            cwd=PROJECT,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn(canary, result.stdout + result.stderr)
+        self.assertIn("/bin/sh -eu -c", result.stdout)
+        self.assertIn("rt054_pure_local_launcher.sh", result.stdout)
+
+    def test_dotenv_open_routes_are_exactly_blocked_inside_pure_local_child(self) -> None:
+        if os.environ.get("CWK_RT054_PURE_LOCAL") != "1":
+            self.skipTest("requires the fixed pure-local child")
+        import builtins
+        import io
+
+        guard = builtins._rt054_pure_local_guard
+        counter = guard["counts"]
+        dotenv = Path(os.environ["TMPDIR"]) / ".env"
+        routes = (
+            lambda: builtins.open(dotenv),
+            lambda: io.open(dotenv),
+            lambda: dotenv.open(),
+            lambda: os.open(dotenv, os.O_RDONLY),
+        )
+        for route in routes:
+            before = counter["dotenv"]
+            with self.assertRaisesRegex(AssertionError, r"^RT054_GUARD dotenv$"):
+                route()
+            self.assertEqual(counter["dotenv"], before + 1)
+        counter["dotenv"] = 0
 
 
 if __name__ == "__main__":

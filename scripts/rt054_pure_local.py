@@ -13,8 +13,46 @@ from typing import Sequence
 PROJECT = Path(__file__).resolve().parents[1]
 TESTS = ("test_rt054_bounded_read", "test_kb_storage", "test_rt054_p0", "test_rt054_pure_local")
 BOOTSTRAP = r"""
-import atexit, builtins, os, socket, sys
+import atexit, builtins, io, os, socket, sys
 from pathlib import Path
+if not sys.flags.isolated or not sys.flags.no_site:
+    raise RuntimeError("RT054_GUARD interpreter")
+if any("sitecustomize" in item for item in sys.modules):
+    raise RuntimeError("RT054_GUARD sitecustomize")
+counts = {"socket": 0, "filestation_from_env": 0, "filestation_write": 0, "dotenv": 0}
+def dotenv_path(value):
+    try:
+        return Path(os.fspath(value)).name == ".env"
+    except TypeError:
+        return False
+def block_dotenv(value):
+    if dotenv_path(value):
+        counts["dotenv"] += 1
+        raise AssertionError("RT054_GUARD dotenv")
+def audit(event, args):
+    if event == "open" and args and dotenv_path(args[0]):
+        block_dotenv(args[0])
+sys.addaudithook(audit)
+real_builtin_open = builtins.open
+real_io_open = io.open
+real_os_open = os.open
+def guarded_builtin_open(file, *args, **kwargs):
+    block_dotenv(file)
+    return real_builtin_open(file, *args, **kwargs)
+def guarded_io_open(file, *args, **kwargs):
+    block_dotenv(file)
+    return real_io_open(file, *args, **kwargs)
+def guarded_path_open(self, *args, **kwargs):
+    block_dotenv(self)
+    return real_io_open(self, *args, **kwargs)
+def guarded_os_open(file, *args, **kwargs):
+    block_dotenv(file)
+    return real_os_open(file, *args, **kwargs)
+builtins.open = guarded_builtin_open
+io.open = guarded_io_open
+Path.open = guarded_path_open
+os.open = guarded_os_open
+builtins._rt054_pure_local_guard = {"counts": counts, "block_dotenv": block_dotenv}
 project = Path(sys.argv[1]).resolve()
 temp_root = Path(sys.argv[2]).resolve()
 tests = tuple(sys.argv[3:])
@@ -27,26 +65,12 @@ if Path.cwd() != temp_root or not temp_root.is_dir():
 expected_env = {"CWK_RT054_PURE_LOCAL": "1", "HOME": str(temp_root), "LANG": "C", "LC_ALL": "C", "TMPDIR": str(temp_root)}
 if os.environ != expected_env:
     raise RuntimeError("RT054_GUARD environment")
-if any("sitecustomize" in item for item in sys.modules):
-    raise RuntimeError("RT054_GUARD sitecustomize")
 sys.path[:] = [str(project / "scripts"), str(project / "tests")] + [item for item in sys.path if item]
-counts = {"socket": 0, "filestation_from_env": 0, "filestation_write": 0, "dotenv": 0}
 def blocked_socket(*args, **kwargs):
     counts["socket"] += 1
     raise AssertionError("RT054_GUARD external socket")
 socket.socket.connect = blocked_socket
 socket.create_connection = blocked_socket
-real_open = builtins.open
-def guarded_open(file, *args, **kwargs):
-    try:
-        candidate = Path(file)
-    except TypeError:
-        return real_open(file, *args, **kwargs)
-    if candidate.name == ".env":
-        counts["dotenv"] += 1
-        raise AssertionError("RT054_GUARD dotenv")
-    return real_open(file, *args, **kwargs)
-builtins.open = guarded_open
 import kb_storage
 def blocked_from_env(*args, **kwargs):
     counts["filestation_from_env"] += 1
@@ -70,14 +94,6 @@ import unittest
 result = unittest.main(module=None, argv=["rt054-pure-local", "-v", *tests], exit=False).result
 raise SystemExit(0 if result.wasSuccessful() else 1)
 """
-
-
-def trusted_interpreter() -> str:
-    """Resolve the already-running interpreter before clearing child state."""
-    resolved = Path(sys.executable).resolve(strict=True)
-    if not resolved.is_absolute() or not resolved.is_file():
-        raise RuntimeError("RT-054 needs an absolute trusted Python interpreter")
-    return str(resolved)
 
 
 def controlled_temp_root() -> Path:
@@ -105,7 +121,9 @@ def main(argv: Sequence[str]) -> int:
     reject_arguments(argv)
     temp_root = controlled_temp_root()
     try:
-        command = [trusted_interpreter(), "-I", "-S", "-c", BOOTSTRAP, str(PROJECT), str(temp_root), *TESTS]
+        if not sys.flags.isolated or not sys.flags.no_site:
+            raise RuntimeError("RT-054 outer runner must be isolated without site")
+        command = [sys.executable, "-I", "-S", "-c", BOOTSTRAP, str(PROJECT), str(temp_root), *TESTS]
         return subprocess.run(command, cwd=temp_root, env=pure_local_env(temp_root)).returncode
     finally:
         shutil.rmtree(temp_root)
