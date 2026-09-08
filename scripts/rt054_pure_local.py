@@ -71,6 +71,10 @@ def blocked_socket(*args, **kwargs):
     raise AssertionError("RT054_GUARD external socket")
 socket.socket.connect = blocked_socket
 socket.create_connection = blocked_socket
+def blocked_socket_connect_ex(*args, **kwargs):
+    counts["socket"] += 1
+    raise AssertionError("RT054_GUARD external socket")
+socket.socket.connect_ex = blocked_socket_connect_ex
 import kb_storage
 def blocked_from_env(*args, **kwargs):
     counts["filestation_from_env"] += 1

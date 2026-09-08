@@ -94,10 +94,51 @@ class RT054PureLocalTests(unittest.TestCase):
         self.assertIn("os.open = guarded_os_open", bootstrap)
         self.assertIn("socket.socket.connect = blocked_socket", bootstrap)
         self.assertIn("socket.create_connection = blocked_socket", bootstrap)
+        self.assertIn("socket.socket.connect_ex = blocked_socket_connect_ex", bootstrap)
         self.assertIn("FileStationBackend.from_env", bootstrap)
         self.assertIn("event == \"open\"", bootstrap)
         self.assertIn("RT054_GUARD interpreter", bootstrap)
         self.assertIn("RT054_PURE_LOCAL_BOOTSTRAP=1", bootstrap)
+
+    def test_shell_path_validator_rejects_a_local_symlink_and_operator_tree(self) -> None:
+        import tempfile
+
+        helper = PROJECT / "scripts" / "rt054_pure_local_path_validation.sh"
+        with tempfile.TemporaryDirectory(prefix="rt054-path-check-", dir="/private/tmp") as tmp:
+            root = Path(tmp)
+            target = root / "python3"
+            target.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            target.chmod(0o755)
+            link = root / "python-link"
+            link.symlink_to(target)
+            for candidate in (target, link):
+                result = subprocess.run(
+                    ["/bin/sh", "-c", '. "$1"; rt054_validate_trust_chain "$2"', "sh", str(helper), str(candidate)],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertNotEqual(result.returncode, 0, result.stderr)
+
+    def test_shell_path_validator_accepts_only_the_fixed_candidate_spelling(self) -> None:
+        helper = PROJECT / "scripts" / "rt054_pure_local_path_validation.sh"
+        result = subprocess.run(
+            ["/bin/sh", "-c", '. "$1"; rt054_validate_candidate "$2"', "sh", str(helper), "/opt/homebrew/bin/python3"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertNotEqual(result.returncode, 0, result.stderr)
+
+    def test_shell_path_validator_accepts_the_current_root_owned_system_python(self) -> None:
+        helper = PROJECT / "scripts" / "rt054_pure_local_path_validation.sh"
+        result = subprocess.run(
+            ["/bin/sh", "-c", '. "$1"; rt054_validate_candidate /usr/bin/python3', "sh", str(helper)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_makefile_ignores_direct_and_makeflags_injection_in_dry_run(self) -> None:
         canary = "RT054_CANARY_MUST_NOT_APPEAR"
@@ -136,6 +177,23 @@ class RT054PureLocalTests(unittest.TestCase):
                 route()
             self.assertEqual(counter["dotenv"], before + 1)
         counter["dotenv"] = 0
+
+    def test_socket_connect_ex_is_blocked_inside_pure_local_child(self) -> None:
+        if os.environ.get("CWK_RT054_PURE_LOCAL") != "1":
+            self.skipTest("requires the fixed pure-local child")
+        import builtins
+        import socket
+
+        counter = builtins._rt054_pure_local_guard["counts"]
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            before = counter["socket"]
+            with self.assertRaisesRegex(AssertionError, r"^RT054_GUARD external socket$"):
+                sock.connect_ex(("127.0.0.1", 9))
+            self.assertEqual(counter["socket"], before + 1)
+        finally:
+            sock.close()
+        counter["socket"] = 0
 
 
 if __name__ == "__main__":
