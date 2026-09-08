@@ -12,7 +12,7 @@ created_at: 2026-09-07T00:00:00Z
 updated_at: 2026-09-07T00:00:00Z
 closed_at: null
 notes: >
-  仅诊断和方案。基线为 origin/main 0033b26；RT-053 在独立工作区并行，
-  本 RT 不读取、修改或依赖其未合并内容。方案门未通过：不得改产品代码、测试、
-  NAS、生产配置或部署。独立 Codex 评审 GO-WITH-CHANGES 的八项意见已收敛进
-  rt-lite.md；P0 数据完成前不得锁定最终实现。
+  仅诊断和方案。main/origin/main=09c8aff（已含 RT-053）；本分支 merge HEAD=d40e36b。
+  本 RT 不修改 RT-053 产品面。第二次独立 Codex 评审 GO-WITH-CHANGES：仅 P0 零写
+  诊断获准，P1b 仍 NO-GO；不得改产品代码、测试、OPS、NAS、生产配置或部署，且 P0
+  数据、writer fence、FileStation 恢复原语和 physical NAS 数值预算完成前不得锁定最终实现。
