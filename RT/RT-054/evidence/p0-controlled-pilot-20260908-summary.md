@@ -8,7 +8,7 @@ no protected source data in this evidence.
 
 The cold request took 24.122983625 seconds. Logical raw-index reads were 2
 (1,599,012 bytes total); the logical lexical read was 1 (1,495,220,459 bytes);
-the observer reported 6 download events and 1,496,819,471 successful-payload
+the observer reported 6 unexplained download events and 1,496,819,471 successful-payload
 bytes in aggregate. The latter equals the two logical payload totals, but the
 old observer lacked per-attempt success/error, payload min/max/total, retry
 ordinal and reason. Therefore it is unknown whether 6 denotes retries, distinct
