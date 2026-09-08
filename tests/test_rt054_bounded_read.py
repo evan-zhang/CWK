@@ -66,16 +66,29 @@ class BoundedReadTests(unittest.TestCase):
                 self.assertLessEqual(receipt.peak_in_memory_bytes, 3)
                 self.assertEqual(backend.read("raw/object"), payload)
 
-    def test_no_integrity_basis_is_refused_but_expected_sha_allows_stream(self):
-        raw = Raw(b"abcdef", length=None, version=None)
-        backend = self.filestation(lambda _req, **_kw: raw)
-        with self.assertRaisesRegex(storage.BoundedReadError, "bounded_read_unavailable"):
-            self.call(backend)
-        raw = Raw(b"abcdef", length=None, version=None)
-        backend = self.filestation(lambda _req, **_kw: raw)
-        receipt, copied = self.call(backend, expected_sha256=hashlib.sha256(b"abcdef").hexdigest())
-        self.assertEqual(copied, b"abcdef")
-        self.assertEqual(receipt.integrity_basis, "expected_sha256")
+    def test_integrity_basis_matrix_requires_both_trusted_length_and_version_or_matching_sha(self):
+        payload = b"abcdef"
+        digest = hashlib.sha256(payload).hexdigest()
+        for length, version, expected, result in (
+            (None, None, None, "bounded_read_unavailable"),
+            (len(payload), None, None, "bounded_read_unavailable"),
+            (None, "v1", None, "bounded_read_unavailable"),
+            (len(payload), "v1", None, "version_bound_length"),
+            (None, None, digest, "expected_sha256"),
+            (len(payload), None, digest, "expected_sha256"),
+            (None, "v1", digest, "expected_sha256"),
+            (len(payload), "v1", digest, "version_bound_length"),
+        ):
+            with self.subTest(length=length, version=version, expected=expected is not None):
+                raw = Raw(payload, length=length, version=version)
+                backend = self.filestation(lambda _req, **_kw: raw)
+                if result == "bounded_read_unavailable":
+                    with self.assertRaisesRegex(storage.BoundedReadError, result):
+                        self.call(backend, expected_sha256=expected)
+                else:
+                    receipt, copied = self.call(backend, expected_sha256=expected)
+                    self.assertEqual(copied, payload)
+                    self.assertEqual(receipt.integrity_basis, result)
 
     def test_sha_mismatch_truncation_and_growth_fail_without_receipt(self):
         for raw, expected, code, cap in (
@@ -90,7 +103,7 @@ class BoundedReadTests(unittest.TestCase):
                 self.assertTrue(raw.closed)
                 self.assertEqual(backend.legacy_downloads, 0)
 
-    def test_total_six_attempts_including_login_reopens_each_time(self):
+    def test_total_six_attempts_including_login_reopens_each_time_and_blocks_a_seventh_download(self):
         calls, raws = [], []
         def opener(_req, **_kw):
             calls.append(1)
@@ -104,6 +117,20 @@ class BoundedReadTests(unittest.TestCase):
         self.assertEqual(len(calls), 5)
         self.assertEqual(receipt.transport_attempts["login"], {"success": 1, "error": 0})
         self.assertEqual(receipt.transport_attempts["download"], {"success": 1, "error": 4})
+        self.assertEqual(sum(sum(v.values()) for v in receipt.transport_attempts.values()), 6)
+
+        login_calls, download_calls = [], []
+        backend = self.filestation(lambda _req, **_kw: download_calls.append(1))
+        def login(_request, **_kwargs):
+            login_calls.append(1)
+            if len(login_calls) <= 5:
+                raise storage.TransientStorageError("private detail")
+            return b'{"success":true,"data":{"sid":"fake"}}'
+        backend._transport = login
+        with self.assertRaisesRegex(storage.BoundedReadError, "transient_exhausted"):
+            self.call(backend)
+        self.assertEqual(len(login_calls), 6)
+        self.assertEqual(download_calls, [])
 
     def test_after_first_chunk_transient_is_not_retried_or_spliced(self):
         class BreakAfterFirst(Raw):
@@ -216,6 +243,20 @@ class BoundedReadTests(unittest.TestCase):
         # fallback is possible.
         self.assertFalse(raw.closed)
         self.assertEqual(backend.legacy_downloads, 0)
+
+        # A cancellation that arrives after the first transient control call
+        # prevents a second login request and remains redacted.
+        login_calls, cancelled = [], [False]
+        backend = self.filestation(lambda _req, **_kw: (_ for _ in ()).throw(AssertionError("download opened")))
+        def login(_request, **_kwargs):
+            login_calls.append(1)
+            cancelled[0] = True
+            raise storage.TransientStorageError("private detail")
+        backend._transport = login
+        with self.assertRaisesRegex(storage.BoundedReadError, "cancelled") as raised:
+            self.call(backend, cancel=lambda: cancelled[0])
+        self.assertNotIn("private", str(raised.exception))
+        self.assertEqual(len(login_calls), 1)
 
     def test_cancel_after_delivery_closes_raw_stream_without_partial_receipt(self):
         raw, cancelled = Raw(b"abcdef"), [False]

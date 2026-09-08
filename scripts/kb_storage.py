@@ -77,6 +77,7 @@ from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Prot
 
 SCHEMA = "cwk.kb.storage.v1"
 MAX_ERROR_ENVELOPE_BYTES = 8192
+BOUNDED_TRANSPORT_ATTEMPT_BUDGET = 6
 
 # Environment variables that carry NAS credentials.  Nothing else in this
 # repository may hold them; see KB-PARAMETERS §F.5.
@@ -232,7 +233,7 @@ def _bounded_read(
     path: str, *, max_bytes: int, chunk_size: int, deadline: float,
     cancel: Callable[[], bool], expected_sha256: Optional[str],
     on_chunk: Callable[[bytes], None], open_source: Callable[[float], _BoundedSource],
-    require_tls_pin: bool = False, max_attempts: int = 6,
+    require_tls_pin: bool = False, max_attempts: int = BOUNDED_TRANSPORT_ATTEMPT_BUDGET,
     control_attempts: Optional[Dict[str, Dict[str, int]]] = None,
 ) -> BoundedReadReceipt:
     """Shared callback-only bounded reader; it never owns consumer memory."""
@@ -279,7 +280,7 @@ def _bounded_read(
             current = (source.length, source.version)
             if baseline is None:
                 baseline = current
-                if source.length is None and expected_sha256 is None:
+                if (source.length is None or source.version is None) and expected_sha256 is None:
                     raise BoundedReadError("bounded_read_unavailable")
                 if source.length is not None and source.length < 0:
                     raise BoundedReadError("bounded_read_unavailable")
@@ -287,7 +288,7 @@ def _bounded_read(
                     raise BoundedReadError("capacity_exceeded")
             elif current != baseline:
                 raise BoundedReadError("integrity_mismatch")
-            if source.length is None and expected_sha256 is None:
+            if (source.length is None or source.version is None) and expected_sha256 is None:
                 raise BoundedReadError("bounded_read_unavailable")
 
             while True:
@@ -1153,7 +1154,9 @@ class FileStationBackend:
             # are local synchronous test doubles, never a production fallback.
             return self._transport(request)
 
-    def _bounded_login(self, deadline: float, attempts: Dict[str, Dict[str, int]]) -> str:
+    def _bounded_login(
+        self, deadline: float, attempts: Dict[str, Dict[str, int]], cancel: Callable[[], bool],
+    ) -> str:
         if self._sid:
             return self._sid
         query = urllib.parse.urlencode({
@@ -1164,7 +1167,18 @@ class FileStationBackend:
         request = urllib.request.Request(
             f"{self._base_url()}/auth.cgi", data=query.encode("utf-8"), method="POST"
         )
-        while sum(v["success"] + v["error"] for v in attempts.values()) < 6:
+        def check() -> None:
+            try:
+                cancelled = cancel()
+            except BaseException:
+                raise BoundedReadError("cancelled") from None
+            if cancelled:
+                raise BoundedReadError("cancelled")
+            if time.monotonic() >= deadline:
+                raise BoundedReadError("deadline_exceeded")
+
+        while sum(v["success"] + v["error"] for v in attempts.values()) < BOUNDED_TRANSPORT_ATTEMPT_BUDGET:
+            check()
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise BoundedReadError("deadline_exceeded")
@@ -1180,6 +1194,9 @@ class FileStationBackend:
                 return sid
             except TransientStorageError:
                 attempts["login"]["error"] += 1
+                # Check before the next retry; do not open another request
+                # after a cancellation or elapsed deadline.
+                check()
                 continue
             except (UnicodeDecodeError, json.JSONDecodeError, StorageError):
                 attempts["login"]["error"] += 1
@@ -1483,7 +1500,7 @@ class FileStationBackend:
             raise
         except BaseException:
             raise BoundedReadError("cancelled") from None
-        sid = self._bounded_login(deadline, control_attempts)
+        sid = self._bounded_login(deadline, control_attempts, cancel)
 
         def open_source(timeout: float) -> _BoundedSource:
             # Control and body share one monotonic deadline and one six-call
@@ -1510,12 +1527,16 @@ class FileStationBackend:
             )
 
         used = sum(v["success"] + v["error"] for v in control_attempts.values())
-        # Login already consumed its exact share of the six-call total.
+        # Login, API and body opens share one hard budget.  Exhausting it on
+        # the control plane must not permit even one object download.
+        if used >= BOUNDED_TRANSPORT_ATTEMPT_BUDGET:
+            raise BoundedReadError("transient_exhausted")
         return _bounded_read(
             safe, max_bytes=max_bytes, chunk_size=chunk_size, deadline=deadline,
             cancel=cancel, expected_sha256=expected_sha256, on_chunk=on_chunk,
             open_source=open_source, require_tls_pin=bool(self.cert_sha256),
-            max_attempts=max(1, 6 - used), control_attempts=control_attempts,
+            max_attempts=BOUNDED_TRANSPORT_ATTEMPT_BUDGET - used,
+            control_attempts=control_attempts,
         )
 
     def _remote_exists(self, remote: str) -> bool:

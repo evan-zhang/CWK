@@ -156,8 +156,8 @@ gateway 在授权后读取 P0 ready pointer；在评分**前**再次读取/比�
 ## 验证
 
 - **本轮已完成**：受限读取已经实现；独立复审发现默认 streaming 仅 fake、envelope 绕预算、控制面脱离 deadline/attempt、cancel 泄漏及 coverage 缺口六项阻断，本轮逐项返修。默认 streaming 现为真实 raw response，pin 在同一验证 socket；所有 bounded response/connection 路径关闭。未调用生产、NAS、真实 token、真实 builder 或真实 gateway。
-- **验证实录（2026-09-08）**：独立评审曾记录 `make test`: 2419 tests in 166.519s, skipped 9, exit 0；这只是历史评审证据。当前受限读取定向组合为 **84 tests / OK**：18 bounded-read + 50 storage + 16 P0（先前的 **79 = 13 + 50 + 16** 是返修前计数）；本轮完整 `make test` 为 **2447 tests / OK, skipped=9, 164.482s, exit 0**。真实 pilot、NAS、凭据和 P1b 未测且仍 NO-GO。
-- **受限读取本地验收（2026-09-08，本次）**：仅以 LocalFS、Memory 和 fake FileStation/raw socket 实现并验证单一 callback `read_bounded`；旧 `read` 与 injected bytes transport 保持不变。定向组合为 **84 tests / OK**。静态 guard 证明 gateway/builder/ingest 无 `read_bounded` 接线；未接 P1b、pointer/cache/writer fence/search route，未调用 NAS、生产、凭据或真实 payload。P0 safe sink 仍未实现；任何将来的接线须另有独立工作集上限。
+- **验证实录（2026-09-08）**：独立评审曾记录 `make test`: 2419 tests in 166.519s, skipped 9, exit 0；这只是历史评审证据。当前受限读取定向组合为 **85 tests / OK**：19 bounded-read + 50 storage + 16 P0（先前的 **84 = 18 + 50 + 16** 是返修前计数）；本次复审返修后的完整 `make test` 为 **2448 tests / OK, skipped=9, 162.980s, exit 0**。真实 pilot、NAS、凭据和 P1b 未测且仍 NO-GO。
+- **受限读取本地验收（2026-09-08，本次）**：仅以 LocalFS、Memory 和 fake FileStation/raw socket 实现并验证单一 callback `read_bounded`；旧 `read` 与 injected bytes transport 保持不变。定向组合为 **85 tests / OK**。静态 guard 证明 gateway/builder/ingest 无 `read_bounded` 接线；未接 P1b、pointer/cache/writer fence/search route，未调用 NAS、生产、凭据或真实 payload。P0 safe sink 仍未实现；任何将来的接线须另有独立工作集上限。
 - **当前授权边界**：P0 零写诊断获允许；P1b 仍 NO-GO，必须先通过 P0 数据、numeric physical budget、容量实测、writer 穷尽与 FileStation 排他/恢复原语方案门。任何未完成数据只能标未测，不能称性能已治理。
 - **AI 评审**：实现收口前独立复核所有 writer 是否接入 fence、回滚是否能重放旧代、指针是否真为单一权威、限额是否在下载/解析前、性能判据能否被 cache/timeout 假绿。
 
