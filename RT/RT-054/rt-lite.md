@@ -156,8 +156,8 @@ gateway 在授权后读取 P0 ready pointer；在评分**前**再次读取/比�
 ## 验证
 
 - **本轮已完成**：受限读取已经实现；独立复审发现默认 streaming 仅 fake、envelope 绕预算、控制面脱离 deadline/attempt、cancel 泄漏及 coverage 缺口六项阻断，本轮逐项返修。默认 streaming 现为真实 raw response，pin 在同一验证 socket；所有 bounded response/connection 路径关闭。未调用生产、NAS、真实 token、真实 builder 或真实 gateway。
-- **验证实录（2026-09-08）**：独立评审曾记录 `make test`: 2419 tests in 166.519s, skipped 9, exit 0；这只是历史评审证据。当前受限读取定向组合为 **85 tests / OK**：19 bounded-read + 50 storage + 16 P0（先前的 **84 = 18 + 50 + 16** 是返修前计数）；本次复审返修后的完整 `make test` 为 **2448 tests / OK, skipped=9, 162.980s, exit 0**。真实 pilot、NAS、凭据和 P1b 未测且仍 NO-GO。
-- **受限读取本地验收（2026-09-08，本次）**：仅以 LocalFS、Memory 和 fake FileStation/raw socket 实现并验证单一 callback `read_bounded`；旧 `read` 与 injected bytes transport 保持不变。定向组合为 **85 tests / OK**。静态 guard 证明 gateway/builder/ingest 无 `read_bounded` 接线；未接 P1b、pointer/cache/writer fence/search route，未调用 NAS、生产、凭据或真实 payload。P0 safe sink 仍未实现；任何将来的接线须另有独立工作集上限。
+- **验证实录（2026-09-08）**：独立评审曾记录 `make test`: 2419 tests in 166.519s, skipped 9, exit 0；这只是历史评审证据。本轮受限读取定向组合为 **87 tests / OK**：21 bounded-read + 50 storage + 16 P0（此前 85 = 19 + 50 + 16）；完整 `make test` 为 **2450 tests / OK, skipped=9, 188.815s**。本次 B-01 回归新增「首 `{` 后 cancel/deadline」两例：每次 envelope 底层 raw read 前后均执行同一脱敏 cancel/deadline 检查，首 read 返回后触发即关闭，不进行第二次 raw read，且不能被 FileStation envelope 覆盖。真实 pilot、NAS、凭据和 P1b 未测且仍 NO-GO。
+- **受限读取本地验收（2026-09-08，本次）**：仅以 LocalFS、Memory 和 fake FileStation/raw socket 实现并验证单一 callback `read_bounded`；旧 `read` 与 injected bytes transport 保持不变。定向组合为 **87 tests / OK**。静态 guard 证明 gateway/builder/ingest 无 `read_bounded` 接线；未接 P1b、pointer/cache/writer fence/search route，未调用 NAS、生产、凭据或真实 payload。P0 safe sink 仍未实现；任何将来的接线须另有独立工作集上限。
 - **当前授权边界**：P0 零写诊断获允许；P1b 仍 NO-GO，必须先通过 P0 数据、numeric physical budget、容量实测、writer 穷尽与 FileStation 排他/恢复原语方案门。任何未完成数据只能标未测，不能称性能已治理。
 - **AI 评审**：实现收口前独立复核所有 writer 是否接入 fence、回滚是否能重放旧代、指针是否真为单一权威、限额是否在下载/解析前、性能判据能否被 cache/timeout 假绿。
 
@@ -171,6 +171,7 @@ gateway 在授权后读取 P0 ready pointer；在评分**前**再次读取/比�
 - 2026-09-08：完整独立评审裁决 P0 未完成、P1b NO-GO。把受限读取合同列为任何再次约 1.5GB 下载前的唯一最小前置：现有 `read/_download/transport` 都会完整物化 response，故要求新的 urllib/HTTPS response streaming 边界，否则 fail-closed 拒绝；本轮只改方案，不改产品代码/测试，不访问 NAS/生产。
 - 2026-09-08：按新增独立评审阻断意见重写 bounded-read 合同：唯一 callback API 与 `expected_sha256`、callback 所有权、固定脱敏 code/完整 receipt、首 chunk 后零重试、可信完整性、每 read 上限、阻塞 deadline/cancel、FileStation 有界 envelope、consumer 内存边界和拒绝接线护栏全部可由 fake matrix 证伪。证据仍仅称 **6 个无法解释的 download events**；现有验证仍仅为 **16 个 P0 tests**，不冒充新合同验收。四道门保持 P1b NO-GO。
 - 2026-09-08：受限读取实施后独立复审发现六项阻断；本轮返修真实 unpinned/pinned raw streaming、envelope 逐 read 预算、统一 control/body monotonic deadline 与总 attempts、cancel 脱敏、close 和本地 fake coverage。仅本地验证；P0 pilot 与 P1b 继续 NO-GO。
+- 2026-09-08：第三次复审唯一阻断 B-01：FileStation brace-envelope lookahead 曾在首 raw chunk 后绕过外层 cancel/deadline 检查。现将同一脱敏安全检查传入 wrapper，并置于每一次底层 raw read 前后；新增 cancel 与 deadline 的完整错误 envelope、`chunk_size=1` 回归，证明首 read 后触发时无 lookahead、stream/connection 关闭、无 callback delivery/receipt，结果仅为 `cancelled` 或 `deadline_exceeded`。仅本地 fake 验证；真实 pilot 与 P1b 继续 NO-GO。
 
 ## 遗留事项
 

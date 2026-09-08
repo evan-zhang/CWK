@@ -189,6 +189,78 @@ class BoundedReadTests(unittest.TestCase):
                     self.call(self.filestation(lambda _req, **_kw: raw), max_bytes=len(body) + 1, chunk_size=1)
                 self.assertTrue(all(size <= 1 for size in raw.read_sizes) if body.startswith(b"{") else True)
 
+    def test_brace_envelope_cancel_after_first_raw_read_closes_before_lookahead(self):
+        cancelled, delivered = [False], []
+
+        class Connection:
+            closed = False
+
+            def close(self):
+                self.closed = True
+
+        class CancelAfterFirstBrace(Raw):
+            def __init__(self):
+                super().__init__(b'{"success":false,"error":{"code":1}}')
+                self.connection = Connection()
+
+            def read(self, size):
+                chunk = super().read(size)
+                if len(self.read_sizes) == 1:
+                    cancelled[0] = True
+                return chunk
+
+            def close(self):
+                super().close()
+                self.connection.close()
+
+        raw = CancelAfterFirstBrace()
+        backend = self.filestation(lambda _req, **_kw: raw)
+        backend.write = lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("write trap"))
+        with self.assertRaisesRegex(storage.BoundedReadError, "^cancelled$") as raised:
+            self.call(backend, chunk_size=1, cancel=lambda: cancelled[0], on_chunk=delivered.append)
+        self.assertEqual(raised.exception.code, "cancelled")
+        self.assertEqual(len(raw.read_sizes), 1)
+        self.assertTrue(raw.closed)
+        self.assertTrue(raw.connection.closed)
+        self.assertEqual(delivered, [])
+        self.assertEqual(backend.legacy_downloads, 0)
+
+    def test_brace_envelope_deadline_after_first_raw_read_closes_before_lookahead(self):
+        delivered = []
+
+        class Connection:
+            closed = False
+
+            def close(self):
+                self.closed = True
+
+        class DeadlineAfterFirstBrace(Raw):
+            def __init__(self, data):
+                super().__init__(data)
+                self.connection = Connection()
+
+            def read(self, size):
+                chunk = super().read(size)
+                if len(self.read_sizes) == 1:
+                    time.sleep(0.01)
+                return chunk
+
+            def close(self):
+                super().close()
+                self.connection.close()
+
+        raw = DeadlineAfterFirstBrace(b'{"success":false,"error":{"code":1}}')
+        with self.assertRaisesRegex(storage.BoundedReadError, "^deadline_exceeded$") as raised:
+            self.call(
+                self.filestation(lambda _req, **_kw: raw), chunk_size=1,
+                deadline=time.monotonic() + 0.001, on_chunk=delivered.append,
+            )
+        self.assertEqual(raised.exception.code, "deadline_exceeded")
+        self.assertEqual(len(raw.read_sizes), 1)
+        self.assertTrue(raw.closed)
+        self.assertTrue(raw.connection.closed)
+        self.assertEqual(delivered, [])
+
     def test_pin_is_checked_on_every_retry_and_legacy_download_is_never_used(self):
         calls = []
         def opener(_req, **_kw):
@@ -243,6 +315,24 @@ class BoundedReadTests(unittest.TestCase):
         # fallback is possible.
         self.assertFalse(raw.closed)
         self.assertEqual(backend.legacy_downloads, 0)
+
+        callback_failed = [False]
+        class CallbackFailsAfterFirstBrace(Raw):
+            def read(self, size):
+                chunk = super().read(size)
+                if len(self.read_sizes) == 1:
+                    callback_failed[0] = True
+                return chunk
+        raw = CallbackFailsAfterFirstBrace(b'{"success":false,"error":{"code":1}}')
+        with self.assertRaisesRegex(storage.BoundedReadError, "^cancelled$") as raised:
+            self.call(
+                self.filestation(lambda _req, **_kw: raw), chunk_size=1,
+                cancel=lambda: (_ for _ in ()).throw(RuntimeError("secret cancel"))
+                if callback_failed[0] else False,
+            )
+        self.assertNotIn("secret", str(raised.exception))
+        self.assertEqual(len(raw.read_sizes), 1)
+        self.assertTrue(raw.closed)
 
         # A cancellation that arrives after the first transient control call
         # prevents a second login request and remains redacted.

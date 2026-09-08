@@ -196,9 +196,17 @@ class _FileStationEnvelope(StorageError):
 class _FileStationPayloadStream:
     """Fail closed on a brace-prefixed FileStation response before delivery."""
 
-    def __init__(self, raw: Any) -> None:
+    def __init__(self, raw: Any, check: Callable[[], None]) -> None:
         self.raw = raw
+        self._check = check
         self._first = True
+
+    def _read_raw(self, size: int) -> bytes:
+        """Check around every socket read, including envelope lookahead."""
+        self._check()
+        chunk = self.raw.read(size)
+        self._check()
+        return chunk
 
     def read(self, size: int) -> bytes:
         # ``size`` is the bounded reader's exact remaining-budget probe.  In
@@ -206,14 +214,14 @@ class _FileStationPayloadStream:
         # probe into an arbitrary 4 KiB socket read.
         if not isinstance(size, int) or size <= 0:
             return b""
-        chunk = self.raw.read(size)
+        chunk = self._read_raw(size)
         if not self._first or not chunk or chunk[:1] != b"{":
             self._first = False
             return chunk
         self._first = False
         buffered = bytearray(chunk)
         while len(buffered) <= MAX_ERROR_ENVELOPE_BYTES:
-            more = self.raw.read(min(size, MAX_ERROR_ENVELOPE_BYTES + 1 - len(buffered)))
+            more = self._read_raw(min(size, MAX_ERROR_ENVELOPE_BYTES + 1 - len(buffered)))
             if not more:
                 try:
                     payload = json.loads(bytes(buffered).decode("utf-8"))
@@ -232,7 +240,8 @@ class _FileStationPayloadStream:
 def _bounded_read(
     path: str, *, max_bytes: int, chunk_size: int, deadline: float,
     cancel: Callable[[], bool], expected_sha256: Optional[str],
-    on_chunk: Callable[[bytes], None], open_source: Callable[[float], _BoundedSource],
+    on_chunk: Callable[[bytes], None],
+    open_source: Callable[[float, Callable[[], None]], _BoundedSource],
     require_tls_pin: bool = False, max_attempts: int = BOUNDED_TRANSPORT_ATTEMPT_BUDGET,
     control_attempts: Optional[Dict[str, Dict[str, int]]] = None,
 ) -> BoundedReadReceipt:
@@ -274,7 +283,7 @@ def _bounded_read(
             remaining_timeout = deadline - time.monotonic()
             if remaining_timeout <= 0:
                 raise BoundedReadError("deadline_exceeded")
-            source = open_source(remaining_timeout)
+            source = open_source(remaining_timeout, check)
             if require_tls_pin and not source.tls_verified:
                 raise BoundedReadError("tls_verification_failed")
             current = (source.length, source.version)
@@ -527,7 +536,7 @@ class LocalFSBackend:
     ) -> BoundedReadReceipt:
         safe = normalize_path(path)
 
-        def open_source(_timeout: float) -> _BoundedSource:
+        def open_source(_timeout: float, _check: Callable[[], None]) -> _BoundedSource:
             target = self._path(safe)
             try:
                 handle = target.open("rb")
@@ -645,7 +654,7 @@ class MemoryBackend:
     ) -> BoundedReadReceipt:
         safe = normalize_path(path)
 
-        def open_source(_timeout: float) -> _BoundedSource:
+        def open_source(_timeout: float, _check: Callable[[], None]) -> _BoundedSource:
             if safe not in self.files:
                 raise NotFound()
             value = self.files[safe]
@@ -1502,7 +1511,7 @@ class FileStationBackend:
             raise BoundedReadError("cancelled") from None
         sid = self._bounded_login(deadline, control_attempts, cancel)
 
-        def open_source(timeout: float) -> _BoundedSource:
+        def open_source(timeout: float, check: Callable[[], None]) -> _BoundedSource:
             # Control and body share one monotonic deadline and one six-call
             # budget.  The body itself remains on the raw stream seam.
             merged = {
@@ -1522,7 +1531,7 @@ class FileStationBackend:
                 version = None
             tls_verified = bool(getattr(raw, "tls_verified", not self.cert_sha256))
             return _BoundedSource(
-                _FileStationPayloadStream(raw), length, version, tls_verified,
+                _FileStationPayloadStream(raw, check), length, version, tls_verified,
                 getattr(raw, "wire_bytes", "unknown"),
             )
 
