@@ -8,7 +8,8 @@ SMOKE_RUN ?= ci-smoke
 SMOKE_DATE ?= 2026-01-01
 SMOKE_AI_RUN ?= ci-smoke-ai
 SMOKE_AI_DEGRADED_RUN ?= ci-smoke-ai-degraded
-RT054_TESTS ?= test_rt054_bounded_read test_kb_storage test_rt054_p0 test_rt054_pure_local
+# This closed search deliberately ignores $(PYTHON) and the operator's PATH.
+override RT054_PYTHON := $(shell for p in /opt/homebrew/bin/python3 /usr/local/bin/python3 /usr/bin/python3; do test -x $$p && { echo $$p; break; }; done)
 
 doctor:
 	$(PYTHON) scripts/cwk_doctor.py --check-only --config skill/templates/CONFIG.example.json
@@ -47,7 +48,7 @@ test-full:
 # The runner rebuilds the child environment from a minimal whitelist and
 # forcibly selects the pure-local NAS-smoke gate before importing tests.
 rt054-pure-local:
-	$(PYTHON) scripts/rt054_pure_local.py $(RT054_TESTS)
+	/usr/bin/env -i PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin HOME=/tmp LANG=C LC_ALL=C $(RT054_PYTHON) $(CURDIR)/scripts/rt054_pure_local.py
 
 # 方法层自检：AODW 框架 fixture + 受管 RT 门禁 + RT 花名册一致性。
 # 判据和作用域都写在 .aodw-next/ 里，这里只留一个稳定入口。

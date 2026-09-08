@@ -315,7 +315,7 @@
       "management_domain": "cwk-governance-v1",
       "change_entry": "RT → rt-lite.md → tests/test_rt054_p0.py + tests/test_rt054_pure_local.py + make rt054-pure-local + make governance-audit",
       "evolution_path": "repo-standard-change",
-      "rationale": "RT-054 P0 的默认关闭、零持久写分段诊断、仅合成夹具离线 postings 对照，及 bounded-read 验收的纯本地子进程入口。runner 仅从最小白名单重建环境并强制 NAS smoke skip；scripts/ 是 exact-only 区，故三个实际存在的新增脚本逐条登记；不预登记 P1b pointer、epoch、cache 或存储文件。"
+      "rationale": "RT-054 P0 的默认关闭、零持久写分段诊断、仅合成夹具离线 postings 对照，及 bounded-read 验收的纯本地子进程入口。runner 使用固定 Make outer env、绝对解释器 -I -S bootstrap、受控临时 HOME/TMPDIR 与 socket/FileStation/.env fail-closed trap，并强制 NAS smoke skip；scripts/ 是 exact-only 区，故三个实际存在的新增脚本逐条登记；不预登记 P1b pointer、epoch、cache 或存储文件。"
     },
     {
       "id": "R-runtime-adapters",
@@ -336,7 +336,7 @@
       "sensitive": true,
       "pin": {
         "mode": "100644",
-        "sha256": "68ea1ff1f73c234950e44394e1dccef93e698ce9f3ed2edadcf1b4629892d4d3"
+        "sha256": "1b8ebf862f8661e6b707b911205213775e699f451cfcd7aee47bf51feb2923d9"
       },
       "owner": "RT-030",
       "management_domain": "cwk-governance-v1",
