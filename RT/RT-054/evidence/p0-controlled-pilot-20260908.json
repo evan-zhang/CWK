@@ -1,0 +1,59 @@
+{
+  "schema": "cwk.kb.p0.evidence-bundle.v1",
+  "run_scope": "local_in_process_gatewayapp_filestation_read_only",
+  "cold_definition": "fresh GatewayApp and FileStationBackend process objects; no prior lexical cache or backend SID in this run",
+  "hot_definition": "same GatewayApp and FileStationBackend after a successful cold response; not run when cold failed",
+  "records": [
+    {
+      "schema": "cwk.kb.p0.diagnostic.v1",
+      "kb_anonymous": "d368da84b61b",
+      "generation_suffix": null,
+      "docs": 491,
+      "chunks": null,
+      "query_category": "unicode_len_0_15",
+      "state": "cold_legacy_payload",
+      "stages": {
+        "auth": {"self_elapsed_ns": 3459, "total_elapsed_ns": 3459, "count": 1, "errors": 0, "payload_bytes": null},
+        "raw_index_logical_read": {"self_elapsed_ns": 496361791, "total_elapsed_ns": 496361791, "count": 2, "errors": 0, "payload_bytes": 1599012},
+        "lexical_logical_read": {"self_elapsed_ns": 18997745917, "total_elapsed_ns": 18997745917, "count": 1, "errors": 0, "payload_bytes": 1495220459},
+        "json_decode": {"self_elapsed_ns": 4520568500, "total_elapsed_ns": 23972233292, "count": 2, "errors": 0, "payload_bytes": null},
+        "structure_recovery": {"self_elapsed_ns": null, "total_elapsed_ns": null, "count": 0, "errors": 0, "payload_bytes": null},
+        "metadata": {"self_elapsed_ns": 577250, "total_elapsed_ns": 577250, "count": 1, "errors": 0, "payload_bytes": null},
+        "tokenize_bm25_span": {"self_elapsed_ns": null, "total_elapsed_ns": null, "count": 0, "errors": 0, "payload_bytes": null},
+        "rrf": {"self_elapsed_ns": null, "total_elapsed_ns": null, "count": 0, "errors": 0, "payload_bytes": null},
+        "json_encode": {"self_elapsed_ns": 122833, "total_elapsed_ns": 122833, "count": 1, "errors": 0, "payload_bytes": null}
+      },
+      "logical": {"raw_index_reads": 2, "lexical_reads": 1, "gateway_writes": 0},
+      "physical": {
+        "login": {"count": 2, "wire_bytes": null, "payload_bytes": 238, "reason": null},
+        "api": {"count": null, "wire_bytes": null, "payload_bytes": null, "reason": "storage_backend_transport_not_observable"},
+        "download": {"count": 6, "wire_bytes": null, "payload_bytes": 1496819471, "reason": null},
+        "retry": {"count": null, "wire_bytes": null, "payload_bytes": null, "reason": "storage_backend_transport_not_observable"}
+      },
+      "end_to_end_ns": 24122983625,
+      "measured_self_time_sum_ns": 24015379750,
+      "measured_parent_total_sum_ns": 43467044542,
+      "unattributed_ns": 107603875,
+      "overlap_ns": 19344060917,
+      "stage_error_ns": 107603875,
+      "rss_peak_bytes": 5461835776,
+      "error_category": "lexical_unavailable",
+      "write_trap_writes": 0
+    }
+  ],
+  "summary": {
+    "attempted_records": 1,
+    "valid_success_records": 0,
+    "error_records": 1,
+    "timeout_records": 0,
+    "hot_records": 0,
+    "other_library_records": 0,
+    "percentiles": {"p50": null, "p95": null, "reason": "n_lt_20"},
+    "max": {"end_to_end_ns": 24122983625, "physical_download_payload_bytes": 1496819471, "rss_peak_bytes": 5461835776},
+    "physical_payload_budget_candidate": null,
+    "wire_budget_candidate": null,
+    "root_cause_distribution": {"lexical_unavailable": 1},
+    "safety_stop": "first cold error required six download attempts and 1496819471 payload bytes; no hot, second-library, or 20-sample replay was run",
+    "p1b_status": "NO_GO"
+  }
+}
