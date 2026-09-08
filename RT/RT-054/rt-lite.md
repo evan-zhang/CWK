@@ -1,15 +1,15 @@
 # RT-Lite: RT-054 - 大库词法融合检索快照/预计算性能治理
 
 > profile: Spec-Lite | execution_mode: collaborative
-> 唯一方案权威。三层采样方法方向成立，但 P0 尚未完成；P1b 仍不是实现授权。
+> 唯一方案权威。受限读取已实现并经本地 fake 验证；独立复审随后发现六项实现阻断，本轮已返修。P0 尚未完成，P1b 仍不是实现授权。
 
 ## 方案（给人看）
 
-- **做什么**：采纳完整独立评审裁决：三层 P0 采样方向成立、但 P0 未完成，P1b 仍是 **NO-GO**。在任何再次取得约 1.5GB 对象前，唯一最小下一动作是设计、独立评审并以本地 fake 验证 `StorageBackend`/FileStation 的受限读取合同；它只为 P0 安全采样和未来 snapshot 路径铺路，不解锁全部 P1b。
+- **做什么**：采纳独立复审的六项返修阻断：完成并以本地 fake 验证 `StorageBackend`/FileStation 的受限读取合同，包含真实 raw streaming、严格字节预算、统一 deadline/attempt、取消脱敏与全路径关闭。三层 P0 方向成立、但 P0 未完成，P1b 仍是 **NO-GO**。
 - **为什么**：用户提供的生产观察是 cwork-3m（482 docs、66,500 chunks）在 `q=会议`、`lexical_fusion_v1`、`page_size=1` 下功能正确（`total=121`、generation `eabcb725…`），冷请求 425.685s、后续一笔 300s 超时；spbp（128 docs）也有 60s+。这些数字证明有严重问题，**尚不能证明 NAS 是首因**。静态代码还发现 BM25 当前会在每个 chunk 评分时重算全库 `avgdl` 并重分词 query，最坏近似 O(chunks²)，故快照而不改算法不足以达标。
 - **推荐**：先完成受限读取合同；P0 的候选 postings 算法仅是离线/测试等价与计时基准，绝不接生产请求路径。只有该合同、本地验证和独立评审完成后，才可另行批准一库一次有界 P0 pilot；只有 P0 数据、正式 writer 清单、FileStation 可恢复协议、物理 NAS 数值预算和容量实测经方案门批准后，P1b 才可采用单库单写者、stale+epoch fence、双 collect 校验和一代一缓存的查询快照。
 - **代价**：写面必须统一经过 fence，builder 多一次一致性 collect 和额外不可变发布物；网关限定每库一代内存。代价换来可证明的换代、回滚、崩溃和拒绝旧结果，而非用 timeout 或猜测缓存掩盖问题。
-- **这次故意不做什么**：不改产品代码、测试、业务检索行为、timeout、NAS/生产或部署；不改 RT-053；不在 P0 数据完成前锁定最终实现；不把 P1a 正文分页/每次完整正文 SHA 验证混入本 RT；不做跨库、向量、FTS5、网关持久 cache 或隐式 metadata 降级；不解决 writer fence/CAS/migration、pointer/epoch/cache 或算法替换。P1b 继续 **NO-GO**。
+- **这次故意不做什么**：不改业务检索行为、NAS/生产或部署；不改 RT-053；不在 P0 数据完成前锁定最终实现；不把 P1a 正文分页/每次完整正文 SHA 验证混入本 RT；不做跨库、向量、FTS5、网关持久 cache 或隐式 metadata 降级；不接 gateway/builder/pointer/cache/writer/search，也不解决 writer fence/CAS/migration、pointer/epoch/cache 或算法替换。P1b 继续 **NO-GO**。
 - **用户怎样算成功**：批准实现且完成验收后，真实大库的冷/热融合搜索在固定时间、请求数、字节和内存上限内完成；源换代、撤权、错误/回放快照、双 builder、OOM 前置拒绝都不会返回旧候选。document_ref、span/read SHA、only-current、授权先于 I/O 和 GET 零持久写保持不变。
 - **建议**：**推荐**先只实施、独立评审并本地验证受限读取合同，而非进行再次下载或锁定 P1b。合同通过后才能安全取得可比较分段数据；若数据推翻网络首因假设，则按数据调整实现，不能拿本稿预设覆盖证据。
 
@@ -45,9 +45,9 @@ P0 仍是唯一可做的实现前诊断。2026-09-08 的唯一 cold 样本已证
 - 用脱敏的 docs/chunks/lengths/postings/term-frequency/tie 结构生成 corpus，对 legacy 与 postings scorer 做至少 20 次对照，逐项比较 rank/span，并报告分位数。它绝不读取 NAS、真实 KB、token 或 gateway。
 - 这只能证明同 shape、同算法原语的行为/成本，不替代真实内容、Unicode/token 分布、端到端 fusion 或真实 payload 的等价；完整成功路径仍要单列判据。
 
-### P0 安全前置：受限读取合同（本轮只设计，不实施）
+### P0 安全前置：受限读取合同（已实施；仅本地 fake 验证）
 
-这是 P0 安全采样的前置，不是 P1b 的解锁，也不改变既有 `read(path) -> bytes` 的默认行为。静态核对 `scripts/kb_storage.py` 发现三种后端的 `read` 都返回完整 `bytes`；FileStation 的 `_download()`、未 pin 的 `_https_transport()` 和 pin 的 `_pinned_transport()` 都先完整 `response.read()`。故当前能力**不能**用于有界读，也不能以读完后截断冒充上限。
+这是 P0 安全采样的前置，不是 P1b 的解锁，也不改变既有 `read(path) -> bytes` 的默认行为。三种后端的旧 `read` 仍返回完整 `bytes`；bounded-read 独立使用 raw-response seam：未 pin 为真实 `urlopen` response，pin 为同一已验证 `HTTPSConnection` 的 response，均逐块读取并关闭，绝不以旧 `read/_download` 回退或读完后截断冒充上限。
 
 - **唯一 API（不承诺 iterator）**：新增且显式 opt-in 的唯一入口固定为 `read_bounded(path, *, max_bytes, chunk_size, deadline, cancel, expected_sha256, on_chunk) -> BoundedReadReceipt`。它不返回 iterator，也没有第二个可替换流接口。实现先验证安全相对路径与参数，逐 chunk 增量 SHA-256；`expected_sha256` 是对象期望摘要。若没有同对象/同版本绑定的可信 length/version，调用者**必须**提供它，否则以 `bounded_read_unavailable` 拒绝。`on_chunk(chunk)` 的 bytes 只在该 callback 调用期间有效；consumer 不得保留引用，若要在 callback 后使用必须自行明确复制，且该复制及其内存不归 backend receipt 管控。callback 正常返回才表示接受该 chunk；抛异常则立即关闭、不给 receipt、以固定 `consumer_failed` 失败（不回显异常）。成功返回完整 receipt；所有失败/取消均抛 `BoundedReadError(code)`，不返回 partial receipt。
 - **固定的脱敏错误和 receipt**：唯一对外 code enum 是 `not_found | bounded_read_unavailable | capacity_exceeded | integrity_mismatch | incomplete_stream | deadline_exceeded | cancelled | transient_exhausted | transport_failed | tls_verification_failed | filestation_error | consumer_failed`。接口、receipt、日志都不得附带路径、URL、query、token、TLS fingerprint、response body 或底层异常原文。成功 receipt 的全字段是 `logical_read_id`（随机且不含对象身份）、`object_version`（仅可信且匿名化版本标识，否则 `unknown`）、`payload_bytes`、`sha256`、`expected_sha256_present`、`integrity_basis`（`version_bound_length | expected_sha256`）、`transport_attempts`（login/API/download 的 count 与固定 outcome code）、`wire_bytes`（可靠计数或 `unknown`）、`peak_in_memory_bytes`、`started_monotonic`、`finished_monotonic`、`deadline_met`、`cancelled=false`。它不含 consumer 已累计的 bytes，也不含 payload 或可定位身份。
@@ -56,9 +56,9 @@ P0 仍是唯一可做的实现前诊断。2026-09-08 的唯一 cold 样本已证
 - **FileStation 边界与 JSON error envelope**：最小改造是新的 raw-response streaming transport，不改变既有 bytes transport：未 pin 分支按限额读 `urlopen` response，pin 分支在同一已验证 pin 的 `HTTPSConnection` 按限额读。它只暴露 fakeable `open/read/close`、可信 version/length metadata 和 timeout；既有 `Callable[[Request], bytes]` fake 仍只服务旧 `read`。无可信 object/version-bound size 且没有 required expected SHA 时，真实 FileStation 必须 `bounded_read_unavailable`，不得猜测 metadata。错误 envelope 只使用有限前缀缓冲（`MAX_ERROR_ENVELOPE_BYTES` 为实现冻结上限）；仅当该前缀在上限内构成**精确且完整**的失败 envelope 才解释为 `filestation_error`。超过上限、截断、歧义、或以 `{` 开头但不是精确失败 envelope 的普通 JSON 都 fail-closed 为 `transport_failed`，不解析为错误详情、更不把它作为 payload 成功。
 - **内存、接线与可观测性边界**：`peak_in_memory_bytes` 只定义为 backend/transport 自有 buffer 的峰值（当前 chunk、协议/前缀 buffer 与 transport buffer）；不声称限制泛型 consumer。P0 A 只能接显式工作集上限的 sink；超过 B 的安全门时，A 不得把完整 bytes 交给 B。`payload_bytes` 仅是 backend 交付/消费量，`wire_bytes` 仅可靠时记录，否则 `unknown`，两者不得互推；RSS 另报。静态和行为护栏必须拒绝把该 API 接到 builder、pointer、cache、writer fence 或 search route；仅显式 P0 safe-sampling 和未来另行批准的 snapshot 路径可调用。合同不写磁盘、cache、日志或真实 payload；日志仅可有 receipt 允许字段和固定 code。
 
-**本地 fake 验收矩阵（尚未实施，不能由现有 16 个 P0 tests 冒充）**：LocalFS、Memory 与 fake FileStation 必须同义覆盖：(1) 首 chunk 前 transient 在 deadline 内至多第 6 attempt 成功；(2) 首 chunk 后 transient 为零 retry、失败且无成功 receipt；(3) preflight 后对象增长仍每 read `min(chunk_size, remaining+1)` 并 fail closed；(4) 无可信完整性依据、及 SHA mismatch/截断，均无成功；(5) 阻塞 read 的 deadline/cancel、timeout 限制和返回后关闭检查；(6) 每次 retry 重验 object pin/version 与 TLS pin；(7) 有界 error-envelope、超过/歧义 envelope 与 `{` 开头普通 JSON；(8) consumer 全量累积时 receipt 不误报为受控 consumer 内存；(9) 成功、失败、取消全为零写、零旧 `read`/`_download()` fallback、零敏感日志。每个负例须证明无 partial receipt、无 payload 持久化；WriteTrap 覆盖成功/失败/取消。
+**本地 fake 验收矩阵（已实施，不能替代真实 pilot）**：LocalFS、Memory 与 fake FileStation 覆盖：(1) login+download 总计至多 6 attempts、首 chunk 前 transient 重开成功；(2) 首 chunk 后 transient 为零 retry、失败且无成功 receipt；(3) 每次 raw read（含 `{` envelope 前缀/续读）不超过 `min(chunk_size, remaining+1)`，增长 fail closed；(4) 无可信完整性依据、SHA mismatch/截断均无成功；(5) deadline、cancel callback 异常脱敏、剩余 timeout 与返回后关闭；(6) retry version/TLS 重验、真实 pinned/unpinned adapter 的同 socket、timeout、close；(7) 有界/歧义 envelope 与 `{` 开头普通 JSON；(8) consumer copy 不误报为受控 consumer 内存；(9) 成功/失败/取消零写、零旧 fallback、零敏感日志，且静态 guard 保持 P1b 路径无接线。每个负例无 partial receipt 或 payload 持久化；三后端 WriteTrap 覆盖仍为范围内要求。
 
-**四道门**：修订后的合同须先再经独立评审；通过后才允许**仅**实施 bounded-read；实施后只可用 LocalFS、Memory、fake FileStation 做上述验证；全部通过后，真实一库一次 P0 pilot 仍须 Evan 明确授权。P1b 始终 **NO-GO**，不因任一门通过而自动解锁。
+**四道门（当前状态）**：合同的独立评审、仅实施 bounded-read 与 LocalFS/Memory/fake FileStation 验证均已完成；实施后复审发现的六项阻断亦已在本轮返修并重验。下一道且唯一未通过的门仍是 Evan 明确授权的一库一次真实 P0 pilot。P1b 始终 **NO-GO**，不因任一门通过而自动解锁。
 
 ### 新的 P1b 决策门
 
@@ -155,9 +155,9 @@ gateway 在授权后读取 P0 ready pointer；在评分**前**再次读取/比�
 
 ## 验证
 
-- **本轮已完成**：第二次独立评审 GO-WITH-CHANGES 后，完成最小 P0 诊断/离线 benchmark/测试修订：互斥 self-time、parent total、unattributed/overlap，默认关闭的响应等价和 WriteTrap，错误脱敏矩阵，及 FileStation opt-in transport observer。最新修订将 observer 升级为每类 attempt 的 success/error、payload min/max/total、retry ordinal/白名单原因；默认关闭，无生产行为改变。复核 `09c8aff` 已合并的 RT-053 token 路、当前 query/builder/storage、raw-index 静态写者和单线程 server。未调用生产、NAS、真实 token、真实 builder 或真实 gateway。
-- **验证实录（2026-09-08）**：独立评审曾记录 `make test`: 2419 tests in 166.519s, skipped 9, exit 0；这只是历史评审证据，不是本次结果。当前 `python3 -m unittest tests.test_rt054_p0` 为 **16 P0 tests / OK**；离线 `python3 scripts/kb_p0_benchmark.py` 为 `ok=true`、无差异。受限读取合同在本轮仅完成设计，尚未实施或以 fake transport 验证，故不能把这 16 项称为该合同验收。完整 `make test` 的既有记录、RT-032 环境分析与受控复跑见上一版证据；本轮未改产品代码或测试、也未重跑全量套件。
-- **受限读取本地验收（2026-09-08，本次）**：仅以 LocalFS、Memory 和 fake FileStation raw stream 实现并验证单一 callback `read_bounded`；旧 `read` 与 injected bytes transport 保持不变。定向 `python3 -m unittest tests.test_rt054_bounded_read tests.test_kb_storage tests.test_rt054_p0` 为 **79 tests / OK**；完整 `make test` 为 **2442 tests / OK, skipped=9, 201.560s**。矩阵覆盖第 6 次首 chunk 前 transient 成功、首 chunk 后零重试、每 read 的 `remaining+1` 探测、增长/截断/SHA/完整性拒绝、deadline/cancel、retry version/TLS 重验、受限/歧义 JSON envelope、consumer 明确复制而 receipt 不声称约束其累计、成功/失败/取消零写和零 legacy fallback。静态 guard 证明 gateway/builder/ingest 无 `read_bounded` 接线；未接 P1b、pointer/cache/writer fence/search route，未调用 NAS、生产、凭据或真实 payload。P0 safe sink 仍未实现；任何将来的接线须另有独立工作集上限。
+- **本轮已完成**：受限读取已经实现；独立复审发现默认 streaming 仅 fake、envelope 绕预算、控制面脱离 deadline/attempt、cancel 泄漏及 coverage 缺口六项阻断，本轮逐项返修。默认 streaming 现为真实 raw response，pin 在同一验证 socket；所有 bounded response/connection 路径关闭。未调用生产、NAS、真实 token、真实 builder 或真实 gateway。
+- **验证实录（2026-09-08）**：独立评审曾记录 `make test`: 2419 tests in 166.519s, skipped 9, exit 0；这只是历史评审证据。当前受限读取定向组合为 **84 tests / OK**：18 bounded-read + 50 storage + 16 P0（先前的 **79 = 13 + 50 + 16** 是返修前计数）；本轮完整 `make test` 为 **2447 tests / OK, skipped=9, 164.482s, exit 0**。真实 pilot、NAS、凭据和 P1b 未测且仍 NO-GO。
+- **受限读取本地验收（2026-09-08，本次）**：仅以 LocalFS、Memory 和 fake FileStation/raw socket 实现并验证单一 callback `read_bounded`；旧 `read` 与 injected bytes transport 保持不变。定向组合为 **84 tests / OK**。静态 guard 证明 gateway/builder/ingest 无 `read_bounded` 接线；未接 P1b、pointer/cache/writer fence/search route，未调用 NAS、生产、凭据或真实 payload。P0 safe sink 仍未实现；任何将来的接线须另有独立工作集上限。
 - **当前授权边界**：P0 零写诊断获允许；P1b 仍 NO-GO，必须先通过 P0 数据、numeric physical budget、容量实测、writer 穷尽与 FileStation 排他/恢复原语方案门。任何未完成数据只能标未测，不能称性能已治理。
 - **AI 评审**：实现收口前独立复核所有 writer 是否接入 fence、回滚是否能重放旧代、指针是否真为单一权威、限额是否在下载/解析前、性能判据能否被 cache/timeout 假绿。
 
@@ -170,6 +170,7 @@ gateway 在授权后读取 P0 ready pointer；在评分**前**再次读取/比�
 - 2026-09-08：解析 controlled pilot 后改为 A 网络有界单样本、B 隔离内存解析、C 脱敏 shape 算法三层采样。旧 evidence 仅有 **6 个无法解释的 download events**，没有 per-attempt outcome，不能称 six attempts、不能推断重试/分块/重复对象下载；新 observer 只增加脱敏 attempt 账本。1.495GB legacy payload 与 5.462GB RSS 使原 256/512/64MiB 假设失效；BM25/span 未进入，但单个 503 不足以归因成功路径。P1b 保持 NO-GO。
 - 2026-09-08：完整独立评审裁决 P0 未完成、P1b NO-GO。把受限读取合同列为任何再次约 1.5GB 下载前的唯一最小前置：现有 `read/_download/transport` 都会完整物化 response，故要求新的 urllib/HTTPS response streaming 边界，否则 fail-closed 拒绝；本轮只改方案，不改产品代码/测试，不访问 NAS/生产。
 - 2026-09-08：按新增独立评审阻断意见重写 bounded-read 合同：唯一 callback API 与 `expected_sha256`、callback 所有权、固定脱敏 code/完整 receipt、首 chunk 后零重试、可信完整性、每 read 上限、阻塞 deadline/cancel、FileStation 有界 envelope、consumer 内存边界和拒绝接线护栏全部可由 fake matrix 证伪。证据仍仅称 **6 个无法解释的 download events**；现有验证仍仅为 **16 个 P0 tests**，不冒充新合同验收。四道门保持 P1b NO-GO。
+- 2026-09-08：受限读取实施后独立复审发现六项阻断；本轮返修真实 unpinned/pinned raw streaming、envelope 逐 read 预算、统一 control/body monotonic deadline 与总 attempts、cancel 脱敏、close 和本地 fake coverage。仅本地验证；P0 pilot 与 P1b 继续 NO-GO。
 
 ## 遗留事项
 
