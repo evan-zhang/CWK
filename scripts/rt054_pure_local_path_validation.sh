@@ -45,7 +45,10 @@ rt054_normalize_absolute() {
 
 # Accept only an absolute system executable whose resolved path has at most 16
 # links.  Each link itself, every parent visited on every hop, and the final
-# regular executable must be root-owned and group/other non-writable.
+# regular executable must be root-owned.  A symlink's mode is deliberately not
+# a trust input: Unix lstat commonly exposes it as 0777, and it says nothing
+# about whether its target is writable.  Directories and the final regular
+# executable must be group/other non-writable.
 rt054_validate_trust_chain() {
     rt054_candidate=$1
     case "$rt054_candidate" in /*) ;; *) return 1 ;; esac
@@ -79,8 +82,6 @@ EOF
 $rt054_record
 EOF
         [ "$rt054_uid" = 0 ] || return 1
-        case "$rt054_mode" in ''|*[!0-7]*) return 1 ;; esac
-        [ $((0$rt054_mode & 022)) -eq 0 ] || return 1
         case "$rt054_kind" in
             'symbolic link'|'Symbolic Link'|symlink)
                 rt054_links=$((rt054_links + 1))
@@ -105,6 +106,8 @@ $rt054_current
                 continue
                 ;;
         esac
+        case "$rt054_mode" in ''|*[!0-7]*) return 1 ;; esac
+        [ $((0$rt054_mode & 022)) -eq 0 ] || return 1
         if [ -n "$rt054_remaining" ]; then
             case "$rt054_kind" in directory|Directory) ;; *) return 1 ;; esac
         else

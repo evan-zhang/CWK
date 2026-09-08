@@ -10,8 +10,11 @@ fixed `/bin/sh` and a checked-in launcher by shell-quoted absolute path. The
 launcher starts only at `/usr/bin/python3`, rejecting Homebrew, `/usr/local`,
 and PATH selection. Before `exec`, its shell helper resolves at most 16
 symlinks and validates every link, every hop's parent components, the final
-target, and every root-to-target component: each must be root-owned and not
-group- or other-writable; the target must be a regular executable. A cycle,
+target, and every root-to-target component. Links themselves must be
+root-owned, but their lstat mode is deliberately not a trust input: Unix
+systems commonly report symlink mode `0777`, which says nothing about target
+writability. Each parent directory and the final regular executable must be
+root-owned and not group- or other-writable. A cycle,
 excessive depth, or untrusted component has no fallback and exits 127. It uses
 fixed `/usr/bin/stat` syntax selected only by the host's Darwin/Linux identity.
 The first Python process is `-I -S`; the launcher does not use the caller's
@@ -36,17 +39,19 @@ prove that arbitrary syscalls or child processes have zero network activity.
 
 ## 2026-09-08 result
 
-- Fixed bounded-read + storage + P0 + guard run: `Ran 101 tests` / `OK
+- Fixed bounded-read + storage + P0 + guard run: `Ran 102 tests` / `OK
   (skipped=1)` / exit 0.
 - The verbose result named `NasSmokeTests.test_probe_directory_round_trip` and
   recorded `SKIP-reason: RT-054 pure-local gate`.
 - The bootstrap completion marker was `RT054_PURE_LOCAL_BOOTSTRAP=1` with
   `socket=0`, `filestation_from_env=0`, `filestation_write=0`, and `dotenv=0`.
   The `socket` count covers only the three named Python connection APIs above.
-- Local fixtures accept a direct file and a relative trusted-link chain under
-  a stat shim; an operator-owned tree, a link cycle, and a depth-over-16 chain
-  are rejected. A separate current-system check accepts the root-owned
-  `/usr/bin/python3` spelling (direct on Darwin, verified link chain on Ubuntu).
+- Local fixtures use an explicit default-deny lstat map. They accept a direct
+  file and a relative trusted-link chain whose link has Linux-mode `0777`; they
+  reject a non-root link owner, a writable target parent, a writable target, an
+  operator-owned tree, a link cycle, and a depth-over-16 chain. A separate
+  current-system check accepts the root-owned `/usr/bin/python3` spelling
+  (direct on Darwin, verified link chain on Ubuntu).
 - A second run uses direct assignments and MAKEFLAGS for shell, cwd,
   interpreter and PATH canaries, plus a parent `PYTHONPATH` local
   `sitecustomize`/`.pth` marker. It has the same test result and marker; the
@@ -58,3 +63,14 @@ home, dotenv trap and runtime I/O guard. This record makes no external cleanup
 claim and does not record any external host, path or credential. The temporary
 canary is a private, non-project, non-NAS temporary write used solely to test
 that `.env` reads are blocked; it is not a claim of literal zero writes.
+
+## Remote CI disposition
+
+GitHub Actions run `34192457713` is failed and is not acceptance evidence: its
+Linux lstat result exposed the prior ordering bug, which rejected the trusted
+`/usr/bin/python3` symlink before identifying it as a link. The smoke job now
+has a separately named `RT-054 pure-local portability gate (controlled
+/usr/bin/python3)` step after setup-python. After this correction is pushed,
+only a new run whose named step is green can serve as remote portability
+evidence; while that run is pending or failed, this document makes no remote
+green claim.

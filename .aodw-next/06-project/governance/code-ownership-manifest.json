@@ -315,9 +315,9 @@
       ],
       "owner": "RT-054",
       "management_domain": "cwk-governance-v1",
-      "change_entry": "RT → rt-lite.md → tests/test_rt054_p0.py + tests/test_rt054_pure_local.py + make rt054-pure-local + make governance-audit",
+      "change_entry": "RT → rt-lite.md → tests/test_rt054_p0.py + tests/test_rt054_pure_local.py + env -i make rt054-pure-local + make governance-audit",
       "evolution_path": "repo-standard-change",
-      "rationale": "RT-054 P0 的默认关闭、零持久写分段诊断、仅合成夹具离线 postings 对照，及 bounded-read 验收的纯本地子进程入口。Make 从自身 realpath 固定 launcher；shell helper 只从 /usr/bin/python3 开始，在 exec 前有界解析最多 16 个 symlink，逐一核验每个 link、每跳父组件、最终 target 及其根链均 root-owned/non-group-or-other-writable，最终仅 exec 该 regular executable；Homebrew、/usr/local、PATH、cycle、超深或任一不可信组件均无 fallback 地拒绝，并令第一个 Python 即 -I -S。runner 的受控临时 HOME/TMPDIR、所列 Python socket/FileStation/.env audit 与标准 Python open-route fail-closed trap 强制 NAS smoke skip。网络计数不主张进程级 sandbox 或任意 syscall 零网络。scripts/ 是 exact-only 区，故五个实际存在的新增脚本逐条登记；不预登记 P1b pointer、epoch、cache 或存储文件。"
+      "rationale": "RT-054 P0 的默认关闭、零持久写分段诊断、仅合成夹具离线 postings 对照，及 bounded-read 验收的纯本地子进程入口。Make 从自身 realpath 固定 launcher；shell helper 只从 /usr/bin/python3 开始，在 exec 前有界解析最多 16 个 symlink。link 本身只要求 root owner：Unix lstat 的通常 0777 mode 不代表 target 可写；每跳父组件与最终 regular executable 仍逐一要求 root-owned/non-group-or-other-writable，最终仅 exec 该 regular executable。Homebrew、/usr/local、PATH、cycle、超深或任一不可信组件均无 fallback 地拒绝，并令第一个 Python 即 -I -S。runner 的受控临时 HOME/TMPDIR、所列 Python socket/FileStation/.env audit 与标准 Python open-route fail-closed trap 强制 NAS smoke skip。网络计数不主张进程级 sandbox 或任意 syscall 零网络。scripts/ 是 exact-only 区，故五个实际存在的新增脚本逐条登记；不预登记 P1b pointer、epoch、cache 或存储文件。"
     },
     {
       "id": "R-runtime-adapters",
@@ -354,7 +354,7 @@
       "sensitive": true,
       "pin": {
         "mode": "100644",
-        "sha256": "3e3235fa1477764d466b42fb263697ca1484317b7138a1c1ea33ac30439ce72c"
+        "sha256": "98940777fc6150287ce496d0fc0410073b9a5cbf951cb66bbae220ca1a05e35b"
       },
       "owner": "RT-030",
       "management_domain": "cwk-governance-v1",

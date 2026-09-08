@@ -34,6 +34,11 @@ jobs:
           # 仓库的 Python 版本闸在 scripts/cwk_doctor.py（MIN_PYTHON = 3.10），
           # 实际开发与验收基线是 3.11。
           python-version: "3.11"
+      - name: RT-054 pure-local portability gate (controlled /usr/bin/python3)
+        # setup-python remains before this step for the repository's normal
+        # toolchain, while the launcher itself rejects that PATH selection and
+        # independently starts only at the system /usr/bin/python3 trust root.
+        run: env -i PATH=/usr/bin:/bin LANG=C LC_ALL=C make rt054-pure-local
       - name: Repo checks (same entry point as local `make ci`)
         # 和本地同一条命令：make ci = make test + make aodw-check + make governance-audit。
         # 覆盖 doctor、py_compile、全量单测、三个脱敏 smoke、AODW 框架 fixture、

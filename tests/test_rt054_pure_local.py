@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shlex
 import stat
 import subprocess
 import sys
@@ -18,6 +19,37 @@ import rt054_pure_local  # noqa: E402
 
 
 class RT054PureLocalTests(unittest.TestCase):
+    def run_shell_path_validator(self, helper: Path, candidate: Path, records: dict[Path, str]) -> subprocess.CompletedProcess[str]:
+        """Run the shell validator against an explicit, default-deny lstat map."""
+        cases = "\n".join(
+            f"    {shlex.quote(str(path))}) printf '%s\\n' {shlex.quote(record)} ;;"
+            for path, record in sorted(records.items(), key=lambda item: str(item[0]))
+        )
+        return subprocess.run(
+            ["/bin/sh", "-c", f'''\
+. "$1"
+rt054_stat_record() {{
+    case "$1" in
+{cases}
+        *) return 1 ;;
+    esac
+}}
+rt054_validate_trust_chain "$2"
+''', "sh", str(helper), str(candidate)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    @staticmethod
+    def trusted_directories(path: Path) -> dict[Path, str]:
+        records = {Path("/"): "0|755|directory"}
+        current = Path("/")
+        for part in path.parts[1:-1]:
+            current /= part
+            records[current] = "0|755|directory"
+        return records
+
     def test_child_environment_is_a_fixed_constant_not_a_parent_whitelist(self) -> None:
         root = Path("/private/tmp/cwk-rt054-test-root")
         parent = {
@@ -101,7 +133,7 @@ class RT054PureLocalTests(unittest.TestCase):
         self.assertIn("RT054_GUARD interpreter", bootstrap)
         self.assertIn("RT054_PURE_LOCAL_BOOTSTRAP=1", bootstrap)
 
-    def test_shell_path_validator_accepts_direct_and_relative_root_chain_fixtures(self) -> None:
+    def test_shell_path_validator_accepts_direct_and_linux_mode_777_symlink_fixtures(self) -> None:
         import tempfile
 
         helper = PROJECT / "scripts" / "rt054_pure_local_path_validation.sh"
@@ -117,21 +149,16 @@ class RT054PureLocalTests(unittest.TestCase):
             linked_target.chmod(0o755)
             link = root / "python-link"
             link.symlink_to("trusted/python3")
-            for candidate in (target, link):
-                result = subprocess.run(
-                    ["/bin/sh", "-c", '''
-. "$1"
-rt054_stat_record() {
-    if [ -L "$1" ]; then printf '%s\\n' '0|755|symbolic link'
-    elif [ -d "$1" ]; then printf '%s\\n' '0|755|directory'
-    else printf '%s\\n' '0|755|regular file'; fi
-}
-rt054_validate_trust_chain "$2"
-''', "sh", str(helper), str(candidate)],
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                )
+            direct_records = self.trusted_directories(target)
+            direct_records[target] = "0|755|regular file"
+            link_records = self.trusted_directories(link)
+            link_records[linked_dir] = "0|755|directory"
+            # Linux lstat mode is normally 0777 for a symlink.  It must not
+            # substitute for checks of the link owner or target chain.
+            link_records[link] = "0|777|symbolic link"
+            link_records[linked_target] = "0|755|regular file"
+            for candidate, records in ((target, direct_records), (link, link_records)):
+                result = self.run_shell_path_validator(helper, candidate, records)
                 self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_shell_path_validator_rejects_an_operator_owned_tree(self) -> None:
@@ -150,6 +177,33 @@ rt054_validate_trust_chain "$2"
             )
             self.assertNotEqual(result.returncode, 0, result.stderr)
 
+    def test_shell_path_validator_rejects_nonroot_link_and_writable_parent_or_target(self) -> None:
+        import tempfile
+
+        helper = PROJECT / "scripts" / "rt054_pure_local_path_validation.sh"
+        with tempfile.TemporaryDirectory(prefix="rt054-path-check-", dir=LOCAL_TMP_PARENT) as tmp:
+            root = Path(tmp)
+            trusted = root / "trusted"
+            trusted.mkdir()
+            target = trusted / "python3"
+            target.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            target.chmod(0o755)
+            link = root / "python-link"
+            link.symlink_to("trusted/python3")
+            base = self.trusted_directories(link)
+            base[trusted] = "0|755|directory"
+            base[link] = "0|777|symbolic link"
+            base[target] = "0|755|regular file"
+            for changed_path, record in (
+                (link, "501|777|symbolic link"),
+                (trusted, "0|775|directory"),
+                (target, "0|775|regular file"),
+            ):
+                records = dict(base)
+                records[changed_path] = record
+                result = self.run_shell_path_validator(helper, link, records)
+                self.assertNotEqual(result.returncode, 0, result.stderr)
+
     def test_shell_path_validator_rejects_symlink_cycle_and_depth(self) -> None:
         import tempfile
 
@@ -166,20 +220,11 @@ rt054_validate_trust_chain "$2"
             (root / "target").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
             (root / "target").chmod(0o755)
             for candidate in (cycle_a, chain[0]):
-                result = subprocess.run(
-                    ["/bin/sh", "-c", '''
-. "$1"
-rt054_stat_record() {
-    if [ -L "$1" ]; then printf '%s\\n' '0|755|symbolic link'
-    elif [ -d "$1" ]; then printf '%s\\n' '0|755|directory'
-    else printf '%s\\n' '0|755|regular file'; fi
-}
-rt054_validate_trust_chain "$2"
-''', "sh", str(helper), str(candidate)],
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                )
+                records = self.trusted_directories(candidate)
+                for link in (cycle_a, cycle_b, *chain):
+                    records[link] = "0|777|symbolic link"
+                records[root / "target"] = "0|755|regular file"
+                result = self.run_shell_path_validator(helper, candidate, records)
                 self.assertNotEqual(result.returncode, 0, result.stderr)
 
     def test_shell_path_validator_accepts_only_the_fixed_candidate_spelling(self) -> None:
