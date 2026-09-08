@@ -1,6 +1,6 @@
 ---
 name: "cwk-kb-query"
-description: "知识库问答：问知识库/查知识库/搜正文触发；v2 读链 + 融合搜索，实时引文，无命中直说"
+description: "知识库问答或导入 CWK 授权文件：按库选择本地 token；v2 读链 + 融合搜索，实时引文，无命中直说"
 ---
 
 # cwk-kb-query — 知识库问答（实时引文）
@@ -26,7 +26,22 @@ curl -s -m 6 http://192.168.91.72:8787/health   # /health 免鉴权；ok=true �
 
 ## 鉴权（绝不打印 Key/token 本身）
 
-**通道 1：Agent 绑定 token（生产默认）**——单 Gateway 多 Agent 的多租户通道。
+**通道 1：单库共享授权文件（接收方默认）**。
+
+用户把 `.cwk-access.json` 附件交给 Agent 时，先本地导入，不读取或转述其中的 token：
+
+```bash
+cd <CWK仓库>
+python3 scripts/kb_access_file.py import --file <附件本地路径>
+```
+
+- 本地权威目录是 `~/.openclaw/cwk/access/`（0700），每库一个 0600 文件；文件名由 `kb_id` 的 SHA-256 安全派生，不使用附件名或库名拼路径
+- 同库已有不同授权时默认拒绝；用户明确同意替换后才加 `--replace`
+- 导入成功后只对文件声明的 `kb_id` 执行一次 `capabilities --kb <kb_id>` 验证；不枚举或试探其他库
+- `kb_gateway_client.py` 在没有显式 `CWK_KB_GW_TOKEN` 时，按每次请求的 `--kb` 自动选择对应本地授权；不跨库回落
+- 401 表示文件已过期、撤销或换代；403 表示 token 有效但目标库不在其唯一授权面
+
+**通道 2：Agent 绑定 token（旧流程兼容）**——单 Gateway 多 Agent 的多租户通道。
 
 ```bash
 set -a; source ~/.openclaw/cwk/kb-bind.env; set +a   # CWK_KB_BIND_TOKEN 在这里
@@ -37,7 +52,7 @@ TOKEN=$CWK_KB_BIND_TOKEN
 - 吊销即刻生效（网关每请求重读登记表）；过期/被吊销 → 401
 - 领 token：操作者在有业务 Key 的机器上 `python3 scripts/kb_token.py issue --verify-env <Key变量名> --agent-id <Agent标识> --kb-id <库>` 签发；token 明文只在签发回执出现一次，随后落 0600 文件
 
-**通道 2：管理 Key 模仿（运维/调试用）**：
+**通道 3：管理 Key 模仿（运维/调试用）**：
 
 ```bash
 set -a; source ~/.openclaw/gateways/life/.env; set +a   # CWK_KB_ADMIN_KEY 在这里

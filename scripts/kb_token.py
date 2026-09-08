@@ -144,6 +144,11 @@ STATUS_ACTIVE = "active"
 STATUS_REVOKED = "revoked"
 STATUS_EXPIRED = "expired"
 
+TOKEN_KIND_AGENT = "agent"
+TOKEN_KIND_SHARED_KB = "shared_kb"
+SHARED_BINDING_PREFIX = "share:"
+SHARED_OWNER_REF_BASIS = "ops-token-registry-write-access"
+
 
 # ── errors ──────────────────────────────────────────────────────────────────
 
@@ -521,6 +526,12 @@ def binding_records(data: Mapping[str, Any], agent_binding_id: str) -> List[dict
     return [row for row in records(data) if row.get("agent_binding_id") == agent_binding_id]
 
 
+def token_kind(record: Mapping[str, Any]) -> str:
+    """Return the explicit kind, treating pre-RT-053 records as Agent tokens."""
+    value = str(record.get("token_kind") or TOKEN_KIND_AGENT)
+    return value if value in (TOKEN_KIND_AGENT, TOKEN_KIND_SHARED_KB) else TOKEN_KIND_AGENT
+
+
 def _bump_epoch(data: dict) -> int:
     epoch = int(data.get("membership_epoch", 0)) + 1
     data["membership_epoch"] = epoch
@@ -565,6 +576,7 @@ def public_view(record: Mapping[str, Any], now: datetime) -> dict:
     """Metadata and the fingerprint.  Never the token, never its digest."""
     return {
         "token_id": record.get("token_id", ""),
+        "token_kind": token_kind(record),
         "owner_ref": record.get("owner_ref", ""),
         "owner_ref_basis": record.get("owner_ref_basis", OWNER_REF_BASIS),
         "agent_binding_id": record.get("agent_binding_id", ""),
@@ -634,6 +646,7 @@ def issue_token(
 
     record = {
         "schema": RECORD_SCHEMA,
+        "token_kind": TOKEN_KIND_AGENT,
         "token_id": token_id_for(digest),
         "token_sha256": digest,
         "owner_ref": identity.owner_ref,
@@ -661,6 +674,138 @@ def issue_token(
         extra={"ttl_days": days},
     )
     return record, plaintext
+
+
+def issue_shared_token(
+    data: dict,
+    *,
+    kb_id: str,
+    ttl_days: int = DEFAULT_TTL_DAYS,
+    now: Optional[datetime] = None,
+    actor: str = "",
+    reason: str = "",
+) -> Tuple[dict, str]:
+    """Mint a shared token scoped to exactly one KB.
+
+    Authority is possession of write access to the protected OPS registry.
+    No creator identity or ``kb.json.owner_ref`` is asserted here.
+    """
+    moment = now or utc_now()
+    scope = validate_kb_ids([kb_id])
+    binding = SHARED_BINDING_PREFIX + scope[0]
+    prior = binding_records(data, binding)
+    for row in prior:
+        if record_status(row, moment) == STATUS_ACTIVE:
+            raise ConflictError(
+                f"该知识库已有有效共享 token（{row.get('token_id')}）——重新导出必须显式 rotate"
+            )
+
+    days = validate_ttl_days(ttl_days)
+    generation = max((int(row.get("generation", 0)) for row in prior), default=0) + 1
+    plaintext = secrets.token_hex(TOKEN_BYTES)
+    digest = token_digest(plaintext)
+    epoch_before = int(data.get("membership_epoch", 0))
+    epoch = _bump_epoch(data)
+    record = {
+        "schema": RECORD_SCHEMA,
+        "token_kind": TOKEN_KIND_SHARED_KB,
+        "token_id": token_id_for(digest),
+        "token_sha256": digest,
+        "owner_ref": "",
+        "owner_ref_basis": SHARED_OWNER_REF_BASIS,
+        "identity_probe": "",
+        "agent_binding_id": binding,
+        "kb_ids": scope,
+        "generation": generation,
+        "membership_epoch": epoch,
+        "created_at": iso(moment),
+        "expires_at": iso(moment + timedelta(days=days)),
+        "revoked": False,
+        "revoked_at": None,
+    }
+    data.setdefault("tokens", []).append(record)
+    _append_receipt(
+        data,
+        action="issue_shared_kb",
+        record=record,
+        actor=actor,
+        reason=reason,
+        now=moment,
+        epoch_before=epoch_before,
+        epoch_after=epoch,
+        extra={"ttl_days": days, "token_kind": TOKEN_KIND_SHARED_KB},
+    )
+    return record, plaintext
+
+
+def rotate_shared_token(
+    data: dict,
+    *,
+    kb_id: str,
+    ttl_days: int = DEFAULT_TTL_DAYS,
+    now: Optional[datetime] = None,
+    actor: str = "",
+    reason: str = "",
+) -> Tuple[dict, str, List[str]]:
+    """Revoke every prior shared generation and mint one replacement."""
+    moment = now or utc_now()
+    scope = validate_kb_ids([kb_id])
+    binding = SHARED_BINDING_PREFIX + scope[0]
+    prior = binding_records(data, binding)
+    if not prior:
+        raise NotFound("该知识库还没有共享 token——首次导出请用 export")
+    if any(token_kind(row) != TOKEN_KIND_SHARED_KB for row in prior):
+        raise ConflictError("共享绑定标识与旧记录冲突，拒绝换代")
+
+    days = validate_ttl_days(ttl_days)
+    epoch_before = int(data.get("membership_epoch", 0))
+    epoch = _bump_epoch(data)
+    superseded: List[str] = []
+    for row in prior:
+        if bool(row.get("revoked")):
+            continue
+        row["revoked"] = True
+        row["revoked_at"] = iso(moment)
+        row["membership_epoch"] = epoch
+        superseded.append(str(row.get("token_id", "")))
+
+    generation = max(int(row.get("generation", 0)) for row in prior) + 1
+    plaintext = secrets.token_hex(TOKEN_BYTES)
+    digest = token_digest(plaintext)
+    record = {
+        "schema": RECORD_SCHEMA,
+        "token_kind": TOKEN_KIND_SHARED_KB,
+        "token_id": token_id_for(digest),
+        "token_sha256": digest,
+        "owner_ref": "",
+        "owner_ref_basis": SHARED_OWNER_REF_BASIS,
+        "identity_probe": "",
+        "agent_binding_id": binding,
+        "kb_ids": scope,
+        "generation": generation,
+        "membership_epoch": epoch,
+        "created_at": iso(moment),
+        "expires_at": iso(moment + timedelta(days=days)),
+        "revoked": False,
+        "revoked_at": None,
+    }
+    data.setdefault("tokens", []).append(record)
+    _append_receipt(
+        data,
+        action="rotate_shared_kb",
+        record=record,
+        actor=actor,
+        reason=reason,
+        now=moment,
+        epoch_before=epoch_before,
+        epoch_after=epoch,
+        extra={
+            "ttl_days": days,
+            "token_kind": TOKEN_KIND_SHARED_KB,
+            "superseded_token_ids": superseded,
+        },
+    )
+    return record, plaintext, superseded
 
 
 def revoke_token(
@@ -746,6 +891,7 @@ def reissue_token(
     digest = token_digest(plaintext)
     record = {
         "schema": RECORD_SCHEMA,
+        "token_kind": TOKEN_KIND_AGENT,
         "token_id": token_id_for(digest),
         "token_sha256": digest,
         "owner_ref": identity.owner_ref,
@@ -1185,6 +1331,9 @@ __all__ = [
     "DEFAULT_MAX_ACTIVE_PER_OWNER",
     "DEFAULT_TTL_DAYS",
     "REGISTRY_SCHEMA",
+    "SHARED_BINDING_PREFIX",
+    "TOKEN_KIND_AGENT",
+    "TOKEN_KIND_SHARED_KB",
     "ConflictError",
     "IdentityError",
     "NotFound",
@@ -1201,15 +1350,18 @@ __all__ = [
     "derive_owner_ref",
     "init_registry",
     "issue_token",
+    "issue_shared_token",
     "load_registry",
     "main",
     "public_view",
     "record_status",
     "records",
     "reissue_token",
+    "rotate_shared_token",
     "revoke_token",
     "save_registry",
     "token_digest",
+    "token_kind",
     "verify_business_key",
 ]
 
