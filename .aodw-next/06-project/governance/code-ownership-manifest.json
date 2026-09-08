@@ -317,7 +317,7 @@
       "management_domain": "cwk-governance-v1",
       "change_entry": "RT → rt-lite.md → tests/test_rt054_p0.py + tests/test_rt054_pure_local.py + make rt054-pure-local + make governance-audit",
       "evolution_path": "repo-standard-change",
-      "rationale": "RT-054 P0 的默认关闭、零持久写分段诊断、仅合成夹具离线 postings 对照，及 bounded-read 验收的纯本地子进程入口。Make 从自身 realpath 固定 launcher；shell helper 在 exec 前仅接受逐组件 root-owned/non-group-or-other-writable 的 /usr/bin/python3，拒绝 symlink、Homebrew、/usr/local 与 fallback，并令第一个 Python 即 -I -S；runner 的受控临时 HOME/TMPDIR、所列 Python socket/FileStation/.env audit 与标准 Python open-route fail-closed trap 强制 NAS smoke skip。网络计数不主张进程级 sandbox 或任意 syscall 零网络。scripts/ 是 exact-only 区，故五个实际存在的新增脚本逐条登记；不预登记 P1b pointer、epoch、cache 或存储文件。"
+      "rationale": "RT-054 P0 的默认关闭、零持久写分段诊断、仅合成夹具离线 postings 对照，及 bounded-read 验收的纯本地子进程入口。Make 从自身 realpath 固定 launcher；shell helper 只从 /usr/bin/python3 开始，在 exec 前有界解析最多 16 个 symlink，逐一核验每个 link、每跳父组件、最终 target 及其根链均 root-owned/non-group-or-other-writable，最终仅 exec 该 regular executable；Homebrew、/usr/local、PATH、cycle、超深或任一不可信组件均无 fallback 地拒绝，并令第一个 Python 即 -I -S。runner 的受控临时 HOME/TMPDIR、所列 Python socket/FileStation/.env audit 与标准 Python open-route fail-closed trap 强制 NAS smoke skip。网络计数不主张进程级 sandbox 或任意 syscall 零网络。scripts/ 是 exact-only 区，故五个实际存在的新增脚本逐条登记；不预登记 P1b pointer、epoch、cache 或存储文件。"
     },
     {
       "id": "R-runtime-adapters",

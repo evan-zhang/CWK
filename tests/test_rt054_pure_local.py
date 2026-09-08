@@ -11,6 +11,7 @@ from pathlib import Path
 from unittest import mock
 
 PROJECT = Path(__file__).resolve().parents[1]
+LOCAL_TMP_PARENT = Path("/private/tmp") if Path("/private/tmp").is_dir() else Path("/tmp")
 sys.path.insert(0, str(PROJECT / "scripts"))
 sys.path.insert(0, str(PROJECT / "tests"))
 import rt054_pure_local  # noqa: E402
@@ -100,20 +101,81 @@ class RT054PureLocalTests(unittest.TestCase):
         self.assertIn("RT054_GUARD interpreter", bootstrap)
         self.assertIn("RT054_PURE_LOCAL_BOOTSTRAP=1", bootstrap)
 
-    def test_shell_path_validator_rejects_a_local_symlink_and_operator_tree(self) -> None:
+    def test_shell_path_validator_accepts_direct_and_relative_root_chain_fixtures(self) -> None:
         import tempfile
 
         helper = PROJECT / "scripts" / "rt054_pure_local_path_validation.sh"
-        with tempfile.TemporaryDirectory(prefix="rt054-path-check-", dir="/private/tmp") as tmp:
+        with tempfile.TemporaryDirectory(prefix="rt054-path-check-", dir=LOCAL_TMP_PARENT) as tmp:
             root = Path(tmp)
             target = root / "python3"
             target.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
             target.chmod(0o755)
+            linked_dir = root / "trusted"
+            linked_dir.mkdir()
+            linked_target = linked_dir / "python3"
+            linked_target.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            linked_target.chmod(0o755)
             link = root / "python-link"
-            link.symlink_to(target)
+            link.symlink_to("trusted/python3")
             for candidate in (target, link):
                 result = subprocess.run(
-                    ["/bin/sh", "-c", '. "$1"; rt054_validate_trust_chain "$2"', "sh", str(helper), str(candidate)],
+                    ["/bin/sh", "-c", '''
+. "$1"
+rt054_stat_record() {
+    if [ -L "$1" ]; then printf '%s\\n' '0|755|symbolic link'
+    elif [ -d "$1" ]; then printf '%s\\n' '0|755|directory'
+    else printf '%s\\n' '0|755|regular file'; fi
+}
+rt054_validate_trust_chain "$2"
+''', "sh", str(helper), str(candidate)],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_shell_path_validator_rejects_an_operator_owned_tree(self) -> None:
+        import tempfile
+
+        helper = PROJECT / "scripts" / "rt054_pure_local_path_validation.sh"
+        with tempfile.TemporaryDirectory(prefix="rt054-path-check-", dir=LOCAL_TMP_PARENT) as tmp:
+            target = Path(tmp) / "python3"
+            target.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            target.chmod(0o755)
+            result = subprocess.run(
+                ["/bin/sh", "-c", '. "$1"; rt054_validate_trust_chain "$2"', "sh", str(helper), str(target)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertNotEqual(result.returncode, 0, result.stderr)
+
+    def test_shell_path_validator_rejects_symlink_cycle_and_depth(self) -> None:
+        import tempfile
+
+        helper = PROJECT / "scripts" / "rt054_pure_local_path_validation.sh"
+        with tempfile.TemporaryDirectory(prefix="rt054-path-check-", dir=LOCAL_TMP_PARENT) as tmp:
+            root = Path(tmp)
+            cycle_a = root / "cycle-a"
+            cycle_b = root / "cycle-b"
+            cycle_a.symlink_to("cycle-b")
+            cycle_b.symlink_to("cycle-a")
+            chain = [root / f"hop-{index}" for index in range(17)]
+            for index, link in enumerate(chain):
+                link.symlink_to(chain[index + 1].name if index + 1 < len(chain) else "target")
+            (root / "target").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            (root / "target").chmod(0o755)
+            for candidate in (cycle_a, chain[0]):
+                result = subprocess.run(
+                    ["/bin/sh", "-c", '''
+. "$1"
+rt054_stat_record() {
+    if [ -L "$1" ]; then printf '%s\\n' '0|755|symbolic link'
+    elif [ -d "$1" ]; then printf '%s\\n' '0|755|directory'
+    else printf '%s\\n' '0|755|regular file'; fi
+}
+rt054_validate_trust_chain "$2"
+''', "sh", str(helper), str(candidate)],
                     capture_output=True,
                     text=True,
                     check=False,
