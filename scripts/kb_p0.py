@@ -59,6 +59,19 @@ class _Stage:
 
 
 @dataclass
+class _TransportAttempts:
+    """Sanitized per-kind attempt accounting; never retains request details."""
+
+    attempts: int = 0
+    successes: int = 0
+    errors: int = 0
+    payload_total: int = 0
+    payload_min: Optional[int] = None
+    payload_max: Optional[int] = None
+    retries: List[dict] = field(default_factory=list)
+
+
+@dataclass
 class P0Trace:
     """Per-request in-memory record.  It has no I/O side effects."""
 
@@ -73,7 +86,7 @@ class P0Trace:
     error_category: Optional[str] = None
     _rss_peak: Optional[int] = field(default_factory=rss_bytes)
     _stack: List[Tuple[str, int, int]] = field(default_factory=list, repr=False)
-    _physical: Dict[str, _Stage] = field(default_factory=dict, repr=False)
+    _physical: Dict[str, _TransportAttempts] = field(default_factory=dict, repr=False)
 
     @contextmanager
     def stage(self, name: str) -> Iterator[None]:
@@ -114,22 +127,33 @@ class P0Trace:
         else:
             self.error_category = "internal_error"
 
-    def transport_event(self, kind: str, *, attempt: int, payload_bytes: Optional[int] = None,
-                        wire_bytes: Optional[int] = None, retry: bool = False) -> None:
+    def transport_event(self, kind: str, *, attempt: int, outcome: str = "success",
+                        payload_bytes: Optional[int] = None, wire_bytes: Optional[int] = None,
+                        retry_ordinal: Optional[int] = None,
+                        retry_reason: Optional[str] = None) -> None:
         """Accept only transport facts the backend can actually observe.
 
         HTTP headers and on-wire framing are unavailable from urllib's byte
         transport, so callers leave ``wire_bytes`` as ``None`` rather than
         estimating it from a payload.
         """
-        if kind not in ("login", "api", "download"):
+        if kind not in ("login", "api", "download") or outcome not in ("success", "error"):
             return
-        stage = self._physical.setdefault(kind, _Stage())
-        stage.count += 1
-        if retry:
-            self._physical.setdefault("retry", _Stage()).count += 1
-        if payload_bytes is not None:
-            stage.payload_bytes += int(payload_bytes)
+        stage = self._physical.setdefault(kind, _TransportAttempts())
+        stage.attempts += 1
+        if outcome == "success":
+            stage.successes += 1
+            if payload_bytes is not None:
+                value = int(payload_bytes)
+                stage.payload_total += value
+                stage.payload_min = value if stage.payload_min is None else min(stage.payload_min, value)
+                stage.payload_max = value if stage.payload_max is None else max(stage.payload_max, value)
+        else:
+            stage.errors += 1
+            # Retry ordinal/reason is intentionally bounded and enumerated by
+            # FileStation; no URL, path, status text, or exception text enters.
+            if retry_ordinal is not None and retry_reason is not None:
+                stage.retries.append({"ordinal": int(retry_ordinal), "reason": retry_reason})
 
     def record(self) -> dict:
         names = (
@@ -150,12 +174,17 @@ class P0Trace:
         # StorageBackend intentionally does not expose HTTP events.  Unknown
         # is evidence, not a made-up physical measurement.
         physical = {}
-        for name in ("login", "api", "download", "retry"):
+        for name in ("login", "api", "download"):
             observed = self._physical.get(name)
             physical[name] = {
-                "count": observed.count if observed else None,
+                "attempt_count": observed.attempts if observed else None,
+                "success_count": observed.successes if observed else None,
+                "error_count": observed.errors if observed else None,
                 "wire_bytes": None,
-                "payload_bytes": observed.payload_bytes if observed and observed.payload_bytes else None,
+                "payload_bytes": ({"min": observed.payload_min, "max": observed.payload_max,
+                                   "total": observed.payload_total}
+                                  if observed and observed.successes else None),
+                "retries": observed.retries if observed else None,
                 "reason": None if observed else "storage_backend_transport_not_observable",
             }
         elapsed = time.perf_counter_ns() - self.started_ns

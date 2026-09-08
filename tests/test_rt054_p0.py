@@ -20,7 +20,9 @@ import kb_lexical_builder as builder  # noqa: E402
 import kb_token  # noqa: E402
 from kb_lexical import best_spans, bm25_rank, rrf  # noqa: E402
 from kb_p0 import P0Trace, TraceBackend, candidate_best_spans, candidate_bm25_rank, compare_exact  # noqa: E402
-from kb_storage import StorageError  # noqa: E402
+from kb_storage import (  # noqa: E402
+    FileStationBackend, NasCredentials, RetryPolicy, ServerBusyError, StorageError,
+)
 from test_kb_gateway import FIXED_NOW, KB_ID, OTHER_KB, TOKEN, issue_binding_token  # noqa: E402
 from test_rt051_lexical_fusion import KB, H, seed_kb  # noqa: E402
 
@@ -124,7 +126,7 @@ class P0GatewayTests(unittest.TestCase):
         self.assertEqual(record["logical"]["gateway_writes"], 0)
         self.assertGreaterEqual(record["logical"]["raw_index_reads"], 2)
         self.assertEqual(record["logical"]["lexical_reads"], 1)
-        self.assertEqual(record["physical"]["login"]["count"], None)
+        self.assertEqual(record["physical"]["login"]["attempt_count"], None)
         self.assertGreater(record["stages"]["auth"]["count"], 0)
         self.assertGreater(record["stages"]["json_encode"]["count"], 0)
         forbidden = (KB, "交付包说明", "看板设计", "raw/", TOKEN)
@@ -187,16 +189,49 @@ class P0GatewayTests(unittest.TestCase):
                 finally: self.observer = None
             def read(self, _path):
                 self.observer("login", attempt=1, payload_bytes=12, wire_bytes=None)
-                self.observer("download", attempt=1, retry=False)
-                self.observer("download", attempt=2, payload_bytes=7, retry=True)
+                self.observer("download", attempt=1, outcome="error", retry_ordinal=2,
+                              retry_reason="server_busy")
+                self.observer("download", attempt=2, payload_bytes=7)
                 return b"payload"
         trace = P0Trace(kb=KB)
         self.assertEqual(TraceBackend(ObservedBackend(), trace).read("_system/raw-index.json"), b"payload")
         physical = trace.record()["physical"]
-        self.assertEqual(physical["login"]["count"], 1)
-        self.assertEqual(physical["download"]["count"], 2)
-        self.assertEqual(physical["retry"]["count"], 1)
+        self.assertEqual(physical["login"]["attempt_count"], 1)
+        self.assertEqual(physical["login"]["success_count"], 1)
+        self.assertEqual(physical["download"]["attempt_count"], 2)
+        self.assertEqual(physical["download"]["success_count"], 1)
+        self.assertEqual(physical["download"]["error_count"], 1)
+        self.assertEqual(physical["download"]["payload_bytes"], {"min": 7, "max": 7, "total": 7})
+        self.assertEqual(physical["download"]["retries"], [{"ordinal": 2, "reason": "server_busy"}])
         self.assertIsNone(physical["download"]["wire_bytes"])
+
+    def test_filestation_observer_records_retry_attempt_outcomes_without_request_data(self) -> None:
+        calls = []
+
+        def transport(request):
+            calls.append(request.full_url)
+            if request.full_url.endswith("/auth.cgi"):
+                return b'{"success":true,"data":{"sid":"sid"}}'
+            if sum("entry.cgi" in url for url in calls) == 1:
+                raise ServerBusyError("private NAS detail")
+            return b"seven!!"
+
+        backend = FileStationBackend(
+            NasCredentials(host="nas.invalid", user="user", password="password", share="/share"),
+            transport=transport,
+            retry=RetryPolicy(attempts=2, sleep=lambda _seconds: None),
+        )
+        trace = P0Trace(kb="private-kb")
+        self.assertEqual(TraceBackend(backend, trace).read("_system/raw-index.json"), b"seven!!")
+        download = trace.record()["physical"]["download"]
+        self.assertEqual(download["attempt_count"], 2)
+        self.assertEqual(download["success_count"], 1)
+        self.assertEqual(download["error_count"], 1)
+        self.assertEqual(download["payload_bytes"], {"min": 7, "max": 7, "total": 7})
+        self.assertEqual(download["retries"], [{"ordinal": 2, "reason": "server_busy"}])
+        serialized = json.dumps(trace.record(), ensure_ascii=False)
+        for forbidden in ("nas.invalid", "user", "password", "private NAS detail", "_system/raw-index"):
+            self.assertNotIn(forbidden, serialized)
 
     def test_rss_units_follow_macos_and_linux_contracts(self) -> None:
         with mock.patch("kb_p0.resource.getrusage", return_value=type("R", (), {"ru_maxrss": 7})()), \

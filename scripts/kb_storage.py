@@ -612,25 +612,51 @@ class FileStationBackend:
         finally:
             self._p0_observer = previous
 
-    def _observe_transport(self, kind: str, attempt: int, *, payload_bytes: Optional[int] = None,
-                           retry: bool = False) -> None:
+    @staticmethod
+    def _p0_error_reason(exc: BaseException) -> str:
+        """Return a fixed diagnostic category, never an exception message."""
+        if isinstance(exc, ServerBusyError):
+            return "server_busy"
+        if isinstance(exc, TransientStorageError):
+            return "transient_storage"
+        if isinstance(exc, NotFound):
+            return "not_found"
+        if isinstance(exc, RemoteStorageError):
+            return "remote_storage"
+        if isinstance(exc, StorageError):
+            return "storage_error"
+        return "internal_error"
+
+    def _observe_transport(self, kind: str, attempt: int, *, outcome: str = "success",
+                           payload_bytes: Optional[int] = None,
+                           retry_ordinal: Optional[int] = None,
+                           retry_reason: Optional[str] = None) -> None:
         if self._p0_observer is not None:
-            self._p0_observer(kind, attempt=attempt, payload_bytes=payload_bytes,
-                              wire_bytes=None, retry=retry)
+            self._p0_observer(kind, attempt=attempt, outcome=outcome,
+                              payload_bytes=payload_bytes, wire_bytes=None,
+                              retry_ordinal=retry_ordinal,
+                              retry_reason=retry_reason)
 
     def _transport_with_observation(self, request: urllib.request.Request, kind: str) -> bytes:
         last: Optional[BaseException] = None
         for attempt in range(self.retry.attempts):
-            self._observe_transport(kind, attempt + 1, retry=attempt > 0)
             try:
                 raw = self._transport(request)
                 self._observe_transport(kind, attempt + 1, payload_bytes=len(raw))
                 return raw
             except TransientStorageError as exc:
                 last = exc
+                self._observe_transport(kind, attempt + 1, outcome="error",
+                                        retry_ordinal=(attempt + 2
+                                                       if attempt < self.retry.attempts - 1 else None),
+                                        retry_reason=self._p0_error_reason(exc))
                 if attempt == self.retry.attempts - 1:
                     break
                 self.retry.sleep(self.retry.delay_for(attempt))
+            except Exception as exc:
+                self._observe_transport(kind, attempt + 1, outcome="error",
+                                        retry_reason=self._p0_error_reason(exc))
+                raise
         assert last is not None
         raise last
 
@@ -877,16 +903,23 @@ class FileStationBackend:
         # download; neither is silently folded into the other.
         last: Optional[BaseException] = None
         for attempt in range(self.retry.attempts):
-            self._observe_transport("download", attempt + 1, retry=attempt > 0)
             try:
                 raw = _attempt()
                 self._observe_transport("download", attempt + 1, payload_bytes=len(raw))
                 break
             except TransientStorageError as exc:
                 last = exc
+                self._observe_transport("download", attempt + 1, outcome="error",
+                                        retry_ordinal=(attempt + 2
+                                                       if attempt < self.retry.attempts - 1 else None),
+                                        retry_reason=self._p0_error_reason(exc))
                 if attempt == self.retry.attempts - 1:
                     raise
                 self.retry.sleep(self.retry.delay_for(attempt))
+            except Exception as exc:
+                self._observe_transport("download", attempt + 1, outcome="error",
+                                        retry_reason=self._p0_error_reason(exc))
+                raise
         else:  # pragma: no cover - loop either breaks or raises
             assert last is not None
             raise last
