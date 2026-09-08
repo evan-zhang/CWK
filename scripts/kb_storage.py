@@ -72,7 +72,8 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
-from typing import Callable, Dict, Iterable, List, Optional, Protocol, Sequence, TypeVar
+from contextlib import contextmanager
+from typing import Callable, Dict, Iterable, Iterator, List, Optional, Protocol, Sequence, TypeVar
 
 SCHEMA = "cwk.kb.storage.v1"
 
@@ -598,6 +599,40 @@ class FileStationBackend:
         self.cert_sha256 = (cert_sha256 or "").strip().lower() or None
         self._transport = transport or self._https_transport
         self._sid: Optional[str] = None
+        # P0 installs this only around one local ``read`` call.  It is never
+        # configurable from an HTTP request and has no persistence side effect.
+        self._p0_observer: Optional[Callable[..., None]] = None
+
+    @contextmanager
+    def p0_transport_observer(self, observer: Callable[..., None]) -> Iterator[None]:
+        previous = self._p0_observer
+        self._p0_observer = observer
+        try:
+            yield
+        finally:
+            self._p0_observer = previous
+
+    def _observe_transport(self, kind: str, attempt: int, *, payload_bytes: Optional[int] = None,
+                           retry: bool = False) -> None:
+        if self._p0_observer is not None:
+            self._p0_observer(kind, attempt=attempt, payload_bytes=payload_bytes,
+                              wire_bytes=None, retry=retry)
+
+    def _transport_with_observation(self, request: urllib.request.Request, kind: str) -> bytes:
+        last: Optional[BaseException] = None
+        for attempt in range(self.retry.attempts):
+            self._observe_transport(kind, attempt + 1, retry=attempt > 0)
+            try:
+                raw = self._transport(request)
+                self._observe_transport(kind, attempt + 1, payload_bytes=len(raw))
+                return raw
+            except TransientStorageError as exc:
+                last = exc
+                if attempt == self.retry.attempts - 1:
+                    break
+                self.retry.sleep(self.retry.delay_for(attempt))
+        assert last is not None
+        raise last
 
     @classmethod
     def from_env(
@@ -720,7 +755,8 @@ class FileStationBackend:
             raise TransientStorageError("FileStation 请求超时") from exc
 
     def _call(self, request: urllib.request.Request) -> dict:
-        raw = retry_call(self.retry, lambda: self._transport(request))
+        kind = "login" if request.full_url.endswith("/auth.cgi") else "api"
+        raw = self._transport_with_observation(request, kind)
         try:
             payload = json.loads(raw.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -836,7 +872,24 @@ class FileStationBackend:
                         raise NotFound(f"FileStation 下载目标不存在：{remote}") from exc
                 raise
 
-        raw = retry_call(self.retry, _attempt)
+        # Keep the missing-file disambiguation inside an observed attempt.
+        # It is still an API probe, while the requested object remains a
+        # download; neither is silently folded into the other.
+        last: Optional[BaseException] = None
+        for attempt in range(self.retry.attempts):
+            self._observe_transport("download", attempt + 1, retry=attempt > 0)
+            try:
+                raw = _attempt()
+                self._observe_transport("download", attempt + 1, payload_bytes=len(raw))
+                break
+            except TransientStorageError as exc:
+                last = exc
+                if attempt == self.retry.attempts - 1:
+                    raise
+                self.retry.sleep(self.retry.delay_for(attempt))
+        else:  # pragma: no cover - loop either breaks or raises
+            assert last is not None
+            raise last
         # A failed download returns a JSON error envelope instead of bytes.
         # Most files in this KB *are* JSON, so "starts with a brace" cannot
         # mean "is an error": the body is only read as an envelope when it

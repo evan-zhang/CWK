@@ -48,7 +48,11 @@ def rss_bytes() -> Optional[int]:
 
 @dataclass
 class _Stage:
-    elapsed_ns: int = 0
+    # ``total`` is inclusive parent time; ``self`` deliberately excludes
+    # time spent in a nested stage.  Reporting only one of these made a
+    # nested trace look internally consistent while double-counting it.
+    total_elapsed_ns: int = 0
+    self_elapsed_ns: int = 0
     count: int = 0
     errors: int = 0
     payload_bytes: int = 0
@@ -68,19 +72,28 @@ class P0Trace:
     generation: Optional[str] = None
     error_category: Optional[str] = None
     _rss_peak: Optional[int] = field(default_factory=rss_bytes)
+    _stack: List[Tuple[str, int, int]] = field(default_factory=list, repr=False)
+    _physical: Dict[str, _Stage] = field(default_factory=dict, repr=False)
 
     @contextmanager
     def stage(self, name: str) -> Iterator[None]:
         stage = self.stages.setdefault(name, _Stage())
         started = time.perf_counter_ns()
         stage.count += 1
+        self._stack.append((name, started, 0))
         try:
             yield
         except Exception:  # noqa: BLE001 - record then retain gateway semantics
             stage.errors += 1
             raise
         finally:
-            stage.elapsed_ns += time.perf_counter_ns() - started
+            _name, _started, child_ns = self._stack.pop()
+            elapsed = time.perf_counter_ns() - started
+            stage.total_elapsed_ns += elapsed
+            stage.self_elapsed_ns += max(0, elapsed - child_ns)
+            if self._stack:
+                parent_name, parent_started, parent_children = self._stack[-1]
+                self._stack[-1] = (parent_name, parent_started, parent_children + elapsed)
             current = rss_bytes()
             if current is not None:
                 self._rss_peak = max(self._rss_peak or current, current)
@@ -90,9 +103,33 @@ class P0Trace:
             self.stages.setdefault(name, _Stage()).payload_bytes += int(amount)
 
     def fail(self, exc: BaseException) -> None:
-        # Exception class/code only; never serialize an exception message.
-        code = getattr(exc, "code", "")
-        self.error_category = str(code or type(exc).__name__)
+        # A fixed whitelist prevents exception types (and their potentially
+        # sensitive constructor arguments) becoming a diagnostic side channel.
+        if isinstance(exc, TimeoutError):
+            self.error_category = "timeout"
+        elif isinstance(exc, OSError):
+            self.error_category = "os_error"
+        elif type(exc).__name__.endswith("StorageError"):
+            self.error_category = "storage_error"
+        else:
+            self.error_category = "internal_error"
+
+    def transport_event(self, kind: str, *, attempt: int, payload_bytes: Optional[int] = None,
+                        wire_bytes: Optional[int] = None, retry: bool = False) -> None:
+        """Accept only transport facts the backend can actually observe.
+
+        HTTP headers and on-wire framing are unavailable from urllib's byte
+        transport, so callers leave ``wire_bytes`` as ``None`` rather than
+        estimating it from a payload.
+        """
+        if kind not in ("login", "api", "download"):
+            return
+        stage = self._physical.setdefault(kind, _Stage())
+        stage.count += 1
+        if retry:
+            self._physical.setdefault("retry", _Stage()).count += 1
+        if payload_bytes is not None:
+            stage.payload_bytes += int(payload_bytes)
 
     def record(self) -> dict:
         names = (
@@ -102,7 +139,8 @@ class P0Trace:
         )
         stages = {
             name: {
-                "elapsed_ns": self.stages.get(name, _Stage()).elapsed_ns or None,
+                "self_elapsed_ns": self.stages.get(name, _Stage()).self_elapsed_ns or None,
+                "total_elapsed_ns": self.stages.get(name, _Stage()).total_elapsed_ns or None,
                 "count": self.stages.get(name, _Stage()).count,
                 "errors": self.stages.get(name, _Stage()).errors,
                 "payload_bytes": self.stages.get(name, _Stage()).payload_bytes or None,
@@ -111,13 +149,18 @@ class P0Trace:
         }
         # StorageBackend intentionally does not expose HTTP events.  Unknown
         # is evidence, not a made-up physical measurement.
-        physical = {
-            name: {"count": None, "wire_bytes": None, "payload_bytes": None,
-                   "reason": "storage_backend_transport_not_observable"}
-            for name in ("login", "retry", "download")
-        }
+        physical = {}
+        for name in ("login", "api", "download", "retry"):
+            observed = self._physical.get(name)
+            physical[name] = {
+                "count": observed.count if observed else None,
+                "wire_bytes": None,
+                "payload_bytes": observed.payload_bytes if observed and observed.payload_bytes else None,
+                "reason": None if observed else "storage_backend_transport_not_observable",
+            }
         elapsed = time.perf_counter_ns() - self.started_ns
-        known = sum(v["elapsed_ns"] or 0 for v in stages.values())
+        self_sum = sum(v["self_elapsed_ns"] or 0 for v in stages.values())
+        total_sum = sum(v["total_elapsed_ns"] or 0 for v in stages.values())
         return {
             "schema": P0_SCHEMA,
             "kb_anonymous": anonymous_kb(self.kb),
@@ -134,8 +177,11 @@ class P0Trace:
             },
             "physical": physical,
             "end_to_end_ns": elapsed,
-            "measured_stage_sum_ns": known,
-            "stage_error_ns": abs(elapsed - known),
+            "measured_self_time_sum_ns": self_sum,
+            "measured_parent_total_sum_ns": total_sum,
+            "unattributed_ns": max(0, elapsed - self_sum),
+            "overlap_ns": max(0, total_sum - elapsed),
+            "stage_error_ns": abs(elapsed - self_sum),
             "rss_peak_bytes": self._rss_peak,
             "error_category": self.error_category,
         }
@@ -152,8 +198,14 @@ class TraceBackend:
         stage = "raw_index_logical_read" if path.endswith("raw-index.json") else (
             "lexical_logical_read" if path.endswith("lexical-index.json") else "other_read"
         )
-        with self._trace.stage(stage):
-            data = self._backend.read(path)  # type: ignore[attr-defined]
+        observer = getattr(self._backend, "p0_transport_observer", None)
+        if callable(observer):
+            with observer(self._trace.transport_event):
+                with self._trace.stage(stage):
+                    data = self._backend.read(path)  # type: ignore[attr-defined]
+        else:
+            with self._trace.stage(stage):
+                data = self._backend.read(path)  # type: ignore[attr-defined]
         self._trace.add_bytes(stage, len(data))
         return data
 

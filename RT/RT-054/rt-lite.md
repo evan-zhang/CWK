@@ -9,7 +9,7 @@
 - **为什么**：用户提供的生产观察是 cwork-3m（482 docs、66,500 chunks）在 `q=会议`、`lexical_fusion_v1`、`page_size=1` 下功能正确（`total=121`、generation `eabcb725…`），冷请求 425.685s、后续一笔 300s 超时；spbp（128 docs）也有 60s+。这些数字证明有严重问题，**尚不能证明 NAS 是首因**。静态代码还发现 BM25 当前会在每个 chunk 评分时重算全库 `avgdl` 并重分词 query，最坏近似 O(chunks²)，故快照而不改算法不足以达标。
 - **推荐**：P0 先隔离测量；P0 的候选 postings 算法仅是离线/测试等价与计时基准，绝不接生产请求路径。只有 P0 数据、正式 writer 清单、FileStation 可恢复协议、物理 NAS 数值预算和容量实测经方案门批准后，P1b 才可采用单库单写者、stale+epoch fence、双 collect 校验和一代一缓存的查询快照。
 - **代价**：写面必须统一经过 fence，builder 多一次一致性 collect 和额外不可变发布物；网关限定每库一代内存。代价换来可证明的换代、回滚、崩溃和拒绝旧结果，而非用 timeout 或猜测缓存掩盖问题。
-- **这次故意不做什么**：不改产品代码、测试、存储实现、timeout、NAS/生产或部署；不改 RT-053；不在 P0 数据完成前锁定最终实现；不把 P1a 正文分页/每次完整正文 SHA 验证混入本 RT；不做跨库、向量、FTS5、网关持久 cache 或隐式 metadata 降级。
+- **这次故意不做什么**：不改业务检索行为、timeout、NAS/生产或部署；不改 RT-053；不在 P0 数据完成前锁定最终实现；不把 P1a 正文分页/每次完整正文 SHA 验证混入本 RT；不做跨库、向量、FTS5、网关持久 cache 或隐式 metadata 降级。唯一存储侧改动是 P0 本地进程临时安装的只读 transport observer，不新增远端参数、写操作或流式读。
 - **用户怎样算成功**：批准实现且完成验收后，真实大库的冷/热融合搜索在固定时间、请求数、字节和内存上限内完成；源换代、撤权、错误/回放快照、双 builder、OOM 前置拒绝都不会返回旧候选。document_ref、span/read SHA、only-current、授权先于 I/O 和 GET 零持久写保持不变。
 - **建议**：**推荐**先批准 P0 诊断授权而非直接锁定 P1b 实现。P0 会在不改业务行为的前提下给出可比较分段数据；若它推翻网络首因假设，则按数据调整实现，不能拿本稿预设覆盖证据。
 
@@ -40,7 +40,7 @@ P0 是唯一可以进入实现前的诊断阶段；只可加入临时、零写�
 | tokenize / BM25 / span | O(N²)、全 chunk 扫描和重复评分各占多少 | 同 index，对旧算法和候选 postings 算法逐段计时、比较逐项结果；候选算法仅离线/测试基准 |
 | RRF / JSON encode | 输出层是否显著 | 固定候选/分数，只编码 |
 
-每条记录必须包含 KB 匿名标识、generation、docs/chunks、query 类别、冷/热定义、阶段 elapsed、logical/physical requests 与 payload/wire bytes、重试次数、RSS 峰值和错误；不得记录原文、token、路径或 NAS 凭据。先做至少 5 次同条件全过的诊断样本；若要报告 P50/P95，样本数必须 **≥20**。P0 输出应能证伪「NAS 首因」及「O(N²) 首因」任一假设。
+每条记录必须包含 KB 匿名标识、generation、docs/chunks、query 类别、冷/热定义、每阶段的 **parent total** 与互斥 **leaf/self-time**、logical/physical requests 与 payload/wire bytes、重试次数、RSS 峰值和错误；同时输出 self-time 阶段和、parent-total 和、端到端、`unattributed` 与 `overlap`。只有 self-time 和可与端到端相减；parent-total 仅用于看嵌套归属，不能拿来相加。`unattributed` 超过 `max(5% end-to-end, 50ms)` 即该样本计时不可判，异常/超时不删样本。不得记录原文、token、路径或 NAS 凭据。先做至少 5 次同条件全过的诊断样本；若要报告 P50/P95，样本数必须 **≥20**。P0 输出应能证伪「NAS 首因」及「O(N²) 首因」任一假设。
 
 ### Physical NAS 预算：P0 的固化方式
 
@@ -54,17 +54,17 @@ P1b 之前先采用不可放宽的结构上限：pointer payload `<=64KiB`；冷
 
 仅当下列全部成立才可固定 P1b 设计：
 
-1. 计时覆盖上述所有阶段，阶段和与端到端误差在 5% 或 50ms（取较大者）内；异常/超时单列，不能删样本。
+1. 计时覆盖上述所有阶段，**self-time** 阶段和与端到端的 `unattributed` 在 5% 或 50ms（取较大者）内；parent total 的 `overlap` 单列且不得当作阶段和；异常/超时单列，不能删样本。
 2. 旧逻辑与离线重放结果在同 generation 下逐 hit 的 lineage、version、raw SHA、body/metadata rank、RRF、candidate span、total、排序完全一致；任何差异先解释或阻断。
 3. 数据显示下载/解析或当前 O(N²) 之一对超时有实质贡献；若两者都不成立，停在方案门，带数据重选方案。
 4. 存储读侧能在解析前证明大小上限/流式上限，正式 writer 清单已穷尽并逐一接入 epoch fence，且上节 numeric physical NAS budget 已由 P0 固化并获方案门批准；任一做不到，不启动 P1b。
 
 ### P0 诊断工具（本阶段实现）
 
-- `scripts/kb_p0.py` 只提供进程内计时、匿名化和离线候选 postings 参考实现；它没有后端构造、环境读取或写入能力。`kb_gateway.py --p0-diagnostics` 默认关闭，开启后仅把受控的 `p0_diagnostic` JSON 加在调用方响应内；GET 不写库、不写 NAS、不建 cache。
-- 记录只保留匿名 KB hash 后缀、generation 后缀、docs/chunks、查询类别/长度桶、冷/热 legacy-payload 定义、阶段耗时/次数/payload bytes、RSS 和错误类别。query、token、title、路径、正文、身份、凭据和异常原文均不进入记录。当前 `StorageBackend` 未暴露 login/retry/download/wire 层，故这些物理字段显式 `null` + `storage_backend_transport_not_observable`，不得拿它们编造 NAS 结论。
+- `scripts/kb_p0.py` 只提供进程内计时、匿名化和离线候选 postings 参考实现；它没有后端构造、环境读取或写入能力。`kb_gateway.py --p0-diagnostics` 默认关闭，开启后仅把受控的 `p0_diagnostic` JSON 加在调用方响应内；GET 不写库、不写 NAS、不建 cache。关闭态逐响应 bytes/结构等价、后端读次数与 WriteTrap 均有测试；本地离线 benchmark 报分布而非以一次 wall-clock 断言“零开销”。
+- 记录只保留匿名 KB hash 后缀、generation 后缀、docs/chunks、查询类别/长度桶、冷/热 legacy-payload 定义、阶段 self/total 耗时/次数/payload bytes、RSS 和白名单错误类别。query、token、title、路径、正文、身份、凭据和异常原文均不进入记录。FileStation 在仅本地进程开启诊断时临时观测 login、API、download、retry 的每个 transport attempt 与响应 payload bytes；HTTP headers/framing/wire bytes 无法由 urllib byte transport 可靠取得，必须为 `null/unknown`，绝不以 payload 估算。其他 StorageBackend 仍显式 `storage_backend_transport_not_observable`，不得拿 unknown 编造 NAS 结论。
 - 授权环境运行方式（本轮未运行）：以既有受控启动参数增加 `--p0-diagnostics`，对固定的一条已授权 `GET /v2/kb/search?...&retrieval_mode=lexical_fusion_v1` 收集响应内记录；每态至少 20 个有效样本才计算 P50/P95，异常/超时保留。不得把 query/token 放进新的日志、文件或命令行。合成离线等价基准可运行 `python3 scripts/kb_p0_benchmark.py`，它不接触 KB/NAS/token/gateway，候选 postings 不会被生产 search 导入。
-- 本工具仅测量 legacy 读取与评分路径；它不是 pointer/epoch、写锁/fence、immutable snapshot、single-flight、生产 cache、受限流式存储合同或算法替换。physical 数据、容量前置限制与 P1b writer/fence 前提仍为 **NOT_RUN / NO-GO**。
+- 本工具仅测量 legacy 读取与评分路径；它不是 pointer/epoch、写锁/fence、immutable snapshot、single-flight、生产 cache、受限流式存储合同或算法替换。离线 scorer 的比较只声明 rank/span primitive 等价；完整 gateway fusion response（metadata、candidate_k、RRF、total、排序、span、跨库）仍须由 parent-response 等价矩阵独立证明，不能借 scorer 测试虚称覆盖。physical 数据、容量前置限制与 P1b writer/fence 前提仍为 **NOT_RUN / NO-GO**。
 
 ## 实现备注（P0 通过后才生效）
 
@@ -151,7 +151,8 @@ gateway 在授权后读取 P0 ready pointer；在评分**前**再次读取/比�
 
 ## 验证
 
-- **本轮已完成**：第二次独立评审 GO-WITH-CHANGES 后，仅修订 P0/P1b 方案；复核 `09c8aff` 已合并的 RT-053 token 路、当前 query/builder/storage、raw-index 静态写者和单线程 server。没有改产品代码/测试，未调用生产、NAS、真实 token、builder 或 gateway。
+- **本轮已完成**：第二次独立评审 GO-WITH-CHANGES 后，完成最小 P0 诊断/离线 benchmark/测试修订：互斥 self-time、parent total、unattributed/overlap，默认关闭的响应等价和 WriteTrap，错误脱敏矩阵，及 FileStation opt-in transport observer。复核 `09c8aff` 已合并的 RT-053 token 路、当前 query/builder/storage、raw-index 静态写者和单线程 server。未调用生产、NAS、真实 token、真实 builder 或真实 gateway。
+- **验证实录（2026-09-08）**：独立评审曾记录 `make test`: 2419 tests in 166.519s, skipped 9, exit 0；这只是历史评审证据，不是本次结果。本次 `python3 -m unittest tests.test_rt054_p0` 为 14 tests / OK，离线 `python3 scripts/kb_p0_benchmark.py` 为 `ok=true`、无差异；`rt-guard`、`LC_ALL=C make aodw-check`、`LC_ALL=C make governance-audit` 与 `git diff --check` 通过。完整 `make test` 实测为 **2427 tests in 180.941s, failures=2, errors=2, skipped=8, exit 2**：两项 RT-032 AF_UNIX socket 路径过长、两项 RT-032 测试进程环境漂移；均不在本次 P0 文件，故不得写成全绿或以局部 P0 测试替代。
 - **当前授权边界**：P0 零写诊断获允许；P1b 仍 NO-GO，必须先通过 P0 数据、numeric physical budget、容量实测、writer 穷尽与 FileStation 排他/恢复原语方案门。任何未完成数据只能标未测，不能称性能已治理。
 - **AI 评审**：实现收口前独立复核所有 writer 是否接入 fence、回滚是否能重放旧代、指针是否真为单一权威、限额是否在下载/解析前、性能判据能否被 cache/timeout 假绿。
 
@@ -160,7 +161,7 @@ gateway 在授权后读取 P0 ready pointer；在评分**前**再次读取/比�
 - 2026-09-07：创建方案稿；无产品行为变化、无部署。
 - 2026-09-07：吸收独立 Codex GO-WITH-CHANGES 八项阻断意见：P0 单变量测量、O(N²) 修复、单一 pointer/epoch、双 collect、不可变快照、single-flight/限额、受限流式读和可执行回滚验收。仍等待方案门。
 - 2026-09-08：第二次独立评审后更新合并基线（main `09c8aff`、branch merge `d40e36b`）；P0 获准、P1b 保持 NO-GO。补入 RT-053 shared-token 返回前撤权、正式/动态 writer 审计、FileStation 无事务恢复前提和 physical NAS 数值预算固化门。
-- 2026-09-08：实现默认关闭、响应内存零写 P0 分段诊断与合成离线 postings 对照；物理 FileStation transport 未在当前抽象可靠可观测，字段显式 unknown。本轮只跑脱敏本地测试，未连接生产/NAS/真实凭据。
+- 2026-09-08：实现默认关闭、响应内存零写 P0 分段诊断与合成离线 postings 对照；以 self-time/parent-total 消除 nested-stage 双计数，并输出 unattributed/overlap。补默认关闭响应等价、WriteTrap、失败白名单、RSS 平台单位和 scorer mutation/矩阵测试；FileStation 只在本地 `--p0-diagnostics` wrapper 期间观测真实 attempt/login/API/download/retry 与 payload，wire/header 不可可靠观察时保持 unknown。本轮只跑脱敏本地测试，未连接生产/NAS/真实凭据。
 
 ## 遗留事项
 
