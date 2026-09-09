@@ -1,182 +1,595 @@
 # RT-Lite: RT-054 - 大库词法融合检索快照/预计算性能治理
 
 > profile: Spec-Lite | execution_mode: collaborative
-> 唯一方案权威。受限读取已实现并经本地 fake 验证；独立复审随后发现六项实现阻断，本轮已返修。P0 尚未完成，P1b 仍不是实现授权。
+> 本文件是 RT-054 的唯一方案权威。2026-09-09 起，旧的「继续承载 1.5GB JSON 快照」方案被本稿取代；历史调查、P0 evidence 与 bounded-read 实现仍保留为事实和回归资产，不再代表目标架构。
 
 ## 方案（给人看）
 
-- **做什么**：采纳独立复审的六项返修阻断：完成并以本地 fake 验证 `StorageBackend`/FileStation 的受限读取合同，包含真实 raw streaming、严格字节预算、统一 deadline/attempt、取消脱敏与全路径关闭。三层 P0 方向成立、但 P0 未完成，P1b 仍是 **NO-GO**。
-- **为什么**：用户提供的生产观察是 cwork-3m（482 docs、66,500 chunks）在 `q=会议`、`lexical_fusion_v1`、`page_size=1` 下功能正确（`total=121`、generation `eabcb725…`），冷请求 425.685s、后续一笔 300s 超时；spbp（128 docs）也有 60s+。这些数字证明有严重问题，**尚不能证明 NAS 是首因**。静态代码还发现 BM25 当前会在每个 chunk 评分时重算全库 `avgdl` 并重分词 query，最坏近似 O(chunks²)，故快照而不改算法不足以达标。
-- **推荐**：先完成受限读取合同；P0 的候选 postings 算法仅是离线/测试等价与计时基准，绝不接生产请求路径。只有该合同、本地验证和独立评审完成后，才可另行批准一库一次有界 P0 pilot；只有 P0 数据、正式 writer 清单、FileStation 可恢复协议、物理 NAS 数值预算和容量实测经方案门批准后，P1b 才可采用单库单写者、stale+epoch fence、双 collect 校验和一代一缓存的查询快照。
-- **代价**：写面必须统一经过 fence，builder 多一次一致性 collect 和额外不可变发布物；网关限定每库一代内存。代价换来可证明的换代、回滚、崩溃和拒绝旧结果，而非用 timeout 或猜测缓存掩盖问题。
-- **这次故意不做什么**：不改业务检索行为、NAS/生产或部署；不改 RT-053；不在 P0 数据完成前锁定最终实现；不把 P1a 正文分页/每次完整正文 SHA 验证混入本 RT；不做跨库、向量、FTS5、网关持久 cache 或隐式 metadata 降级；不接 gateway/builder/pointer/cache/writer/search，也不解决 writer fence/CAS/migration、pointer/epoch/cache 或算法替换。P1b 继续 **NO-GO**。
-- **用户怎样算成功**：批准实现且完成验收后，真实大库的冷/热融合搜索在固定时间、请求数、字节和内存上限内完成；源换代、撤权、错误/回放快照、双 builder、OOM 前置拒绝都不会返回旧候选。document_ref、span/read SHA、only-current、授权先于 I/O 和 GET 零持久写保持不变。
-- **建议**：**推荐**先只实施、独立评审并本地验证受限读取合同，而非进行再次下载或锁定 P1b。合同通过后才能安全取得可比较分段数据；若数据推翻网络首因假设，则按数据调整实现，不能拿本稿预设覆盖证据。
+- **做什么**：把 CWK 从「Gateway 在线下载并解析整包 JSON、自研全量 BM25」改造成「内网只读 Connector + PostgreSQL 控制面 + OpenSearch 检索面 + NAS/S3 对象层 + 统一 Query API」。同时重做父子拆片和中文字段设计，从源头削减索引膨胀；当前内网先落地，公网只保留安全、可迁移的接口和数据身份。
+- **为什么**：当前 cwork-3m 仅 482 个可索引文档、66,500 chunks，就产生约 1.495GB 词法 JSON，并出现 425.685 秒冷请求。数据库只能改变访问方式，不能自动消除全文 1/2/3-gram、固定重叠和长 ID 重复造成的膨胀。预计规模是当前 100–200 倍，并保留 1000 倍可能；SQLite 单文件不适合作为长期生产底座，继续自研 postings/排名/快照也会把 CWK 变成弱化版搜索引擎。
+- **代价**：增加 PostgreSQL、OpenSearch、索引 Worker 和统一 Query API；需要容器化部署、容量压测、备份恢复、监控和版本升级纪律。公网阶段还需云端私有网络与对象存储。代价换来的是百万至数千万 chunks 的可扩展检索、增量更新、多 Gateway 统一访问和明确的故障边界。
+- **这次故意不做什么**：不 fork 或修改 WeKnora；不把 WeKnora 部署并入本 RT；不在第一阶段加入向量、知识图谱、reranker、Redis 或逐文档复杂 ACL；不让外部 Gateway 直接访问 NAS、PostgreSQL 或 OpenSearch；不把现有 1.5GB JSON 原样灌入数据库；不在方案门前修改产品代码、生产配置或部署。
+- **用户怎样算成功**：现有三个真实知识库不再生成或加载大词法 JSON；同等资料的主检索索引至少缩小 80%；当前规模和 100 倍规模检索达到本稿性能门；指定知识库权限零串库；新增/更新文档能增量可见且失败不破坏旧版本；外部 Gateway 只凭受限身份调用 HTTPS Query API；系统能从 NAS/S3 原件和 PostgreSQL 状态重建 OpenSearch。
+- **建议（定论）**：生产目标锁定为 PostgreSQL + OpenSearch，不再把 SQLite、ParadeDB 与 OpenSearch 并列。SQLite 只用于单元测试/本地夹具；ParadeDB 随原版 WeKnora 的独立对照实验评估。若真实 100 倍压测证明 OpenSearch 的成本不可接受，回方案门重新评估 WeKnora，不回到大 JSON 或自研倒排表。
 
-## 假设与现状
+## 一、范围与需求边界
 
-- 当前合并现实：`main`/`origin/main` 是 `09c8aff`，已合并 PR #7/RT-053；本 branch 的 merge HEAD 是 `d40e36b`（以 `09c8aff` 为父）。RT-053 代码和登记已在本分支基线中；本 RT 不修改它，也不依赖其未合并工作。
-- 独立 Codex 评审裁决为 **GO-WITH-CHANGES**；本稿吸收其八项阻断意见。RT-051 的 P1a 保持独立范围：`read`/`inspect` 仍会读目标全文并复核 SHA；本 RT 的 search 不读取候选正文，也不因此声称解决 P1a 大文成本。
-- 当前 `_v2_search` 读一次 raw-index；`_v2_load_lexical` 下载完整 lexical index 又读一次 raw-index，并解析整个 JSON。融合还全量扫描 metadata、对所有 chunks 调 BM25、为返回 hit 再扫描 chunks 取 span。builder `_collect` 才逐合格正文 read+SHA；search 本身不做候选正文 read/SHA。
-- `LexicalIndex.avgdl` 每次求值都遍历 `chunk_lengths`；`bm25_rank` 对每个 chunk 调 `chunk_score`，`chunk_score` 又对同一 query 调 `tokenize`。因此在 N chunks 时，单 query 的 `avgdl` 路径为 N 次 × O(N)，近似 O(N²)，另有 N 次相同 tokenization；`best_spans` 还会重复评分。该结论来自静态代码路径，P0 要测其真实占比。
-- gateway 是刻意的单线程 `HTTPServer`：单个 FileStation session 一次只服务一个请求。不得用并发共享 session 伪造吞吐改善；single-flight 仍须定义，保证未来内部加载路径、测试直调和两个连续冷请求不会重复下载/接纳未验证对象。
-- RT-053 的 shared token 走同一个 `TokenFile`：非 admin token 每次 `authorize()` 都重读 token registry，现有测试证明撤销后的**下一请求** 401。P1b 的返回前再鉴权必须扩展为确定性并发点：评分暂停后 revoke 同一 `shared_kb` token，再恢复响应，必须 401 且没有 hit/body/span；不能把「下一请求」测试冒充为返回前撤权测试。
-- 本轮不连接生产/NAS、不运行真实 builder/gateway，不报告任何新生产性能数字。
+### 1.1 核心产品目标
 
-## P0：三层安全采样，先测量再决定
+CWK 的核心目标收敛为：
 
-P0 仍是唯一可做的实现前诊断。2026-09-08 的唯一 cold 样本已证明 legacy payload 和 RSS 远超原先的 256/512/64 MiB 假设，并在 BM25/span 前以 503 结束；它不能从一个失败样本证明成功路径的根因。任何再次取得约 1.5GB 对象前，必须先完成下列受限读取合同的独立评审和本地验证；P1b 继续 **NO-GO**。
+> 获得授权的用户或 Gateway，能够快速从指定的数据文件集合中找到足以回答问题的内容，并看到可理解的来源；资料不足时明确说明未找到。
 
-记录只保留匿名 KB、generation 后缀、大小桶/结构摘要、阶段 self/total、RSS、白名单错误和 transport attempt 汇总；不记录正文、query、token、URL、路径、身份、凭据或异常 message。`urllib` 不能可靠提供 HTTP framing/header wire bytes，字段必须为 unknown，绝不拿 payload 估算。
+### 1.2 必须保留
 
-### A. 网络层：有界真实 pilot
+1. CWork/NAS 源保持只读；派生索引不能回写源。
+2. 请求只能访问服务端授权的 `tenant_id + kb_id`，客户端参数不能扩大权限。
+3. 回答来源至少包含文档、版本、章节，以及适用的页码、Sheet/行号或段落定位。
+4. 无足够证据时返回明确的无答案状态，不用模型常识补成“资料结论”。
+5. 索引是可丢弃派生物，能从批准的数据源与规范化对象重建。
+6. 文档更新失败、索引构建失败或新版本未完成时，旧的已完成版本继续可用。
+7. 公网访问只经过 HTTPS Query API；外部 Gateway 永不持有 NAS、PostgreSQL 或 OpenSearch 凭据。
 
-- 每次只允许一个预先批准的 logical read；每个 logical read 最多 6 个 transport attempts，并设 attempt、payload、总耗时和 RSS 的安全停止门。任一门触发立即停止该 request，不追热态、第二库或 20 次重下载。
-- FileStation observer 逐类（login/API/download）记录 `attempt/success/error` count、成功 payload 的 min/max/total，以及 retry ordinal 和固定原因类别；它不记录 request identity。旧 evidence 只能称为 **6 个无法解释的 download events**，不能称 six attempts，也不能判断为六次重试、分块或重复对象下载。
-- 网络层只报告单次/少量原始样本、冷/连接状态、错误率和上限命中；样本不足 20 时禁止 P50/P95。成功 response 才可以把 bytes 交给 B，且只在一次受控取得中发生。
+### 1.3 明确降级或删除的过度设计
 
-### B. 解析/结构层：隔离重复测量
+1. 搜索结果不再要求每条引文都精确到 UTF-8 byte span；保留人可理解的来源定位。已有 v2 `read` 的 byte 合同继续兼容，不作为新搜索链每次查询的前置。
+2. 查询时不重新下载全文并计算整件 SHA；SHA 在摄取/规范化阶段验证并绑定版本。
+3. 不承诺撤权能撤回已经发送的响应；保证撤权后的新请求拒绝，响应发送前再做一次授权检查。
+4. 不把 GET/查询进程“绝对零磁盘写”当产品目标；允许有界、可丢弃、无正文日志的运行缓存。源系统仍零写。
+5. 不继续建设多层 JSON generation、全量双 collect 和自研 CAS 来模拟数据库事务；版本、任务和切换状态进入 PostgreSQL。
+6. 第一阶段权限粒度是知识库级，不实现逐 chunk ACL；未来出现真实逐文档权限需求时另过方案门。
 
-- 对 A 的单次受控 bytes，在无网络、无 gateway、无持久化的隔离进程中重复/分层测量 JSON decode、结构恢复、metadata 与 legacy parse 工作区。bytes 只保留在受控进程内存，子进程退出即释放；日志仅落结构摘要和统计量。
-- 启动前设置 wall-time、RSS 和解析输入大小门。若单次 bytes 已超过门，安全中止，只输出大小/结构摘要与中止原因，不强行 decode，也不把数据落盘。B 可做至少 20 次独立进程试验后才报告分位数。
+## 二、已核实的现状与证据边界
 
-### C. 算法层：脱敏 shape-equivalent corpus
+### 2.1 当前代码事实
 
-- 用脱敏的 docs/chunks/lengths/postings/term-frequency/tie 结构生成 corpus，对 legacy 与 postings scorer 做至少 20 次对照，逐项比较 rank/span，并报告分位数。它绝不读取 NAS、真实 KB、token 或 gateway。
-- 这只能证明同 shape、同算法原语的行为/成本，不替代真实内容、Unicode/token 分布、端到端 fusion 或真实 payload 的等价；完整成功路径仍要单列判据。
+- `scripts/kb_gateway.py` 的词法路径会读取完整 `lexical-index.json`；当前 Gateway 仍基于单进程 `HTTPServer`。
+- `scripts/kb_lexical.py` 保存 chunk、长度、term postings、term frequency、byte/code-point spans，并在 Python 中执行 BM25、best spans 与 RRF。
+- `scripts/kb_lexical_builder.py` 从当前 `raw-index` 收集文档并发布 `_system/lexical-index.json`。
+- 静态代码和 RT-054 P0 已确认旧评分存在重复求 `avgdl`、重复 query tokenization、全 chunk 扫描；旧大 JSON 还叠加网络、解析和内存成本。
+- `scripts/kb_storage.py` 已具备 LocalFS/Memory/FileStation 抽象和 bounded-read；该能力继续服务安全读取与诊断，不再用于把巨大词法 JSON搬进 Gateway。
+- RT-051 的 list/open/read/document_ref 合同已经存在；本 RT 新搜索面必须兼容其已授权文档读取能力，不能用新检索引擎替代事实源。
 
-### P0 安全前置：受限读取合同（已实施；仅本地 fake 验证）
+### 2.2 三个真实知识库的只读体量
 
-这是 P0 安全采样的前置，不是 P1b 的解锁，也不改变既有 `read(path) -> bytes` 的默认行为。三种后端的旧 `read` 仍返回完整 `bytes`；bounded-read 独立使用 raw-response seam：未 pin 为真实 `urlopen` response，pin 为同一已验证 `HTTPSConnection` 的 response，均逐块读取并关闭，绝不以旧 `read/_download` 回退或读完后截断冒充上限。
+| 知识库 | 文件数 | 总大小 | JSON 数/大小 | 词法索引 | 有效文档 | chunks | 词法索引占总量 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| cwork-3m | 1,100 | 约 1.65GB | 21 / 约 1.50GB | 约 1.495GB | 482 | 66,500 | 90.8% |
+| docdb-touqian | 315 | 约 60MB | 22 / 约 47.2MB | 约 46.5MB | 114 | 1,008 | 77.6% |
+| spbp-2027 | 317 | 约 325MB | 22 / 约 265MB | 约 264.5MB | 90 | 3,984 | 81.4% |
 
-- **唯一 API（不承诺 iterator）**：新增且显式 opt-in 的唯一入口固定为 `read_bounded(path, *, max_bytes, chunk_size, deadline, cancel, expected_sha256, on_chunk) -> BoundedReadReceipt`。它不返回 iterator，也没有第二个可替换流接口。实现先验证安全相对路径与参数，逐 chunk 增量 SHA-256；`expected_sha256` 是对象期望摘要。若没有同对象/同版本绑定的可信 length/version，调用者**必须**提供它，否则以 `bounded_read_unavailable` 拒绝。`on_chunk(chunk)` 的 bytes 只在该 callback 调用期间有效；consumer 不得保留引用，若要在 callback 后使用必须自行明确复制，且该复制及其内存不归 backend receipt 管控。callback 正常返回才表示接受该 chunk；抛异常则立即关闭、不给 receipt、以固定 `consumer_failed` 失败（不回显异常）。成功返回完整 receipt；所有失败/取消均抛 `BoundedReadError(code)`，不返回 partial receipt。
-- **固定的脱敏错误和 receipt**：唯一对外 code enum 是 `not_found | bounded_read_unavailable | capacity_exceeded | integrity_mismatch | incomplete_stream | deadline_exceeded | cancelled | transient_exhausted | transport_failed | tls_verification_failed | filestation_error | consumer_failed`。接口、receipt、日志都不得附带路径、URL、query、token、TLS fingerprint、response body 或底层异常原文。成功 receipt 的全字段是 `logical_read_id`（随机且不含对象身份）、`object_version`（仅可信且匿名化版本标识，否则 `unknown`）、`payload_bytes`、`sha256`、`expected_sha256_present`、`integrity_basis`（`version_bound_length | expected_sha256`）、`transport_attempts`（login/API/download 的 count 与固定 outcome code）、`wire_bytes`（可靠计数或 `unknown`）、`peak_in_memory_bytes`、`started_monotonic`、`finished_monotonic`、`deadline_met`、`cancelled=false`。它不含 consumer 已累计的 bytes，也不含 payload 或可定位身份。
-- **完整性与每次 read 的硬上限**：`max_bytes+1` 只证明没有超限，绝不证明对象未截断。成功必须同时有完整流的证明：同对象/同版本绑定且可信的 length/version（实际 bytes 精确相等），或必需的 `expected_sha256` 精确匹配；两者都没有或不能验证即 `bounded_read_unavailable`，不得成功。无论是否做过 preflight，**每一次**底层 read 都为 `min(chunk_size, remaining + 1)`；因此 preflight 后对象增长也只读到一个探测额外字节，立即关闭并以 `capacity_exceeded` 失败，不交付越界字节、不解析、不重试、更不回退 `read()`/`_download()`。
-- **重试、deadline 与 cancel**：transient transport retry 仅可发生在尚未向 `on_chunk` 交付任何 chunk 前，且总数最多 6 attempts、仍在总 monotonic deadline 内；每个 retry 都重新打开并重验对象 pin/version 及 FileStation TLS pin。首 chunk 已交付后任何 transient/不完整/完整性失败立即 fail-closed，零重试，绝不以第二个 response 拼接。同步阻塞 read 不承诺立即 cancel：socket/read timeout 必须限制为剩余 deadline；若底层无法设置，则 read 返回后立即检查 deadline/cancel、关闭而不成功。所有打开前、每次 read 前后及 retry sleep 前均检查 cancel；取消或 deadline 均关闭 response/connection。
-- **FileStation 边界与 JSON error envelope**：最小改造是新的 raw-response streaming transport，不改变既有 bytes transport：未 pin 分支按限额读 `urlopen` response，pin 分支在同一已验证 pin 的 `HTTPSConnection` 按限额读。它只暴露 fakeable `open/read/close`、可信 version/length metadata 和 timeout；既有 `Callable[[Request], bytes]` fake 仍只服务旧 `read`。无可信 object/version-bound size 且没有 required expected SHA 时，真实 FileStation 必须 `bounded_read_unavailable`，不得猜测 metadata。错误 envelope 只使用有限前缀缓冲（`MAX_ERROR_ENVELOPE_BYTES` 为实现冻结上限）；仅当该前缀在上限内构成**精确且完整**的失败 envelope 才解释为 `filestation_error`。超过上限、截断、歧义、或以 `{` 开头但不是精确失败 envelope 的普通 JSON 都 fail-closed 为 `transport_failed`，不解析为错误详情、更不把它作为 payload 成功。
-- **内存、接线与可观测性边界**：`peak_in_memory_bytes` 只定义为 backend/transport 自有 buffer 的峰值（当前 chunk、协议/前缀 buffer 与 transport buffer）；不声称限制泛型 consumer。P0 A 只能接显式工作集上限的 sink；超过 B 的安全门时，A 不得把完整 bytes 交给 B。`payload_bytes` 仅是 backend 交付/消费量，`wire_bytes` 仅可靠时记录，否则 `unknown`，两者不得互推；RSS 另报。静态和行为护栏必须拒绝把该 API 接到 builder、pointer、cache、writer fence 或 search route；仅显式 P0 safe-sampling 和未来另行批准的 snapshot 路径可调用。合同不写磁盘、cache、日志或真实 payload；日志仅可有 receipt 允许字段和固定 code。
+投前与 SPBP 文件数近似（315/317），词法索引相差约 5.7 倍，说明文件数量不能解释索引成本。当前主要放大器是正文全量 CJK 1/2/3-gram、最多约 15% 固定重叠、统一固定块、posting 中重复长 chunk ID、多份映射和 JSON 文本编码。
 
-**本地 fake 验收矩阵（已实施，不能替代真实 pilot）**：LocalFS、Memory 与 fake FileStation 覆盖：(1) login+download 总计至多 6 attempts、首 chunk 前 transient 重开成功；(2) 首 chunk 后 transient 为零 retry、失败且无成功 receipt；(3) 每次 raw read（含 `{` envelope 前缀/续读）不超过 `min(chunk_size, remaining+1)`，增长 fail closed；(4) 无可信完整性依据、SHA mismatch/截断均无成功；(5) deadline、cancel callback 异常脱敏、剩余 timeout 与返回后关闭；(6) retry version/TLS 重验、真实 pinned/unpinned adapter 的同 socket、timeout、close；(7) 有界/歧义 envelope 与 `{` 开头普通 JSON；(8) consumer copy 不误报为受控 consumer 内存；(9) 成功/失败/取消零写、零旧 fallback、零敏感日志，且静态 guard 保持 P1b 路径无接线。每个负例无 partial receipt 或 payload 持久化；三后端 WriteTrap 覆盖仍为范围内要求。
+### 2.3 规模假设
 
-**四道门（当前状态）**：合同的独立评审、仅实施 bounded-read 与 LocalFS/Memory/fake FileStation 验证均已完成；实施后复审发现的六项阻断亦已在本轮返修并重验。下一道且唯一未通过的门仍是 Evan 明确授权的一库一次真实 P0 pilot。P1b 始终 **NO-GO**，不因任一门通过而自动解锁。
+以当前最大库为 1 倍：
 
-### 新的 P1b 决策门
+- 100 倍：约 5 万文档、665 万 chunks；
+- 200 倍：约 10 万文档、1,330 万 chunks；
+- 1000 倍：约 50 万文档、6,650 万 chunks。
 
-可决定根因与 P1b 方案的数据是：受限读取合同先经独立评审和本地验证；之后 A 的少量有界原始样本能区分 logical read、attempt success/error、payload 与安全停止；B 在相同受控 bytes 的 n>=20 分布能量化解析/内存；C 在 n>=20 脱敏 corpus 的 legacy/postings 对照能量化算法且无原语差异；并且成功路径至少有一个在门内的完整、分段可判样本。网络层不要求 20 个巨大 cold/hot 请求，也不得虚报 P95。任一层显示容量门不能在读取/解析前安全执行、writer/fence 恢复原语未证明，或成功路径仍不可判，保持 NO-GO，不偷做流式存储或 P1b。
+100–200 倍是目标容量；1000 倍是架构演进上限，不在当前 OPS 上直接承诺。任何“支持 1000 倍”的说法必须来自多节点完整或代表性压测，不能只线性外推。
 
-### 下一轮（仅供获授权操作者，不在本轮执行）
+### 2.4 外部参考事实
 
-1. 先实现并独立评审上述受限读取合同，在 fake transport/LocalFS/Memory 上完成本地验收；不接 NAS、不取真实 payload。
-2. 通过后才可由受控启动面、另行授权一库一次有界 pilot；命令行、日志、RT 和 evidence 不出现 query/token/path/URL/凭据。安全门首先触发即停止，不追热态、第二库或 20 次下载。
-3. 只导出脱敏 diagnostic record 与结构摘要；若 A 成功且未越门，把该进程内 bytes 交给一次性隔离 B；随后销毁进程。C 只用新生成的脱敏 shape corpus。每层独立签出 sample count 与未知字段。
+WeKnora 固定审查版本为 commit `8d7298fb5d759973cb1e481cadc5ecdf16dca599`：默认 PostgreSQL/ParadeDB，Redis 协调任务，存储驱动支持本地与多种对象存储，检索驱动可选 PostgreSQL、OpenSearch、Qdrant、Milvus 等；父块进业务库、Child 进入检索，关键词与向量结果在服务层做 RRF。CWK 采用其“数据库管状态、检索引擎管召回、对象存储管正文、父子块分工”的成熟原则，但不复制其完整产品代码。
 
-## 实现备注（P0 通过后才生效）
+### 2.5 证据限制
 
-### 1. 单一权威、digest 与不可变快照
+- 上述三库数据来自 2026-09-09 对 NAS 元数据和索引头部的有界只读统计，未下载三个完整索引。
+- OPS 已核实有 64GB 内存和约 460GB 可用空间；这只足够当前 PoC 与有限放大测试，不构成 1000 倍生产容量证明。
+- 本稿的磁盘和节点规划是候选预算，最终以阶段 E 的真实 OpenSearch 指标为准。
 
-`_system/lexical-query-current.v1.json` 是 P1b search 的**唯一** readiness/pointer 权威；旧 `lexical-readiness.json` 仅可作 libraries 展示，不能授权 search、不能作为 fallback。它有 `kb_code`、schema、`state: stale|ready`、单调 `epoch`、`query_corpus_digest`、generation、engine、snapshot locator、snapshot SHA、size/limits 与创建者状态。未知字段/版本、缺字段、跨库、非 ready、digest/epoch 不符全部 503 fail-closed。
+## 三、目标架构
 
-`query_corpus_digest` 不是只对 `(lineage,version,SHA)` 哈希。它对**所有影响 search 可见结果**的规范化投影做 domain-separated SHA-256：资格状态、lineage、current version、raw SHA、artifact/readability/reason、title/display label/source、metadata haystack、每个 document raw size、chunk id/owner、byte span、term/posting/tf、候选顺序规则、coverage/excluded，以及其 schema/normalizer 版本。编码为 UTF-8 canonical JSON：对象键 Unicode code-point 升序、数组明确排序、整数十进制、字符串 NFC；metadata/title 与 query 使用同一标明版本的 Unicode normalize + case-fold 函数，禁止语言/locale 隐式差异。
+```text
+公司内网                                         云端演进
+┌────────────────────────────┐                 ┌────────────────────────┐
+│ NAS / CWork 原始资料        │                 │ S3 兼容对象存储         │
+│          │ 只读             │                 │ PostgreSQL HA           │
+│ CWK Connector              │──出站 HTTPS───▶│ OpenSearch 集群          │
+│ Parser / Normalizer        │                 │ Query API + Worker       │
+│          │                  │                 └──────────┬─────────────┘
+│ PostgreSQL                  │                            │ HTTPS
+│ OpenSearch                  │                 ┌──────────▼─────────────┐
+│ Parent 对象缓存/NAS Adapter │                 │ 内外部 OpenClaw Gateway │
+│ Query API                   │                 └────────────────────────┘
+└──────────┬─────────────────┘
+           │ 内网 HTTPS
+     内部 Gateway
+```
 
-`generation = SHA256("cwk.lexical-query.generation.v1\\x1f" + query_corpus_digest + "\\x1f" + engine + "\\x1f" + snapshot_schema)`。快照 locator 固定为 `_system/lexical-query/v1/<generation>.json`，不含其自身 SHA，避免循环哈希；pointer 另存 snapshot SHA。builder 只允许首次创建：locator 已存在但 bytes/SHA 不同立即拒绝，完全相同才幂等成功，绝不覆盖。snapshot 自身不写 pointer SHA；读取后计算 SHA 与 pointer 比对，才允许结构解析。
+### 3.1 组件职责
 
-结构验证必须在评分前完成：schema/kb/generation/digest/engine 精确一致；所有 map key 唯一；每 posting 指向存在 chunk、term/tf 为正、chunk owner 属同一文档；`n_chunks`/预存 `avgdl` 与 chunk lengths 可复算；每 span `0 <= start < end <= raw_size`、同文档 raw SHA/version 一致、chunk 不跨文档；候选排序所需字段完整。缺、重复、截断、错库、错 SHA、回放旧 epoch、指针指向另一代或结构不自洽一律拒绝，不以旧 cache、raw-index 或 metadata 路补答。
+#### Connector（源连接器）
 
-### 2. 正式 writer 枚举、单库写者、S0/S1 与 epoch fence
+- 唯一可以读取公司 NAS/CWork 的新组件；只读运行。
+- 发现新增、修改、删除，形成稳定 `source_id/source_version/source_sha256`。
+- 解析和规范化后，把 Parent 对象、元数据和索引任务交给内部控制面。
+- 云端阶段只主动向外发起 HTTPS；云端不反向进入公司内网。
 
-本节是 `d40e36b` 的静态清单，不把测试直写、读侧 gateway/wizard、token access-file import 或「可能存在的 repair」冒充生产 writer。`git grep` 的固定路径结果如下；P1b 实现前必须再用同样的全仓扫描和动态目标审计复核，发现任何新 writer 都是阻断项。
+#### PostgreSQL（控制面）
 
-| 路径/入口 | 对 raw-index 的事实 | P1b fence/Q39 义务 |
-|---|---|---|
-| `kb_create.create_library()` | 初建树通过固定文件表写空 `_system/raw-index.json` | 新库只能是 pointer missing/stale；第一次 builder ready 前 search 503。Q39：创建后不得从残留/跨库 cache 返回 hit。 |
-| `kb_ingest.execute_plan()` → `Accounts.publish()` | **实际运行时 writer**。当前没有 `Accounts.commit()` 方法；`publish()` 先备份 `raw-index.prev`，再写 raw-index、provenance、ingest-state；它逐 item、失败状态和批次收尾都会被调用 | 仅当 raw-index query projection 将改变时，在第一次 raw/index 变更前推进 stale epoch；新件、升版/重分类导致的 current-row 变化各一例 Q39：下一 search 无重启 503，重建后只见新 SHA/version。失败状态但 raw-index projection 不变须证明不误推进或误报。 |
-| `refresh_library(..., apply=True)` | 不是独立 writer；它调用 `execute_plan()`，故继承上一行 | cwork/docdb refresh 各做一例 Q39，证明没有绕过 `Accounts.publish()` 的 fence。 |
-| `kb_migrate` 的通用 tree copy | 不引用常量，但可把源树的动态 `target`（包括 raw-index）写入 destination；它是否能迁移到被 gateway 服务的 live KB 尚未被本轮证明 | **未穷尽阻断**：P1b 前要么在迁移目的地接入同一 fence/Q39，要么以代码级 guard 证明 live KB 不可作为 destination；不能仅靠操作约定。 |
-| `reconcile_coverage`、`kb_wizard`、`kb_access_file.import_access`、`kb_lexical_builder`、`save_refresh_state` | 当前静态路径分别为只读、读侧、token 本地文件、词法发布物、refresh-state；不写 raw-index | 维持非 writer；新增 raw-index 写入即加入本表、fence 和 Q39 后才可合入 P1b。 |
+保存需要事务和关联查询的“小而关键”状态：租户、知识库、文档、版本、Parent 元数据、服务身份、知识库授权、索引任务、活动 epoch、schema/chunker/analyzer 版本、失败/重试和审计。它不保存倒排 postings，不保存重复 Child 正文。
 
-现有 `StorageBackend`/FileStation 只有单对象 `write`（覆盖语义）和重试，没有多对象事务、create-if-absent 锁或 CAS。因而「ledger 保护的锁」不是已实现事实。P1b 前必须先证明一种可恢复的单库排他原语（持久 owner/epoch/lease、不可安全接管即拒绝）或获得受控外部单写者服务；否则双 builder/source writer 下的正确 stale fence 无法证明，P1b 保持 NO-GO。
+#### OpenSearch（检索面）
 
-可接受的无多对象事务恢复顺序是：先取得已证明的单库锁 → 读取 current pointer/epoch → 单独把 pointer 写为 `stale(epoch+1, writer-id)` 并确认读回 → 写 raw artifact/index（每对象原子语义）及现有 accounts/manifest → 释放给 builder。任一点崩溃、读回不一致或锁丢失都保持 stale；builder 不可把旧 ready 当恢复。builder 在同锁下 collect S0（逐件流式 SHA）→ 写且回读校验 immutable snapshot → collect S1；仅 S0=S1、pointer 仍是自己的 stale epoch、锁仍有效时才把 pointer 写 ready。第二次 collect 的 I/O/bytes/elapsed 必须单列。
+只保存可重建的 Child 检索投影：租户/库/文档/Parent/版本、标题、章节、正文分析字段、精确标识字段、来源定位和 epoch 可见区间。第一阶段只做 BM25；向量是后续有数据门的增强项。
 
-gateway 在授权后读取 P0 ready pointer；在评分**前**再次读取/比较 P1，在返回前读取 P2 并重新调用目标库授权。P0=P1=P2、epoch/digest/generation/snapshot SHA 均相同，且 return-time authorization 成功才返回；任一变化、shared token revoke 或鉴权失败都丢弃计算结果。最后核验只准许尚未发送的响应，不能撤回已送字节。
+#### ObjectStore（对象层）
 
-### 3. 快照算法与等价性
+- NAS 原件是当前事实源。
+- 规范化 Parent 通过 `ObjectStore` 接口访问；内网实现可以是 NAS/受控本地缓存，公网实现是 S3/MinIO/COS。
+- OpenSearch 命中后只批量读取 Top Parent，不扫描或下载全库。
+- OpenSearch `_source` 不保存第二份完整 Parent；正文分析字段允许从 `_source` 排除，以索引倒排结构、Parent 对象负责展示上下文。
 
-快照预存 `n_chunks`、`sum_chunk_lengths`、`avgdl`、query-visible metadata projection、倒排 `term -> postings` 和每 posting 所需 document/chunk/span/tf。每请求：query 仅 tokenize 一次；对去重 query terms 查 postings；只为命中的 chunk 累计 BM25，按 document 取 best score；每 `(query,chunk)` 只算一次并复用给 rank 和 `best_spans`；metadata 仍按同一规范化 projection 计算；RRF/candidate_k/tie-break 与旧合同不变。空 term/posting 正确返回 0，不扫描全 chunks。
+#### Query API（统一查询服务）
 
-新旧等价测试用同一脱敏 corpus 与固定 query matrix，逐字段比较，包含 CJK 1/2/3-gram、ASCII、空查询拒绝、无答案、tie、重复词、正文-only、metadata-only、融合、最多三 non-overlap spans、candidate_k 截断和跨库隔离。性能优化若改变任一既有合法结果，先修等价性，不以更快为通过。
+- 内外部 Gateway 的唯一知识检索入口。
+- 负责身份验证、授权、OpenSearch 查询、Parent 批量取回、去重、来源组装和审计。
+- PostgreSQL、OpenSearch、NAS/ObjectStore 均不直接暴露给 Gateway。
 
-### 4. 缓存、下载与资源边界
+#### Worker（异步索引执行）
 
-服务器当前是单线程；加载器仍做每 `(kb,epoch,generation,snapshot_sha)` single-flight，第二个冷请求只等待同一个已开始的验证，不再启动下载。只有完整下载/流式 SHA、大小限制、解析、结构校验、P1 指针比较都成功后才可入缓存；失败对象绝不缓存。每 KB 同时仅保留 current 一代；pointer 前进时先退休旧代并释放，再可装入新代，跨库缓存键永远含 kb_code。
+- 从 PostgreSQL 任务表以 `FOR UPDATE SKIP LOCKED` 领取任务。
+- 完成解析后的 Bulk 写入、旧版本失效、计数校验和任务状态更新。
+- 第一阶段不用 Redis；只有 PostgreSQL 队列经压测成为瓶颈才另立扩展决定。
 
-硬限制须在分配/解析**之前**执行：pointer max bytes、snapshot compressed/wire bytes、decoded bytes、docs/chunks/postings、单 query postings work、单库已验证缓存和进程总缓存均有常量上限。读取必须采用上文 P0 安全前置的显式 `read_bounded` 合同：先取可信且对象绑定的 size preflight，或以 `max_bytes+1` 流式计数，超限中止；同时流式 SHA，禁止 `read()->bytes` 后才检查长度。builder 正文校验也走流式 SHA；P1a endpoint 语义仍独立，不能借本 RT 静默改变它。
+## 四、权威数据模型
 
-256/512/64MiB 已被本次 legacy 样本的 1.495GB logical lexical payload 与 5.462GB RSS 反证，不能再作为 P1b 通过阈值或被静默放宽。B 必须先以受控单次 bytes 得到 wire（若可观测）、decoded、parse 工作区和 verified-cache 的 n>=20 分布；若输入先越安全门，安全中止并只保留结构摘要。之后才可回方案门重定格式/预算；不得靠 OOM 后逐出、重复下载或偷偷增加上限。P1b 若获准，仍须在读取/解析前 fail-closed `capacity_exceeded`。
+### 4.1 全局身份
 
-### 5. 回滚与恢复
+所有身份独立于物理路径：
 
-**代码回滚**：先停止把新 gateway binary 投入流量；旧 binary 只走其已支持的 legacy 词法路径，不能解释 P1b pointer 就必须显式 lexical unavailable，不能把未知快照当旧索引。**指针回滚**：仅在单库写锁内，目标 immutable snapshot 的 SHA/schema/kb/engine 与当前 raw `query_corpus_digest` 完全一致时，才可把 ready pointer 切回；否则保持 stale 并重建。回滚也增加 epoch，禁止 replay 旧 ready pointer。崩溃恢复从 pointer+snapshot 验证开始；stale/half-written/staging 无一可响应。
+- `tenant_id`：租户稳定 UUID；
+- `kb_id`：知识库稳定 UUID，另有可读 slug；
+- `doc_id`：文档 lineage 的稳定 UUID；
+- `source_version`：同一文档单调整数版本；
+- `parent_id`：`doc_id + source_version + section ordinal + chunker_version` 的稳定 ID；
+- `chunk_id`：`parent_id + start/end + analyzer projection version` 的稳定 ID；
+- `index_epoch`：知识库可见版本的单调整数；
+- `object_uri`：服务端 locator，不能返回 NAS 凭据或可绕过授权的物理地址。
 
-## 可执行验收合同（P1b）
+### 4.2 PostgreSQL 核心表
 
-### 口径与性能门
+```text
+tenants
+knowledge_bases
+source_connectors
+documents
+document_versions
+parents
+index_jobs
+kb_index_epochs
+service_accounts
+service_account_kb_grants
+audit_events
+```
 
-冷态 = 新建 GatewayApp、该 KB 的 pointer/snapshot 缓存为零、无 in-flight、同一已 ready generation；报告 NAS/OS cache 与连接复用状态，不能把它叫“物理冷盘”。热态 = 同进程同 KB 已验证 current snapshot，仍每次读/复核 pointer。连续 **5 次独立冷态必须全部**低于阈值，故不报告 P95；热态与 P0 若报告 P95，样本 **≥20**（本方案用 30）。
+关键状态机：
 
-| 面 | 通过条件 |
-|---|---|
-| cwork-3m | 冷态 5/5 `≤10s`；热态 30 次 P95 `≤2s`、max `≤3s`；`会议` 仍 total=121，generation 与 current pointer 一致。P0 若证明此阈值不可行，先回方案门，不加 timeout。 |
-| spbp | 冷态 5/5 `≤5s`；热态 30 次 P95 `≤1s`；如实记载 generation/total。 |
-| logical NAS | cold ≤2 logical StorageBackend reads（pointer+snapshot），hot ≤1（pointer）；两者均 0 raw-index、0 候选正文、0 gateway writes。 |
-| physical NAS / bytes | 网络层只取有界的单次/少量原始样本，分列 logical read 与 login/API/download attempts、success/error、payload 与 unknown wire；不得为分位数重放巨大对象。B/C 的 n>=20 分布与真实成功路径的单样本安全门共同决定后续预算，回填并再过方案门前 P1b NO-GO。 |
-| 内存 | 满足每库/进程/请求硬门；以 RSS 与受控对象计量双报。故意构造临界大 snapshot 必须在 OOM 前 503，缓存、指针、文件与 ledger 均不变。 |
+```text
+discovered → parsing → normalized → indexing → validating → ready
+                      ↘ failed / superseded / deleted
+```
 
-### 行为、故障和突变门
+规则：
 
-- builder 两次 collect 的文档数、SHA、digest 一致才 ready；第二次额外 NAS I/O/bytes/elapsed 明细必报。测试双 builder、source 在两 collect 中换代、builder 崩溃、锁失效，均只见 stale 或完整 ready。
-- 正式把 RT-051 Q39 类源升级场景升级为上表逐 writer 的 epoch-fence 判据：create、`Accounts.publish()` 新件/升版、refresh cwork/docdb、以及已解封的 migration destination 各自突变后，next search 无重启 stale；新 builder ready 后只给新 version/SHA。枚举不全、动态 migration 目的地未守卫或漏接 writer 必红、P1b NO-GO。
-- 双冷请求验证 single-flight 只有一份 snapshot download；跨库相同 generation/SHA 不得命中彼此 cache；旧 pointer/snapshot/replay、截断、hash 篡改、错误 locator、错 schema、span 越界、重复 posting 全 fail-closed。
-- 评分前/返回前分别突变 pointer、source、token/撤权；尤其 RT-053 `shared_kb` token 必须在评分暂停后 revoke，恢复时 401 且不得输出 hit。hidden backend、无 token、跨库 token 的 I/O trap 证明授权先于任何 pointer/snapshot/raw/body I/O。
-- WriteTrap 证明全部 GET 与 cache hit/miss 零持久写；候选正文 read trap 证明 search 从不读正文；无 lexical 时只有显式既有 metadata 请求可走 metadata，`lexical_fusion_v1` 不隐式降级。
-- 新旧算法等价矩阵、既有 RT-051/052/存储回归、`make ci` 全绿；每项关键判据做真实行为突变（断掉 pointer 复核、恢复全量扫描、缓存未验证对象、移除返回前鉴权、允许覆写 locator）并确认变红后还原。
-- 读产出：人工核 cwork/spbp 的 total、generation、排序、version/SHA、span 和 P0 分段原始记录；测试绿灯不替代真实性能/安全读数。
+1. `documents.current_version` 只指向完整 ready 版本。
+2. 新版本失败时旧 ready 版本仍服务。
+3. 删除先取消控制面授权/可见性，再异步清理 OpenSearch 和对象。
+4. 任务幂等键为 `(kb_id, doc_id, source_version, pipeline_version)`。
+5. 同一文档同版本重复提交只复用已存在结果，不生成重复 chunks。
 
-## 风险与不选方案
+### 4.3 OpenSearch Child mapping
 
-| 方案 | 不选原因 |
-|---|---|
-| 增大 300s timeout | 不减少任何请求、字节、O(N²) 或队头阻塞，只把故障拖长。 |
-| 仅 cache 当前 JSON | 不解决冷态或 O(N²)；不加 epoch/fence 会服务旧 generation。 |
-| 仅做快照、不改评分 | 仍反复全量 `avgdl`/tokenize/chunk 扫描，P0 已要求量化并阻断。 |
-| search 逐候选读正文/SHA | 违反本 RT 边界并增加 NAS 往返；正文证据仍只走 P1a read 合同。 |
-| 多线程共享 FileStation 或网关写磁盘 cache | 破坏单 session/GET-only 边界且扩大状态面，不能当性能捷径。 |
-| FTS5/向量 | 新引擎、格式、部署和回滚面超出最小 P1b；除非 P0+P1b 证据失败才另立决定。 |
+必需字段：
+
+```text
+tenant_id          keyword
+kb_id              keyword
+doc_id             keyword
+source_version      long
+parent_id           keyword
+chunk_id            keyword
+generation_schema   keyword
+valid_from_epoch    long
+valid_to_epoch      long/null
+title               text + keyword
+section_path        text + keyword
+body                 text（不进 _source 或仅 PoC 对照）
+identifiers          keyword[]
+entity_names         keyword[]
+date_values          date[]
+page_start/end       integer
+sheet_name           keyword
+row_start/end        integer
+char_start/end       integer（相对规范化 Parent，仅用于上下文窗口）
+object_uri           keyword（服务端使用，不返回客户端）
+```
+
+约束：`dynamic: strict`；标识、租户、库、版本、epoch 使用 doc values；正文关闭 doc values；禁止把原始任意 metadata 整包写入 mapping。
+
+### 4.4 增量可见性协议
+
+单文档更新使用知识库 epoch，避免 PostgreSQL 与 OpenSearch 假装有跨库事务：
+
+1. 在 PostgreSQL 预留 `next_epoch = current_epoch + 1`。
+2. Bulk 写入新 Child，`valid_from_epoch=next_epoch`。
+3. Bulk 更新旧版本 `valid_to_epoch=current_epoch`。
+4. 复核新旧 chunk 数、失败项和抽样检索；任一步失败不推进 epoch。
+5. PostgreSQL 原子推进 `current_epoch=next_epoch` 与 `documents.current_version`。
+6. Query API 每次读取 current epoch，并过滤 `valid_from <= epoch <= valid_to/null`。
+7. 后台清理超过保留窗的旧 Child；清理失败不影响当前 epoch。
+
+mapping/analyzer/chunker 发生不兼容变化时，不走逐文档更新：建立新物理索引，完整验证后通过 alias 切换；旧索引保留到回滚窗结束。
+
+## 五、解析、Parent/Child 与索引降复杂度
+
+### 5.1 规范化规则
+
+- 保留标题层级、段落、列表、表格、代码块、公式和页/Sheet/行定位。
+- 去除可判定的重复页眉页脚、固定签名、导航和模板；无法确定是否正文时宁可保留。
+- 不用模型改写索引正文；模型摘要不得替代原始规范化内容。
+- 每个 Parent 保存 parser/chunker 版本和源 SHA；查询时不重新全件计算 SHA。
+
+### 5.2 Parent
+
+- 优先以标题章节、PPT 页、Excel 表格组、连续 PDF 小节形成 Parent。
+- 候选上限：约 4,000 Unicode code points；超长按段落/表格组递归分割。
+- Parent 仅作为回答上下文和来源单元，不建立全文或向量索引。
+
+### 5.3 Child
+
+初始冻结参数：
+
+- 目标约 900 Unicode code points；
+- 硬上限 1,400；
+- 默认 overlap=0；
+- 只有连续长段在安全边界无法切开时，最多重叠 80 code points；
+- 标题和 `section_path` 作为独立字段，不复制进每个正文多次；
+- 表格按表头 + 有界行组切分，代码/公式保持不可拆原子块，超限明确标记。
+
+参数调整必须产生新的 `chunker_version` 并重跑同一质量/体积基准，不能在线静默变化。
+
+### 5.4 中文字段设计
+
+1. 正文取消现有全量 CJK 1/2/3-gram。
+2. PoC 只比较 OpenSearch 官方、版本匹配的 `analysis-icu` 与 `analysis-smartcn` 两个候选；不引入第三方 IK 作为生产强依赖。
+3. 同一 gold 集中，先满足质量门，再选主索引更小、升级依赖更少者；质量/大小接近时默认选择 ICU。
+4. 编号、合同号、日期、金额、英文缩写和可识别主体名进入 `keyword` 精确字段，不依赖中文分词碰运气。
+5. 标题/章节可保留有限辅助 analyzer；正文不恢复全量字符 n-gram。
+6. 查询只分析一次；多字段 BM25 初始权重为 title 3、section 2、body 1，精确 identifier 命中作确定性提升。权重只能由 gold 集调优并版本化。
+
+### 5.5 初始召回与上下文
+
+1. Query API 授权并取得固定 `tenant_id/kb_ids/current_epoch`。
+2. 解析精确标识与普通查询词；对 OpenSearch 注入服务端过滤。
+3. 每路最多取 100 个 Child；按文档/Parent 限流，避免长文霸榜。
+4. 默认每文档最多 3 个 Child、每 Parent 最多 2 个；最终取 8–12 个证据窗口。
+5. 批量读取对应 Parent，仅展开命中 Child 周边的有界上下文。
+6. 返回文档、版本、章节、页/Sheet/行与证据片段；不把 BM25 分数冒充置信度。
+7. 无命中与系统不可用分开：零命中为成功的 `no_evidence`，索引/控制面不可核实为显式 503。
+
+## 六、Query API 与兼容策略
+
+### 6.1 新 API
+
+优先稳定检索 API，回答 API 后置：
+
+```text
+POST /v3/kb/search
+Authorization: Bearer <short-lived service identity>
+{
+  "kb_ids": ["..."],
+  "query": "...",
+  "top_k": 10,
+  "request_id": "..."
+}
+```
+
+响应至少包含：请求/生效库、current epoch、pipeline/analyzer 版本、检索耗时分段、`no_evidence`、hits，以及每个 hit 的 doc/version/section/locator/evidence excerpt。错误响应不含正文、物理路径、token、数据库地址或底层异常。
+
+`POST /v3/kb/answer` 不进入第一批切换；先由外部 Gateway 使用 search 证据调用自己的模型。只有 Search API 稳定后，才决定是否由 CWK 统一提供回答。
+
+### 6.2 旧接口
+
+- 现有 `/v2/kb/libraries|search|read` 在迁移期继续存在。
+- `/v2/kb/search?...lexical_fusion_v1` 通过兼容适配器调用新 SearchBackend，但响应形状保持；无法无损映射的字段明确标 deprecated，不能伪造。
+- v2 `document_ref/read` 继续提供已批准的原文读取能力；新 v3 搜索不要求每个 hit 先完成全文 SHA 回读。
+- 切换和退役必须有真实调用量与客户端升级证据，不能只凭代码存在删除旧接口。
+
+### 6.3 服务实现
+
+- 新 Query API 使用成熟 ASGI 服务栈与官方 OpenSearch/PostgreSQL 客户端，依赖固定版本并有锁文件/镜像摘要；不继续扩大单线程 `HTTPServer`。
+- 当前 `kb_gateway.py` 先做兼容层；新服务稳定后再决定是否退役其旧 HTTP server。
+- 搜索后端通过 `SearchBackend` 接口隔离，接口覆盖 health、search、bulk-index、invalidate-version、stats；不把 OpenSearch DSL 泄露给 Gateway/Agent。
+
+## 七、权限、安全与公网演进
+
+### 7.1 当前内网
+
+- Connector、PostgreSQL、OpenSearch、ObjectStore 和 Query API 先部署在内网。
+- Gateway 只访问 Query API；即便同一局域网也不直连数据库/NAS。
+- 现有绑定 token 可作为兼容身份，但服务端必须映射为 service account + kb grants。
+
+### 7.2 外部 Gateway 试用
+
+- 通过零信任专网/VPN 访问内网 Query API。
+- 只开放 HTTPS API，不开放 NAS、9200、5432 或对象存储管理端口。
+- 适用于少量可信 Gateway；公司网络中断时外部查询不可用，必须如实显示。
+
+### 7.3 正式公网
+
+- Query API、PostgreSQL、OpenSearch 和允许上云的对象副本进入云端私有网络。
+- 内网 Connector 仅通过出站 HTTPS 增量同步；云端不主动进入公司内网。
+- API 前置 TLS、WAF/限流、请求体上限、短期身份、审计与密钥轮换。
+- 每个 Gateway 使用独立 service account，绑定 tenant/kb，只授予 search/read-evidence 权限，可单独吊销。
+
+### 7.4 知识库数据策略
+
+每个知识库必须选择且可审计：
+
+- `cloud_replica`：原件/规范化 Parent/索引可上云；
+- `derived_only`：原件留内网，只同步批准后的规范化文本和检索投影；明确承认云端仍持有可读内容；
+- `onprem_only`：资料和索引均留内网，外部只能经零信任网络调用内网 API，或被拒绝。
+
+“资料不能离开公司”与“公司断网时外部仍可查询”不可同时满足；此冲突必须由业务数据 owner 选择，系统不能用技术措辞掩盖。
+
+### 7.5 日志与隐私
+
+- 默认不记录 query 正文、证据正文、token、路径和原始异常；记录 request_id、service account、tenant/kb、耗时、结果数、状态码和版本。
+- 需要查询审计时采用受控开关、最短留存和脱敏策略，另行批准。
+- 凭据只来自受控环境/secret store，不入 Git、RT、命令参数和日志。
+
+## 八、容量、分片、存储与恢复
+
+### 8.1 容量预算
+
+当前目标是同等语料的 OpenSearch 主索引不超过旧词法 JSON 的 20%。若 cwork 1 倍主索引达到 300MB：
+
+- 100 倍约 30GB 主索引；
+- 200 倍约 60GB；
+- 1000 倍约 300GB。
+
+生产一份 replica 约翻倍；segment merge/升级再预留至少 50% 运行空间；快照另放对象存储。因此 1000 倍的候选在线+余量接近 900GB，不适合当前仅约 460GB 可用空间的 OPS 单机。
+
+### 8.2 分片策略
+
+- 不按每个知识库建立物理索引，避免大量小分片；同环境共享索引，以 tenant/kb 字段过滤。
+- 物理索引按 schema/analyzer generation 管理，目标主分片约 20–40GB。
+- PoC 单节点 `replicas=0`，不得称高可用生产。
+- 内网生产是否单节点由可用性要求决定；正式公网至少一份 replica，并通过节点故障实测决定 3 个组合节点或专用 master/data 拓扑。
+- shard 数不提前写死；阶段 E 用 100/200 倍数据确定。发现分片选择错误时重建新索引并 alias 切换，不在线拆补丁。
+
+### 8.3 初始加载与增量
+
+- 初始 Bulk 建库期间延长 refresh interval 或暂时关闭自动 refresh，按批次失败项重试；完成后恢复查询设置并 force merge 仅在实测证明有收益时执行。
+- Bulk 的文档数/字节上限由 PoC 找到安全值，客户端同时限制请求字节和 in-flight 数。
+- 增量目标：普通文档从发现到 ready P95 ≤5 分钟；大文/异常显式排队或失败，不阻塞其他文档。
+
+### 8.4 备份与恢复
+
+- PostgreSQL：生产使用定期全备 + WAL/PITR；恢复演练必须包含 grants、current epoch 和任务状态。
+- OpenSearch：定期 snapshot 到独立对象存储；索引仍可从 Parent 对象和 PostgreSQL 重建。
+- ObjectStore：版本化、生命周期和跨故障域备份由部署环境决定。
+- 恢复顺序：PostgreSQL → ObjectStore 可读性 → OpenSearch snapshot/重建 → count/抽样/gold 验证 → Query API 放流。
+
+## 九、可观测性与失败语义
+
+必须采集：
+
+- API QPS、P50/P95/P99、4xx/5xx；
+- OpenSearch took、rejected、timeout、heap、GC、segments、shards、磁盘水位；
+- PostgreSQL 连接、慢查询、锁等待、job queue depth；
+- Connector 同步滞后、文档状态和失败原因类别；
+- 索引 bytes/document、bytes/chunk、chunks/document、重复率；
+- ObjectStore 命中、延迟、字节和缓存命中；
+- current epoch、alias、pipeline/chunker/analyzer 版本。
+
+失败必须区分：unauthorized/forbidden、no_evidence、source_stale、index_not_ready、search_timeout、control_plane_unavailable、object_unavailable、capacity_exceeded。禁止将系统错误降级为空结果或旧版本成功。
+
+## 十、分阶段实施计划
+
+### 阶段 A：冻结合同与基线（方案门通过后首先执行）
+
+产出：
+
+1. 现有三库 1 倍基准：原文/JSON/词法大小、文档/chunk/term 数、构建和查询分段耗时、RSS。
+2. 50–100 题 gold 集：正文、标题、中文短词、精确编号、公司/人名、日期、表格、无答案、权限负例。
+3. v2 兼容合同和 v3 Search API schema。
+4. 旧要求保留/降级/删除的逐项表；RT-051 read 合同不被静默改写。
+
+完成门：基准可重复；gold 由人工读过；方案中的成功标准能被真实行为判据证伪。
+
+### 阶段 B：精简 Parent/Child 与 analyzer PoC
+
+只用脱敏/批准数据离线执行：
+
+1. 实现结构化 Parent/Child 投影，不接 Gateway。
+2. 比较旧 1/2/3-gram、ICU、SmartCN；记录索引大小、term 数、Recall@10 和精确查询。
+3. 比较 body 进入/排除 `_source` 的磁盘和取回代价。
+4. 固定 chunker/analyzer/mapping v1。
+
+完成门：三库等价语料的主索引相对旧 JSON 缩小 ≥80%；gold macro Recall@10 不低于旧实现且 ≥0.90；精确编号 Recall@10=1.00；无串库。
+
+### 阶段 C：PostgreSQL 控制面与索引 Worker
+
+1. 建 migration/schema、文档状态机、任务幂等和 kb epoch。
+2. Connector 只读发现变更，Parent 对象与任务分开提交。
+3. Worker 完成 Bulk、旧版失效、验证、epoch 推进、失败重试。
+4. 新增脚本时同步 AODW ownership manifest 和模块索引，不能产生 GA-ORPHAN。
+
+完成门：新增、修改、删除、重复提交、Worker 崩溃、部分 Bulk 失败、重试和旧版继续服务均有行为测试；破坏 epoch 接线时判据必须变红。
+
+### 阶段 D：Query API 与影子流量
+
+1. 实现 v3 Search API、SearchBackend、授权、Parent 批取和来源组装。
+2. v2 search 兼容适配器接新后端；旧 JSON 仍是正式路径。
+3. 同一请求执行影子检索，只记录脱敏差异和耗时，不改变用户响应。
+4. 完成返回前授权复核、超时、限流和错误分类。
+
+完成门：连续影子运行无未解释系统错误；固定问题集与人工产出复核通过；权限负例零泄漏；Query API 不暴露底层 locator/凭据。
+
+### 阶段 E：容量与故障验证
+
+分层执行：
+
+1. 1 倍：三库真实脱敏数据完整构建与查询。
+2. 100 倍：约 665 万 chunks 的代表性全量压测；并发 20/50/100，读写混合。
+3. 200 倍：约 1,330 万 chunks，验证分片、恢复、增量和磁盘线性。
+4. 1000 倍：在获批成本环境做 6,650 万 chunks 完整或足以证明瓶颈的多节点代表性压测；未执行前只能称“设计可演进”，不能称“已支持”。
+
+完成门：满足第十一节容量/性能/可靠性门；节点数、磁盘、heap、shard 和副本形成实测部署表。
+
+### 阶段 F：逐库切换
+
+顺序固定：docdb-touqian → spbp-2027 → cwork-3m。
+
+1. 每库先 shadow，再小流量，最后全量。
+2. 切换只改变服务端 backend/alias，不改变 NAS 原件。
+3. 旧 JSON 保留回滚窗；任何门失败切回旧路径。
+4. 三库稳定后停止生成新大 JSON；旧文件归档/删除是独立维护授权，不在本 RT 自动执行。
+
+### 阶段 G：公网准备与 WeKnora 对照
+
+- 当前 RT 只把 Connector/ObjectStore/Query API/身份设计做到可迁移，并完成内网部署证据。
+- 外网少量 Gateway 先经零信任专网验证。
+- 正式云端部署、数据出境策略和生产成本需要新的生产授权。
+- 原版 WeKnora 使用同资料、同问题、同硬件级别做独立 Experiment RT；禁止 fork，记录部署、升级、检索、存储和自研代码成本。若 WeKnora 总成本/体验明显优于 CWK，则停止继续产品化 CWK，而不是为保项目而扩大范围。
+
+## 十一、验收门
+
+### 11.1 存储
+
+- cwork-3m 主检索索引 ≤300MB；
+- spbp-2027 ≤53MB；
+- docdb-touqian ≤10MB；
+- 相对旧 JSON 均缩小 ≥80%；
+- 100/200 倍 bytes/chunk 近似线性，偏离 >25% 必须解释；
+- 统计 OpenSearch primary store，不能拿压缩 snapshot 或不含必要字段的半成品冒充。
+
+### 11.2 性能（不含 LLM）
+
+- 当前规模 Search API 暖态 P95 ≤500ms、P99 ≤1s；
+- 100 倍规模 P95 ≤1s、P99 ≤2s；
+- 200 倍规模不得超过 100 倍目标的 1.5 倍；
+- API 系统错误率 <0.1%；
+- 查询内存不随全库正文线性加载；
+- 不再下载/解析 1.5GB 词法 JSON；
+- 单文档增量 ready P95 ≤5 分钟（超大文单列）。
+
+### 11.3 质量
+
+- 固定 gold macro document Recall@10 ≥0.90 且不低于旧实现；
+- 精确编号 Recall@10=1.00；
+- 正文-only、中文短词、表格和无答案各自报告，不得用总平均掩盖失败类别；
+- 每个返回证据能定位到当前文档版本与人可读位置；
+- AI 评审不替代人工读至少 20 个真实脱敏查询产出。
+
+### 11.4 权限和公网边界
+
+- tenant/kb 跨域泄漏为 0；
+- 客户端伪造 kb、filter、object_uri 不能扩大权限；
+- 撤权后的下一请求拒绝，响应发送前再鉴权失败时不返回正文；
+- 外部 Gateway 无 NAS/DB/OpenSearch 凭据；
+- 公网扫描不能直达 5432/9200/对象存储管理面；
+- 日志不含 query/正文/token/物理路径。
+
+### 11.5 一致性与恢复
+
+- 新版本未 ready 不可见，失败不破坏旧版；
+- Bulk 部分失败不推进 epoch；
+- alias/epoch 回滚经过真实行为测试；
+- PostgreSQL 恢复、OpenSearch snapshot 恢复和从对象重建各完成一次演练；
+- 单节点故障的用户影响与恢复时间有实测，不用“有 replica”替代演练。
+
+### 11.6 AODW 与仓库门
+
+- 每阶段跑对应定向测试；新增判据做真实破坏实验。
+- `make governance-audit`、`make aodw-check`、`git diff --check` 通过。
+- 完整实现收口前 `make ci` 通过；其耗时不能用局部测试替代。
+- 独立 AI 评审检查：是否解决错问题、判据是否空、权限过滤能否绕过、epoch 是否假原子、容量结论是否外推。
+- 人工读三库真实脱敏搜索结果、错误响应、同步状态和公网身份流；测试绿不等于用户目标达成。
+
+## 十二、计划改动面与所有权
+
+预计修改：
+
+- `scripts/kb_gateway.py`：旧 v2 兼容适配与逐步退役单线程路径；
+- `scripts/kb_gateway_client.py`：v3 Search API 客户端合同；
+- `scripts/kb_lexical.py`：降为旧实现/等价基准，不再是生产排名引擎；
+- `scripts/kb_lexical_builder.py`：过渡构建与旧 JSON 停产开关；
+- `scripts/kb_ingest.py`、`scripts/kb_storage.py`：Connector/ObjectStore 接缝和源身份复用；
+- `.aodw-next/06-project/governance/code-ownership-manifest.json` 与 `modules-index.yaml`：新运行文件逐条归属。
+
+预计新增（名称在实现前再做冲突检查，不预登记不存在文件）：
+
+```text
+scripts/kb_search_backend.py
+scripts/kb_opensearch.py
+scripts/kb_control_db.py
+scripts/kb_index_worker.py
+scripts/kb_connector.py
+scripts/kb_query_service.py
+config/kb-search-*.example.*
+tests/test_rt054_*.py
+```
+
+外部依赖必须单独锁定并进入供应链检查，候选包括官方 `opensearch-py`、PostgreSQL driver 和 ASGI 栈；在阶段 A/B 先确定最小依赖集合，不允许每个脚本各自实现 HTTP/连接池/重试。
+
+## 十三、开发提交与推进节奏
+
+建议按可回滚边界提交，不把整个重构压成一个提交：
+
+1. `docs(rt054): converge search architecture and acceptance gates`
+2. `test(rt054): freeze corpus and retrieval baselines`
+3. `feat(rt054): add parent-child projection and analyzer benchmark`
+4. `feat(rt054): add control-plane schema and index worker`
+5. `feat(rt054): add opensearch search backend`
+6. `feat(rt054): add v3 query service and v2 compatibility`
+7. `test(rt054): add scale failure and recovery gates`
+8. `perf(rt054): validate shadow traffic and staged cutover`
+
+每个提交只在本 feature worktree 完成、运行相应验证并带 `Refs: RT-054`。未经收口门，不合并 main、不推送、不改生产、不清理 worktree。
+
+## 十四、停止条件与改选条件
+
+任一条件成立即停止继续堆 CWK 功能并回方案门：
+
+1. 精简后当前三库索引仍不能缩小 80%，且质量要求无法解释该成本；
+2. 100 倍规模需明显超出可接受节点/磁盘预算；
+3. 为达到 WeKnora 已提供的基本能力，CWK 需要持续复制其账户、管理界面、任务和运维系统；
+4. OpenSearch 官方中文 analyzer 无法达到 gold 门，而解决方案依赖高风险第三方插件；
+5. 外部数据合规不允许任何可检索文本上云，但业务又要求公司断网时公网可查；
+6. 原版 WeKnora 对照在质量、总成本、升级和用户体验上明显胜出。
+
+改选顺序固定：先评估原版 WeKnora；不回到 SQLite 生产方案，不恢复大 JSON，不继续自研倒排引擎。
 
 ## 验证
 
-- **本轮已完成**：受限读取已经实现；独立复审发现默认 streaming 仅 fake、envelope 绕预算、控制面脱离 deadline/attempt、cancel 泄漏及 coverage 缺口六项阻断，本轮逐项返修。默认 streaming 现为真实 raw response，pin 在同一验证 socket；所有 bounded response/connection 路径关闭。未调用生产、NAS、真实 token、真实 builder 或真实 gateway。
-- **历史证据更正（2026-09-08）**：早先记录的 **87 tests / OK** 组合在当时父环境中可选中 NAS smoke，故不得再作为纯本地受限读取证据；它仅保留为安全类别记录，不记载主机、路径或凭据，也不声称已对外确认清理。
-- **受限读取纯本地验收（2026-09-08，本次）**：唯一入口 `make rt054-pure-local` 不接受测试选择或可覆盖解释器；Make override shell/flags 并由自身 realpath 推导项目根，固定 `/bin/sh` 调用 shell-quoted checked-in launcher。launcher 只从 `/usr/bin/python3` 开始：拒绝 Homebrew、`/usr/local` 与 PATH，并在 exec 前有界解析至多 16 个 symlink；每个 link 须 root-owned，但 Unix symlink lstat 的通常 mode 777 不作为可写信任判据；每跳父组件、最终 target 和从 `/` 到 target 的所有组件仍须 root-owned、group/other 非写，最终仅 exec 可执行 regular file。cycle、超深或任一不可信组件无 fallback 且 127。首个 Python 已是 `-I -S`；runner 在任意 repo import 前校验 isolation/no-site。子进程只保留 C locale 和 pure-local flag，不继承 PATH、HOME、TMP、Python import/user-site 或任何 NAS/凭据变量；启动期及测试期仅对 Python `socket.connect`/`create_connection`/`connect_ex`、`FileStationBackend.from_env`、默认网络 FileStation 写和 `.env` audit/四条 Python 标准 open route 作 fail-closed trap。**102 tests / OK, skipped=1**（21 bounded-read + 50 storage + 16 P0 + 15 pure-local guard）；verbose 摘要明确为 `NasSmokeTests` 的 `SKIP-reason: RT-054 pure-local gate`，completion marker 为四类 trap 均 0。普通父环境与 SHELL/CURDIR/RT054_PYTHON/PATH 直接赋值、MAKEFLAGS、PYTHONPATH sitecustomize/.pth marker canary 均经同一入口通过且无 canary 泄漏/执行；不读取真实 `.env`。`.env` 四路精确负例均失败且计数准确，覆盖仅声明为 Python 标准 open routes。网络证据不声称进程级 sandbox 或任意 syscall/child-process zero network；NAS smoke 继续 skip。临时 canary 是私有、非项目/非 NAS 持久写，不是 literal zero-write 主张。仅 LocalFS、Memory 和 fake FileStation/raw socket 被调用；旧 `read` 与 injected bytes transport 保持不变。静态 guard 证明 gateway/builder/ingest 无 `read_bounded` 接线；未接 P1b、pointer/cache/writer fence/search route，未调用 NAS、生产、真实凭据或真实 payload。P0 safe sink 仍未实现；任何将来的接线须另有独立工作集上限。
-- **当前授权边界**：P0 零写诊断获允许；P1b 仍 NO-GO，必须先通过 P0 数据、numeric physical budget、容量实测、writer 穷尽与 FileStation 排他/恢复原语方案门。任何未完成数据只能标未测，不能称性能已治理。
-- **AI 评审**：实现收口前独立复核所有 writer 是否接入 fence、回滚是否能重放旧代、指针是否真为单一权威、限额是否在下载/解析前、性能判据能否被 cache/timeout 假绿。
+### 当前方案阶段
+
+- 已读取 AODW 宪章、交互规则、项目 overview、RT manager、Spec-Lite、Git 与 test discipline。
+- 已打开当前 Gateway、词法 builder/原语、StorageBackend、RT-051 合同、RT-054 evidence 与治理所有权入口。
+- 已核对 WeKnora 固定 commit 的数据库/检索/对象存储驱动和父子块/RRF 主链路。
+- 本轮只更新方案文档和 RT 元数据；不修改产品代码、OPS/NAS、生产配置或部署。
+- 方案写入后运行 Markdown/空白、RT guard、AODW 和 governance 文档级门；完整 `make ci` 留在产品实现收口，不用文档门冒充产品验证。
+
+### 实现收口必须补齐的三格证据
+
+- **工程判据**：每个合同对应真实故障和破坏实验，覆盖权限绕过、epoch 不推进、Bulk 部分失败、旧版误可见、跨库、alias 回滚、对象不可用与容量超限。
+- **独立 AI 评审**：具体审查架构是否做错问题、判据是否空、OpenSearch mapping/epoch 是否自洽、容量结论是否超出证据。
+- **读真实产出**：人工读三库真实脱敏搜索结果、来源、无答案、错误与同步状态；公网试用时按真实 Gateway → Query API 路径验证。
 
 ## 变更记录
 
-- 2026-09-07：创建方案稿；无产品行为变化、无部署。
-- 2026-09-07：吸收独立 Codex GO-WITH-CHANGES 八项阻断意见：P0 单变量测量、O(N²) 修复、单一 pointer/epoch、双 collect、不可变快照、single-flight/限额、受限流式读和可执行回滚验收。仍等待方案门。
-- 2026-09-08：第二次独立评审后更新合并基线（main `09c8aff`、branch merge `d40e36b`）；P0 获准、P1b 保持 NO-GO。补入 RT-053 shared-token 返回前撤权、正式/动态 writer 审计、FileStation 无事务恢复前提和 physical NAS 数值预算固化门。
-- 2026-09-08：实现默认关闭、响应内存零写 P0 分段诊断与合成离线 postings 对照；以 self-time/parent-total 消除 nested-stage 双计数，并输出 unattributed/overlap。补默认关闭响应等价、WriteTrap、失败白名单、RSS 平台单位和 scorer mutation/矩阵测试；FileStation 只在本地 `--p0-diagnostics` wrapper 期间观测真实 attempt/login/API/download/retry 与 payload，wire/header 不可可靠观察时保持 unknown。本轮只跑脱敏本地测试，未连接生产/NAS/真实凭据。
-- 2026-09-08：解析 controlled pilot 后改为 A 网络有界单样本、B 隔离内存解析、C 脱敏 shape 算法三层采样。旧 evidence 仅有 **6 个无法解释的 download events**，没有 per-attempt outcome，不能称 six attempts、不能推断重试/分块/重复对象下载；新 observer 只增加脱敏 attempt 账本。1.495GB legacy payload 与 5.462GB RSS 使原 256/512/64MiB 假设失效；BM25/span 未进入，但单个 503 不足以归因成功路径。P1b 保持 NO-GO。
-- 2026-09-08：完整独立评审裁决 P0 未完成、P1b NO-GO。把受限读取合同列为任何再次约 1.5GB 下载前的唯一最小前置：现有 `read/_download/transport` 都会完整物化 response，故要求新的 urllib/HTTPS response streaming 边界，否则 fail-closed 拒绝；本轮只改方案，不改产品代码/测试，不访问 NAS/生产。
-- 2026-09-08：按新增独立评审阻断意见重写 bounded-read 合同：唯一 callback API 与 `expected_sha256`、callback 所有权、固定脱敏 code/完整 receipt、首 chunk 后零重试、可信完整性、每 read 上限、阻塞 deadline/cancel、FileStation 有界 envelope、consumer 内存边界和拒绝接线护栏全部可由 fake matrix 证伪。证据仍仅称 **6 个无法解释的 download events**；现有验证仍仅为 **16 个 P0 tests**，不冒充新合同验收。四道门保持 P1b NO-GO。
-- 2026-09-08：受限读取实施后独立复审发现六项阻断；本轮返修真实 unpinned/pinned raw streaming、envelope 逐 read 预算、统一 control/body monotonic deadline 与总 attempts、cancel 脱敏、close 和本地 fake coverage。仅本地验证；P0 pilot 与 P1b 继续 NO-GO。
-- 2026-09-08：第三次复审唯一阻断 B-01：FileStation brace-envelope lookahead 曾在首 raw chunk 后绕过外层 cancel/deadline 检查。现将同一脱敏安全检查传入 wrapper，并置于每一次底层 raw read 前后；新增 cancel 与 deadline 的完整错误 envelope、`chunk_size=1` 回归，证明首 read 后触发时无 lookahead、stream/connection 关闭、无 callback delivery/receipt，结果仅为 `cancelled` 或 `deadline_exceeded`。仅本地 fake 验证；真实 pilot 与 P1b 继续 NO-GO。
-- 2026-09-08：安全事件后将 RT-054 验收收束为唯一 pure-local runner：最小环境白名单重建 + 强制 NAS smoke skip，并以伪父环境 canary、skip 摘要和 backend-instantiation trap 证明不实例化 NAS backend、零网络/零写。早先 87 组合不再作为纯本地证据；未访问 NAS 或请求外部清理确认。P1b 继续 NO-GO。
-- 2026-09-08：加固 pure-local 门为 Make 自身 realpath/override shell 与固定 `/bin/sh` launcher；launcher 只从 `/usr/bin/python3` 开始，有界解析至多 16 个 symlink，并对 link、逐跳父组件、最终 target 及根链逐项 root-owned/non-writable 验证；cycle、超深、Homebrew、`/usr/local`、PATH 或任一路径核验失败均 127 且不 fallback，最终仅 exec 解析后的绝对 target，第一个 Python 即 `-I -S`，runner 在 repo import 前检查 isolation/no-site。local fixture 覆盖直文件、相对合法 link、operator tree、cycle 和超深，普通用户无需创建 root fixture；当前受控 `/usr/bin/python3` 单独验收。SHELL/CURDIR/RT054_PYTHON/PATH 的 direct/MAKEFLAGS canary 不能改变 dry-run recipe 或无害实际入口；PYTHONPATH 的 local sitecustomize/.pth marker 不执行。`.env` audit hook 与 builtins/io/Path/os 四条 Python 标准 open route 负例均红、计数准确、错误脱敏；Python socket `connect`/`create_connection`/`connect_ex` 和所列 FileStation 调用计数为零，但不扩张为进程级零网络主张。唯一入口为 101 tests / OK, skipped=1，四类 trap 均 0；正式 NAS smoke 保持 non-pure-local，临时 `.env` canary 仅为私有、非项目/非 NAS 写，不声称 literal zero-write 或外部清理确认。P1b 继续 NO-GO。
-- 2026-09-08：独立复审指出 Linux symlink lstat 通常为 mode 777，而先前实现会在识别 kind 前按目录/文件规则拒绝它，故远端 CI run `34192457713` 失败且撤销为验收证据。本轮改为 symlink 仅检查 root owner；每跳的父目录与最终 regular executable 仍须 root-owned、group/other 不可写，解析后重走目标组件，cycle/depth≤16 继续 fail-closed。stat shim 改为显式 default-deny 路径图：合法 Linux-mode-777 link 可过，non-root link、可写父目录或 target、cycle/超深均红；实机 `/usr/bin/python3` 仍验收。smoke CI 在 setup-python 后新增受控 `/usr/bin/python3` 的独立 pure-local step；推送后的新 run 在该 step 绿前只记 pending，不能称远端绿。唯一入口本地为 102 tests / OK, skipped=1，P1b 继续 NO-GO。
+- 2026-09-07～08：完成旧大 JSON 性能诊断、bounded-read 合同与 pure-local 验证；P1b 快照实现保持 NO-GO。
+- 2026-09-09：基于 WeKnora 源码审查、三库体量、100–1000 倍规模与公网 Gateway 目标，放弃“扩大/缓存 JSON”和 SQLite 生产路线；方案收敛为 PostgreSQL 控制面、OpenSearch 检索面、对象层、Connector 与 Query API。
+- 方案门通过前，用户可感知行为不变；通过后按阶段 A→F 开发，阶段 G 只做公网准备与独立对照，不自动部署生产。
 
 ## 遗留事项
 
-- P1a 正文分页每请求完整下载/SHA 的传输优化保持独立；本 RT 不让 search 读取候选正文，也不宣称消除此成本。
-- P0 若证明瓶颈不是网络、解析或现有评分，或 fence/受限流式读不能落地，带原始数据回方案门；不得预先登记尚未创建的产品文件或 ownership。
+- 正式公网云端供应商、区域、节点规格、月度预算、数据出域审批：当前没有足够业务/合规输入，阶段 E 后作为生产部署决定，不阻塞内网架构实现。
+- WeKnora 原版部署与同场比较：建议单独建立 Experiment RT，使用本 RT 固定的数据集和验收口径；不在 RT-054 内 fork 或修改其源码。
+- 向量召回：只有 BM25 gold 结果显示语义问题确有缺口，且加入向量使 Recall@10 提升至少 5 个百分点、精确查询不退化、存储和 P95 仍过门时，才建立后续增强 RT。
