@@ -16,6 +16,8 @@
 - fixture：`a33a2d6cbefeba2f3df9e060209ca07f36c1478954155c0b79d528c0e5f8d649`
 - contract tests：`96dc8918127ceeedcc7d0ace01825c1446d04dd4d30ebceabf764181af2ef8ed`
 
+以上是独立复核签收时的 v2 哈希。阶段 B 整改只在不改变 72 题语义载荷的前提下，把 gold 升为 v3，并为每题补 `fixture_scope`、新增两组 `doc_id_prefixes` 声明；脚本比较确认除 `version/fixture_scope/fixture_scopes` 外内容逐项相同。整改后 gold SHA-256 为 `f89613d9348ea1ee14a1f3432ed4f6fbf94035bc66d9e4604d04fa545cc64613`，contract tests 为 `49490c9852eb595d55536d57a0ad5e477b9e0f70ed7044975bdb2806ea730b2a`。这次 scope 修订由阶段 B 行为测试和真实 OpenSearch shared/isolated lane 验证，不倒称为原独立复核者签收的新哈希。
+
 ## 初审 FAIL 与修复闭环
 
 初审没有放行。发现新增题没有实际语料、近邻干扰只写在理由中、表格查询与证据不闭合、权限题丢失状态码/洁净度断言、继承题行为字段不完整、质量门不能机器计算。随后重建，再审逐项确认：

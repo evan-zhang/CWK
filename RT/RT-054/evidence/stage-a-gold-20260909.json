@@ -1,6 +1,6 @@
 {
   "schema": "cwk.rt054.retrieval-gold.v1",
-  "version": 2,
+  "version": 3,
   "frozen_at": "2026-09-09",
   "case_count": 72,
   "top_k": 10,
@@ -57,7 +57,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G02",
@@ -74,7 +75,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G03",
@@ -91,7 +93,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G04",
@@ -108,7 +111,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G05",
@@ -125,7 +129,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G06",
@@ -142,7 +147,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G07",
@@ -159,7 +165,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G08",
@@ -176,7 +183,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G09",
@@ -193,7 +201,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G10",
@@ -210,7 +219,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G11",
@@ -227,7 +237,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G12",
@@ -244,7 +255,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G13",
@@ -261,7 +273,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G14",
@@ -278,7 +291,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G15",
@@ -295,7 +309,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G16",
@@ -312,7 +327,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G17",
@@ -329,7 +345,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G18",
@@ -344,7 +361,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G19",
@@ -359,7 +377,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G20",
@@ -374,7 +393,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G21",
@@ -389,7 +409,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G22",
@@ -404,7 +425,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G23",
@@ -419,7 +441,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G24",
@@ -434,7 +457,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G43",
@@ -451,7 +475,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G44",
@@ -468,7 +493,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G45",
@@ -485,7 +511,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G46",
@@ -502,7 +529,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G47",
@@ -519,7 +547,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G48",
@@ -536,7 +565,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G25",
@@ -553,7 +583,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G26",
@@ -570,7 +601,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G27",
@@ -587,7 +619,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G28",
@@ -604,7 +637,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G29",
@@ -621,7 +655,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G30",
@@ -638,7 +673,8 @@
         "method": "independent_manual_case_review",
         "status": "accepted",
         "source": "RT/RT-051/a11-review.md"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G31",
@@ -663,7 +699,8 @@
         "operation": "search",
         "requested_kb": "libb",
         "query": "基线"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G32",
@@ -688,7 +725,8 @@
         "operation": "search",
         "requested_kb": "liba",
         "query": "基线"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G33",
@@ -716,7 +754,8 @@
         "operation": "search",
         "requested_kb": "libb",
         "query": "基线"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G34",
@@ -740,7 +779,8 @@
         "operation": "search",
         "requested_kb": "liba",
         "query": "天枢"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G35",
@@ -765,7 +805,8 @@
         "operation": "read_then_resolve",
         "requested_kb": "liba",
         "reference_state": "expired"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G36",
@@ -789,7 +830,8 @@
         "operation": "read",
         "requested_kb": "liba",
         "reference_state": "tampered"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G37",
@@ -808,7 +850,8 @@
       "behavior_assertions": {
         "fusion": 503,
         "read": 200
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G38",
@@ -827,7 +870,8 @@
       "behavior_assertions": {
         "fusion": 503,
         "read": 200
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G41",
@@ -845,7 +889,8 @@
       },
       "behavior_assertions": {
         "metadata": 200
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G39",
@@ -864,7 +909,8 @@
       "behavior_assertions": {
         "before": 200,
         "stale": 503
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G40",
@@ -883,7 +929,8 @@
       "behavior_assertions": {
         "status": 503,
         "clean": true
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G42",
@@ -902,7 +949,8 @@
       "behavior_assertions": {
         "heal_status": 200,
         "lexical": "rebuilt"
-      }
+      },
+      "fixture_scope": "rt051_a11"
     },
     {
       "id": "G49",
@@ -932,7 +980,8 @@
         "status": "accepted",
         "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
         "reviewed_at": "2026-09-09T15:52:00+08:00"
-      }
+      },
+      "fixture_scope": "rt054_extension"
     },
     {
       "id": "G50",
@@ -962,7 +1011,8 @@
         "status": "accepted",
         "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
         "reviewed_at": "2026-09-09T15:52:00+08:00"
-      }
+      },
+      "fixture_scope": "rt054_extension"
     },
     {
       "id": "G51",
@@ -994,7 +1044,8 @@
         "status": "accepted",
         "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
         "reviewed_at": "2026-09-09T15:52:00+08:00"
-      }
+      },
+      "fixture_scope": "rt054_extension"
     },
     {
       "id": "G52",
@@ -1026,7 +1077,8 @@
         "status": "accepted",
         "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
         "reviewed_at": "2026-09-09T15:52:00+08:00"
-      }
+      },
+      "fixture_scope": "rt054_extension"
     },
     {
       "id": "G53",
@@ -1056,7 +1108,8 @@
         "status": "accepted",
         "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
         "reviewed_at": "2026-09-09T15:52:00+08:00"
-      }
+      },
+      "fixture_scope": "rt054_extension"
     },
     {
       "id": "G54",
@@ -1086,7 +1139,8 @@
         "status": "accepted",
         "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
         "reviewed_at": "2026-09-09T15:52:00+08:00"
-      }
+      },
+      "fixture_scope": "rt054_extension"
     },
     {
       "id": "G55",
@@ -1115,7 +1169,8 @@
         "status": "accepted",
         "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
         "reviewed_at": "2026-09-09T15:52:00+08:00"
-      }
+      },
+      "fixture_scope": "rt054_extension"
     },
     {
       "id": "G56",
@@ -1144,7 +1199,8 @@
         "status": "accepted",
         "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
         "reviewed_at": "2026-09-09T15:52:00+08:00"
-      }
+      },
+      "fixture_scope": "rt054_extension"
     },
     {
       "id": "G57",
@@ -1173,7 +1229,8 @@
         "status": "accepted",
         "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
         "reviewed_at": "2026-09-09T15:52:00+08:00"
-      }
+      },
+      "fixture_scope": "rt054_extension"
     },
     {
       "id": "G58",
@@ -1202,7 +1259,8 @@
         "status": "accepted",
         "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
         "reviewed_at": "2026-09-09T15:52:00+08:00"
-      }
+      },
+      "fixture_scope": "rt054_extension"
     },
     {
       "id": "G59",
@@ -1233,7 +1291,8 @@
         "status": "accepted",
         "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
         "reviewed_at": "2026-09-09T15:52:00+08:00"
-      }
+      },
+      "fixture_scope": "rt054_extension"
     },
     {
       "id": "G60",
@@ -1264,7 +1323,8 @@
         "status": "accepted",
         "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
         "reviewed_at": "2026-09-09T15:52:00+08:00"
-      }
+      },
+      "fixture_scope": "rt054_extension"
     },
     {
       "id": "G61",
@@ -1293,7 +1353,8 @@
         "status": "accepted",
         "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
         "reviewed_at": "2026-09-09T15:52:00+08:00"
-      }
+      },
+      "fixture_scope": "rt054_extension"
     },
     {
       "id": "G62",
@@ -1322,7 +1383,8 @@
         "status": "accepted",
         "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
         "reviewed_at": "2026-09-09T15:52:00+08:00"
-      }
+      },
+      "fixture_scope": "rt054_extension"
     },
     {
       "id": "G63",
@@ -1353,7 +1415,8 @@
         "status": "accepted",
         "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
         "reviewed_at": "2026-09-09T15:52:00+08:00"
-      }
+      },
+      "fixture_scope": "rt054_extension"
     },
     {
       "id": "G64",
@@ -1384,7 +1447,8 @@
         "status": "accepted",
         "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
         "reviewed_at": "2026-09-09T15:52:00+08:00"
-      }
+      },
+      "fixture_scope": "rt054_extension"
     },
     {
       "id": "G65",
@@ -1416,7 +1480,8 @@
         "status": "accepted",
         "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
         "reviewed_at": "2026-09-09T15:52:00+08:00"
-      }
+      },
+      "fixture_scope": "rt054_extension"
     },
     {
       "id": "G66",
@@ -1448,7 +1513,8 @@
         "status": "accepted",
         "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
         "reviewed_at": "2026-09-09T15:52:00+08:00"
-      }
+      },
+      "fixture_scope": "rt054_extension"
     },
     {
       "id": "G67",
@@ -1479,7 +1545,8 @@
         "status": "accepted",
         "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
         "reviewed_at": "2026-09-09T15:52:00+08:00"
-      }
+      },
+      "fixture_scope": "rt054_extension"
     },
     {
       "id": "G68",
@@ -1511,7 +1578,8 @@
         "status": "accepted",
         "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
         "reviewed_at": "2026-09-09T15:52:00+08:00"
-      }
+      },
+      "fixture_scope": "rt054_extension"
     },
     {
       "id": "G69",
@@ -1543,7 +1611,8 @@
         "status": "accepted",
         "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
         "reviewed_at": "2026-09-09T15:52:00+08:00"
-      }
+      },
+      "fixture_scope": "rt054_extension"
     },
     {
       "id": "G70",
@@ -1575,7 +1644,8 @@
         "status": "accepted",
         "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
         "reviewed_at": "2026-09-09T15:52:00+08:00"
-      }
+      },
+      "fixture_scope": "rt054_extension"
     },
     {
       "id": "G71",
@@ -1607,7 +1677,8 @@
         "status": "accepted",
         "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
         "reviewed_at": "2026-09-09T15:52:00+08:00"
-      }
+      },
+      "fixture_scope": "rt054_extension"
     },
     {
       "id": "G72",
@@ -1639,7 +1710,22 @@
         "status": "accepted",
         "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
         "reviewed_at": "2026-09-09T15:52:00+08:00"
-      }
+      },
+      "fixture_scope": "rt054_extension"
     }
-  ]
+  ],
+  "fixture_scopes": {
+    "rt051_a11": {
+      "doc_id_prefixes": [
+        "docdb:"
+      ],
+      "reason": "RT-051 no-answer and ranking gold was reviewed against its original 28-document fixture"
+    },
+    "rt054_extension": {
+      "doc_id_prefixes": [
+        "synthetic:"
+      ],
+      "reason": "RT-054 company/person/date/table extension is reviewed against its separate 22-document fixture"
+    }
+  }
 }

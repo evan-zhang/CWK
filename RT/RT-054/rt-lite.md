@@ -577,8 +577,9 @@ tests/test_rt054_*.py
 - 阶段 A 已完成：三库基线、72 题 gold 与 fixture、v2/v3 合同和要求去留表已冻结，独立复核由初审 FAIL 修复至二审 PASS。
 - 阶段 A 未修改产品运行代码、OPS/NAS、生产配置或部署；旧链缺失的 terms/build/成功延迟数据显式保留为未知，由阶段 B 新 builder 原生测量。
 - 阶段 A 运行合同测试、JSON Schema、RT guard、AODW 和 governance 门；完整 `make ci` 仍留在产品实现收口，不用文档/合同门冒充产品验证。
-- 阶段 B 已实现完全离线的 Parent/Child、模板去重、精确字段和 analyzer benchmark，消费全部 72 题并逐题记录。legacy 为本地实测，ICU/SmartCN 为明确标注的等价模拟；10 个需 Gateway/token/index-fault 的旧行为题结构化 SKIP 且排除质量分母。
-- 阶段 B 当前裁决为 **NO-GO**：同一合成语料的候选序列化 PoC 仅比 legacy 缩小 43.951% / 47.453%，真实 OpenSearch primary store 和三库等价语料未测，不能固定生产 analyzer/mapping 或进入阶段 C。详见 `evidence/stage-b-acceptance-20260909.md`。
+- 阶段 B 离线 PoC 先按 `kb_id + fixture_scope/doc_id_prefixes` 固定评分语料，再只用域内 children 计算 `n_docs/avgdl/df`。行为判据证明 G20 在未限定合并域时，legacy/ICU/SmartCN 三种本地 probe 均命中 `synthetic:801/802`，限定 `rt051_a11` 后均为 honest no evidence；另有排序判据证明域外文档增删或放大词频不改变域内分数与顺序。
+- 阶段 B 真实 loopback OpenSearch harness 在官方 3.3.2 上对同一 50-doc/50-Parent/50-Child 投影实测 legacy CJK 1/2/3-gram、官方 `analysis-icu`、官方 `analysis-smartcn` 及 body 进入/排除 `_source`。机器结果把 shared-filter lane（候选受 scope filter 限制，但 Lucene BM25 统计仍是全物理索引）与 isolated-scope lane（每个 fixture scope 单独物理索引，仅用于原评审域对照）分开，记录 primary store、实际 analyzer term 口径、Bulk/refresh/force-merge、逐题 Recall@10、精确编号、kb/scope 隔离、取回字节/延迟、插件版本、JVM heap、容器 RSS 与宿主边界；12 个临时索引全部删除。
+- 阶段 B 当前裁决仍为 **NO-GO**：shared-filter/body 排除 `_source` 时，ICU/SmartCN 相对 legacy primary store 只缩小 16.047%/16.384%，未过 80%；SmartCN macro Recall@10 为 52/53（0.9811），低于 legacy/ICU 的 53/53，并漏 G05；三个目标库的等价脱敏语料未测。原有 `cwk-opensearch-bench:3.3.2` digest 实际自报 3.2.0，已拒用；最终实测改用官方 3.3.2 base digest 并确认两插件均为 3.3.2。不能固定生产 analyzer/mapping 或进入阶段 C。详见 `evidence/stage-b-acceptance-20260909.md` 与 `evidence/stage-b-opensearch-benchmark-20260909.json`。
 
 ### 实现收口必须补齐的三格证据
 
@@ -591,7 +592,7 @@ tests/test_rt054_*.py
 - 2026-09-07～08：完成旧大 JSON 性能诊断、bounded-read 合同与 pure-local 验证；P1b 快照实现保持 NO-GO。
 - 2026-09-09：基于 WeKnora 源码审查、三库体量、100–1000 倍规模与公网 Gateway 目标，放弃“扩大/缓存 JSON”和 SQLite 生产路线；方案收敛为 PostgreSQL 控制面、OpenSearch 检索面、对象层、Connector 与 Query API。
 - 2026-09-09：方案门通过；阶段 A 冻结三库证据基线、72 题 gold、v2/v3 合同和要求去留，独立复核初审 FAIL 后补齐 fixture/行为判据并二审 PASS。
-- 2026-09-09：阶段 B 完成可复现离线 PoC 与 benchmark，但 80% 尺寸门和真实 OpenSearch/plugin 证据未通过，裁决 NO-GO；RT 保持进行中，不进入阶段 C。
+- 2026-09-09：阶段 B 修复离线 scoped BM25 统计与 G20 跨 fixture 污染，补真实 OpenSearch 3.3.2 的 legacy/官方 ICU/官方 SmartCN、两种 `_source` shared-filter lane，并以独立物理索引建立 isolated-scope 对照。ICU/SmartCN 主存储仅缩小 16.047%/16.384%，SmartCN 还漏 G05，三库等价语料缺失，裁决继续 NO-GO；RT 保持进行中，不进入阶段 C。
 - 后续只有在阶段 B NO-GO 被真实三库等价语料与 OpenSearch plugin 实测推翻后，才按阶段 C→F 开发；阶段 G 只做公网准备与独立对照，不自动部署生产。
 
 ## 遗留事项

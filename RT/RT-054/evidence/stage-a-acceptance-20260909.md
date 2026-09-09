@@ -9,7 +9,7 @@
 ## 四项产出
 
 1. 三库基线：`stage-a-baseline-20260909.json/.md`。冻结原文/JSON/词法大小、文档/chunk、已有查询分段与 RSS 证据；没有可靠证据的 terms、全量 build 和成功 P50/P95 保持 `null`，不得推算冒充实测。阶段 B 的新 builder 必须原生输出这些计数。
-2. gold：`stage-a-gold-20260909.json`，72 题；48 题继承已独立复核的 RT-051 A11，24 题补公司/人名、日期、表格；新增题由 22 件仓库内 fixture 支撑，二次独立复核 PASS。
+2. gold：`stage-a-gold-20260909.json`，72 题；48 题继承已独立复核的 RT-051 A11，24 题补公司/人名、日期、表格；新增题由 22 件仓库内 fixture 支撑，二次独立复核 PASS。阶段 B 仅补 `fixture_scope/doc_id_prefixes` 并升为 v3，未改变题目语义载荷；原签收哈希与 scope 修订后的哈希边界见 `stage-a-gold-review-20260909.md`。
 3. 合同：v2/v3 兼容说明，v3 request/success/error 三个 Draft 2020-12 JSON Schema。
 4. 要求去留：保留/简化/删除/延后逐项冻结；明确 RT-051 v2 read 不被本 RT 静默改义。
 

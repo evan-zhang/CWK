@@ -45,7 +45,11 @@ class StageAContractTests(unittest.TestCase):
         }
         self.assertTrue(required.issubset(counts), counts)
         self.assertGreaterEqual(min(counts[x] for x in required), 6)
+        self.assertEqual(set(gold["fixture_scopes"]), {"rt051_a11", "rt054_extension"})
         for case in cases:
+            self.assertIn(case["fixture_scope"], gold["fixture_scopes"], case)
+            expected_scope = "rt051_a11" if case["origin"] == "RT-051/A11" else "rt054_extension"
+            self.assertEqual(case["fixture_scope"], expected_scope, case)
             self.assertTrue(case["query"] or case["category"] in {"permission", "availability"}, case)
             self.assertIn(case["expected_outcome"], {
                 "hits", "no_evidence", "error", "authorized_behavior", "availability_behavior"

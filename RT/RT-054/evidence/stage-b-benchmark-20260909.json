@@ -80,12 +80,12 @@
         }
       },
       "metrics": {
-        "build_time_ms": 4.028,
+        "build_time_ms": 3.898,
         "chunks": 50,
         "docs": 50,
         "index_bytes": 179146,
         "parents": 50,
-        "peak_rss_bytes": 51527680,
+        "peak_rss_bytes": 51511296,
         "postings": 1978,
         "postings_bytes": 154433,
         "source_bytes": 24713,
@@ -303,13 +303,10 @@
           {
             "category": "no_answer",
             "expected_outcome": "no_evidence",
-            "honest_no_evidence": false,
+            "honest_no_evidence": true,
             "id": "G20",
             "rank": null,
-            "returned_doc_ids": [
-              "synthetic:801",
-              "synthetic:802"
-            ],
+            "returned_doc_ids": [],
             "status": "measured"
           },
           {
@@ -367,10 +364,7 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "docdb:613",
-              "docdb:603",
-              "synthetic:810",
-              "synthetic:808",
-              "synthetic:817"
+              "docdb:603"
             ],
             "status": "measured"
           },
@@ -382,8 +376,6 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "docdb:614",
-              "synthetic:808",
-              "synthetic:818",
               "docdb:608"
             ],
             "status": "measured"
@@ -409,14 +401,14 @@
             "returned_doc_ids": [
               "docdb:713",
               "docdb:710",
-              "synthetic:807",
               "docdb:707",
               "docdb:705",
               "docdb:708",
               "docdb:704",
               "docdb:706",
               "docdb:701",
-              "docdb:702"
+              "docdb:702",
+              "docdb:703"
             ],
             "status": "measured"
           },
@@ -428,9 +420,6 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "docdb:714",
-              "synthetic:813",
-              "synthetic:806",
-              "synthetic:814",
               "docdb:709"
             ],
             "status": "measured"
@@ -517,8 +506,7 @@
             "leak": false,
             "note": "local kb filter probe; no token/Gateway behavior",
             "returned_doc_ids": [
-              "docdb:610",
-              "synthetic:808"
+              "docdb:610"
             ],
             "status": "measured"
           },
@@ -613,8 +601,7 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:801",
-              "synthetic:802",
-              "docdb:610"
+              "synthetic:802"
             ],
             "status": "measured"
           },
@@ -627,10 +614,7 @@
             "returned_doc_ids": [
               "synthetic:802",
               "synthetic:801",
-              "synthetic:808",
-              "docdb:606",
-              "docdb:603",
-              "docdb:610"
+              "synthetic:808"
             ],
             "status": "measured"
           },
@@ -654,8 +638,7 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:803",
-              "synthetic:816",
-              "docdb:606"
+              "synthetic:816"
             ],
             "status": "measured"
           },
@@ -729,9 +712,7 @@
             "returned_doc_ids": [
               "synthetic:808",
               "synthetic:810",
-              "synthetic:809",
-              "docdb:604",
-              "docdb:605"
+              "synthetic:809"
             ],
             "status": "measured"
           },
@@ -755,9 +736,7 @@
             "returned_doc_ids": [
               "synthetic:810",
               "synthetic:808",
-              "synthetic:809",
-              "docdb:604",
-              "docdb:605"
+              "synthetic:809"
             ],
             "status": "measured"
           },
@@ -833,8 +812,7 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:816",
-              "synthetic:803",
-              "docdb:601"
+              "synthetic:803"
             ],
             "status": "measured"
           },
@@ -871,13 +849,9 @@
               "synthetic:819",
               "synthetic:814",
               "synthetic:813",
+              "synthetic:822",
               "synthetic:812",
-              "synthetic:820",
-              "docdb:704",
-              "docdb:705",
-              "docdb:706",
-              "docdb:710",
-              "docdb:701"
+              "synthetic:820"
             ],
             "status": "measured"
           },
@@ -889,7 +863,6 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:820",
-              "docdb:702",
               "synthetic:821"
             ],
             "status": "measured"
@@ -902,11 +875,7 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:821",
-              "docdb:708",
-              "docdb:707",
-              "synthetic:820",
-              "docdb:702",
-              "docdb:711"
+              "synthetic:820"
             ],
             "status": "measured"
           },
@@ -918,15 +887,11 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:822",
-              "docdb:711",
               "synthetic:806",
+              "synthetic:819",
               "synthetic:804",
               "synthetic:805",
-              "docdb:707",
-              "synthetic:820",
-              "docdb:704",
-              "docdb:705",
-              "docdb:706"
+              "synthetic:820"
             ],
             "status": "measured"
           }
@@ -936,7 +901,7 @@
         "exact_identifier_recall_at_10": 1.0,
         "macro_document_recall_at_10": 1.0,
         "measured_cases": 62,
-        "no_answer_honest": 6,
+        "no_answer_honest": 7,
         "no_answer_total": 7,
         "permission_leaks": 0,
         "quality_denominator": 53,
@@ -992,12 +957,12 @@
         }
       },
       "metrics": {
-        "build_time_ms": 4.003,
+        "build_time_ms": 3.957,
         "chunks": 50,
         "docs": 50,
         "index_bytes": 182846,
         "parents": 50,
-        "peak_rss_bytes": 51462144,
+        "peak_rss_bytes": 51560448,
         "postings": 1978,
         "postings_bytes": 154433,
         "source_bytes": 28413,
@@ -1215,13 +1180,10 @@
           {
             "category": "no_answer",
             "expected_outcome": "no_evidence",
-            "honest_no_evidence": false,
+            "honest_no_evidence": true,
             "id": "G20",
             "rank": null,
-            "returned_doc_ids": [
-              "synthetic:801",
-              "synthetic:802"
-            ],
+            "returned_doc_ids": [],
             "status": "measured"
           },
           {
@@ -1279,10 +1241,7 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "docdb:613",
-              "docdb:603",
-              "synthetic:810",
-              "synthetic:808",
-              "synthetic:817"
+              "docdb:603"
             ],
             "status": "measured"
           },
@@ -1294,8 +1253,6 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "docdb:614",
-              "synthetic:808",
-              "synthetic:818",
               "docdb:608"
             ],
             "status": "measured"
@@ -1321,14 +1278,14 @@
             "returned_doc_ids": [
               "docdb:713",
               "docdb:710",
-              "synthetic:807",
               "docdb:707",
               "docdb:705",
               "docdb:708",
               "docdb:704",
               "docdb:706",
               "docdb:701",
-              "docdb:702"
+              "docdb:702",
+              "docdb:703"
             ],
             "status": "measured"
           },
@@ -1340,9 +1297,6 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "docdb:714",
-              "synthetic:813",
-              "synthetic:806",
-              "synthetic:814",
               "docdb:709"
             ],
             "status": "measured"
@@ -1429,8 +1383,7 @@
             "leak": false,
             "note": "local kb filter probe; no token/Gateway behavior",
             "returned_doc_ids": [
-              "docdb:610",
-              "synthetic:808"
+              "docdb:610"
             ],
             "status": "measured"
           },
@@ -1525,8 +1478,7 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:801",
-              "synthetic:802",
-              "docdb:610"
+              "synthetic:802"
             ],
             "status": "measured"
           },
@@ -1539,10 +1491,7 @@
             "returned_doc_ids": [
               "synthetic:802",
               "synthetic:801",
-              "synthetic:808",
-              "docdb:606",
-              "docdb:603",
-              "docdb:610"
+              "synthetic:808"
             ],
             "status": "measured"
           },
@@ -1566,8 +1515,7 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:803",
-              "synthetic:816",
-              "docdb:606"
+              "synthetic:816"
             ],
             "status": "measured"
           },
@@ -1641,9 +1589,7 @@
             "returned_doc_ids": [
               "synthetic:808",
               "synthetic:810",
-              "synthetic:809",
-              "docdb:604",
-              "docdb:605"
+              "synthetic:809"
             ],
             "status": "measured"
           },
@@ -1667,9 +1613,7 @@
             "returned_doc_ids": [
               "synthetic:810",
               "synthetic:808",
-              "synthetic:809",
-              "docdb:604",
-              "docdb:605"
+              "synthetic:809"
             ],
             "status": "measured"
           },
@@ -1745,8 +1689,7 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:816",
-              "synthetic:803",
-              "docdb:601"
+              "synthetic:803"
             ],
             "status": "measured"
           },
@@ -1783,13 +1726,9 @@
               "synthetic:819",
               "synthetic:814",
               "synthetic:813",
+              "synthetic:822",
               "synthetic:812",
-              "synthetic:820",
-              "docdb:704",
-              "docdb:705",
-              "docdb:706",
-              "docdb:710",
-              "docdb:701"
+              "synthetic:820"
             ],
             "status": "measured"
           },
@@ -1801,7 +1740,6 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:820",
-              "docdb:702",
               "synthetic:821"
             ],
             "status": "measured"
@@ -1814,11 +1752,7 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:821",
-              "docdb:708",
-              "docdb:707",
-              "synthetic:820",
-              "docdb:702",
-              "docdb:711"
+              "synthetic:820"
             ],
             "status": "measured"
           },
@@ -1830,15 +1764,11 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:822",
-              "docdb:711",
               "synthetic:806",
+              "synthetic:819",
               "synthetic:804",
               "synthetic:805",
-              "docdb:707",
-              "synthetic:820",
-              "docdb:704",
-              "docdb:705",
-              "docdb:706"
+              "synthetic:820"
             ],
             "status": "measured"
           }
@@ -1848,7 +1778,7 @@
         "exact_identifier_recall_at_10": 1.0,
         "macro_document_recall_at_10": 1.0,
         "measured_cases": 62,
-        "no_answer_honest": 6,
+        "no_answer_honest": 7,
         "no_answer_total": 7,
         "permission_leaks": 0,
         "quality_denominator": 53,
@@ -1904,12 +1834,12 @@
         }
       },
       "metrics": {
-        "build_time_ms": 2.834,
+        "build_time_ms": 3.151,
         "chunks": 50,
         "docs": 50,
         "index_bytes": 100410,
         "parents": 50,
-        "peak_rss_bytes": 50708480,
+        "peak_rss_bytes": 50839552,
         "postings": 958,
         "postings_bytes": 75697,
         "source_bytes": 24713,
@@ -2127,13 +2057,10 @@
           {
             "category": "no_answer",
             "expected_outcome": "no_evidence",
-            "honest_no_evidence": false,
+            "honest_no_evidence": true,
             "id": "G20",
             "rank": null,
-            "returned_doc_ids": [
-              "synthetic:801",
-              "synthetic:802"
-            ],
+            "returned_doc_ids": [],
             "status": "measured"
           },
           {
@@ -2191,10 +2118,7 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "docdb:613",
-              "docdb:603",
-              "synthetic:810",
-              "synthetic:817",
-              "synthetic:808"
+              "docdb:603"
             ],
             "status": "measured"
           },
@@ -2206,8 +2130,6 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "docdb:614",
-              "synthetic:808",
-              "synthetic:818",
               "docdb:608"
             ],
             "status": "measured"
@@ -2234,13 +2156,13 @@
               "docdb:713",
               "docdb:710",
               "docdb:707",
-              "synthetic:807",
               "docdb:705",
               "docdb:708",
               "docdb:704",
               "docdb:706",
               "docdb:701",
-              "docdb:702"
+              "docdb:702",
+              "docdb:703"
             ],
             "status": "measured"
           },
@@ -2252,9 +2174,6 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "docdb:714",
-              "synthetic:813",
-              "synthetic:806",
-              "synthetic:814",
               "docdb:709"
             ],
             "status": "measured"
@@ -2341,8 +2260,7 @@
             "leak": false,
             "note": "local kb filter probe; no token/Gateway behavior",
             "returned_doc_ids": [
-              "docdb:610",
-              "synthetic:808"
+              "docdb:610"
             ],
             "status": "measured"
           },
@@ -2437,8 +2355,7 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:801",
-              "synthetic:802",
-              "docdb:610"
+              "synthetic:802"
             ],
             "status": "measured"
           },
@@ -2451,9 +2368,6 @@
             "returned_doc_ids": [
               "synthetic:802",
               "synthetic:801",
-              "docdb:606",
-              "docdb:603",
-              "docdb:610",
               "synthetic:808"
             ],
             "status": "measured"
@@ -2478,8 +2392,7 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:803",
-              "synthetic:816",
-              "docdb:606"
+              "synthetic:816"
             ],
             "status": "measured"
           },
@@ -2553,9 +2466,7 @@
             "returned_doc_ids": [
               "synthetic:808",
               "synthetic:810",
-              "docdb:604",
-              "synthetic:809",
-              "docdb:605"
+              "synthetic:809"
             ],
             "status": "measured"
           },
@@ -2579,9 +2490,7 @@
             "returned_doc_ids": [
               "synthetic:810",
               "synthetic:808",
-              "docdb:604",
-              "synthetic:809",
-              "docdb:605"
+              "synthetic:809"
             ],
             "status": "measured"
           },
@@ -2657,8 +2566,7 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:816",
-              "synthetic:803",
-              "docdb:601"
+              "synthetic:803"
             ],
             "status": "measured"
           },
@@ -2695,13 +2603,9 @@
               "synthetic:819",
               "synthetic:814",
               "synthetic:813",
+              "synthetic:822",
               "synthetic:812",
-              "synthetic:820",
-              "docdb:704",
-              "docdb:705",
-              "docdb:706",
-              "docdb:710",
-              "docdb:701"
+              "synthetic:820"
             ],
             "status": "measured"
           },
@@ -2713,7 +2617,6 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:820",
-              "docdb:702",
               "synthetic:821"
             ],
             "status": "measured"
@@ -2726,11 +2629,7 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:821",
-              "docdb:708",
-              "docdb:707",
-              "synthetic:820",
-              "docdb:702",
-              "docdb:711"
+              "synthetic:820"
             ],
             "status": "measured"
           },
@@ -2742,15 +2641,11 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:822",
-              "docdb:711",
               "synthetic:806",
+              "synthetic:819",
               "synthetic:804",
               "synthetic:805",
-              "docdb:707",
-              "synthetic:820",
-              "docdb:704",
-              "docdb:705",
-              "docdb:706"
+              "synthetic:820"
             ],
             "status": "measured"
           }
@@ -2760,7 +2655,7 @@
         "exact_identifier_recall_at_10": 1.0,
         "macro_document_recall_at_10": 1.0,
         "measured_cases": 62,
-        "no_answer_honest": 6,
+        "no_answer_honest": 7,
         "no_answer_total": 7,
         "permission_leaks": 0,
         "quality_denominator": 53,
@@ -2816,12 +2711,12 @@
         }
       },
       "metrics": {
-        "build_time_ms": 3.377,
+        "build_time_ms": 3.115,
         "chunks": 50,
         "docs": 50,
         "index_bytes": 104110,
         "parents": 50,
-        "peak_rss_bytes": 50806784,
+        "peak_rss_bytes": 51068928,
         "postings": 958,
         "postings_bytes": 75697,
         "source_bytes": 28413,
@@ -3039,13 +2934,10 @@
           {
             "category": "no_answer",
             "expected_outcome": "no_evidence",
-            "honest_no_evidence": false,
+            "honest_no_evidence": true,
             "id": "G20",
             "rank": null,
-            "returned_doc_ids": [
-              "synthetic:801",
-              "synthetic:802"
-            ],
+            "returned_doc_ids": [],
             "status": "measured"
           },
           {
@@ -3103,10 +2995,7 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "docdb:613",
-              "docdb:603",
-              "synthetic:810",
-              "synthetic:817",
-              "synthetic:808"
+              "docdb:603"
             ],
             "status": "measured"
           },
@@ -3118,8 +3007,6 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "docdb:614",
-              "synthetic:808",
-              "synthetic:818",
               "docdb:608"
             ],
             "status": "measured"
@@ -3146,13 +3033,13 @@
               "docdb:713",
               "docdb:710",
               "docdb:707",
-              "synthetic:807",
               "docdb:705",
               "docdb:708",
               "docdb:704",
               "docdb:706",
               "docdb:701",
-              "docdb:702"
+              "docdb:702",
+              "docdb:703"
             ],
             "status": "measured"
           },
@@ -3164,9 +3051,6 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "docdb:714",
-              "synthetic:813",
-              "synthetic:806",
-              "synthetic:814",
               "docdb:709"
             ],
             "status": "measured"
@@ -3253,8 +3137,7 @@
             "leak": false,
             "note": "local kb filter probe; no token/Gateway behavior",
             "returned_doc_ids": [
-              "docdb:610",
-              "synthetic:808"
+              "docdb:610"
             ],
             "status": "measured"
           },
@@ -3349,8 +3232,7 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:801",
-              "synthetic:802",
-              "docdb:610"
+              "synthetic:802"
             ],
             "status": "measured"
           },
@@ -3363,9 +3245,6 @@
             "returned_doc_ids": [
               "synthetic:802",
               "synthetic:801",
-              "docdb:606",
-              "docdb:603",
-              "docdb:610",
               "synthetic:808"
             ],
             "status": "measured"
@@ -3390,8 +3269,7 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:803",
-              "synthetic:816",
-              "docdb:606"
+              "synthetic:816"
             ],
             "status": "measured"
           },
@@ -3465,9 +3343,7 @@
             "returned_doc_ids": [
               "synthetic:808",
               "synthetic:810",
-              "docdb:604",
-              "synthetic:809",
-              "docdb:605"
+              "synthetic:809"
             ],
             "status": "measured"
           },
@@ -3491,9 +3367,7 @@
             "returned_doc_ids": [
               "synthetic:810",
               "synthetic:808",
-              "docdb:604",
-              "synthetic:809",
-              "docdb:605"
+              "synthetic:809"
             ],
             "status": "measured"
           },
@@ -3569,8 +3443,7 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:816",
-              "synthetic:803",
-              "docdb:601"
+              "synthetic:803"
             ],
             "status": "measured"
           },
@@ -3607,13 +3480,9 @@
               "synthetic:819",
               "synthetic:814",
               "synthetic:813",
+              "synthetic:822",
               "synthetic:812",
-              "synthetic:820",
-              "docdb:704",
-              "docdb:705",
-              "docdb:706",
-              "docdb:710",
-              "docdb:701"
+              "synthetic:820"
             ],
             "status": "measured"
           },
@@ -3625,7 +3494,6 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:820",
-              "docdb:702",
               "synthetic:821"
             ],
             "status": "measured"
@@ -3638,11 +3506,7 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:821",
-              "docdb:708",
-              "docdb:707",
-              "synthetic:820",
-              "docdb:702",
-              "docdb:711"
+              "synthetic:820"
             ],
             "status": "measured"
           },
@@ -3654,15 +3518,11 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:822",
-              "docdb:711",
               "synthetic:806",
+              "synthetic:819",
               "synthetic:804",
               "synthetic:805",
-              "docdb:707",
-              "synthetic:820",
-              "docdb:704",
-              "docdb:705",
-              "docdb:706"
+              "synthetic:820"
             ],
             "status": "measured"
           }
@@ -3672,7 +3532,7 @@
         "exact_identifier_recall_at_10": 1.0,
         "macro_document_recall_at_10": 1.0,
         "measured_cases": 62,
-        "no_answer_honest": 6,
+        "no_answer_honest": 7,
         "no_answer_total": 7,
         "permission_leaks": 0,
         "quality_denominator": 53,
@@ -3688,7 +3548,7 @@
     {
       "analyzer": "smartcn_equivalent_probe",
       "evidence_level": "equivalent_simulation",
-      "evidence_note": "stdlib NFKC + CJK bigram probe; no analysis-smartcn/OpenSearch",
+      "evidence_note": "stdlib NFKC + CJK unigram/bigram probe; no analysis-smartcn/OpenSearch",
       "geometry": {
         "child": {
           "count": 50,
@@ -3728,16 +3588,16 @@
         }
       },
       "metrics": {
-        "build_time_ms": 3.381,
+        "build_time_ms": 3.756,
         "chunks": 50,
         "docs": 50,
-        "index_bytes": 94135,
+        "index_bytes": 144608,
         "parents": 50,
-        "peak_rss_bytes": 51134464,
-        "postings": 844,
-        "postings_bytes": 69422,
+        "peak_rss_bytes": 51544064,
+        "postings": 1539,
+        "postings_bytes": 119895,
         "source_bytes": 24713,
-        "terms": 581
+        "terms": 895
       },
       "quality": {
         "cases": [
@@ -3836,7 +3696,8 @@
             "rank": 1,
             "recall_at_10": true,
             "returned_doc_ids": [
-              "docdb:610"
+              "docdb:610",
+              "docdb:601"
             ],
             "status": "measured"
           },
@@ -3858,7 +3719,8 @@
             "rank": 1,
             "recall_at_10": true,
             "returned_doc_ids": [
-              "docdb:711"
+              "docdb:711",
+              "docdb:710"
             ],
             "status": "measured"
           },
@@ -4009,7 +3871,8 @@
             "rank": 1,
             "recall_at_10": true,
             "returned_doc_ids": [
-              "docdb:613"
+              "docdb:613",
+              "docdb:603"
             ],
             "status": "measured"
           },
@@ -4021,8 +3884,7 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "docdb:614",
-              "synthetic:818",
-              "synthetic:808"
+              "docdb:608"
             ],
             "status": "measured"
           },
@@ -4033,7 +3895,8 @@
             "rank": 1,
             "recall_at_10": true,
             "returned_doc_ids": [
-              "docdb:712"
+              "docdb:712",
+              "docdb:704"
             ],
             "status": "measured"
           },
@@ -4044,7 +3907,16 @@
             "rank": 1,
             "recall_at_10": true,
             "returned_doc_ids": [
-              "docdb:713"
+              "docdb:713",
+              "docdb:710",
+              "docdb:707",
+              "docdb:705",
+              "docdb:708",
+              "docdb:704",
+              "docdb:706",
+              "docdb:701",
+              "docdb:702",
+              "docdb:703"
             ],
             "status": "measured"
           },
@@ -4056,9 +3928,7 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "docdb:714",
-              "synthetic:813",
-              "synthetic:806",
-              "synthetic:814"
+              "docdb:709"
             ],
             "status": "measured"
           },
@@ -4091,7 +3961,8 @@
             "rank": 1,
             "recall_at_10": true,
             "returned_doc_ids": [
-              "docdb:610"
+              "docdb:610",
+              "docdb:601"
             ],
             "status": "measured"
           },
@@ -4142,7 +4013,9 @@
             "id": "G32",
             "leak": false,
             "note": "local kb filter probe; no token/Gateway behavior",
-            "returned_doc_ids": [],
+            "returned_doc_ids": [
+              "docdb:610"
+            ],
             "status": "measured"
           },
           {
@@ -4248,7 +4121,8 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:802",
-              "synthetic:801"
+              "synthetic:801",
+              "synthetic:808"
             ],
             "status": "measured"
           },
@@ -4284,7 +4158,9 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:804",
-              "synthetic:805"
+              "synthetic:805",
+              "synthetic:822",
+              "synthetic:820"
             ],
             "status": "measured"
           },
@@ -4296,7 +4172,9 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:805",
-              "synthetic:804"
+              "synthetic:804",
+              "synthetic:822",
+              "synthetic:820"
             ],
             "status": "measured"
           },
@@ -4341,7 +4219,8 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:808",
-              "synthetic:810"
+              "synthetic:810",
+              "synthetic:809"
             ],
             "status": "measured"
           },
@@ -4364,7 +4243,8 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:810",
-              "synthetic:808"
+              "synthetic:808",
+              "synthetic:809"
             ],
             "status": "measured"
           },
@@ -4387,7 +4267,10 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:812",
-              "synthetic:814"
+              "synthetic:814",
+              "synthetic:820",
+              "synthetic:813",
+              "synthetic:819"
             ],
             "status": "measured"
           },
@@ -4410,7 +4293,10 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:814",
-              "synthetic:812"
+              "synthetic:812",
+              "synthetic:820",
+              "synthetic:813",
+              "synthetic:819"
             ],
             "status": "measured"
           },
@@ -4468,7 +4354,12 @@
             "rank": 1,
             "recall_at_10": true,
             "returned_doc_ids": [
-              "synthetic:819"
+              "synthetic:819",
+              "synthetic:814",
+              "synthetic:813",
+              "synthetic:822",
+              "synthetic:812",
+              "synthetic:820"
             ],
             "status": "measured"
           },
@@ -4479,7 +4370,8 @@
             "rank": 1,
             "recall_at_10": true,
             "returned_doc_ids": [
-              "synthetic:820"
+              "synthetic:820",
+              "synthetic:821"
             ],
             "status": "measured"
           },
@@ -4490,7 +4382,8 @@
             "rank": 1,
             "recall_at_10": true,
             "returned_doc_ids": [
-              "synthetic:821"
+              "synthetic:821",
+              "synthetic:820"
             ],
             "status": "measured"
           },
@@ -4501,7 +4394,12 @@
             "rank": 1,
             "recall_at_10": true,
             "returned_doc_ids": [
-              "synthetic:822"
+              "synthetic:822",
+              "synthetic:806",
+              "synthetic:819",
+              "synthetic:804",
+              "synthetic:805",
+              "synthetic:820"
             ],
             "status": "measured"
           }
@@ -4519,15 +4417,15 @@
         "skipped_cases": 10
       },
       "relative_to_legacy_same_corpus": {
-        "index_bytes_ratio": 0.525465,
-        "reduction_percent": 47.453
+        "index_bytes_ratio": 0.807208,
+        "reduction_percent": 19.279
       },
       "source_model": "body_excluded_from_source"
     },
     {
       "analyzer": "smartcn_equivalent_probe",
       "evidence_level": "equivalent_simulation",
-      "evidence_note": "stdlib NFKC + CJK bigram probe; no analysis-smartcn/OpenSearch",
+      "evidence_note": "stdlib NFKC + CJK unigram/bigram probe; no analysis-smartcn/OpenSearch",
       "geometry": {
         "child": {
           "count": 50,
@@ -4567,16 +4465,16 @@
         }
       },
       "metrics": {
-        "build_time_ms": 2.805,
+        "build_time_ms": 3.544,
         "chunks": 50,
         "docs": 50,
-        "index_bytes": 97835,
+        "index_bytes": 148308,
         "parents": 50,
-        "peak_rss_bytes": 51003392,
-        "postings": 844,
-        "postings_bytes": 69422,
+        "peak_rss_bytes": 51757056,
+        "postings": 1539,
+        "postings_bytes": 119895,
         "source_bytes": 28413,
-        "terms": 581
+        "terms": 895
       },
       "quality": {
         "cases": [
@@ -4675,7 +4573,8 @@
             "rank": 1,
             "recall_at_10": true,
             "returned_doc_ids": [
-              "docdb:610"
+              "docdb:610",
+              "docdb:601"
             ],
             "status": "measured"
           },
@@ -4697,7 +4596,8 @@
             "rank": 1,
             "recall_at_10": true,
             "returned_doc_ids": [
-              "docdb:711"
+              "docdb:711",
+              "docdb:710"
             ],
             "status": "measured"
           },
@@ -4848,7 +4748,8 @@
             "rank": 1,
             "recall_at_10": true,
             "returned_doc_ids": [
-              "docdb:613"
+              "docdb:613",
+              "docdb:603"
             ],
             "status": "measured"
           },
@@ -4860,8 +4761,7 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "docdb:614",
-              "synthetic:818",
-              "synthetic:808"
+              "docdb:608"
             ],
             "status": "measured"
           },
@@ -4872,7 +4772,8 @@
             "rank": 1,
             "recall_at_10": true,
             "returned_doc_ids": [
-              "docdb:712"
+              "docdb:712",
+              "docdb:704"
             ],
             "status": "measured"
           },
@@ -4883,7 +4784,16 @@
             "rank": 1,
             "recall_at_10": true,
             "returned_doc_ids": [
-              "docdb:713"
+              "docdb:713",
+              "docdb:710",
+              "docdb:707",
+              "docdb:705",
+              "docdb:708",
+              "docdb:704",
+              "docdb:706",
+              "docdb:701",
+              "docdb:702",
+              "docdb:703"
             ],
             "status": "measured"
           },
@@ -4895,9 +4805,7 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "docdb:714",
-              "synthetic:813",
-              "synthetic:806",
-              "synthetic:814"
+              "docdb:709"
             ],
             "status": "measured"
           },
@@ -4930,7 +4838,8 @@
             "rank": 1,
             "recall_at_10": true,
             "returned_doc_ids": [
-              "docdb:610"
+              "docdb:610",
+              "docdb:601"
             ],
             "status": "measured"
           },
@@ -4981,7 +4890,9 @@
             "id": "G32",
             "leak": false,
             "note": "local kb filter probe; no token/Gateway behavior",
-            "returned_doc_ids": [],
+            "returned_doc_ids": [
+              "docdb:610"
+            ],
             "status": "measured"
           },
           {
@@ -5087,7 +4998,8 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:802",
-              "synthetic:801"
+              "synthetic:801",
+              "synthetic:808"
             ],
             "status": "measured"
           },
@@ -5123,7 +5035,9 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:804",
-              "synthetic:805"
+              "synthetic:805",
+              "synthetic:822",
+              "synthetic:820"
             ],
             "status": "measured"
           },
@@ -5135,7 +5049,9 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:805",
-              "synthetic:804"
+              "synthetic:804",
+              "synthetic:822",
+              "synthetic:820"
             ],
             "status": "measured"
           },
@@ -5180,7 +5096,8 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:808",
-              "synthetic:810"
+              "synthetic:810",
+              "synthetic:809"
             ],
             "status": "measured"
           },
@@ -5203,7 +5120,8 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:810",
-              "synthetic:808"
+              "synthetic:808",
+              "synthetic:809"
             ],
             "status": "measured"
           },
@@ -5226,7 +5144,10 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:812",
-              "synthetic:814"
+              "synthetic:814",
+              "synthetic:820",
+              "synthetic:813",
+              "synthetic:819"
             ],
             "status": "measured"
           },
@@ -5249,7 +5170,10 @@
             "recall_at_10": true,
             "returned_doc_ids": [
               "synthetic:814",
-              "synthetic:812"
+              "synthetic:812",
+              "synthetic:820",
+              "synthetic:813",
+              "synthetic:819"
             ],
             "status": "measured"
           },
@@ -5307,7 +5231,12 @@
             "rank": 1,
             "recall_at_10": true,
             "returned_doc_ids": [
-              "synthetic:819"
+              "synthetic:819",
+              "synthetic:814",
+              "synthetic:813",
+              "synthetic:822",
+              "synthetic:812",
+              "synthetic:820"
             ],
             "status": "measured"
           },
@@ -5318,7 +5247,8 @@
             "rank": 1,
             "recall_at_10": true,
             "returned_doc_ids": [
-              "synthetic:820"
+              "synthetic:820",
+              "synthetic:821"
             ],
             "status": "measured"
           },
@@ -5329,7 +5259,8 @@
             "rank": 1,
             "recall_at_10": true,
             "returned_doc_ids": [
-              "synthetic:821"
+              "synthetic:821",
+              "synthetic:820"
             ],
             "status": "measured"
           },
@@ -5340,7 +5271,12 @@
             "rank": 1,
             "recall_at_10": true,
             "returned_doc_ids": [
-              "synthetic:822"
+              "synthetic:822",
+              "synthetic:806",
+              "synthetic:819",
+              "synthetic:804",
+              "synthetic:805",
+              "synthetic:820"
             ],
             "status": "measured"
           }
@@ -5358,8 +5294,8 @@
         "skipped_cases": 10
       },
       "relative_to_legacy_same_corpus": {
-        "index_bytes_ratio": 0.546119,
-        "reduction_percent": 45.388
+        "index_bytes_ratio": 0.827861,
+        "reduction_percent": 17.214
       },
       "source_model": "body_in_source"
     }

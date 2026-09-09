@@ -390,7 +390,11 @@ def analyze_smartcn_probe(text: str) -> tuple[str, ...]:
     def bigrams(run: str) -> Iterable[str]:
         if len(run) == 1:
             return (run,)
-        return tuple(run[i:i + 2] for i in range(len(run) - 1))
+        # This remains an explicitly labelled local probe, not SmartCN parity.
+        # Retaining characters as well as adjacent pairs makes short/no-answer
+        # fixture-scope contamination observable instead of hiding it behind a
+        # probe-specific segmentation miss.
+        return (*tuple(run), *(run[i:i + 2] for i in range(len(run) - 1)))
     return _scan_runs(text, bigrams)
 
 
@@ -399,7 +403,7 @@ ANALYZERS: dict[str, tuple[Callable[[str], tuple[str, ...]], str, str]] = {
     "icu_equivalent_probe": (analyze_icu_probe, "equivalent_simulation",
                              "stdlib NFKC + CJK unigram probe; no analysis-icu/OpenSearch"),
     "smartcn_equivalent_probe": (analyze_smartcn_probe, "equivalent_simulation",
-                                 "stdlib NFKC + CJK bigram probe; no analysis-smartcn/OpenSearch"),
+                                 "stdlib NFKC + CJK unigram/bigram probe; no analysis-smartcn/OpenSearch"),
 }
 
 
@@ -460,18 +464,32 @@ def _query_terms(query: str, analyzer: Callable[[str], tuple[str, ...]]) -> tupl
     return tuple(dict.fromkeys(terms))
 
 
-def search(index: LocalIndex, query: str, kb_ids: Sequence[str], top_k: int = 10) -> list[str]:
+def search_scores(index: LocalIndex, query: str, kb_ids: Sequence[str], top_k: int = 10,
+                  doc_id_prefixes: Sequence[str] = ()) -> list[tuple[str, float]]:
+    """Rank documents with BM25 statistics computed only over the fixed scope.
+
+    ``kb_ids`` and ``doc_id_prefixes`` define the scoring corpus, not merely a
+    post-ranking candidate filter.  This deliberate behavior differs from a
+    Lucene term filter on a shared index, whose term statistics stay global.
+    """
     analyzer = ANALYZERS[index.analyzer][0]
     terms = _query_terms(query, analyzer)
     if not terms:
         return []
+    allowed = set(kb_ids)
+    prefixes = tuple(doc_id_prefixes)
+    scoped_children = {
+        cid for cid, child in index.children.items()
+        if child.kb_id in allowed
+        and (not prefixes or child.doc_id.startswith(prefixes))
+    }
+    if not scoped_children:
+        return []
     candidates: set[str] = set()
     for term in terms:
-        candidates.update(index.postings.get(term, ()))
-    allowed = set(kb_ids)
-    candidates = {cid for cid in candidates if index.children[cid].kb_id in allowed}
-    n_docs = max(len(index.children), 1)
-    avgdl = sum(index.chunk_lengths.values()) / n_docs if index.chunk_lengths else 1.0
+        candidates.update(set(index.postings.get(term, ())) & scoped_children)
+    n_docs = len(scoped_children)
+    avgdl = sum(index.chunk_lengths[cid] for cid in scoped_children) / n_docs
     scores: dict[str, float] = defaultdict(float)
     for cid in candidates:
         dl = index.chunk_lengths[cid] or 1
@@ -480,14 +498,20 @@ def search(index: LocalIndex, query: str, kb_ids: Sequence[str], top_k: int = 10
             tf = local.get(term, 0)
             if not tf:
                 continue
-            df = len(index.postings.get(term, ()))
+            df = len(set(index.postings.get(term, ())) & scoped_children)
             idf = math.log(1 + (n_docs - df + 0.5) / (df + 0.5))
             scores[cid] += idf * (tf * 2.5) / (tf + 1.5 * (0.25 + 0.75 * dl / avgdl))
     best_doc: dict[str, float] = {}
     for cid, score in scores.items():
         doc_id = index.children[cid].doc_id
         best_doc[doc_id] = max(score, best_doc.get(doc_id, 0.0))
-    return [doc for doc, _ in sorted(best_doc.items(), key=lambda x: (-x[1], x[0]))[:top_k]]
+    return sorted(best_doc.items(), key=lambda x: (-x[1], x[0]))[:top_k]
+
+
+def search(index: LocalIndex, query: str, kb_ids: Sequence[str], top_k: int = 10,
+           doc_id_prefixes: Sequence[str] = ()) -> list[str]:
+    return [doc_id for doc_id, _ in search_scores(
+        index, query, kb_ids, top_k, doc_id_prefixes)]
 
 
 def load_stage_a_corpus() -> list[SourceDocument]:
@@ -518,8 +542,10 @@ def evaluate_gold(index: LocalIndex, gold: dict) -> dict:
         base = {"id": case["id"], "category": case["category"],
                 "expected_outcome": case["expected_outcome"]}
         outcome = case["expected_outcome"]
+        scope = gold["fixture_scopes"][case["fixture_scope"]]
+        prefixes = scope["doc_id_prefixes"]
         if outcome in {"hits", "no_evidence"}:
-            ranked = search(index, case["query"], [case["kb_id"]], 10)
+            ranked = search(index, case["query"], [case["kb_id"]], 10, prefixes)
             expected = case["expected_doc_ids"]
             rank = next((rank for rank, doc in enumerate(ranked, 1) if doc in expected), None)
             if outcome == "hits":
@@ -537,14 +563,14 @@ def evaluate_gold(index: LocalIndex, gold: dict) -> dict:
                 rows.append({**base, "status": "measured", "rank": None,
                              "honest_no_evidence": ok, "returned_doc_ids": ranked})
         elif case["id"] == "G32":
-            ranked = search(index, case["query"], ["liba"], 10)
+            ranked = search(index, case["query"], ["liba"], 10, prefixes)
             leak = "docdb:701" in ranked
             permission_leaks += int(leak)
             rows.append({**base, "status": "measured", "leak": leak,
                          "returned_doc_ids": ranked,
                          "note": "local kb filter probe; no token/Gateway behavior"})
         elif case["id"] == "G33":
-            ranked = search(index, case["query"], ["libb"], 10)
+            ranked = search(index, case["query"], ["libb"], 10, prefixes)
             hit = "docdb:701" in ranked
             rows.append({**base, "status": "measured", "authorized_hit": hit,
                          "returned_doc_ids": ranked,

@@ -102,11 +102,13 @@ modules:
       - scripts/kb_lexical.py
       - scripts/kb_lexical_builder.py
       - scripts/kb_stage_b_poc.py
+      - scripts/kb_stage_b_opensearch_benchmark.py
       - scripts/kb_storage.py
       - tests/test_rt051_lexical_fusion.py
       - tests/test_rt051_acceptance.py
       - tests/test_rt054_stage_a_contracts.py
       - tests/test_rt054_stage_b_poc.py
+      - tests/test_rt054_stage_b_opensearch_benchmark.py
 
   - name: kb-wizard-gateway
     path: RT/RT-044/references/CLI-SPEC.md

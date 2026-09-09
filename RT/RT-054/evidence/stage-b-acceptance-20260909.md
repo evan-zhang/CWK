@@ -1,101 +1,105 @@
-# RT-054 阶段 B 离线 PoC 验收
+# RT-054 阶段 B OpenSearch 整改验收
 
 ## 裁决
 
-**NO-GO。阶段 B 的可替换投影、离线 benchmark 和判据已完成，但阶段 B 完成门未达到。**
+**NO-GO。OpenSearch 3.3.2、官方 ICU/SmartCN 与 scope 统计边界均已实测，但阶段 B 完成门仍未达到；不进入阶段 C，不关闭 RT-054。**
 
-原因有三项，均不可用推算替代：
+三个硬失败：
 
-1. 同一合成语料上，ICU 等价探针和 SmartCN 等价探针相对 legacy PoC 只减少 43.951% / 47.453%，未达到 80%。
-2. 本机没有实际执行 `analysis-icu`、`analysis-smartcn` 或 OpenSearch；`index_bytes` 是确定性序列化 PoC 大小，不是 OpenSearch primary store。
-3. 阶段 A 的仓库内脱敏 fixture 只形成 liba/libb 两个合成库，不能证明三个目标库的等价语料门。
+1. shared-filter、body 排除 `_source` 时，ICU/SmartCN 相对 legacy 的 primary store 只缩小 **16.047% / 16.384%**，远低于 ≥80%。
+2. SmartCN macro document Recall@10 为 **52/53 = 0.9811**，虽高于 0.90，却低于 legacy/ICU 的 53/53，漏掉 G05「对齐」，因此“不低于 legacy”失败。
+3. 仓库 fixture 是 28-doc `rt051_a11` + 22-doc `rt054_extension`，不是 cwork-3m、docdb-touqian、spbp-2027 的三库等价脱敏语料，不能证明逐库主索引门。
 
-因此本提交可作为阶段 B PoC commit 保留，但不能固定生产 analyzer/mapping，也不能进入阶段 C。
+## 独立复核 FAIL 闭环
 
-## 实现范围
+### 1. 离线 scoped BM25
 
-- `scripts/kb_stage_b_poc.py`：完全离线的 Parent/Child 投影、模板去重、精确字段投影、三 analyzer 对照、BM25、库过滤、72 题执行器和资源计数。
-- Parent：800–2000 tokens，目标 1200；短于 800 的源允许形成显式 `underfilled_short_source`。
-- Child：200–500 tokens，硬上限 700，目标 350；默认零重叠。仅超长无安全边界句强制切分，并使用 40 tokens 重叠（限定在 30–50）。
-- 精确字段：编号、日期、公司、人名、文件名、英文缩写分别投影；正文是否进入 `_source` 作为两种候选模型。
-- 未连接 Gateway，未读取或修改 NAS/OPS，未部署或连接 PostgreSQL/OpenSearch，未发网络请求。
+`kb_stage_b_poc.search_scores` 先固定 `kb_id + doc_id_prefixes` 内的 children，再只用该集合计算 `n_docs`、`avgdl`、每个 query term 的 `df`、chunk 分数和文档排序。scope 不再是候选末端过滤。
 
-## Analyzer 证据等级
+行为判据覆盖三种本地 analyzer：
 
-- `legacy_123gram`：**实测**。执行本地 legacy 1/2/3-gram 等价算法。
-- `icu_equivalent_probe`：**等价模拟**。本地 NFKC + CJK unigram 探针；不是 ICU plugin 实测。
-- `smartcn_equivalent_probe`：**等价模拟**。本地 NFKC + CJK bigram 探针；不是 SmartCN plugin 实测。
-- `analysis-icu` OpenSearch plugin：**SKIP**，本机未安装/未执行，本阶段禁止部署服务。
-- `analysis-smartcn` OpenSearch plugin：**SKIP**，本机未安装/未执行，本阶段禁止部署服务。
+- G20「甲乙丙丁」在未限定的 liba 合并域会命中 `synthetic:801/802`；
+- 指定 `rt051_a11` 的 `docdb:` scope 后，legacy、ICU probe、SmartCN probe 均返回 honest no evidence；
+- 向 scope 外新增、删除或把同词词频放大到上千次，scope 内文档的分数和顺序逐项不变。
 
-## Benchmark 摘要
+本地 ICU/SmartCN 仍明确标为等价 probe，不冒充官方插件；真实插件证据来自下述 OpenSearch lane。
 
-口径：50 个仓库内合成文档、50 Parents、50 Children；模板去重识别 4 个模板，删除 1,632 个重复行实例。由于去重后全部源都短于 800 tokens，实测最大 Parent/Child 都是 44 tokens；长文边界和强制切分由独立行为测试覆盖，不拿短 fixture 冒充尺寸压力测试。
+### 2. shared-filter 与 isolated-scope 分 lane
+
+机器权威：`stage-b-opensearch-benchmark-20260909.json`（schema `cwk.rt054.stage-b-opensearch-benchmark.v2`；SHA-256 `3fd0721be395db6d8bf58768ed176dfccca91c55b305bf54f00ccb8625129e36`）。
+
+- **shared-filter lane**：一个物理索引含全部 50 docs；`kb_id + fixture_scope` term filter 只限制候选。Lucene 的 BM25 field/term statistics 仍来自整个物理索引，报告禁止称为 scoped IDF。
+- **isolated-scope lane**：`rt051_a11` 与 `rt054_extension` 分别建立独立物理索引，只用于比较原 fixture 评审域；其 Lucene 统计是各自物理索引统计，不能冒充 shared-index 生产模型。
+- `_termvectors` 证据直接记录两 lane 的 `field_statistics` 和 `term_statistics`。例如 ICU body 的 shared field `doc_count=50`，`rt051_a11` isolated 为 28；legacy 因 CJK-only body analyzer 只对有词项文档计数，shared/isolated 分别为 44/22。两者都符合 Lucene 的“有该字段词项的文档数”口径，而不是业务文档总数。
+
+## 运行环境与镜像边界
+
+- 服务：single-node、security disabled，仅绑定 `127.0.0.1:19200`；1 primary shard、0 replica。
+- 实测 OpenSearch：**3.3.2**，build `6564992150e26aaa62d4522a220dfff5188aeb88`，Lucene 10.3.1。
+- 官方插件：`analysis-icu=3.3.2`、`analysis-smartcn=3.3.2`，均与 runtime 匹配。
+- 官方 base：`opensearchproject/opensearch:3.3.2`，RepoDigest `sha256:798cf28e226a32f5c928dd1ed9478dd3a33d2212176aad3679020088ad3afa1a`；在临时派生镜像中仅安装上述两个官方插件。
+- 失败会话留下的 `cwk-opensearch-bench:3.3.2` / `sha256:e2c9f4fe...` 被拒用：其 OCI label、`opensearch --version` 和两插件都实际为 3.2.0。机器结果同时保留这条 rejected-image 证据，不把错标签算作 3.3.2 实测。
+- JVM heap max/committed 为 1,073,741,824 bytes；最终证据点 heap used 600,651,992 bytes、non-heap 252,874,064 bytes。
+- 容器 `/proc/1` VmRSS/VmHWM 为 1,556,148,224 bytes。这是 Docker Linux 容器中的 Java 进程 RSS，不是 JVM heap，也不是 macOS 宿主进程 RSS。
+- macOS 宿主物理内存 25,769,803,776 bytes；OpenSearch `os.mem` 看到约 8.22GB Docker VM/cgroup 边界，不冒充宿主内存。
+
+## shared-filter 50-doc 实测
+
+全部运行都使用相同 50 docs / 50 Parents / 50 Children；refresh 后 force merge 到一个 segment，再读取 primary store。
 
 ### body 排除 `_source`
 
-- legacy：179,146 bytes；1,197 terms；1,978 postings；build 4.028 ms；peak RSS 51,527,680 bytes。
-- ICU 等价探针：100,410 bytes；522 terms；958 postings；build 2.834 ms；peak RSS 50,708,480 bytes；相对 legacy 减少 43.951%。
-- SmartCN 等价探针：94,135 bytes；581 terms；844 postings；build 3.381 ms；peak RSS 51,134,464 bytes；相对 legacy 减少 47.453%。
+- legacy 1/2/3-gram：66,436 bytes；字段 unique term 合计 1,219；build/index/refresh/force-merge = 25.415/11.507/13.905/14.492ms；查询 P50/P95/P99 = 1.905/4.512/8.854ms。
+- ICU：55,775 bytes；term 合计 440；20.472/10.381/10.086/18.164ms；1.788/4.142/5.941ms；相对 legacy 缩小 16.047%。
+- SmartCN：55,551 bytes；term 合计 426；20.689/12.327/8.356/14.847ms；1.511/3.110/4.201ms；相对 legacy 缩小 16.384%。
 
 ### body 进入 `_source`
 
-- legacy：182,846 bytes；正文 `_source` 比排除方案增加 3,700 bytes。
-- ICU 等价探针：104,110 bytes；增加 3,700 bytes。
-- SmartCN 等价探针：97,835 bytes；增加 3,700 bytes。
-- postings、terms 与质量结果在两种 `_source` 模型间逐项相同；该数字只代表本合成语料序列化载荷，不代表 OpenSearch 磁盘段压缩或取回延迟。
+- legacy：62,228 bytes；build/index/refresh/force-merge = 26.971/17.249/9.712/14.956ms。
+- ICU：51,572 bytes；24.866/16.236/8.624/12.841ms；相对 legacy 缩小 17.124%。
+- SmartCN：51,348 bytes；16.836/9.794/7.038/12.102ms；相对 legacy 缩小 17.484%。
 
-## 72 题结果
+50-doc 小索引中，body 进入 `_source` 的 primary store 反而比排除方案小约 4KB。这是固定开销与小段压缩噪声主导的真实结果，不能解释成“存正文更省磁盘”。
 
-每个 analyzer 都消费 72 题并输出逐题结果：62 题执行、10 题结构化 SKIP。
+## 质量、精确编号、权限与取回
 
-- 质量分母：53 个 `hits` 题；三者 Recall@10 都为 53/53 = 1.00。
-- 精确编号分母：5 个正例；三者 Recall@10 都为 5/5 = 1.00。
-- 类别：body 6/6、short_cjk 6/6、title 6/6、version 6/6、company_person 8/8、date 8/8、table 8/8、exact_identifier 5/5。
-- 无答案：SmartCN 等价探针 7/7；legacy 与 ICU 等价探针 6/7。失败题是 G20「甲乙丙丁」：阶段 B 合并的新增公司 fixture 出现“合同甲方/乙方”，与阶段 A 继承题的“全库无这些字”理由冲突。这是合并 gold 的真实交叉污染，不作美化。
-- 权限/串库：本地 `kb_id` 过滤探针泄漏 0；G32 与 G33 实测。其余 token、撤权、句柄和 index-fault 旧行为题不属于 detached Stage B 投影，逐题 SKIP 并排除质量分母。
-- SKIP：G31、G34–G42（其中 G33 已执行；实际列表为 G31、G34、G35、G36、G37、G38、G39、G40、G41、G42）。每条理由已写入 JSON。
+每个 shared run 消费 72 题：62 题实测，10 个旧 Gateway/token/read/index-fault 行为题结构化 SKIP并排除分母。
 
-完整机器可读结果：`stage-b-benchmark-20260909.json`。
+- legacy：53/53，Recall@10=1.00；ICU：53/53，1.00；SmartCN：52/53，0.9811，失败为 G05「对齐」。
+- 精确编号：三者均 5/5，Recall@10=1.00；`017` 不误命中 `AB-017`。
+- 无答案：三者均 7/7；G20 按 `rt051_a11` scope 返回 honest no evidence。
+- 权限/串库：G32 unauthorized-scope leak=0；G33 admin 请求 libb 能命中 `docdb:701`。这是 detached OpenSearch 的 `kb_id + fixture_scope` filter 证据，不是 token/Gateway 鉴权证据。
+- source 排除时取回 50 条约 36.1–36.3KB、body 字段 0；source 进入时约 39.7–39.9KB、body 字段 50。取回延迟约 2.4–3.7ms，只是 loopback 单节点微基准。
+- isolated-scope lane 的 primary store 因每个小索引各自固定开销，不与 shared lane 做生产容量比较；其用途仅是原评审域的 per-index BM25 对照。
 
-## 判据三格
+## 测试与清理
 
-### 工程判据
+专项测试覆盖：REST HTTP/transport/non-JSON 错误、loopback URL 限制、mapping/analyzer、strict mapping、bulk 投影、fixture_scope、日期/编号路由、source 两模型、plugin/runtime、metric schema、shared vs isolated Lucene 统计、逐题质量、权限探针和 cleanup。缺服务时 integration 以带原因的 SKIP 退出；本机最终使用真实 3.3.2 服务运行，未走 SKIP。
 
-`tests/test_rt054_stage_b_poc.py` 共 10 条：
-
-- 真正构造超长无句界文本，断言 Parent/Child 上限和 30–50 token 强制重叠；删掉切分或过滤接线会失败。
-- 正常结构文本断言零重叠。
-- 三文档重复模板断言跨文档去重，并保留独有正文。
-- 六类精确字段分别断言。
-- 对同一投影分别建立 body 进入/排除 `_source` 模型，断言 postings 不变、source bytes 真变化。
-- 在同一合并索引中用 liba/libb 查询 `基线`，断言去掉 `kb_id` 过滤会发生可观察失败。已做真实断线破坏实验：临时移除候选集的库过滤后，该用例按预期变红并返回 `docdb:701`；还原后复跑转绿。
-- 断言三 analyzer 的证据标签、72 题逐题覆盖、SKIP 理由、必出指标和 NO-GO 防冒充。
-
-### 独立 AI 评审
-
-本阶段没有调用外部或独立 AI reviewer：当前任务禁止外连，且本地没有额外审查运行时被授权进入本 RT。此格明确缺失，不以自审冒充独立评审。
-
-### 读真实产出
-
-人工读取 benchmark 摘要和失败题，确认：
-
-- 80% 尺寸门真实失败；
-- G20 出现合并 fixture 交叉污染；
-- 10 个旧行为题为逐题 SKIP，没有进入质量分母；
-- ICU/SmartCN 均标为等价模拟，OpenSearch primary store 明确未测。
+- 真实服务相关回归：RT-051 A11/acceptance + RT-054 Stage A/B 共 **54 tests PASS**，integration 使用真实 3.3.2 服务且未 SKIP。
+- 清理后的全量 RT-054 专项：**83 tests PASS，3 个结构化 SKIP**；其中 2 个只在固定 pure-local child 内运行，1 个因服务已按要求删除而 SKIP。前一条 54-test 记录已证明真实 integration 通过。
+- benchmark 自身 finally 删除 12 个唯一前缀临时索引；`_cat/indices/<prefix>-*` 复核为空。
+- 临时容器和派生镜像在最终真实服务测试后删除；没有连接 Gateway、NAS/OPS、PostgreSQL 或生产。
+- `rt-guard --rt RT-054`：13 PASS / 0 error / 1 non-blocking WARN（仓库 pre-commit hook 未安装）。
+- 9 个 RT-054 JSON 全部可解析；benchmark v2 validator 通过；3 个 contract 均声明 JSON Schema Draft 2020-12，Stage A contract tests 通过。
+- `make aodw-check`：PASS（framework fixture 79/0、RT-028..054 全过）；仅提示宿主 `handover-pack` skill 未安装，不阻断。
+- `make governance-audit`：PASS，771 个 tracked files 全部有 ownership/evolution path。
+- staged + unstaged `git diff --check`：PASS；15 个 staged 文件凭据模式扫描 clean；`docs/handover/` 未暂存且未修改。
 
 ## 阶段 B 完成门
 
-- 结构化 Parent/Child 投影：**PASS（PoC）**。
-- legacy / ICU / SmartCN 比较：**PARTIAL**；legacy 实测，ICU/SmartCN 仅等价模拟，真实插件 SKIP。
-- body `_source` 候选比较：**PASS（逻辑载荷）**；真实 OpenSearch 磁盘和取回代价未测。
-- 三库等价语料主索引缩小 ≥80%：**FAIL**；两库合成 PoC 只减少 43.951% / 47.453%，且不是 primary store。
-- gold macro Recall@10 ≥0.90 且不低于 legacy：**PASS（合成 hits 分母）**；三者均 1.00。
-- 精确编号 Recall@10 = 1.00：**PASS（5 个正例）**。
-- 无串库：**PASS（本地 kb filter 探针）**；Gateway/token 权限不是本阶段证据。
-- 固定 chunker/analyzer/mapping v1：**FAIL**；chunker/mapping 只形成 PoC v1，analyzer 不能在未实测插件、尺寸门失败时冻结为生产 v1。
+- Parent/Child 投影：**PASS（PoC）**。
+- scoped 本地 BM25 统计与 G20 污染闭环：**PASS**。
+- OpenSearch 3.3.2 + 官方 ICU/SmartCN：**PASS**。
+- shared-filter 与 isolated-scope 证据边界：**PASS**。
+- body `_source` 两模型：**PASS（50-doc 微基准）**。
+- candidate primary store 缩小 ≥80%：**FAIL**，ICU/SmartCN 仅 16.047%/16.384%。
+- macro Recall@10 ≥0.90 且不低于 legacy：ICU **PASS**；SmartCN **FAIL（低于 legacy）**。
+- 精确编号 Recall@10=1.00：**PASS**。
+- detached filter 无串库且授权域可命中：**PASS**；Gateway/token 权限不属于本阶段证据。
+- 三库等价语料逐库门：**FAIL / 未测**。
+- 固定生产 analyzer/mapping：**FAIL**。
 
 ## 下一步
 
-保持 RT-054 `in-progress`，不进入阶段 C。要推翻 NO-GO，需要在明确批准的隔离环境中准备三个目标库的等价脱敏语料，运行版本匹配的 OpenSearch + ICU/SmartCN plugin，采集 primary store、真实 build/RSS/取回代价，并先修复 G20 的跨 fixture gold 冲突或明确重审其适用域。
+保持 RT-054 `in-progress`，不进入阶段 C。只有取得三库等价脱敏语料并逐库复测 primary store、质量、构建、取回与资源边界，才可重新裁决。若仍不能缩小 ≥80%，按 RT 停止条件回方案门评估原版 WeKnora；不恢复大 JSON，也不进入控制面/Worker 开发。

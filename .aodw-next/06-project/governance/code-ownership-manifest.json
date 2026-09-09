@@ -310,15 +310,16 @@
         "scripts/kb_p0.py",
         "scripts/kb_p0_benchmark.py",
         "scripts/kb_stage_b_poc.py",
+        "scripts/kb_stage_b_opensearch_benchmark.py",
         "scripts/rt054_pure_local.py",
         "scripts/rt054_pure_local_launcher.sh",
         "scripts/rt054_pure_local_path_validation.sh"
       ],
       "owner": "RT-054",
       "management_domain": "cwk-governance-v1",
-      "change_entry": "RT → rt-lite.md → tests/test_rt054_p0.py + tests/test_rt054_pure_local.py + tests/test_rt054_stage_b_poc.py + env -i make rt054-pure-local + make governance-audit",
+      "change_entry": "RT → rt-lite.md → tests/test_rt054_p0.py + tests/test_rt054_pure_local.py + tests/test_rt054_stage_b_poc.py + tests/test_rt054_stage_b_opensearch_benchmark.py + env -i make rt054-pure-local + make governance-audit",
       "evolution_path": "repo-standard-change",
-      "rationale": "RT-054 的默认关闭 P0 分段诊断、仅合成夹具离线 postings 对照、bounded-read 验收纯本地子进程入口，以及阶段 B 的 Parent/Child 与 analyzer 离线 PoC。阶段 B runner 只消费仓库内脱敏 fixture，逐题记录 72 题结果并明确区分 legacy 实测、等价模拟和 SKIP；不连接 Gateway/NAS/OPS/OpenSearch。Make 从自身 realpath 固定 launcher；shell helper 只从 /usr/bin/python3 开始，在 exec 前有界解析最多 16 个 symlink。link 本身只要求 root owner：Unix lstat 的通常 0777 mode 不代表 target 可写；每跳父组件与最终 regular executable 仍逐一要求 root-owned/non-group-or-other-writable，最终仅 exec 该 regular executable。Homebrew、/usr/local、PATH、cycle、超深或任一不可信组件均无 fallback 地拒绝，并令第一个 Python 即 -I -S。runner 的受控临时 HOME/TMPDIR、所列 Python socket/FileStation/.env audit 与标准 Python open-route fail-closed trap 强制 NAS smoke skip。网络计数不主张进程级 sandbox 或任意 syscall 零网络。scripts/ 是 exact-only 区，故实际存在的脚本逐条登记；不预登记后续 pointer、epoch、cache 或存储文件。"
+      "rationale": "RT-054 的默认关闭 P0 分段诊断、仅合成夹具离线 postings 对照、bounded-read 验收纯本地子进程入口，以及阶段 B 的 Parent/Child、离线 analyzer PoC 与显式 loopback OpenSearch benchmark。两个阶段 B runner 都只消费仓库内脱敏 fixture并逐题记录 72 题；离线 runner 区分 legacy 实测、等价模拟和 SKIP，并在固定 scope 后计算 BM25 统计；真实 runner 只连接用户显式提供的无认证 loopback OpenSearch，分开记录 shared-filter 全局 Lucene 统计与 isolated-scope 对照，实测 legacy mapping、官方 analysis-icu/analysis-smartcn、primary store、取回代价和结构化 SKIP，finally 删除 12 个唯一前缀临时索引；两者均不连接 Gateway/NAS/OPS。Make 从自身 realpath 固定 launcher；shell helper 只从 /usr/bin/python3 开始，在 exec 前有界解析最多 16 个 symlink。link 本身只要求 root owner：Unix lstat 的通常 0777 mode 不代表 target 可写；每跳父组件与最终 regular executable 仍逐一要求 root-owned/non-group-or-other-writable，最终仅 exec 该 regular executable。Homebrew、/usr/local、PATH、cycle、超深或任一不可信组件均无 fallback 地拒绝，并令第一个 Python 即 -I -S。runner 的受控临时 HOME/TMPDIR、所列 Python socket/FileStation/.env audit 与标准 Python open-route fail-closed trap 强制 NAS smoke skip。网络计数不主张进程级 sandbox 或任意 syscall 零网络。scripts/ 是 exact-only 区，故实际存在的脚本逐条登记；不预登记后续 pointer、epoch、cache 或存储文件。"
     },
     {
       "id": "R-runtime-adapters",

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sys
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 PROJECT = Path(__file__).resolve().parents[1]
@@ -79,6 +80,32 @@ class IndexTests(unittest.TestCase):
         denied = poc.search(index, "基线", ["liba"])
         self.assertIn("docdb:701", allowed)
         self.assertNotIn("docdb:701", denied)
+
+    def test_g20_merged_fixture_is_contaminated_but_review_scope_is_honest(self):
+        for analyzer in poc.ANALYZERS:
+            index = poc.build_local_index(self.children, analyzer, False)
+            merged = poc.search(index, "甲乙丙丁", ["liba"])
+            scoped = poc.search(index, "甲乙丙丁", ["liba"],
+                                doc_id_prefixes=["docdb:"])
+            self.assertEqual(set(merged), {"synthetic:801", "synthetic:802"}, analyzer)
+            self.assertEqual(scoped, [], analyzer)
+
+    def test_out_of_scope_documents_cannot_change_scoped_scores_or_order(self):
+        scoped_children = [c for c in self.children if c.doc_id.startswith("synthetic:")]
+        seed = next(c for c in scoped_children if c.doc_id == "synthetic:801")
+        outsiders = [
+            replace(seed, chunk_id=f"outside-chunk-{i}", parent_id=f"outside-parent-{i}",
+                    doc_id=f"outside:{i}", body=("星河科技有限公司 " * (i + 1_000)))
+            for i in range(3)
+        ]
+        for analyzer in poc.ANALYZERS:
+            base = poc.build_local_index(scoped_children, analyzer, False)
+            base_scores = poc.search_scores(
+                base, "星河科技有限公司", ["liba"], doc_id_prefixes=["synthetic:"])
+            expanded = poc.build_local_index([*scoped_children, *outsiders], analyzer, False)
+            expanded_scores = poc.search_scores(
+                expanded, "星河科技有限公司", ["liba"], doc_id_prefixes=["synthetic:"])
+            self.assertEqual(base_scores, expanded_scores, analyzer)
 
     def test_all_three_analyzer_contracts_are_executable_and_labeled(self):
         for name, (_fn, level, note) in poc.ANALYZERS.items():
