@@ -1,5 +1,7 @@
 # RT-054 阶段 B OpenSearch 整改验收
 
+> 本文保留仓库 50-doc fixture 的历史收口。随后完成的 OPS 三库原地 benchmark 见 `stage-b-ops-acceptance-20260909.md` 与 `stage-b-ops-benchmark-20260909.json`；它已使三库存储门转为 PASS，但真实人工 gold 仍为 UNKNOWN，因此最终裁决仍是 NO-GO。
+
 ## 裁决
 
 **NO-GO。OpenSearch 3.3.2、官方 ICU/SmartCN 与 scope 统计边界均已实测，但阶段 B 完成门仍未达到；不进入阶段 C，不关闭 RT-054。**

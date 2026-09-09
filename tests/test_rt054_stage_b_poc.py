@@ -7,6 +7,7 @@ import sys
 import unittest
 from dataclasses import replace
 from pathlib import Path
+from unittest import mock
 
 PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "scripts"))
@@ -35,6 +36,15 @@ class ProjectionTests(unittest.TestCase):
         _, children, _ = poc.project_documents([doc])
         self.assertGreater(len(children), 1)
         self.assertTrue(all(c.overlap_tokens == 0 for c in children))
+
+    def test_oversized_long_line_tokenizes_once_not_once_per_chunk(self):
+        text = "连续长行" * 3_000
+        original = poc._token_spans
+        with mock.patch.object(poc, "_token_spans", wraps=original) as spans:
+            parts = poc._split_oversized(text, 500, 40)
+        self.assertGreater(len(parts), 10)
+        spans.assert_called_once_with(text)
+        self.assertTrue(all(part for part, _overlap, _forced in parts))
 
     def test_template_dedup_is_corpus_level_and_content_hash_reported(self):
         boiler = "固定模板签名：本页内容仅供内部合成测试。\n"

@@ -17,8 +17,10 @@ notes: >
   检索面、NAS/S3 对象层、内网只读 Connector 与统一 Query API。旧 bounded-read/P0
   实现与 evidence 保留，但“大 JSON 快照/P1b”不再是目标架构。用户于 2026-09-09
   通过方案门；阶段 A 已冻结三库证据基线、72 题 gold、v2/v3 合同及要求去留，独立复核通过。
-  阶段 B 已完成本地离线 Parent/Child、scoped BM25 整改与真实 OpenSearch 3.3.2 benchmark；
-  同一 50-doc 投影已运行 legacy 1/2/3-gram、官方 ICU/SmartCN 和 body 两种 _source，并将
-  shared-filter 全局 Lucene 统计与 isolated-scope 对照分开记录。ICU/SmartCN primary store 仅缩小
-  16.047%/16.384%，SmartCN 还漏召回 G05，三库等价语料仍缺失，因此裁决继续 NO-GO；RT 保持
-  in-progress，不进入阶段 C。尚未部署数据库，未连接或修改 Gateway、OPS/NAS 或生产。
+  阶段 B 已完成本地离线 Parent/Child、scoped BM25、50-doc OpenSearch fixture benchmark，及 OPS
+  三库原地 benchmark。真实三库共 704 个可索引文档投影为 13,160 Parents / 52,136 Children；
+  ICU/SmartCN 相对各库旧 lexical JSON 均缩小 94.920%–97.329%，shared physical index 的 90 次
+  kb_id filter probe 零串库。OPS 无可安全识别且带 legacy 基线的人工固定 gold，case=0，故真实
+  Recall@10、exact Top10、no-answer 均 UNKNOWN；不以仓库合成 72 题冒充。最终 NO-GO，analyzer/
+  mapping 不固定，RT 保持 in-progress，不进入阶段 C。临时索引、容器、派生镜像和 workdir 已归零，
+  3 个生产 Gateway 与旧索引元数据摘要未变；未部署数据库，未修改 Gateway、NAS、旧索引或生产配置。

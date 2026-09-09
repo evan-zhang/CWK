@@ -204,14 +204,17 @@ def _structural_units(text: str) -> list[str]:
 
 
 def _split_oversized(text: str, max_tokens: int, overlap: int = 0) -> list[tuple[str, int, bool]]:
-    count = len(structural_tokens(text))
+    # Tokenize once.  Recomputing every span for every output chunk is
+    # quadratic on real long-line documents even though small fixtures hide it.
+    spans = _token_spans(text)
+    count = len(spans)
     if count <= max_tokens:
         return [(text, 0, False)]
     parts: list[tuple[str, int, bool]] = []
     start = 0
     while start < count:
         end = min(count, start + max_tokens)
-        part = _slice_by_tokens(text, start, end)
+        part = text[spans[start][0]:spans[end - 1][1]]
         parts.append((part, overlap if start else 0, True))
         if end == count:
             break
