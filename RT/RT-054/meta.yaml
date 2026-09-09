@@ -3,7 +3,7 @@ title: 大库词法融合检索快照/预计算性能治理
 type: Infrastructure
 profile: Spec-Lite
 execution_mode: collaborative
-status: intaking
+status: in-progress
 modules: [rt051-controlled-read-lexical, kb-wizard-gateway, kb-platform-storage]
 branch: feature/RT-054-lexical-snapshot-performance
 worktree: .worktrees/openclaw-worktree-rt054-performance-spec
@@ -15,5 +15,6 @@ notes: >
   方案重规划中。2026-09-09 基于三库实测体量、100–200 倍目标容量、1000 倍演进上限、
   公网 Gateway 需求及 WeKnora 源码审查，目标架构收敛为 PostgreSQL 控制面、OpenSearch
   检索面、NAS/S3 对象层、内网只读 Connector 与统一 Query API。旧 bounded-read/P0
-  实现与 evidence 保留，但“大 JSON 快照/P1b”不再是目标架构。当前仍在方案门前；
-  不得修改新产品行为、OPS/NAS、生产配置或部署，待用户批准 rt-lite.md 后分阶段实施。
+  实现与 evidence 保留，但“大 JSON 快照/P1b”不再是目标架构。用户于 2026-09-09
+  通过方案门；阶段 A 已冻结三库证据基线、72 题 gold、v2/v3 合同及要求去留，独立复核通过。
+  下一步为阶段 B 本地离线 PoC；尚未部署数据库，未修改 OPS/NAS 或生产。

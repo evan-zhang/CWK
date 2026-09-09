@@ -573,8 +573,9 @@ tests/test_rt054_*.py
 - 已读取 AODW 宪章、交互规则、项目 overview、RT manager、Spec-Lite、Git 与 test discipline。
 - 已打开当前 Gateway、词法 builder/原语、StorageBackend、RT-051 合同、RT-054 evidence 与治理所有权入口。
 - 已核对 WeKnora 固定 commit 的数据库/检索/对象存储驱动和父子块/RRF 主链路。
-- 本轮只更新方案文档和 RT 元数据；不修改产品代码、OPS/NAS、生产配置或部署。
-- 方案写入后运行 Markdown/空白、RT guard、AODW 和 governance 文档级门；完整 `make ci` 留在产品实现收口，不用文档门冒充产品验证。
+- 阶段 A 已完成：三库基线、72 题 gold 与 fixture、v2/v3 合同和要求去留表已冻结，独立复核由初审 FAIL 修复至二审 PASS。
+- 阶段 A 未修改产品运行代码、OPS/NAS、生产配置或部署；旧链缺失的 terms/build/成功延迟数据显式保留为未知，由阶段 B 新 builder 原生测量。
+- 阶段 A 运行合同测试、JSON Schema、RT guard、AODW 和 governance 门；完整 `make ci` 仍留在产品实现收口，不用文档/合同门冒充产品验证。
 
 ### 实现收口必须补齐的三格证据
 
@@ -586,7 +587,8 @@ tests/test_rt054_*.py
 
 - 2026-09-07～08：完成旧大 JSON 性能诊断、bounded-read 合同与 pure-local 验证；P1b 快照实现保持 NO-GO。
 - 2026-09-09：基于 WeKnora 源码审查、三库体量、100–1000 倍规模与公网 Gateway 目标，放弃“扩大/缓存 JSON”和 SQLite 生产路线；方案收敛为 PostgreSQL 控制面、OpenSearch 检索面、对象层、Connector 与 Query API。
-- 方案门通过前，用户可感知行为不变；通过后按阶段 A→F 开发，阶段 G 只做公网准备与独立对照，不自动部署生产。
+- 2026-09-09：方案门通过；阶段 A 冻结三库证据基线、72 题 gold、v2/v3 合同和要求去留，独立复核初审 FAIL 后补齐 fixture/行为判据并二审 PASS。
+- 后续按阶段 B→F 开发；阶段 G 只做公网准备与独立对照，不自动部署生产。
 
 ## 遗留事项
 

@@ -1,0 +1,113 @@
+{
+  "schema": "cwk.rt054.stage-a-baseline.v1",
+  "captured_at": "2026-09-09T15:52:00+08:00",
+  "product_code_commit": "c90c8a885599e79e89f386be3c9187afbe4d119e",
+  "scope": "read-only metadata and bounded index-header observations; no full-index replay",
+  "libraries": [
+    {
+      "kb": "cwork-3m",
+      "files": 1100,
+      "total_bytes": 1646144934,
+      "json_files": 21,
+      "json_bytes": 1497665151,
+      "lexical_index_bytes": 1495220459,
+      "lexical_share_percent": 90.8,
+      "documents_total": 500,
+      "documents_indexed": 482,
+      "chunks": 66500,
+      "terms": null,
+      "terms_status": "unknown_without_full_decode",
+      "lexical_bytes_per_chunk": 22484,
+      "build_elapsed_ms": null,
+      "build_status": "not_measured",
+      "query_observations": [
+        {
+          "kind": "operator_production_observation",
+          "query_class": "short_cjk",
+          "retrieval_mode": "lexical_fusion_v1",
+          "page_size": 1,
+          "elapsed_ms": 425685,
+          "status": "functional_success",
+          "source": "RT/RT-054/rt-lite.md"
+        },
+        {
+          "kind": "controlled_p0_cold_failure",
+          "elapsed_ms": 24122.983625,
+          "status": "lexical_unavailable",
+          "lexical_payload_bytes": 1495220459,
+          "raw_index_logical_bytes": 1599012,
+          "json_decode_self_ms": 4520.5685,
+          "rss_peak_bytes": 5461835776,
+          "bm25_entered": false,
+          "source": "RT/RT-054/evidence/p0-controlled-pilot-20260908.json"
+        }
+      ],
+      "source": "RT/RT-054/rt-lite.md#22-三个真实知识库的只读体量"
+    },
+    {
+      "kb": "docdb-touqian",
+      "files": 315,
+      "total_bytes": 59952603,
+      "json_files": 22,
+      "json_bytes": 47195603,
+      "lexical_index_bytes": 46513952,
+      "lexical_share_percent": 77.6,
+      "documents_total": 133,
+      "documents_indexed": 114,
+      "chunks": 1008,
+      "terms": null,
+      "terms_status": "unknown_without_full_decode",
+      "lexical_bytes_per_chunk": 46145,
+      "build_elapsed_ms": null,
+      "build_status": "not_measured",
+      "query_observations": [],
+      "source": "RT/RT-054/rt-lite.md#22-三个真实知识库的只读体量"
+    },
+    {
+      "kb": "spbp-2027",
+      "files": 317,
+      "total_bytes": 324852104,
+      "json_files": 22,
+      "json_bytes": 265230352,
+      "lexical_index_bytes": 264466313,
+      "lexical_share_percent": 81.4,
+      "documents_total": 128,
+      "documents_indexed": 90,
+      "chunks": 3984,
+      "terms": null,
+      "terms_status": "unknown_without_full_decode",
+      "lexical_bytes_per_chunk": 66382,
+      "build_elapsed_ms": null,
+      "build_status": "not_measured",
+      "query_observations": [
+        {
+          "kind": "operator_production_observation",
+          "elapsed_ms": null,
+          "elapsed_class": "greater_than_60_seconds",
+          "status": "historical_observation_only",
+          "source": "RT/RT-054/rt-lite.md@c90c8a8"
+        }
+      ],
+      "source": "RT/RT-054/rt-lite.md#22-三个真实知识库的只读体量"
+    }
+  ],
+  "synthetic_quality_baseline": {
+    "cases": 48,
+    "libraries": 2,
+    "categories": 8,
+    "faults": 0,
+    "reviewed": true,
+    "source": "RT/RT-051/a11-results-latest.json"
+  },
+  "unknowns": [
+    "real-library unique term and posting counts",
+    "repeatable successful cold and warm latency distributions",
+    "current full-build elapsed time and peak RSS for all three libraries",
+    "physical wire bytes and retry attribution"
+  ],
+  "rules": [
+    "Unknown values stay null and must not be inferred from payload size.",
+    "Do not reacquire the 1.495GB legacy object solely to fill Stage A unknowns.",
+    "Stage B must emit term, posting, index-size and build-resource counters from the new local PoC."
+  ]
+}
