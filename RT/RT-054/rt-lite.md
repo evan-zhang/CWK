@@ -236,21 +236,22 @@ mapping/analyzer/chunker 发生不兼容变化时，不走逐文档更新：建�
 ### 5.2 Parent
 
 - 优先以标题章节、PPT 页、Excel 表格组、连续 PDF 小节形成 Parent。
-- 候选上限：约 4,000 Unicode code points；超长按段落/表格组递归分割。
+- 阶段 B PoC 参数：800–2,000 tokens，目标 1,200；源全文不足 800 tokens 时允许一个显式 `underfilled_short_source` Parent，不能靠填充伪造达标。
+- 超长结构单元按段落/表格组递归分割，任何 Parent 不得超过 2,000 tokens。
 - Parent 仅作为回答上下文和来源单元，不建立全文或向量索引。
 
 ### 5.3 Child
 
-初始冻结参数：
+阶段 B PoC 参数：
 
-- 目标约 900 Unicode code points；
-- 硬上限 1,400；
+- 目标 350 tokens，正常范围 200–500，硬上限 700；
 - 默认 overlap=0；
-- 只有连续长段在安全边界无法切开时，最多重叠 80 code points；
+- 只有连续超长句在安全边界无法切开时才强制切分，重叠固定 40 tokens，且规则范围限定为 30–50 tokens；
+- Parent 不足 200 tokens 时允许一个显式 underfilled Child，不能靠跨 Parent 拼接；
 - 标题和 `section_path` 作为独立字段，不复制进每个正文多次；
 - 表格按表头 + 有界行组切分，代码/公式保持不可拆原子块，超限明确标记。
 
-参数调整必须产生新的 `chunker_version` 并重跑同一质量/体积基准，不能在线静默变化。
+PoC 版本为 `cwk-parent-child-v1` / `cwk-child-mapping-v1`；由于真实 analyzer 与三库 primary-store 门未通过，这两个标识只冻结可复现的实验合同，不代表生产 analyzer/mapping 已定版。参数调整必须换版本并重跑同一质量/体积基准，不能在线静默变化。
 
 ### 5.4 中文字段设计
 
@@ -576,6 +577,8 @@ tests/test_rt054_*.py
 - 阶段 A 已完成：三库基线、72 题 gold 与 fixture、v2/v3 合同和要求去留表已冻结，独立复核由初审 FAIL 修复至二审 PASS。
 - 阶段 A 未修改产品运行代码、OPS/NAS、生产配置或部署；旧链缺失的 terms/build/成功延迟数据显式保留为未知，由阶段 B 新 builder 原生测量。
 - 阶段 A 运行合同测试、JSON Schema、RT guard、AODW 和 governance 门；完整 `make ci` 仍留在产品实现收口，不用文档/合同门冒充产品验证。
+- 阶段 B 已实现完全离线的 Parent/Child、模板去重、精确字段和 analyzer benchmark，消费全部 72 题并逐题记录。legacy 为本地实测，ICU/SmartCN 为明确标注的等价模拟；10 个需 Gateway/token/index-fault 的旧行为题结构化 SKIP 且排除质量分母。
+- 阶段 B 当前裁决为 **NO-GO**：同一合成语料的候选序列化 PoC 仅比 legacy 缩小 43.951% / 47.453%，真实 OpenSearch primary store 和三库等价语料未测，不能固定生产 analyzer/mapping 或进入阶段 C。详见 `evidence/stage-b-acceptance-20260909.md`。
 
 ### 实现收口必须补齐的三格证据
 
@@ -588,7 +591,8 @@ tests/test_rt054_*.py
 - 2026-09-07～08：完成旧大 JSON 性能诊断、bounded-read 合同与 pure-local 验证；P1b 快照实现保持 NO-GO。
 - 2026-09-09：基于 WeKnora 源码审查、三库体量、100–1000 倍规模与公网 Gateway 目标，放弃“扩大/缓存 JSON”和 SQLite 生产路线；方案收敛为 PostgreSQL 控制面、OpenSearch 检索面、对象层、Connector 与 Query API。
 - 2026-09-09：方案门通过；阶段 A 冻结三库证据基线、72 题 gold、v2/v3 合同和要求去留，独立复核初审 FAIL 后补齐 fixture/行为判据并二审 PASS。
-- 后续按阶段 B→F 开发；阶段 G 只做公网准备与独立对照，不自动部署生产。
+- 2026-09-09：阶段 B 完成可复现离线 PoC 与 benchmark，但 80% 尺寸门和真实 OpenSearch/plugin 证据未通过，裁决 NO-GO；RT 保持进行中，不进入阶段 C。
+- 后续只有在阶段 B NO-GO 被真实三库等价语料与 OpenSearch plugin 实测推翻后，才按阶段 C→F 开发；阶段 G 只做公网准备与独立对照，不自动部署生产。
 
 ## 遗留事项
 

@@ -17,4 +17,6 @@ notes: >
   检索面、NAS/S3 对象层、内网只读 Connector 与统一 Query API。旧 bounded-read/P0
   实现与 evidence 保留，但“大 JSON 快照/P1b”不再是目标架构。用户于 2026-09-09
   通过方案门；阶段 A 已冻结三库证据基线、72 题 gold、v2/v3 合同及要求去留，独立复核通过。
-  下一步为阶段 B 本地离线 PoC；尚未部署数据库，未修改 OPS/NAS 或生产。
+  阶段 B 已完成本地离线 Parent/Child 与 analyzer PoC，但候选序列化大小仅减少 43.951% / 47.453%，
+  且未取得三库 OpenSearch primary-store 与真实 ICU/SmartCN plugin 证据，裁决 NO-GO；RT 保持
+  in-progress，不进入阶段 C。尚未部署数据库，未连接或修改 Gateway、OPS/NAS 或生产。
