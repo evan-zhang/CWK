@@ -103,6 +103,7 @@ _REPRESENTATIVE_TRACKED = (
     "scripts/kb_gateway_client.py",
     "scripts/kb_lexical.py",
     "scripts/kb_lexical_builder.py",
+    "scripts/kb_retrieval_decision.py",
     "scripts/kb_token.py",
     "scripts/kb_access_file.py",
     "skills/cwk-kb-authorize/SKILL.md",
