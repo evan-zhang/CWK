@@ -16,11 +16,14 @@ notes: >
   公网 Gateway 需求及 WeKnora 源码审查，目标架构收敛为 PostgreSQL 控制面、OpenSearch
   检索面、NAS/S3 对象层、内网只读 Connector 与统一 Query API。旧 bounded-read/P0
   实现与 evidence 保留，但“大 JSON 快照/P1b”不再是目标架构。用户于 2026-09-09
-  通过方案门；阶段 A 已冻结三库证据基线、72 题 gold、v2/v3 合同及要求去留，独立复核通过。
-  阶段 B 已完成本地离线 Parent/Child、scoped BM25、50-doc OpenSearch fixture benchmark，及 OPS
-  三库原地 benchmark。真实三库共 704 个可索引文档投影为 13,160 Parents / 52,136 Children；
-  ICU/SmartCN 相对各库旧 lexical JSON 均缩小 94.920%–97.329%，shared physical index 的 90 次
-  kb_id filter probe 零串库。OPS 无可安全识别且带 legacy 基线的人工固定 gold，case=0，故真实
-  Recall@10、exact Top10、no-answer 均 UNKNOWN；不以仓库合成 72 题冒充。最终 NO-GO，analyzer/
-  mapping 不固定，RT 保持 in-progress，不进入阶段 C。临时索引、容器、派生镜像和 workdir 已归零，
-  3 个生产 Gateway 与旧索引元数据摘要未变；未部署数据库，未修改 Gateway、NAS、旧索引或生产配置。
+  通过方案门；阶段 A 已冻结三库证据基线、72 题人工复核合成 gold、v2/v3 合同及要求去留。
+  阶段 B 已完成本地 Parent/Child、不可改写的 OPS 存储 benchmark，以及严格
+  calibration/holdout lexical 质量闭环。固定 126 题按每库每类别稳定 ordinal 在 query 派生前
+  分为 calibration 14 + holdout 28；calibration 只导出匿名失败聚合，冻结私有 mapping/query SHA
+  后执行一次 holdout。候选 ICU v2 逐库 Recall@10 为 0.88/0.92/0.96，legacy 基线为
+  0.64/0.68/0.44；两者 no-answer=1、leak=0，ICU 不低于 legacy，但 cwork Recall<0.90，
+  docdb exact=0.80。硬门未降低，最终 NO-GO / analyzer=None / mapping=None，停止调参且不进入
+  阶段 C。三库存储相对已验收旧 lexical 缩小 94.602%/95.997%/97.067%，历史 benchmark
+  acceptance SHA 69c8b... 未改写。最终 case/query/freeze、索引、容器、镜像、workdir 全部归零，
+  3 个生产 Gateway 与旧索引 metadata 前后不变。本闭环只裁决 analyzer/mapping，不是外部人工
+  语义 gold，不构成产品语义验收。

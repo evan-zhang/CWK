@@ -103,6 +103,9 @@ modules:
       - scripts/kb_lexical_builder.py
       - scripts/kb_stage_b_poc.py
       - scripts/kb_stage_b_opensearch_benchmark.py
+      - scripts/kb_stage_b_ops_benchmark.py
+      - scripts/kb_stage_b_ops_cases.py
+      - scripts/kb_stage_b_ops_verify.py
       - scripts/kb_storage.py
       - tests/test_rt051_lexical_fusion.py
       - tests/test_rt051_acceptance.py

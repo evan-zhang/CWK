@@ -1,6 +1,6 @@
 # RT-054 阶段 B OpenSearch 整改验收
 
-> 本文保留仓库 50-doc fixture 的历史收口。随后完成的 OPS 三库原地 benchmark 见 `stage-b-ops-acceptance-20260909.md` 与 `stage-b-ops-benchmark-20260909.json`；它已使三库存储门转为 PASS，但真实人工 gold 仍为 UNKNOWN，因此最终裁决仍是 NO-GO。
+> 本文保留仓库 50-doc fixture 的历史收口。OPS 三库存储 benchmark 见 `stage-b-ops-acceptance-20260909.md`，acceptance SHA 保持为 `69c8b6db3058487ad29ba2025b850780b09a5fb0f25d90da557a1b75bcd12a48`；严格 calibration/holdout lexical 质量闭环见 `stage-b-quality-closure-20260909.md`。三库存储门仍 PASS，但 holdout 中 cwork ICU Recall@10=0.88、docdb ICU exact=0.80，最终 NO-GO。legacy 只作同 corpus 基线，不要求自身达到 0.90；本裁决不构成产品语义验收。
 
 ## 裁决
 

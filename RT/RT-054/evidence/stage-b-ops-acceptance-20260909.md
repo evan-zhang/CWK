@@ -1,5 +1,7 @@
 # RT-054 阶段 B：OPS 三库原地 benchmark 收口
 
+> 本文是不可改写的存储/投影历史收口，机器 evidence acceptance SHA 仍为 `69c8b6db3058487ad29ba2025b850780b09a5fb0f25d90da557a1b75bcd12a48`。后续严格 calibration/holdout lexical 闭环见 `stage-b-quality-closure-20260909.md` 与 `stage-b-ops-quality-20260909.json`：legacy 只作同 corpus 基线，候选 ICU v2 仍因 cwork Recall@10=0.88、docdb exact=0.80 而 NO-GO。该补测只裁决 analyzer/mapping，不是外部人工语义 gold，也不构成产品语义验收。
+
 ## 裁决
 
 **NO-GO，不进入阶段 C；不固定 analyzer/mapping。**

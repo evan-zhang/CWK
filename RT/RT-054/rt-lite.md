@@ -580,7 +580,8 @@ tests/test_rt054_*.py
 - 阶段 B 离线 PoC 先按 `kb_id + fixture_scope/doc_id_prefixes` 固定评分语料，再只用域内 children 计算 `n_docs/avgdl/df`。行为判据证明 G20 在未限定合并域时，legacy/ICU/SmartCN 三种本地 probe 均命中 `synthetic:801/802`，限定 `rt051_a11` 后均为 honest no evidence；另有排序判据证明域外文档增删或放大词频不改变域内分数与顺序。
 - 阶段 B 真实 loopback OpenSearch harness 在官方 3.3.2 上对同一 50-doc/50-Parent/50-Child 投影实测 legacy CJK 1/2/3-gram、官方 `analysis-icu`、官方 `analysis-smartcn` 及 body 进入/排除 `_source`。机器结果把 shared-filter lane（候选受 scope filter 限制，但 Lucene BM25 统计仍是全物理索引）与 isolated-scope lane（每个 fixture scope 单独物理索引，仅用于原评审域对照）分开，记录 primary store、实际 analyzer term 口径、Bulk/refresh/force-merge、逐题 Recall@10、精确编号、kb/scope 隔离、取回字节/延迟、插件版本、JVM heap、容器 RSS 与宿主边界；12 个临时索引全部删除。
 - 仓库 50-doc fixture 的阶段 B 裁决为 **NO-GO**：shared-filter/body 排除 `_source` 时，ICU/SmartCN 相对 legacy primary store 只缩小 16.047%/16.384%，SmartCN 还漏 G05；该历史证据保留在 `evidence/stage-b-acceptance-20260909.md` 与 `evidence/stage-b-opensearch-benchmark-20260909.json`。
-- 随后的 OPS 三库原地 benchmark 已完成：500/114/90 个真实文档投影为 11,773/275/1,112 Parents 和 47,803/772/3,561 Children；body 排除 `_source` 时，ICU 相对各库旧 lexical JSON 缩小 95.175%/96.305%/97.329%，SmartCN 缩小 94.920%/96.272%/97.290%，三库存储门转为 PASS。shared physical index 的 90 次 `kb_id` filter 取回未见串库；OpenSearch 3.3.2、Lucene 10.3.1、官方 ICU/SmartCN 3.3.2、postings 等价统计、build/refresh/merge、JVM heap、容器 RSS 与取回字节/延迟均已记录。OPS 未发现可安全识别并带 legacy 基线的人工固定 gold，case=0；因此真实 Recall@10、exact Top10、no-answer 都是 UNKNOWN，合成 72 题未冒充真实 gold。最终仍为 **NO-GO / analyzer=None / mapping=None**，不进入阶段 C。全部临时索引、容器、派生镜像和 workdir 已归零，3 个生产 Gateway 与旧索引元数据摘要未变。详见 `evidence/stage-b-ops-acceptance-20260909.md` 与 `evidence/stage-b-ops-benchmark-20260909.json`。
+- OPS 三库原地存储 benchmark 已完成：500/114/90 个真实文档投影为 11,773/275/1,112 Parents 和 47,803/772/3,561 Children；body 排除 `_source` 时，ICU 相对各库旧 lexical JSON 缩小 95.175%/96.305%/97.329%，SmartCN 缩小 94.920%/96.272%/97.290%，三库存储门转为 PASS。该历史机器 evidence acceptance SHA 保持为 `69c8b6db3058487ad29ba2025b850780b09a5fb0f25d90da557a1b75bcd12a48`，没有倒改。
+- 最后 staged 质量闭环只用于 Stage B lexical analyzer/mapping 裁决，不把 A+B 宣称为外部人工语义 gold 或产品语义验收。固定 126 题按每库每类别稳定 ordinal 在 query 派生前分为 calibration 14 + holdout 28；calibration 只可见匿名 failure category/subtype 聚合，随后在 OPS 私有目录冻结 mapping/query SHA 并执行唯一一次 holdout。legacy 仅作同 corpus 基线，不要求自身达到 0.90；ICU v2 使用 normalized identifier/date、title/filename keyword exact 与通用 phrase/AND+字段 boost，不含库名、failure ordinal 或 expected-doc 特判。holdout legacy Recall@10 为 0.64/0.68/0.44，ICU 为 0.88/0.92/0.96；两者 no-answer=1、leak=0，ICU 不低于 legacy，但 cwork Recall<0.90、docdb exact=0.80，最终 **NO-GO / analyzer=None / mapping=None**，停止调参、不进入 C。三库存储相对已验收旧 lexical 缩小 94.602%/95.997%/97.067%；case/query/freeze、索引、容器、镜像、workdir 全部归零，3 个 Gateway 与旧 metadata 前后不变。详见 `evidence/stage-b-quality-closure-20260909.md` 与 `evidence/stage-b-ops-quality-20260909.json`。
 
 ### 实现收口必须补齐的三格证据
 
@@ -594,8 +595,9 @@ tests/test_rt054_*.py
 - 2026-09-09：基于 WeKnora 源码审查、三库体量、100–1000 倍规模与公网 Gateway 目标，放弃“扩大/缓存 JSON”和 SQLite 生产路线；方案收敛为 PostgreSQL 控制面、OpenSearch 检索面、对象层、Connector 与 Query API。
 - 2026-09-09：方案门通过；阶段 A 冻结三库证据基线、72 题 gold、v2/v3 合同和要求去留，独立复核初审 FAIL 后补齐 fixture/行为判据并二审 PASS。
 - 2026-09-09：阶段 B 修复离线 scoped BM25 统计与 G20 跨 fixture 污染，补真实 OpenSearch 3.3.2 的 legacy/官方 ICU/官方 SmartCN、两种 `_source` shared-filter lane，并以独立物理索引建立 isolated-scope 对照。50-doc fixture 的 ICU/SmartCN 主存储仅缩小 16.047%/16.384%，SmartCN 还漏 G05，历史裁决 NO-GO。
-- 2026-09-09：在 OPS 对 cwork-3m、docdb-touqian、spbp-2027 原地执行 24-run benchmark，修复真实长行触发的重复 token span 扫描。三库 ICU/SmartCN 相对各自旧 lexical JSON 均缩小 94.920%–97.329%，shared filter probe 零串库；但 OPS 可计分人工 gold 为 0，Recall/exact/no-answer 均 UNKNOWN。清理与生产不变性全过，最终仍 NO-GO，不固定 analyzer/mapping，不进入 C。
-- 后续只有在阶段 B NO-GO 被真实三库等价语料与 OpenSearch plugin 实测推翻后，才按阶段 C→F 开发；阶段 G 只做公网准备与独立对照，不自动部署生产。
+- 2026-09-09：在 OPS 对 cwork-3m、docdb-touqian、spbp-2027 原地执行 24-run 存储 benchmark，修复真实长行触发的重复 token span 扫描。三库 ICU/SmartCN 相对各自旧 lexical JSON 均缩小 94.920%–97.329%，shared filter probe 零串库；当时质量因无 manual gold 保持 UNKNOWN，历史 evidence acceptance SHA 固定为 69c8b...。
+- 2026-09-09：完成严格 staged 质量闭环。固定 126 题按稳定类别 ordinal 预分 calibration/holdout；冻结 ICU v2 mapping/query 后执行一次 holdout。ICU 全库不低于 legacy，但 cwork Recall=0.88、docdb exact=0.80，硬门失败；清理和生产不变性全过，最终 NO-GO，不固定 analyzer/mapping，停止调参、不进入 C。本结论不构成产品语义验收。
+- 本轮 holdout 已冻结并消费，不再调参或重跑。只有新的、明确批准且版本化的独立评估轮次才能重新裁决阶段 B；阶段 G 只做公网准备与独立对照，不自动部署生产。
 
 ## 遗留事项
 

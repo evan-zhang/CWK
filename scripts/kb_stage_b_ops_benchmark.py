@@ -10,18 +10,17 @@ after cleanup.
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 import os
-import plistlib
 import re
 import shutil
 import statistics
 import subprocess
 import sys
 import time
-import urllib.error
-import urllib.request
-from dataclasses import asdict
+import unicodedata
+import uuid
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Sequence
 
@@ -31,25 +30,20 @@ sys.path.insert(0, str(HERE))
 
 import kb_stage_b_opensearch_benchmark as osbench  # noqa: E402
 import kb_stage_b_poc as poc  # noqa: E402
+import kb_stage_b_ops_cases as casegen  # noqa: E402
 import kb_storage  # noqa: E402
 
 KBS = ("cwork-3m", "docdb-touqian", "spbp-2027")
-ANALYZERS = osbench.ANALYZERS
-SOURCE_MODELS = osbench.SOURCE_MODELS
+ANALYZERS = ("legacy_123gram", "analysis_icu")
 EXPECTED_VERSION = "3.3.2"
 DOCKER = "/Applications/Docker.app/Contents/Resources/bin/docker"
 PORT = 39254
 BASE_IMAGE = "opensearchproject/opensearch:3.3.2"
-OLD_LEXICAL_BYTES = {
+SELECTED_MAPPING = "cwk-child-mapping-v2-icu-body-excluded"
+ACCEPTED_OLD_LEXICAL_BYTES = {
     "cwork-3m": 1_495_220_459,
     "docdb-touqian": 46_513_952,
     "spbp-2027": 264_466_313,
-}
-SAFE_REASON = {
-    "none", "no_ops_manual_gold", "insufficient_manual_gold", "gold_schema_unsupported",
-    "gold_missing_legacy_baseline", "gold_missing_required_categories", "benchmark_error",
-    "source_read_error", "opensearch_start_error", "plugin_mismatch", "cleanup_error",
-    "gateway_changed", "old_index_metadata_changed", "allowlist_rejected",
 }
 
 
@@ -177,9 +171,6 @@ def load_library(kb: str, env: dict[str, str]) -> tuple[list[poc.SourceDocument]
     started = time.perf_counter()
     try:
         before = metadata_summary(backend)
-        expected = OLD_LEXICAL_BYTES[kb]
-        if before["lexical_index_bytes"] != expected:
-            raise ValueError("legacy_denominator_mismatch")
         rows = parse_entries(read_json(backend, "_system/raw-index.json"))
         docs: list[poc.SourceDocument] = []
         excluded: dict[str, int] = {}
@@ -213,14 +204,24 @@ def load_library(kb: str, env: dict[str, str]) -> tuple[list[poc.SourceDocument]
         return docs, {
             "raw_index_rows": len(rows), "documents": len(docs), "raw_bytes_read": raw_bytes,
             "excluded_counts": excluded, "load_elapsed_ms": round((time.perf_counter() - started) * 1000, 3),
-            "legacy_lexical_index_bytes": expected,
+            "legacy_lexical_index_bytes": before["lexical_index_bytes"],
         }, before
     finally:
         backend.logout()
 
 
-def source_doc(child: poc.Child) -> dict[str, Any]:
-    return {
+def normalize_keyword(text: str) -> str:
+    return unicodedata.normalize("NFKC", text).strip().casefold()
+
+
+def normalize_date(text: str) -> str:
+    value = normalize_keyword(text)
+    match = re.fullmatch(r"(\d{4})[年-](\d{1,2})[月-](\d{1,2})(?:日)?", value)
+    return f"{int(match.group(1)):04d}-{int(match.group(2)):02d}-{int(match.group(3)):02d}" if match else value
+
+
+def source_doc(child: poc.Child, analyzer: str = "legacy_123gram") -> dict[str, Any]:
+    result = {
         "tenant_id": "ops-benchmark", "kb_id": child.kb_id, "doc_id": child.doc_id,
         "source_version": 1, "parent_id": child.parent_id, "chunk_id": child.chunk_id,
         "generation_schema": poc.MAPPING_VERSION, "title": child.title,
@@ -230,14 +231,27 @@ def source_doc(child: poc.Child) -> dict[str, Any]:
         "date_values": list(child.date_values), "filenames": list(child.filenames),
         "acronyms": list(child.acronyms), "locator": {},
     }
+    if analyzer == "analysis_icu":
+        filenames = list(child.filenames)
+        result.update({
+            "title_exact": normalize_keyword(child.title),
+            "filenames_exact": sorted(
+                {normalize_keyword(value) for value in filenames}
+                | {normalize_keyword(value).rsplit(".", 1)[0] for value in filenames}
+            ),
+            "identifiers": sorted({normalize_keyword(value) for value in child.identifiers}),
+            "date_values": sorted({normalize_date(value) for value in child.date_values}),
+        })
+    return result
 
 
-def bulk_payload(index_name: str, children: Sequence[poc.Child], batch_size: int = 1000) -> Iterable[bytes]:
+def bulk_payload(index_name: str, children: Sequence[poc.Child], analyzer: str,
+                 batch_size: int = 1000) -> Iterable[bytes]:
     lines: list[bytes] = []
     for child in children:
         lines.append(json.dumps({"index": {"_index": index_name, "_id": child.chunk_id}},
                                 separators=(",", ":")).encode())
-        lines.append(json.dumps(source_doc(child), ensure_ascii=False,
+        lines.append(json.dumps(source_doc(child, analyzer), ensure_ascii=False,
                                 separators=(",", ":")).encode())
         if len(lines) >= batch_size * 2:
             yield b"\n".join(lines) + b"\n"; lines = []
@@ -264,12 +278,12 @@ def proc_resources(container: str) -> dict[str, int]:
 
 
 def index_stats(client: osbench.OpenSearchClient, index: str,
-                probe_child: poc.Child) -> dict[str, Any]:
+                probe_child: poc.Child, analyzer: str) -> dict[str, Any]:
     response, _ = client.request("GET", f"/{index}/_stats/store,docs,indexing,refresh,merge,segments")
     total = response.get("_all", {}).get("primaries", {})
     segments = total.get("segments", {})
     vectors, _ = client.request("POST", f"/{index}/_termvectors", {
-        "doc": source_doc(probe_child), "fields": ["body"],
+        "doc": source_doc(probe_child, analyzer), "fields": ["body"],
         "field_statistics": True, "term_statistics": True,
         "positions": False, "offsets": False, "payloads": False,
     })
@@ -320,13 +334,31 @@ def retrieval_probe(client: osbench.OpenSearchClient, index: str, kb: str,
     }
 
 
+def mapping_for_quality(analyzer: str, body_in_source: bool = False) -> dict[str, Any]:
+    """Return the untouched legacy baseline or the generalized ICU v2 candidate."""
+    mapping = osbench.mapping_for(analyzer, body_in_source)
+    if analyzer != "analysis_icu":
+        return mapping
+    analysis = mapping["settings"]["analysis"]
+    analysis["normalizer"] = {
+        "cwk_icu_keyword": {
+            "type": "custom", "char_filter": [], "filter": ["icu_normalizer", "lowercase"],
+        }
+    }
+    props = mapping["mappings"]["properties"]
+    normalized_keyword = {"type": "keyword", "normalizer": "cwk_icu_keyword"}
+    for field in ("identifiers", "date_values", "title_exact", "filenames_exact"):
+        props[field] = dict(normalized_keyword)
+    return mapping
+
+
 def build_index(client: osbench.OpenSearchClient, index: str, analyzer: str,
                 body_in_source: bool, children: Sequence[poc.Child], container: str,
                 probe_kbs: Sequence[str]) -> dict[str, Any]:
-    mapping = osbench.mapping_for(analyzer, body_in_source)
+    mapping = mapping_for_quality(analyzer, body_in_source)
     client.request("PUT", f"/{index}", mapping)
     started = time.perf_counter_ns(); bulk_started = time.perf_counter_ns(); batches = 0
-    for payload in bulk_payload(index, children):
+    for payload in bulk_payload(index, children, analyzer):
         result, _ = client.request("POST", "/_bulk?refresh=false", payload,
                                    content_type="application/x-ndjson")
         if result.get("errors"):
@@ -337,7 +369,7 @@ def build_index(client: osbench.OpenSearchClient, index: str, analyzer: str,
     refresh_ms = (time.perf_counter_ns() - refresh_started) / 1_000_000
     merge_started = time.perf_counter_ns(); client.request("POST", f"/{index}/_forcemerge?max_num_segments=1&flush=true")
     merge_ms = (time.perf_counter_ns() - merge_started) / 1_000_000
-    stats = index_stats(client, index, children[0])
+    stats = index_stats(client, index, children[0], analyzer)
     if stats["docs"] != len(children):
         raise RuntimeError("indexed_docs_mismatch")
     resources = {**node_resources(client), **proc_resources(container)}
@@ -354,46 +386,226 @@ def build_index(client: osbench.OpenSearchClient, index: str, analyzer: str,
     }
 
 
-def discover_gold(paths: Sequence[str]) -> dict[str, Any]:
-    # Only machine-readable, explicitly target-library cases are eligible.
-    accepted = []
-    reason = "no_ops_manual_gold"
-    for value in paths:
-        try:
-            obj = json.loads(Path(value).read_text(encoding="utf-8"))
-        except Exception:
-            continue
-        rows = obj.get("cases") if isinstance(obj, dict) else obj if isinstance(obj, list) else None
-        if not isinstance(rows, list):
-            continue
-        for row in rows:
-            if not isinstance(row, dict):
+def write_private_corpus(path: Path, docs_by_kb: dict[str, Sequence[poc.SourceDocument]]) -> None:
+    payload = {
+        "schema": "cwk.rt054.ops-private-corpus.v1",
+        "libraries": {
+            kb: [{"doc_id": doc.doc_id, "title": doc.title, "filename": doc.filename,
+                  "body": doc.text} for doc in docs]
+            for kb, docs in docs_by_kb.items()
+        },
+    }
+    path.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    path.chmod(0o600)
+
+
+def run_case_processes(root: Path, docs_by_kb: dict[str, Sequence[poc.SourceDocument]],
+                       seed: str) -> tuple[dict[str, Any], list[Path]]:
+    """Run generator and verifier as separate fail-closed processes."""
+    corpus = root / "private-corpus.json"
+    candidates = root / "private-candidates.json"
+    verified = root / "private-verified.json"
+    write_private_corpus(corpus, docs_by_kb)
+    commands = (
+        (sys.executable, str(HERE / "kb_stage_b_ops_cases.py"), "--corpus", str(corpus),
+         "--output", str(candidates), "--seed", seed),
+        (sys.executable, str(HERE / "kb_stage_b_ops_verify.py"), "--corpus", str(corpus),
+         "--candidates", str(candidates), "--output", str(verified)),
+    )
+    for command in commands:
+        proc = subprocess.run(command, cwd=root, stdin=subprocess.DEVNULL,
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                              timeout=900, check=False, env={"PATH": "/usr/bin:/bin"})
+        if proc.returncode:
+            raise RuntimeError("case_process_failed")
+    result = json.loads(verified.read_text(encoding="utf-8"))
+    if result.get("schema") != "cwk.rt054.ops-known-item-verified.v1":
+        raise RuntimeError("verified_schema_invalid")
+    return result, [corpus, candidates, verified]
+
+
+def quality_query(analyzer: str, case: dict[str, Any]) -> dict[str, Any]:
+    """Build one category-general query without inspecting corpus-specific metadata."""
+    query = str(case["query"])
+    category = str(case["category"])
+    if category == "exact_identifier_date":
+        if osbench.DATE_QUERY_RE.fullmatch(unicodedata.normalize("NFKC", query)) or "年" in query:
+            value = normalize_date(query) if analyzer == "analysis_icu" else query
+            should = [{"term": {"date_values": {"value": value, "boost": 12}}}]
+        else:
+            value = normalize_keyword(query) if analyzer == "analysis_icu" else query.upper()
+            should = [{"term": {"identifiers": {"value": value, "boost": 12}}}]
+    elif analyzer == "analysis_icu":
+        fields = ["title^5", "section_path^3", "body^2"]
+        should = [
+            {"multi_match": {"query": query, "fields": fields,
+                             "type": "phrase", "boost": 5}},
+            {"multi_match": {"query": query, "fields": fields,
+                             "type": "best_fields", "operator": "and", "boost": 2}},
+        ]
+        if category == "title_filename":
+            normalized = normalize_keyword(query)
+            should.extend([
+                {"term": {"title_exact": {"value": normalized, "boost": 20}}},
+                {"term": {"filenames_exact": {"value": normalized, "boost": 20}}},
+            ])
+    else:
+        should = [{"multi_match": {
+            "query": query,
+            "fields": ["title^3", "title.ascii^3", "section_path^2",
+                       "section_path.ascii^2", "body", "body.ascii"],
+            "type": "best_fields", "operator": "or",
+        }}]
+    return {
+        "size": 10, "track_total_hits": False, "_source": ["doc_id", "kb_id"],
+        "query": {"bool": {
+            "filter": [{"term": {"kb_id": case["kb_id"]}}],
+            "should": should, "minimum_should_match": 1,
+        }},
+        "collapse": {"field": "doc_id"},
+        "sort": [{"_score": "desc"}, {"doc_id": "asc"}],
+    }
+
+
+def score_cases(client: osbench.OpenSearchClient, index: str, analyzer: str,
+                verified: dict[str, Any], split: str,
+                kbs: Sequence[str] = KBS) -> dict[str, Any]:
+    scored: dict[str, Any] = {}
+    for kb in kbs:
+        source = verified["libraries"][kb]
+        hits = total = exact_hits = exact_total = no_answer_ok = no_answer_total = leaks = 0
+        rows: list[dict[str, Any]] = []
+        for case in source["cases"]:
+            if case["split"] != split:
                 continue
-            kb = str(row.get("kb_id") or row.get("kb") or "")
-            query = row.get("query") or row.get("question") or row.get("q")
-            expected = row.get("expected_doc_ids") or row.get("expected_docs") or row.get("expected_lineages")
-            if kb in KBS and isinstance(query, str) and query.strip() and isinstance(expected, list) and expected:
-                accepted.append(row)
-    if accepted:
-        reason = "gold_missing_legacy_baseline"
-    categories = sorted({str(row.get("category") or row.get("query_category") or row.get("type") or "uncategorized") for row in accepted})
-    return {"cases": accepted, "summary": {"case_count": len(accepted), "category_count": len(categories),
-        "category_counts": {cat: sum(str(row.get("category") or row.get("query_category") or row.get("type") or "uncategorized") == cat for row in accepted) for cat in categories},
-        "status": "UNKNOWN", "reason": reason}}
+            try:
+                response, _ = client.request(
+                    "POST", f"/{index}/_search", quality_query(analyzer, case))
+            except Exception as exc:
+                error = RuntimeError("anonymous_query_failure")
+                error.analyzer = "icu" if analyzer == "analysis_icu" else "legacy"  # type: ignore[attr-defined]
+                error.category = str(case["category"])  # type: ignore[attr-defined]
+                error.subtype = type(exc).__name__  # type: ignore[attr-defined]
+                raise error from None
+            result_rows = response.get("hits", {}).get("hits", [])
+            ranked = [str(row.get("_source", {}).get("doc_id") or "") for row in result_rows]
+            leaks += sum(str(row.get("_source", {}).get("kb_id") or "") != kb for row in result_rows)
+            if case["expected_outcome"] == "no_evidence":
+                ok = not ranked
+                no_answer_total += 1; no_answer_ok += int(ok)
+                rows.append({"category": case["category"], "outcome": "no_evidence",
+                             "passed": ok, "rank": None})
+                continue
+            rank = next((n for n, doc_id in enumerate(ranked, 1)
+                         if doc_id == case["expected_doc_id"]), None)
+            total += 1; hits += int(rank is not None)
+            if case["category"] == "exact_identifier_date":
+                exact_total += 1; exact_hits += int(rank is not None)
+            rows.append({"category": case["category"], "outcome": "hit",
+                         "passed": rank is not None, "rank": rank})
+        scored[kb] = {
+            "recall": {"hits": hits, "total": total,
+                       "value": round(hits / total, 6) if total else None},
+            "exact": {"hits": exact_hits, "total": exact_total,
+                      "value": round(exact_hits / exact_total, 6) if exact_total else None},
+            "no_answer": {"honest": no_answer_ok, "total": no_answer_total,
+                          "value": round(no_answer_ok / no_answer_total, 6) if no_answer_total else None},
+            "kb_leaks": leaks, "rows": rows,
+        }
+    return scored
+
+
+def anonymous_failures(scores: dict[str, Any]) -> list[dict[str, Any]]:
+    counts: dict[tuple[str, str], int] = {}
+    for row in scores["rows"]:
+        if row["passed"]:
+            continue
+        subtype = "unexpected_answer" if row["outcome"] == "no_evidence" else "expected_not_top10"
+        key = (row["category"], subtype)
+        counts[key] = counts.get(key, 0) + 1
+    return [{"category": category, "subtype": subtype, "count": count}
+            for (category, subtype), count in sorted(counts.items())]
+
+
+def aggregate_quality(verified: dict[str, Any], analyzer_scores: dict[str, dict[str, Any]],
+                      storage: dict[str, dict[str, int]]) -> tuple[dict[str, Any], dict[str, Any]]:
+    libraries: dict[str, Any] = {}
+    total_cases = 0
+    for kb in KBS:
+        source = verified["libraries"][kb]
+        holdout_cases = [row for row in source["cases"] if row["split"] == "holdout"]
+        total_cases += len(holdout_cases)
+        legacy = analyzer_scores["legacy_123gram"][kb]
+        icu = analyzer_scores["analysis_icu"][kb]
+        rank_compare = {"icu_win": 0, "tie": 0, "icu_loss": 0}
+        for lrow, irow in zip(legacy["rows"], icu["rows"]):
+            if lrow["outcome"] == "hit":
+                lr = lrow["rank"] if lrow["rank"] is not None else 11
+                ir = irow["rank"] if irow["rank"] is not None else 11
+                rank_compare["icu_win" if ir < lr else "icu_loss" if ir > lr else "tie"] += 1
+        legacy_bytes = storage[kb]["legacy_123gram"]
+        icu_bytes = storage[kb]["analysis_icu"]
+        old_lexical_bytes = ACCEPTED_OLD_LEXICAL_BYTES[kb]
+        reduction = round((1 - icu_bytes / old_lexical_bytes) * 100, 3)
+        libraries[kb] = {
+            "holdout_case_total": len(holdout_cases),
+            "holdout_category_counts": {
+                cat: sum(row["category"] == cat for row in holdout_cases) for cat in casegen.CATEGORIES},
+            "legacy": {key: legacy[key] for key in ("recall", "exact", "no_answer", "kb_leaks")},
+            "icu": {key: icu[key] for key in ("recall", "exact", "no_answer", "kb_leaks")},
+            "rank_comparison": rank_compare,
+            "holdout_failures": {
+                "legacy": anonymous_failures(legacy), "icu": anonymous_failures(icu)},
+            "storage": {
+                "legacy_primary_store_bytes": legacy_bytes,
+                "icu_primary_store_bytes": icu_bytes,
+                "accepted_old_lexical_bytes": old_lexical_bytes,
+                "icu_reduction_vs_old_lexical_percent": reduction,
+            },
+        }
+    split_ok = all(
+        row["holdout_case_total"] == sum(casegen.TARGETS[cat] - round(casegen.TARGETS[cat] / 3)
+                                         for cat in casegen.CATEGORIES)
+        and all(count > 0 for count in row["holdout_category_counts"].values())
+        for row in libraries.values())
+    icu_quality = all(
+        row["icu"]["recall"]["value"] is not None and row["icu"]["recall"]["value"] >= .90
+        and row["icu"]["exact"]["value"] == 1.0
+        and row["icu"]["no_answer"]["value"] == 1.0
+        and row["icu"]["kb_leaks"] == 0 for row in libraries.values())
+    icu_not_below = all(row["icu"]["recall"]["value"] >= row["legacy"]["recall"]["value"]
+                        for row in libraries.values())
+    storage_pass = all(row["storage"]["icu_reduction_vs_old_lexical_percent"] >= 80.0
+                       for row in libraries.values())
+    passed = split_ok and icu_quality and icu_not_below and storage_pass
+    gates = {
+        "split_contract": {"status": "PASS" if split_ok else "FAIL", "holdout_total": total_cases},
+        "legacy_baseline": {"status": "BASELINE_ONLY"},
+        "icu_quality": {"status": "PASS" if icu_quality else "FAIL"},
+        "icu_not_below_legacy": {"status": "PASS" if icu_not_below else "FAIL"},
+        "storage_reduction": {"status": "PASS" if storage_pass else "FAIL", "threshold_percent": 80.0},
+    }
+    decision = {
+        "stage_b": "PASS" if passed else "NO-GO",
+        "selected_analyzer": "analysis_icu" if passed else None,
+        "selected_mapping": SELECTED_MAPPING if passed else None,
+        "reason": "all_holdout_and_storage_gates_pass" if passed else "quality_gate_failed",
+    }
+    return libraries, {"gates": gates, "decision": decision}
 
 
 def image_environment(client: osbench.OpenSearchClient, image_tag: str, container: str) -> dict[str, Any]:
     env = osbench.inspect_environment(client)
     if env.get("runtime_version") != EXPECTED_VERSION or env.get("lucene_version") is None:
         raise RuntimeError("runtime_version_mismatch")
-    if env.get("analysis_plugins") != {"analysis-icu": EXPECTED_VERSION, "analysis-smartcn": EXPECTED_VERSION}:
+    if env.get("analysis_plugins", {}).get("analysis-icu") != EXPECTED_VERSION:
         raise RuntimeError("plugin_version_mismatch")
     base = json.loads(docker("image", "inspect", BASE_IMAGE))[0]
     built = json.loads(docker("image", "inspect", image_tag))[0]
     return {
         "distribution": env.get("distribution"), "runtime_version": env.get("runtime_version"),
         "lucene_version": env.get("lucene_version"), "build_hash": env.get("build_hash"),
-        "analysis_plugins": env.get("analysis_plugins"),
+        "analysis_plugins": {"analysis-icu": env.get("analysis_plugins", {}).get("analysis-icu")},
         "base_image_id_sha256": str(base.get("Id") or ""),
         "base_repo_digest_sha256": next((str(x).split("@", 1)[1] for x in base.get("RepoDigests") or [] if "@sha256:" in str(x)), None),
         "derived_image_id_sha256": str(built.get("Id") or ""),
@@ -414,16 +626,48 @@ def wait_ready(url: str, timeout: float = 240) -> osbench.OpenSearchClient:
 
 
 def safe_output(report: dict[str, Any]) -> str:
-    forbidden_keys = {"query", "title", "filename", "doc_id", "path", "body", "excerpt", "parent_id", "chunk_id", "text", "template_hashes"}
+    """Apply a strict structural/content allowlist to the only local output."""
+    allowed_keys = {
+        "schema", "status", "run_id", "sampling_strategy_version", "split_version",
+        "quality_gate_scope", "freeze_verified_before_holdout", "calibration_failure_aggregates",
+        "environment", "runtime_version", "lucene_version", "analysis_plugins", "analysis-icu",
+        "libraries", *KBS, "case_total", "category_counts", "category_availability",
+        "holdout_case_total", "holdout_category_counts", "holdout_failures", "subtype",
+        *casegen.CATEGORIES, "count", "reason", "rejections", "total", "reason_counts",
+        "schema_invalid", "sampling_version_mismatch", "unknown_library", "unknown_category",
+        "expected_lock_mismatch", "expected_missing", "query_empty", "query_not_in_expected",
+        "title_filename_constraint", "unique_constraint", "body_only_constraint",
+        "table_structure_constraint", "no_answer_present", "near_neighbour_constraint",
+        "duplicate_case", "legacy", "icu", "recall", "hits", "value", "exact",
+        "no_answer", "honest", "kb_leaks", "rank_comparison", "icu_win", "tie", "icu_loss",
+        "failures", "analyzer", "category", "gates", "case_volume", "split_contract",
+        "holdout_total", "legacy_quality", "legacy_baseline", "icu_quality", "icu_not_below_legacy",
+        "storage_reduction", "threshold_percent", "storage", "legacy_primary_store_bytes",
+        "icu_primary_store_bytes", "accepted_old_lexical_bytes",
+        "icu_reduction_vs_old_lexical_percent",
+        "decision", "stage_b", "selected_analyzer", "selected_mapping", "invariants",
+        "gateway_pid_count_before", "gateway_pid_count_after", "gateway_aggregate_sha256_before",
+        "gateway_aggregate_sha256_after", "old_index_aggregate_sha256_before",
+        "old_index_aggregate_sha256_after", "gateway_unchanged", "old_index_metadata_unchanged",
+        "cleanup", "case_files_zero", "indices_zero", "containers_zero", "derived_images_zero",
+        "workdirs_zero", "all_zero", "cleanup_failures", "error", "failed_phase",
+        "error_subtype", "failure_category",
+    }
+    forbidden_keys = {"query", "title", "filename", "doc_id", "path", "body", "excerpt",
+                      "parent_id", "chunk_id", "text", "template_hashes", "case_set_sha256",
+                      "case_set_hmac", "locator"}
     def walk(value: Any, key: str = "") -> None:
         if key in forbidden_keys:
             raise ValueError("forbidden_key")
         if isinstance(value, dict):
-            for k, v in value.items(): walk(v, str(k))
+            for k, v in value.items():
+                if str(k) not in allowed_keys:
+                    raise ValueError("non_allowlisted_key")
+                walk(v, str(k))
         elif isinstance(value, list):
             for item in value: walk(item, key)
         elif isinstance(value, str):
-            if len(value) > 300 or "\n" in value or "\r" in value:
+            if len(value) > 128 or "\n" in value or "\r" in value:
                 raise ValueError("unsafe_string")
     walk(report)
     text = json.dumps(report, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
@@ -434,47 +678,66 @@ def safe_output(report: dict[str, Any]) -> str:
     return text
 
 
-def aggregate_geometry(geometry: dict[str, Any]) -> dict[str, Any]:
-    """Keep projection counts and limits, never content-derived fingerprints."""
-    return {
-        "parent": dict(geometry["parent"]),
-        "child": dict(geometry["child"]),
-        "overlap": dict(geometry["overlap"]),
-        "template_dedup": {
-            "template_count": int(geometry["template_dedup"]["template_count"]),
-            "removed_line_instances": int(
-                geometry["template_dedup"]["removed_line_instances"]),
-        },
-    }
+def enforce_safety_decision(report: dict[str, Any], cleanup: dict[str, Any], *,
+                            gateway_unchanged: bool,
+                            old_index_unchanged: bool) -> None:
+    """Fail closed if cleanup or production invariants are not fully proven."""
+    if (not gateway_unchanged or not old_index_unchanged or not cleanup.get("all_zero")
+            or cleanup.get("cleanup_failures")):
+        report["status"] = "FAIL"
+        report["decision"] = {"stage_b": "NO-GO", "selected_analyzer": None,
+                              "selected_mapping": None, "reason": "cleanup_error"}
+    elif report.get("decision", {}).get("stage_b") != "PASS":
+        report["status"] = "FAIL"
+
+
+def validate_private_root(root: Path) -> None:
+    """Refuse execution/cleanup outside the wrapper-owned mode-0700 directory."""
+    if root.is_symlink() or not root.is_dir() or not root.name.startswith("cwk-rt054-quality."):
+        raise RuntimeError("private_root_invalid")
+    if root.stat().st_mode & 0o077:
+        raise RuntimeError("private_root_permissions")
+    marker = root / ".rt054-owned"
+    if not marker.is_file() or marker.is_symlink():
+        raise RuntimeError("private_root_marker_missing")
+    if HERE.parent != root or not (HERE / Path(__file__).name).is_file():
+        raise RuntimeError("private_root_layout_invalid")
 
 
 def main() -> int:
-    state_path = ROOT / "state.json"
-    state = json.loads(state_path.read_text())
+    validate_private_root(ROOT)
     gateways = parse_gateway_processes()
-    baseline = state.get("gateway_baseline") or []
-    nonce = sha(str(time.time_ns()))[:12]
+    baseline = [{"pid": row["pid"], "command_sha256": row["command_sha256"],
+                 "port": row["port"]} for row in gateways]
+    run_id = str(uuid.uuid4())
+    seed = "rt054-quality-v1-fixed-seed"
+    nonce = run_id.replace("-", "")[:12]
     prefix = f"cwk-rt054-{nonce}"
     image = f"cwk-rt054-ops:{nonce}"
     container = f"cwk-rt054-ops-{nonce}"
     url = f"http://127.0.0.1:{PORT}"
     created_indices: list[str] = []
+    private_case_files: list[Path] = []
     backends: dict[str, kb_storage.FileStationBackend] = {}
     before_meta: dict[str, Any] = {}
-    report: dict[str, Any] = {"schema": "cwk.rt054.ops-three-library-benchmark.v1", "status": "FAIL"}
-    error = "none"
+    report: dict[str, Any] = {
+        "schema": "cwk.rt054.ops-quality-closure.v1", "status": "FAIL",
+        "run_id": run_id, "sampling_strategy_version": casegen.SAMPLING_VERSION,
+    }
     phase = "preflight"
-    cleanup = {"indices_zero": False, "containers_zero": False, "derived_images_zero": False,
-               "workdirs_zero": False, "gateway_unchanged": False, "old_index_metadata_unchanged": False,
-               "failures": 0}
+    cleanup = {
+        "case_files_zero": False, "indices_zero": False, "containers_zero": False,
+        "derived_images_zero": False, "workdirs_zero": False, "all_zero": False,
+        "cleanup_failures": 0,
+    }
+    gateway_unchanged = False
+    old_index_unchanged = False
     try:
         if len(gateways) != 3 or {g["prefix"] for g in gateways} != set(KBS):
             raise RuntimeError("gateway_baseline_invalid")
         phase = "source_load"
         docs_by_kb: dict[str, list[poc.SourceDocument]] = {}
         children_by_kb: dict[str, list[poc.Child]] = {}
-        geometry_by_kb: dict[str, Any] = {}
-        source_metrics: dict[str, Any] = {}
         for kb in KBS:
             gateway = next(row for row in gateways if row["prefix"] == kb)
             names = (kb_storage.ENV_HOST, kb_storage.ENV_USER, kb_storage.ENV_PASSWORD,
@@ -482,18 +745,17 @@ def main() -> int:
             env = process_environment(gateway["pid"], names)
             if not all(env.get(name) for name in names[:4]):
                 raise RuntimeError("source_environment_unavailable")
-            docs, metrics, before = load_library(kb, env)
-            docs_by_kb[kb] = docs; source_metrics[kb] = metrics; before_meta[kb] = before
-            cleaned, parents, children = None, None, None
-            parents, children, geometry = poc.project_documents(docs)
+            docs, _metrics, before = load_library(kb, env)
+            docs_by_kb[kb] = docs
+            before_meta[kb] = before
+            _parents, children, _geometry = poc.project_documents(docs)
             children_by_kb[kb] = children
-            geometry_by_kb[kb] = aggregate_geometry(geometry)
-            source_metrics[kb].update({"parents": len(parents), "children": len(children)})
             backends[kb] = kb_storage.FileStationBackend.from_env(env, prefix=kb, timeout=120)
+        phase = "case_generation_verification"
+        verified, private_case_files = run_case_processes(ROOT, docs_by_kb, seed)
         phase = "image_build"
-        gold = discover_gold(state.get("gold_candidates", []))
-        dockerfile = ("FROM " + BASE_IMAGE + "\nRUN /usr/share/opensearch/bin/opensearch-plugin install --batch analysis-icu" +
-                      " && /usr/share/opensearch/bin/opensearch-plugin install --batch analysis-smartcn\n")
+        dockerfile = ("FROM " + BASE_IMAGE +
+                      "\nRUN /usr/share/opensearch/bin/opensearch-plugin install --batch analysis-icu\n")
         build_context = ROOT / "build-context"
         build_context.mkdir(mode=0o700)
         run((DOCKER, "build", "--no-cache", "-t", image, "-f", "-", str(build_context)),
@@ -506,116 +768,159 @@ def main() -> int:
         phase = "runtime_verify"
         client = wait_ready(url)
         environment = image_environment(client, image, container)
-        phase = "index_matrix"
-        shared_runs: list[dict[str, Any]] = []
-        isolated: dict[str, list[dict[str, Any]]] = {kb: [] for kb in KBS}
-        all_children = [child for kb in KBS for child in children_by_kb[kb]]
+        phase = "paired_index_build"
+        index_names: dict[str, dict[str, str]] = {analyzer: {} for analyzer in ANALYZERS}
+        storage: dict[str, dict[str, int]] = {kb: {} for kb in KBS}
+        mapping_hashes: dict[str, str] = {}
         for analyzer in ANALYZERS:
-            for body in (False, True):
-                shared_name = f"{prefix}-shared-{analyzer.replace('_', '-')}-{'source' if body else 'nosource'}"
-                created_indices.append(shared_name)
-                shared_runs.append(build_index(client, shared_name, analyzer, body, all_children,
-                                               container, KBS))
-                client.request("DELETE", f"/{shared_name}"); created_indices.remove(shared_name)
-                for kb in KBS:
-                    name = f"{prefix}-{kb}-{analyzer.replace('_', '-')}-{'source' if body else 'nosource'}"
-                    created_indices.append(name)
-                    row = build_index(client, name, analyzer, body, children_by_kb[kb], container, (kb,))
-                    isolated[kb].append(row)
-                    client.request("DELETE", f"/{name}"); created_indices.remove(name)
-        per_library: dict[str, Any] = {}
-        for kb in KBS:
-            runs = isolated[kb]
-            by_key = {(row["analyzer"], row["source_model"]): row for row in runs}
-            comparisons = {}
-            for source_model in SOURCE_MODELS:
-                comparisons[source_model] = {}
-                for analyzer in ANALYZERS:
-                    size = by_key[(analyzer, source_model)]["metrics"]["primary_store_bytes"]
-                    comparisons[source_model][analyzer] = {
-                        "primary_store_bytes": size,
-                        "reduction_vs_old_lexical_percent": round((1 - size / OLD_LEXICAL_BYTES[kb]) * 100, 3),
-                    }
-            per_library[kb] = {"source": source_metrics[kb], "geometry": geometry_by_kb[kb],
-                               "runs": runs, "comparisons": comparisons}
-        leak = max(row["cross_kb_leaks"] for runrow in shared_runs for row in runrow["retrieval"].values())
-        reduction_pass = all(
-            per_library[kb]["comparisons"]["body_excluded_from_source"][analyzer]["reduction_vs_old_lexical_percent"] >= 80
-            for kb in KBS for analyzer in ("analysis_icu", "analysis_smartcn"))
-        report = {
-            "schema": "cwk.rt054.ops-three-library-benchmark.v1", "status": "FAIL",
-            "environment": environment, "libraries": per_library,
-            "shared_physical_index_runs": shared_runs,
-            "gold": gold["summary"],
-            "gates": {
-                "storage_reduction_all_libraries": {"status": "PASS" if reduction_pass else "FAIL", "threshold_percent": 80},
-                "real_gold_recall": {"status": "UNKNOWN", "threshold": ">=0.90_and_not_below_legacy", "reason": gold["summary"]["reason"]},
-                "exact_top10": {"status": "UNKNOWN", "threshold": 1.0, "reason": gold["summary"]["reason"]},
-                "no_answer": {"status": "UNKNOWN", "reason": gold["summary"]["reason"]},
-                "cross_kb_leak": {"status": "PASS" if leak == 0 else "FAIL", "leaks": leak, "threshold": 0},
-            },
-            "decision": {"stage_b": "NO-GO", "selected_analyzer": None,
-                         "selected_mapping": None, "reason": "insufficient_manual_gold"},
+            for kb in KBS:
+                name = f"{prefix}-{kb}-{analyzer.replace('_', '-')}"
+                created_indices.append(name)
+                built = build_index(client, name, analyzer, False, children_by_kb[kb], container, (kb,))
+                index_names[analyzer][kb] = name
+                storage[kb][analyzer] = int(built["metrics"]["primary_store_bytes"])
+                mapping_hashes[analyzer] = str(built["mapping_sha256"])
+        phase = "calibration"
+        calibration_scores: dict[str, dict[str, Any]] = {analyzer: {} for analyzer in ANALYZERS}
+        for analyzer in ANALYZERS:
+            for kb in KBS:
+                calibration_scores[analyzer][kb] = score_cases(
+                    client, index_names[analyzer][kb], analyzer, verified,
+                    "calibration", (kb,))[kb]
+        calibration_aggregates = {
+            label: {kb: anonymous_failures(calibration_scores[analyzer][kb]) for kb in KBS}
+            for label, analyzer in (("legacy", "legacy_123gram"), ("icu", "analysis_icu"))
         }
-    except Exception:
-        error = "benchmark_error"
-        report = {"schema": "cwk.rt054.ops-three-library-benchmark.v1", "status": "FAIL",
-                  "error": error, "failed_phase": phase,
-                  "decision": {"stage_b": "NO-GO", "selected_analyzer": None,
-                  "selected_mapping": None, "reason": error}}
+        freeze = {
+            "schema": "cwk.rt054.private-freeze.v1", "mapping_sha256": mapping_hashes,
+            "query_sha256": sha(inspect.getsource(quality_query)),
+        }
+        freeze_path = ROOT / "private-freeze.json"
+        freeze_path.write_text(json.dumps(freeze, sort_keys=True, separators=(",", ":")), encoding="utf-8")
+        freeze_path.chmod(0o600)
+        private_case_files.append(freeze_path)
+        phase = "holdout_once"
+        analyzer_scores: dict[str, dict[str, Any]] = {analyzer: {} for analyzer in ANALYZERS}
+        for analyzer in ANALYZERS:
+            for kb in KBS:
+                analyzer_scores[analyzer][kb] = score_cases(
+                    client, index_names[analyzer][kb], analyzer, verified,
+                    "holdout", (kb,))[kb]
+        # Full-corpus diagnostics are derived from the two disjoint score sets;
+        # holdout queries are never executed a second time and never affect the gate.
+        _full_diagnostic_counts = {
+            analyzer: {kb: len(calibration_scores[analyzer][kb]["rows"])
+                       + len(analyzer_scores[analyzer][kb]["rows"]) for kb in KBS}
+            for analyzer in ANALYZERS
+        }
+        libraries, conclusion = aggregate_quality(verified, analyzer_scores, storage)
+        for name in list(created_indices):
+            client.request("DELETE", f"/{name}")
+            created_indices.remove(name)
+        report = {
+            "schema": "cwk.rt054.ops-quality-closure.v1", "status": "PASS",
+            "run_id": run_id, "sampling_strategy_version": casegen.SAMPLING_VERSION,
+            "quality_gate_scope": "lexical_analyzer_and_mapping_selection_only",
+            "split_version": casegen.SPLIT_VERSION,
+            "environment": {"runtime_version": environment["runtime_version"],
+                            "lucene_version": environment["lucene_version"],
+                            "analysis_plugins": environment["analysis_plugins"]},
+            "calibration_failure_aggregates": calibration_aggregates,
+            "freeze_verified_before_holdout": True,
+            "libraries": libraries, "gates": conclusion["gates"],
+            "decision": conclusion["decision"],
+        }
+    except Exception as exc:
+        report = {
+            "schema": "cwk.rt054.ops-quality-closure.v1", "status": "FAIL",
+            "run_id": run_id, "sampling_strategy_version": casegen.SAMPLING_VERSION,
+            "error": "benchmark_error", "failed_phase": phase,
+            "decision": {"stage_b": "NO-GO", "selected_analyzer": None,
+                         "selected_mapping": None, "reason": "benchmark_error"},
+        }
+        report["error_subtype"] = str(getattr(exc, "subtype", type(exc).__name__))
+        if getattr(exc, "subtype", None):
+            report["analyzer"] = str(exc.analyzer)
+            report["failure_category"] = str(exc.category)
     finally:
+        for path in private_case_files:
+            try:
+                path.unlink(missing_ok=True)
+            except Exception:
+                cleanup["cleanup_failures"] += 1
+        cleanup["case_files_zero"] = not any(ROOT.glob("private-*.json"))
         cleanup["indices_zero"] = not created_indices
         try:
-            if 'client' in locals():
+            if "client" in locals():
                 try:
                     rows, _ = client.request("GET", f"/_cat/indices/{prefix}-*?format=json")
                     for row in rows if isinstance(rows, list) else []:
                         name = row.get("index")
                         if isinstance(name, str) and name.startswith(prefix):
-                            try: client.request("DELETE", f"/{name}")
-                            except Exception: cleanup["failures"] += 1
+                            try:
+                                client.request("DELETE", f"/{name}")
+                            except Exception:
+                                cleanup["cleanup_failures"] += 1
                     rows, _ = client.request("GET", f"/_cat/indices/{prefix}-*?format=json")
                     cleanup["indices_zero"] = rows == []
                 except Exception:
-                    cleanup["failures"] += 1
+                    cleanup["cleanup_failures"] += 1
         finally:
             docker("rm", "-f", container, timeout=120, check=False)
             docker("image", "rm", "-f", image, timeout=300, check=False)
-            containers = docker("ps", "-a", "--filter", "name=cwk-rt054-", "--format", "{{.ID}}", timeout=30, check=False)
-            images = docker("images", "--filter", "reference=cwk-rt054-*", "--format", "{{.ID}}", timeout=30, check=False)
+            containers = docker("ps", "-a", "--filter", "name=cwk-rt054-", "--format", "{{.ID}}",
+                                timeout=30, check=False)
+            images = docker("images", "--filter", "reference=cwk-rt054-*", "--format", "{{.ID}}",
+                            timeout=30, check=False)
             cleanup["containers_zero"] = not containers.strip()
             cleanup["derived_images_zero"] = not images.strip()
         current = parse_gateway_processes()
-        cleanup["gateway_unchanged"] = [
-            {"pid": row["pid"], "command_sha256": row["command_sha256"], "port": row["port"]} for row in current
-        ] == baseline
+        current_baseline = [{"pid": row["pid"], "command_sha256": row["command_sha256"],
+                             "port": row["port"]} for row in current]
+        gateway_unchanged = current_baseline == baseline
+        after_meta: dict[str, Any] = {}
         unchanged = True
         for kb, backend in backends.items():
-            try: unchanged = unchanged and metadata_summary(backend) == before_meta[kb]
-            except Exception: unchanged = False
-            finally: backend.logout()
-        cleanup["old_index_metadata_unchanged"] = unchanged and len(before_meta) == 3
-        marker = Path.home() / ".cwk-rt054-active"
-        try: marker.unlink(missing_ok=True)
-        except Exception: cleanup["failures"] += 1
-        try: shutil.rmtree(ROOT)
-        except Exception: cleanup["failures"] += 1
-        cleanup["workdirs_zero"] = not any(p.is_dir() and (p / ".rt054-owned").exists()
-                                             for p in Path(os.environ.get("TMPDIR", "/tmp")).glob("cwk-rt054-*"))
+            try:
+                after_meta[kb] = metadata_summary(backend)
+                unchanged = unchanged and after_meta[kb] == before_meta[kb]
+            except Exception:
+                unchanged = False
+            finally:
+                backend.logout()
+        old_index_unchanged = unchanged and len(before_meta) == 3 and len(after_meta) == 3
+        report["invariants"] = {
+            "gateway_pid_count_before": len(baseline), "gateway_pid_count_after": len(current_baseline),
+            "gateway_aggregate_sha256_before": sha(json.dumps(baseline, sort_keys=True, separators=(",", ":"))),
+            "gateway_aggregate_sha256_after": sha(json.dumps(current_baseline, sort_keys=True, separators=(",", ":"))),
+            "old_index_aggregate_sha256_before": sha(json.dumps(before_meta, sort_keys=True, separators=(",", ":"))),
+            "old_index_aggregate_sha256_after": sha(json.dumps(after_meta, sort_keys=True, separators=(",", ":"))),
+            "gateway_unchanged": gateway_unchanged,
+            "old_index_metadata_unchanged": old_index_unchanged,
+        }
+        try:
+            shutil.rmtree(ROOT)
+        except Exception:
+            cleanup["cleanup_failures"] += 1
+        cleanup["workdirs_zero"] = not any(
+            p.is_dir() and (p / ".rt054-owned").exists()
+            for p in Path(os.environ.get("TMPDIR", "/tmp")).glob("cwk-rt054-*")
+        )
         cleanup["all_zero"] = all(cleanup[key] for key in (
-            "indices_zero", "containers_zero", "derived_images_zero", "workdirs_zero"))
+            "case_files_zero", "indices_zero", "containers_zero", "derived_images_zero", "workdirs_zero"))
         report["cleanup"] = cleanup
-        if not cleanup["gateway_unchanged"] or not cleanup["old_index_metadata_unchanged"] or not cleanup["all_zero"] or cleanup["failures"]:
-            report["status"] = "FAIL"
-            report["decision"] = {"stage_b": "NO-GO", "selected_analyzer": None,
-                                  "selected_mapping": None, "reason": "cleanup_error"}
+        enforce_safety_decision(report, cleanup, gateway_unchanged=gateway_unchanged,
+                                old_index_unchanged=old_index_unchanged)
     try:
         print(safe_output(report))
     except Exception:
-        print(json.dumps({"schema": "cwk.rt054.ops-three-library-benchmark.v1", "status": "FAIL",
-                          "error": "allowlist_rejected", "decision": {"stage_b": "NO-GO",
-                          "selected_analyzer": None, "selected_mapping": None,
-                          "reason": "allowlist_rejected"}, "cleanup": cleanup}, separators=(",", ":")))
+        print(json.dumps({
+            "schema": "cwk.rt054.ops-quality-closure.v1", "status": "FAIL",
+            "run_id": run_id, "sampling_strategy_version": casegen.SAMPLING_VERSION,
+            "error": "allowlist_rejected", "decision": {"stage_b": "NO-GO",
+                "selected_analyzer": None, "selected_mapping": None, "reason": "allowlist_rejected"},
+            "cleanup": cleanup,
+        }, separators=(",", ":")))
         return 3
     return 0 if report.get("cleanup", {}).get("all_zero") else 2
 
