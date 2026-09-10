@@ -1,0 +1,50 @@
+# RT-055 代码与架构审计
+
+## 基线和材料边界
+
+- 工作树基线已由 `git rev-parse HEAD` 核验为 `f34918bb2158099f03eba99ffcc95e59714a15f2`，启动时无本地改动。
+- 已完整读取根 `AGENTS.md`、AODW 宪章/交互/RT/Git/测试规范、项目 overview、`RT/index.yaml`，以及 `RT/RT-054/` 下全部合同、证据、机器 JSON、元数据和最终方案。
+- 仓库对原版 WeKnora 的固定证据只有 RT-054 对 commit `8d7298fb5d759973cb1e481cadc5ecdf16dca599` 的源码审查结论；仓库没有 vendored WeKnora 源码或独立 source manifest。RT-055 不把摘要冒充源码。部署实验必须从上游取得该精确 commit、验证 HEAD 后运行原生 pipeline，仍不得改 core。
+
+## 当前代码事实
+
+1. **SearchBackend 尚未实现。** `SearchBackend` 只出现在 RT-054 目标合同；当前 `kb_gateway.py` 直接装载 legacy `lexical-index.json`，`kb_gateway_client.py` 是 v2 薄客户端，未存在可替换的 backend 接口。
+2. **Parent/Child 是离线 PoC，不是生产路径。** `kb_stage_b_poc.py` 定义 `Parent`/`Child`、稳定 ID、结构化切块和本地 BM25；OpenSearch 与 OPS runner 只用于 benchmark，没有接入 Gateway、控制面、增量 Worker 或生产索引。
+3. **RT-054 已证明存储机制成立。** 三库 ICU/body excluded 主索引相对旧 lexical JSON 缩小 `94.602% / 95.997% / 97.067%`。这来自 Parent/Child 降重复、取消全量 1/2/3-gram 与正文不进 `_source`，不是靠放宽质量门。
+4. **RT-054 没有证明 OpenSearch 失败。** 最终 NO-GO 的 `quality_gate_scope` 明确是 `lexical_analyzer_and_mapping_selection_only`：ICU v2 在 cwork Recall@10 为 `0.88`，docdb exact 为 `0.80`，因此当前 mapping/query 未过门；OpenSearch 的存储门、隔离门和清理门均通过。
+5. **缺口具有可分解机制。** exact 编号/日期/文件名不该继续依赖 analyzer 排名；它们可由规范化元数据上的确定性解析器解决。剩余少量正文/表格 lexical miss 才交给 ICU BM25，并先做文档折叠与 Parent 展开，避免长文 Child 霸榜。
+6. **不得直接复用 RT-054 holdout。** 该集合已经用于 ICU v2 裁决，继续拿它开发会产生反馈污染；它只作为历史证据，不进入 RT-055 的 query、expected 或抽样池。
+
+## 候选 A 的最小实现接缝
+
+```text
+Gateway / Query API
+  -> 授权固定 tenant + kb + epoch
+  -> QueryClassifier（只识别编号、日期、文件名的通用形态）
+     -> ExactResolver（规范化 keyword/date/file metadata；确定性排序）
+     -> ICU BM25（title/section/body）
+  -> union + exact-first policy
+  -> collapse doc_id（每文档有界 Child）
+  -> batch Parent expand（有界上下文）
+  -> response authorization recheck
+```
+
+- exact resolver 使用摄取期生成的 normalized keyword/date/filename 字段；不包含库名、case ordinal、expected doc 或 holdout 特判。
+- 普通文本保留 RT-054 已验存储投影，不恢复 1/2/3-gram，不把 Parent 正文复制进 `_source`。
+- rerank 不进入主候选。只有在 A 无 rerank 的冻结结果完成后，才能作为独立 ablation；必须预先写明模型/版本、Recall 增量和 P95 代价，失败不改变 A 的基础配置。
+- `SearchBackend` 实现需覆盖 health/search/bulk-index/invalidate-version/stats；本冲刺只冻结接口和实验合同，不在未授权环境假造 OpenSearch 连接。
+
+## 候选 B 的边界
+
+- 唯一身份：原版 WeKnora commit `8d7298fb5d759973cb1e481cadc5ecdf16dca599`。
+- 使用其原生 ingestion/retrieval pipeline；不 fork、不修改检索 core、不把 CWK exact resolver 塞入 B。
+- 只允许外部薄适配器完成同 corpus 导入、知识库隔离、Top-10 结果转成 OPS 私有评分输入和资源测量。
+- WeKnora 的产品控制面、数据库/缓存/存储和升级链均计入运维复杂度；不能只测其底层 OpenSearch/ParadeDB 查询而免除系统成本。
+
+## 独立判断
+
+**推荐 A，进入实现；B 是有硬边界的淘汰赛对照，不是并行建设路线。**
+
+理由：RT-054 已把最大成本问题解决了约 95%，失败集中在可由确定性元数据解析消除的 exact miss 和少量 lexical miss。A 复用现成 Parent/Child、ICU projection、权限模型、v2 read 和未来 Query API 设计，只新增一个小而可测的 exact 通道及生产 backend；这不是继续调 analyzer。转向 WeKnora 会同时迁移摄取、知识库控制面、任务协调、鉴权/授权、来源定位和 Gateway 合同，并引入其数据库/Redis/对象存储运维面。当前没有证据证明这笔迁移换来质量或资源的显著优势。
+
+只有 OPS 新 holdout 出现以下结果才改选 B：A 未过任一硬质量/安全门而 B 全过；或两者全过时，B 的运维复杂度不高于 A，且 P95、索引体积、构建时间、RSS 四项中至少三项总量优于 A `20%`。除此之外实施 A，不维持双栈。

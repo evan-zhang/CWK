@@ -1,0 +1,19 @@
+id: RT-055
+title: 双通道 OpenSearch 与原版 WeKnora 检索决策实验
+type: Experiment
+profile: Spec-Lite
+execution_mode: collaborative
+status: decided
+modules: [rt055-retrieval-decision, rt054-lexical-snapshot-performance, rt051-controlled-read-lexical]
+branch: openclaw/rt054-next-decision
+worktree: /Users/evan/.openclaw/gateways/life/state/worktrees/b7867e4d12d85382/rt054-next-decision
+tool: codex
+owner: Evan
+created_at: 2026-09-10T01:34:17Z
+updated_at: 2026-09-10T01:49:22Z
+closed_at: null
+notes: >
+  基于 f34918bb2158099f03eba99ffcc95e59714a15f2 建立。RT-054 的 NO-GO 只裁决
+  当时 ICU v2 analyzer/mapping，不能外推为 OpenSearch 架构失败。本 RT 冻结两个候选并
+  先完成仓库侧协议、聚合结果门与测试；OPS/NAS/生产保持不变。真正建立临时索引或部署
+  固定 commit WeKnora 前必须取得 OPS 精确授权。
