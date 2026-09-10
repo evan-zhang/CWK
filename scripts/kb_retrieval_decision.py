@@ -20,7 +20,16 @@ LIBRARIES = ("cwork-3m", "docdb-touqian", "spbp-2027")
 CANDIDATE_A = "cwk-opensearch-dual-channel-v1"
 CANDIDATE_B = "weknora-native-8d7298fb5d759973cb1e481cadc5ecdf16dca599"
 WEKNORA_COMMIT = "8d7298fb5d759973cb1e481cadc5ecdf16dca599"
-OPAQUE_RE = re.compile(r"[a-z0-9][a-z0-9._-]{0,63}")
+WEKNORA_REPOSITORY = "github.com/Tencent/WeKnora"
+HOLDOUT_VERSION = "ops-rt055-confidential-v1"
+HARDWARE_CLASS = "ops-rt055-equivalent-a"
+CORPUS_SNAPSHOT_VERSION = "ops-rt055-frozen-corpus-v1"
+BUILDER_ID = "ops-rt055-builder"
+VERIFIER_ID = "ops-rt055-verifier"
+IMPLEMENTER_ID = "cwk-rt055-candidate-implementer"
+FREEZE_RECEIPT_A = "ops-rt055-freeze-candidate-a"
+FREEZE_RECEIPT_B = "ops-rt055-freeze-candidate-b"
+UPSTREAM_RECEIPT_B = "ops-rt055-weknora-upstream"
 DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")
 FORBIDDEN_KEYS = {
     "query", "queries", "expected", "expected_doc", "expected_doc_id",
@@ -36,7 +45,8 @@ ALLOWED_TOP = {
 COUNT_FIELDS = {
     "total_count", "answerable_count", "recall_hits_at_10", "exact_count",
     "exact_hits", "no_answer_count", "no_answer_correct", "system_error_count",
-    "timeout_count", "leak_count",
+    "answerable_system_error_count", "exact_system_error_count",
+    "no_answer_system_error_count", "timeout_count", "leak_count",
 }
 RATE_FIELDS = {"recall_at_10", "exact", "no_answer"}
 RESOURCE_FIELDS = {"p95_ms", "index_bytes", "build_seconds", "peak_rss_bytes"}
@@ -67,9 +77,9 @@ def _integer(value: Any, where: str, *, minimum: int = 0) -> int:
     return int(number)
 
 
-def _opaque(value: Any, where: str) -> None:
-    if not isinstance(value, str) or not OPAQUE_RE.fullmatch(value):
-        raise ReportError(f"{where} must be a short opaque identifier")
+def _constant(value: Any, expected: str, where: str) -> None:
+    if value != expected:
+        raise ReportError(f"{where} must be the protocol constant {expected}")
 
 
 def _digest(value: Any, where: str) -> None:
@@ -90,10 +100,14 @@ def _scan_safe(value: Any, where: str = "$") -> None:
         for index, child in enumerate(value):
             _scan_safe(child, f"{where}[{index}]")
     elif isinstance(value, str):
-        # Every non-constant report string is checked again as UUID, digest, or
-        # opaque identifier. This generic scan blocks accidental prose/paths.
+        # String-bearing fields are subsequently bound to protocol constants,
+        # a canonical run UUID, or non-confidential candidate artifact digests.
+        # This first pass only rejects prose/control characters and paths not
+        # equal to the one registered public upstream constant.
+        if value == WEKNORA_REPOSITORY:
+            return
         if len(value) > 80 or "\n" in value or "\r" in value or not re.fullmatch(r"[a-zA-Z0-9:._-]+", value):
-            raise ReportError(f"{where} contains non-opaque string data")
+            raise ReportError(f"{where} contains non-protocol string data")
 
 
 def _require_keys(obj: Any, required: set[str], where: str) -> Mapping[str, Any]:
@@ -124,10 +138,12 @@ def _validate_uuid(value: Any) -> None:
 
 
 def _validate_freeze(candidate_id: str, receipt: Any, *, weknora: bool) -> None:
-    common = DIGEST_FIELDS | {"receipt_id", "frozen_before_run", "ops_artifacts_verified"}
+    common = DIGEST_FIELDS | {"receipt_id", "candidate_id", "frozen_before_run", "ops_artifacts_verified"}
     fields = common | ({"head_matches_commit", "tree_clean", "native_config", "upstream_receipt"} if weknora else set())
     receipt = _require_keys(receipt, fields, f"{candidate_id}.freeze_receipt")
-    _opaque(receipt["receipt_id"], f"{candidate_id}.freeze_receipt.receipt_id")
+    _constant(receipt["candidate_id"], candidate_id, f"{candidate_id}.freeze_receipt.candidate_id")
+    expected_receipt = FREEZE_RECEIPT_B if weknora else FREEZE_RECEIPT_A
+    _constant(receipt["receipt_id"], expected_receipt, f"{candidate_id}.freeze_receipt.receipt_id")
     for field in DIGEST_FIELDS:
         _digest(receipt[field], f"{candidate_id}.freeze_receipt.{field}")
     _true_flags(receipt, ("frozen_before_run", "ops_artifacts_verified"), f"{candidate_id}.freeze_receipt")
@@ -136,8 +152,8 @@ def _validate_freeze(candidate_id: str, receipt: Any, *, weknora: bool) -> None:
         provenance = _require_keys(receipt["upstream_receipt"], {
             "receipt_id", "repository_id", "commit", "commit_reachable", "verified_on_ops",
         }, f"{candidate_id}.freeze_receipt.upstream_receipt")
-        _opaque(provenance["receipt_id"], "upstream_receipt.receipt_id")
-        _opaque(provenance["repository_id"], "upstream_receipt.repository_id")
+        _constant(provenance["receipt_id"], UPSTREAM_RECEIPT_B, "upstream_receipt.receipt_id")
+        _constant(provenance["repository_id"], WEKNORA_REPOSITORY, "upstream_receipt.repository_id")
         if provenance["commit"] != WEKNORA_COMMIT:
             raise ReportError("WeKnora upstream receipt commit mismatch")
         _true_flags(provenance, ("commit_reachable", "verified_on_ops"), "upstream_receipt")
@@ -161,7 +177,7 @@ def validate_report(report: Mapping[str, Any]) -> None:
         "private_artifacts_retained_on_ops", "aggregate_only_export",
         "single_use_frozen_before_candidate_runs",
     }, "holdout_contract")
-    _opaque(holdout["version"], "holdout_contract.version")
+    _constant(holdout["version"], HOLDOUT_VERSION, "holdout_contract.version")
     _true_flags(holdout, ("created_after_rt054", "private_artifacts_retained_on_ops", "aggregate_only_export", "single_use_frozen_before_candidate_runs"), "holdout_contract")
     if holdout["rt054_final_holdout_reused"] is not False:
         raise ReportError("RT-054 final holdout must not be reused")
@@ -172,17 +188,22 @@ def validate_report(report: Mapping[str, Any]) -> None:
         "hardware_class", "corpus_snapshot_version", "same_corpus", "same_hardware_class",
         "same_timeout_budget", "same_top_k", "top_k", "run_order_randomized",
     }, "environment")
-    _opaque(environment["hardware_class"], "environment.hardware_class")
-    _opaque(environment["corpus_snapshot_version"], "environment.corpus_snapshot_version")
+    _constant(environment["hardware_class"], HARDWARE_CLASS, "environment.hardware_class")
+    _constant(environment["corpus_snapshot_version"], CORPUS_SNAPSHOT_VERSION, "environment.corpus_snapshot_version")
     _true_flags(environment, ("same_corpus", "same_hardware_class", "same_timeout_budget", "same_top_k", "run_order_randomized"), "environment")
     if environment["top_k"] != 10:
         raise ReportError("environment.top_k must be 10")
 
     attest = _require_keys(report["verifier_attestations"], {
-        "verifier_id", "builder_separated", "rt054_pool_excluded", "input_disjoint_verified",
-        "category_coverage_verified", "aggregate_only_verified", "no_private_digest_exported",
+        "builder_id", "verifier_id", "candidate_implementer_id", "builder_separated",
+        "rt054_pool_excluded", "input_disjoint_verified", "category_coverage_verified",
+        "aggregate_only_verified", "no_private_digest_exported",
     }, "verifier_attestations")
-    _opaque(attest["verifier_id"], "verifier_attestations.verifier_id")
+    _constant(attest["builder_id"], BUILDER_ID, "verifier_attestations.builder_id")
+    _constant(attest["verifier_id"], VERIFIER_ID, "verifier_attestations.verifier_id")
+    _constant(attest["candidate_implementer_id"], IMPLEMENTER_ID, "verifier_attestations.candidate_implementer_id")
+    if len({attest["builder_id"], attest["verifier_id"], attest["candidate_implementer_id"]}) != 3:
+        raise ReportError("builder, verifier, and candidate implementer roles must be distinct")
     _true_flags(attest, ("builder_separated", "rt054_pool_excluded", "input_disjoint_verified", "category_coverage_verified", "aggregate_only_verified", "no_private_digest_exported"), "verifier_attestations")
 
     candidates = report["candidates"]
@@ -190,6 +211,13 @@ def validate_report(report: Mapping[str, Any]) -> None:
         raise ReportError("report must contain exactly the two frozen candidates")
     for candidate_id, candidate in candidates.items():
         _validate_candidate(candidate_id, candidate)
+    a_freeze = candidates[CANDIDATE_A]["freeze_receipt"]
+    b_freeze = candidates[CANDIDATE_B]["freeze_receipt"]
+    if a_freeze["receipt_id"] == b_freeze["receipt_id"]:
+        raise ReportError("candidate freeze receipt ids must differ")
+    critical = ("code_digest", "image_digest", "config_digest", "mapping_digest", "query_plan_digest")
+    if all(a_freeze[field] == b_freeze[field] for field in critical):
+        raise ReportError("candidate critical artifact digests must not all be identical")
     # A and B score the identical frozen cases. Category denominators are
     # therefore invariant across candidates; disagreement means runner drift.
     for kb in LIBRARIES:
@@ -247,8 +275,19 @@ def _validate_candidate(candidate_id: str, candidate: Any) -> None:
         for numerator, denominator in (("recall_hits_at_10", "answerable_count"), ("exact_hits", "exact_count"), ("no_answer_correct", "no_answer_count")):
             if counts[numerator] > counts[denominator]:
                 raise ReportError(f"{candidate_id}.{kb}.{numerator} exceeds {denominator}")
+        if counts["system_error_count"] != counts["answerable_system_error_count"] + counts["no_answer_system_error_count"]:
+            raise ReportError(f"{candidate_id}.{kb} system errors must partition by answerable/no-answer")
+        if counts["exact_system_error_count"] > counts["answerable_system_error_count"]:
+            raise ReportError(f"{candidate_id}.{kb} exact errors exceed answerable errors")
         if counts["timeout_count"] > counts["system_error_count"] or counts["system_error_count"] > counts["total_count"]:
             raise ReportError(f"{candidate_id}.{kb} error counts are inconsistent")
+        for numerator, denominator, errors in (
+            ("recall_hits_at_10", "answerable_count", "answerable_system_error_count"),
+            ("exact_hits", "exact_count", "exact_system_error_count"),
+            ("no_answer_correct", "no_answer_count", "no_answer_system_error_count"),
+        ):
+            if counts[numerator] > counts[denominator] - counts[errors]:
+                raise ReportError(f"{candidate_id}.{kb}.{numerator} must count system errors as failures")
         computed = {
             "recall_at_10": counts["recall_hits_at_10"] / counts["answerable_count"],
             "exact": counts["exact_hits"] / counts["exact_count"],

@@ -4,7 +4,7 @@
 
 - 工作树基线已由 `git rev-parse HEAD` 核验为 `f34918bb2158099f03eba99ffcc95e59714a15f2`，启动时无本地改动。
 - 已完整读取根 `AGENTS.md`、AODW 宪章/交互/RT/Git/测试规范、项目 overview、`RT/index.yaml`，以及 `RT/RT-054/` 下全部合同、证据、机器 JSON、元数据和最终方案。
-- 仓库对原版 WeKnora 的固定证据只有 RT-054 对 commit `8d7298fb5d759973cb1e481cadc5ecdf16dca599` 的源码审查结论；仓库没有 vendored WeKnora 源码或独立 source manifest。RT-055 不把摘要冒充源码。部署实验必须从上游取得该精确 commit、验证 HEAD 后运行原生 pipeline，仍不得改 core。
+- 仓库对原版 WeKnora 的固定证据只有 RT-054 对官方 `github.com/Tencent/WeKnora` commit `8d7298fb5d759973cb1e481cadc5ecdf16dca599` 的源码审查结论；仓库没有 vendored WeKnora 源码或独立 source manifest。RT-055 不把摘要冒充源码。部署实验必须从该固定官方 upstream 取得精确 commit、验证 HEAD 后运行原生 pipeline，仍不得改 core。
 
 ## 当前代码事实
 
@@ -36,7 +36,9 @@ Gateway / Query API
 
 ## 候选 B 的边界
 
-- 唯一身份：原版 WeKnora commit `8d7298fb5d759973cb1e481cadc5ecdf16dca599`。
+- 唯一身份：官方 `github.com/Tencent/WeKnora` 原版 commit `8d7298fb5d759973cb1e481cadc5ecdf16dca599`；repository id、commit、receipt id 都冻结为协议常量，不接受任意 fork 标签。
+- 聚合回执无自由文本旁路：角色、环境、快照和 receipt 标签全为常量，只有 OPS 受控 runner 生成的 run UUID 与候选构建 artifact SHA-256 可变；A/B freeze 分别绑定候选且关键 artifact 不得全部同值。
+- 质量计数按 answerable/exact/no-answer 分区记录系统错误，timeout 只是 system error 子集；受影响类别的成功数上限扣除错误数，错误不能伪装成满分。
 - 使用其原生 ingestion/retrieval pipeline；不 fork、不修改检索 core、不把 CWK exact resolver 塞入 B。
 - 只允许外部薄适配器完成同 corpus 导入、知识库隔离、Top-10 结果转成 OPS 私有评分输入和资源测量。
 - WeKnora 的产品控制面、数据库/缓存/存储和升级链均计入运维复杂度；不能只测其底层 OpenSearch/ParadeDB 查询而免除系统成本。

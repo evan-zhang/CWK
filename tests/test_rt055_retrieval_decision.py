@@ -12,20 +12,25 @@ PROJECT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT / "scripts"))
 import kb_retrieval_decision as decision  # noqa: E402
 
-DIGEST = "sha256:" + "a" * 64
+DIGEST_A = "sha256:" + "a" * 64
+DIGEST_B = "sha256:" + "b" * 64
 
 
 def freeze_receipt(*, weknora: bool = False) -> dict:
+    digest = DIGEST_B if weknora else DIGEST_A
+    candidate_id = decision.CANDIDATE_B if weknora else decision.CANDIDATE_A
     receipt = {
-        "receipt_id": "ops-freeze-01", "code_digest": DIGEST, "image_digest": DIGEST,
-        "config_digest": DIGEST, "mapping_digest": DIGEST, "query_plan_digest": DIGEST,
-        "dependency_digest": DIGEST, "frozen_before_run": True, "ops_artifacts_verified": True,
+        "receipt_id": decision.FREEZE_RECEIPT_B if weknora else decision.FREEZE_RECEIPT_A,
+        "candidate_id": candidate_id, "code_digest": digest, "image_digest": digest,
+        "config_digest": digest, "mapping_digest": digest, "query_plan_digest": digest,
+        "dependency_digest": digest, "frozen_before_run": True, "ops_artifacts_verified": True,
     }
     if weknora:
         receipt.update({
             "head_matches_commit": True, "tree_clean": True, "native_config": True,
             "upstream_receipt": {
-                "receipt_id": "upstream-01", "repository_id": "weknora-upstream",
+                "receipt_id": decision.UPSTREAM_RECEIPT_B,
+                "repository_id": decision.WEKNORA_REPOSITORY,
                 "commit": decision.WEKNORA_COMMIT, "commit_reachable": True,
                 "verified_on_ops": True,
             },
@@ -40,7 +45,9 @@ def library_metrics(*, recall_hits: int = 46, exact_hits: int = 10,
         "total_count": 60, "answerable_count": 50, "recall_hits_at_10": recall_hits,
         "exact_count": 10, "exact_hits": exact_hits, "no_answer_count": 10,
         "no_answer_correct": no_answer_correct, "system_error_count": 0,
-        "timeout_count": 0, "recall_at_10": recall_hits / 50,
+        "answerable_system_error_count": 0, "exact_system_error_count": 0,
+        "no_answer_system_error_count": 0, "timeout_count": 0,
+        "recall_at_10": recall_hits / 50,
         "exact": exact_hits / 10, "no_answer": no_answer_correct / 10,
         "leak_count": leak, "p95_ms": 400 * multiplier,
         "index_bytes": int(100_000_000 * multiplier),
@@ -85,19 +92,21 @@ def valid_report() -> dict:
         "schema": decision.SCHEMA,
         "run_id": "12345678-1234-4234-8234-123456789abc",
         "holdout_contract": {
-            "version": "ops-rt055-private-v1", "created_after_rt054": True,
+            "version": decision.HOLDOUT_VERSION, "created_after_rt054": True,
             "rt054_final_holdout_reused": False, "libraries": list(decision.LIBRARIES),
             "private_artifacts_retained_on_ops": True, "aggregate_only_export": True,
             "single_use_frozen_before_candidate_runs": True,
         },
         "environment": {
-            "hardware_class": "ops-equivalent-a", "corpus_snapshot_version": "private-v1",
+            "hardware_class": decision.HARDWARE_CLASS,
+            "corpus_snapshot_version": decision.CORPUS_SNAPSHOT_VERSION,
             "same_corpus": True, "same_hardware_class": True,
             "same_timeout_budget": True, "same_top_k": True, "top_k": 10,
             "run_order_randomized": True,
         },
         "verifier_attestations": {
-            "verifier_id": "ops-verifier-01", "builder_separated": True,
+            "builder_id": decision.BUILDER_ID, "verifier_id": decision.VERIFIER_ID,
+            "candidate_implementer_id": decision.IMPLEMENTER_ID, "builder_separated": True,
             "rt054_pool_excluded": True, "input_disjoint_verified": True,
             "category_coverage_verified": True, "aggregate_only_verified": True,
             "no_private_digest_exported": True,
@@ -153,9 +162,30 @@ class ConfidentialAndFreezeTests(unittest.TestCase):
         with self.assertRaisesRegex(decision.ReportError, "commit mismatch"):
             decision.validate_report(report)
 
+    def test_roles_receipts_candidate_binding_and_upstream_are_fixed(self):
+        report = valid_report(); report["verifier_attestations"]["builder_id"] = decision.VERIFIER_ID
+        with self.assertRaises(decision.ReportError):
+            decision.validate_report(report)
+        report = valid_report(); report["candidates"][decision.CANDIDATE_A]["freeze_receipt"]["candidate_id"] = decision.CANDIDATE_B
+        with self.assertRaises(decision.ReportError):
+            decision.validate_report(report)
+        report = valid_report(); report["candidates"][decision.CANDIDATE_B]["freeze_receipt"]["upstream_receipt"]["repository_id"] = "attacker-repo"
+        with self.assertRaises(decision.ReportError):
+            decision.validate_report(report)
+
+    def test_critical_candidate_artifacts_cannot_all_be_identical(self):
+        report = valid_report()
+        a = report["candidates"][decision.CANDIDATE_A]["freeze_receipt"]
+        b = report["candidates"][decision.CANDIDATE_B]["freeze_receipt"]
+        for field in ("code_digest", "image_digest", "config_digest", "mapping_digest", "query_plan_digest"):
+            b[field] = a[field]
+        with self.assertRaisesRegex(decision.ReportError, "must not all be identical"):
+            decision.validate_report(report)
+
     def test_arbitrary_strings_paths_and_malformed_uuid_rejected(self):
         mutations = [
             ("hardware_class", "private words from a case"),
+            ("hardware_class", "b" * 64),
             ("corpus_snapshot_version", "/Volumes/private"),
         ]
         for field, value in mutations:
@@ -179,7 +209,7 @@ class CountAndMeasurementTests(unittest.TestCase):
         edits = [
             ("total_count", 61), ("exact_count", 51), ("recall_hits_at_10", 51),
             ("exact_hits", 11), ("no_answer_correct", 11), ("recall_at_10", 1.0),
-            ("timeout_count", 1),
+            ("timeout_count", 1), ("answerable_system_error_count", 1),
         ]
         for field, value in edits:
             report = valid_report(); report["candidates"][decision.CANDIDATE_A]["libraries"]["cwork-3m"][field] = value
@@ -193,6 +223,14 @@ class CountAndMeasurementTests(unittest.TestCase):
         row["no_answer_count"] = 11
         row["no_answer"] = 10 / 11
         with self.assertRaisesRegex(decision.ReportError, "must match across candidates"):
+            decision.validate_report(report)
+
+    def test_errors_and_timeouts_cannot_coexist_with_perfect_scores(self):
+        report = valid_report()
+        row = report["candidates"][decision.CANDIDATE_A]["libraries"]["cwork-3m"]
+        row.update(system_error_count=1, answerable_system_error_count=1,
+                   exact_system_error_count=1, timeout_count=1)
+        with self.assertRaisesRegex(decision.ReportError, "system errors as failures"):
             decision.validate_report(report)
 
     def test_unmeasured_or_zero_resources_and_components_are_invalid(self):

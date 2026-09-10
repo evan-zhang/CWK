@@ -4,15 +4,15 @@
 
 本实验只回答候选 A 或 B 哪一个成为 CWK 下一条生产实现路线，不是 RT-054 analyzer/mapping 续调。OPS owner 在 RT-054 最终 holdout 消费后，从从未进入 RT-054 case pool 的三库当前快照重新抽样。query、expected/no-answer 标注、原文、标题、文件名、路径、locator、命中片段及这些材料的 hash、case-set 摘要、失败样例永远留在 OPS 0700 私有目录，不提交、不复制到开发机、不进入日志或返回 JSON。
 
-仓库只接收 `contracts/aggregate-report.schema.json` v2 聚合 JSON。harness 对字段闭集、短 opaque identifier、固定格式 artifact digest、严格 UUID、分母/分子和比率二次校验并 fail closed。INVALID 与质量 NO-GO 分开：格式、冻结、未测量或核验失败返回 INVALID；合法结果未过质量门返回 NO-GO。
+仓库只接收 `contracts/aggregate-report.schema.json` v2 聚合 JSON。所有非度量字符串均冻结为协议常量或严格枚举；唯一动态字符串是 canonical run UUID，以及由 OPS 受控 runner 对候选非 confidential 构建 artifact 生成的 `sha256:` digest。禁止人工填充、私有 case/corpus/query/expected/source hash 或任意 opaque token。harness 对字段闭集、固定常量、artifact digest、严格 UUID、分母/分子和比率二次校验并 fail closed。INVALID 与质量 NO-GO 分开：格式、冻结、未测量或核验失败返回 INVALID；合法结果未过质量门返回 NO-GO。
 
 ## 2. 新 holdout 与运行前冻结
 
 1. OPS builder 固定 `cwork-3m`、`docdb-touqian`、`spbp-2027` 三个 corpus snapshot，私有 manifest 留 OPS。
 2. 从未进入 RT-054 的源项逐库分层抽样。每库必须有非零 answerable、exact、no-answer 分母，并覆盖标题、正文稀有短语、表格行和近邻干扰。exact 是 answerable 子集；`total_count = answerable_count + no_answer_count`。
 3. builder 读取材料建立 case；独立 verifier 回读完整库验证 expected/no-answer、类别覆盖和与 RT-054 pool 不复用。候选实现人员不得参与抽样或 query 派生。
-4. 在任何候选运行前，冻结私有 case manifest、corpus snapshot、随机 A/B 顺序，以及两个候选的代码、镜像、配置、mapping、query plan、依赖 digests。聚合报告只带候选 artifact 的 `sha256:` digest 和短 receipt id；绝不导出 case/corpus/query/expected/source hash。
-5. OPS verifier 必须针对真实文件、镜像、checkout 与运行配置核验 freeze receipt，不能只检查报告中字符串。A/B 都要求 `frozen_before_run=true`、`ops_artifacts_verified=true`。B 还须核验固定 commit 可从登记 upstream 到达、HEAD 精确匹配、tree clean、native config、core 未改；upstream receipt 只导出非敏感 repository/receipt opaque id 与固定 commit。
+4. 在任何候选运行前，冻结私有 case manifest、corpus snapshot、随机 A/B 顺序，以及两个候选的代码、镜像、配置、mapping、query plan、依赖 digests。聚合报告只带 OPS 受控 runner 生成的候选 artifact `sha256:` digest；绝不导出 case/corpus/query/expected/source hash。receipt id、holdout version、硬件/快照标签和角色 id 全部使用 schema 固定常量，不能承载数据。
+5. OPS verifier 必须针对真实文件、镜像、checkout 与运行配置核验 freeze receipt，不能只检查报告中字符串。builder、verifier、candidate implementer 三个固定角色必须互不相同。A/B receipt id 必须各自固定、互异并绑定 candidate id，且 code/image/config/mapping/query-plan 五项不能全部相同。A/B 都要求 `frozen_before_run=true`、`ops_artifacts_verified=true`。B 还须核验固定 commit 可从官方 `github.com/Tencent/WeKnora` 到达、HEAD 精确匹配、tree clean、native config、core 未改；repository、receipt 与 commit 均是协议常量。
 6. holdout 单次消费。候选代码、mapping、权重、parser 或配置因结果修改，立即废弃本轮并建立另一套独立 holdout，不得重跑取 PASS。
 
 ## 3. 固定候选
@@ -31,11 +31,11 @@
 ## 4. 公平运行、评分与测量合同
 
 - 同一 snapshot、同一 query/expected、top_k=10、超时预算、硬件级别、冷暖口径；两候选都从空临时数据面完整构建。
-- 每库回 `total_count / answerable_count / recall_hits_at_10 / exact_count / exact_hits / no_answer_count / no_answer_correct / system_error_count / timeout_count`。A/B 的 total/answerable/exact/no-answer 四个分母必须逐库相等。固定定义：Recall@10=`recall_hits_at_10/answerable_count`；exact=`exact_hits/exact_count`；no-answer=`no_answer_correct/no_answer_count`。系统错误按该题错误计，不能从分母剔除；timeout 是 system error 子集。任何分母为零、跨候选分母不同、分子越界、比率与计数不一致均 INVALID。
+- 每库回 `total_count / answerable_count / recall_hits_at_10 / exact_count / exact_hits / no_answer_count / no_answer_correct / system_error_count / answerable_system_error_count / exact_system_error_count / no_answer_system_error_count / timeout_count`。A/B 的 total/answerable/exact/no-answer 四个分母必须逐库相等。固定定义：Recall@10=`recall_hits_at_10/answerable_count`；exact=`exact_hits/exact_count`；no-answer=`no_answer_correct/no_answer_count`。`system_error_count = answerable_system_error_count + no_answer_system_error_count`，exact error 是 answerable error 子集，timeout 是 system error 子集；每类 hits/correct 必须 `<= denominator - category errors`，所以任何系统错误都不能与受影响类别满分并存。错误不从分母剔除。任何分母为零、跨候选分母不同、分子越界、比率与计数不一致均 INVALID。
 - `p95_ms` 是相同预热后服务端请求至 Top-10 返回的端到端检索 P95，不含 LLM。系统错误仍进入请求延迟样本；未测量或 `<=0` INVALID。
 - `index_bytes` 是完整可服务检索数据面；B 包括原生数据库/缓存/对象层。`build_seconds` 从接收规范化输入到全量可查询。`peak_rss_bytes` 是实验启动全部服务/容器之和。三项未测量或 `<=0` INVALID。
 - 运维复杂度只回机械向量：组件数、升级步骤数、备份恢复步骤数，均按冻结 runbook 逐项计数且至少 1；不接受自报 `complexity_score`。Gateway 四能力逐项布尔验收，任一缺失即硬门失败。
-- verifier 只导出 aggregate-only attestations：角色分离、RT-054 pool 排除、输入不相交、类别覆盖、聚合白名单、无私有 digest。它不导出 case id/hash、query、expected、source 或失败样例。
+- verifier 只导出 aggregate-only attestations：三个协议固定且互异的角色 id、角色分离、RT-054 pool 排除、输入不相交、类别覆盖、聚合白名单、无私有 digest。它不导出 case id/hash、query、expected、source、失败样例或可自由填写的 token。
 
 ## 5. 硬门与预先承诺的决策效用
 

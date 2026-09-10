@@ -4,175 +4,639 @@
   "title": "RT-055 OPS aggregate-only retrieval comparison",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "run_id", "holdout_contract", "environment", "verifier_attestations", "candidates", "cleanup", "production_invariants"],
+  "required": [
+    "schema",
+    "run_id",
+    "holdout_contract",
+    "environment",
+    "verifier_attestations",
+    "candidates",
+    "cleanup",
+    "production_invariants"
+  ],
   "properties": {
-    "schema": {"const": "cwk.rt055.retrieval-decision.aggregate.v2"},
-    "run_id": {"type": "string", "format": "uuid", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", "maxLength": 36},
+    "schema": {
+      "const": "cwk.rt055.retrieval-decision.aggregate.v2"
+    },
+    "run_id": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "maxLength": 36
+    },
     "holdout_contract": {
-      "type": "object", "additionalProperties": false,
-      "required": ["version", "created_after_rt054", "rt054_final_holdout_reused", "libraries", "private_artifacts_retained_on_ops", "aggregate_only_export", "single_use_frozen_before_candidate_runs"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "created_after_rt054",
+        "rt054_final_holdout_reused",
+        "libraries",
+        "private_artifacts_retained_on_ops",
+        "aggregate_only_export",
+        "single_use_frozen_before_candidate_runs"
+      ],
       "properties": {
-        "version": {"$ref": "#/$defs/opaque"},
-        "created_after_rt054": {"const": true},
-        "rt054_final_holdout_reused": {"const": false},
-        "libraries": {"const": ["cwork-3m", "docdb-touqian", "spbp-2027"]},
-        "private_artifacts_retained_on_ops": {"const": true},
-        "aggregate_only_export": {"const": true},
-        "single_use_frozen_before_candidate_runs": {"const": true}
+        "version": {
+          "const": "ops-rt055-confidential-v1"
+        },
+        "created_after_rt054": {
+          "const": true
+        },
+        "rt054_final_holdout_reused": {
+          "const": false
+        },
+        "libraries": {
+          "const": [
+            "cwork-3m",
+            "docdb-touqian",
+            "spbp-2027"
+          ]
+        },
+        "private_artifacts_retained_on_ops": {
+          "const": true
+        },
+        "aggregate_only_export": {
+          "const": true
+        },
+        "single_use_frozen_before_candidate_runs": {
+          "const": true
+        }
       }
     },
     "environment": {
-      "type": "object", "additionalProperties": false,
-      "required": ["hardware_class", "corpus_snapshot_version", "same_corpus", "same_hardware_class", "same_timeout_budget", "same_top_k", "top_k", "run_order_randomized"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hardware_class",
+        "corpus_snapshot_version",
+        "same_corpus",
+        "same_hardware_class",
+        "same_timeout_budget",
+        "same_top_k",
+        "top_k",
+        "run_order_randomized"
+      ],
       "properties": {
-        "hardware_class": {"$ref": "#/$defs/opaque"},
-        "corpus_snapshot_version": {"$ref": "#/$defs/opaque"},
-        "same_corpus": {"const": true}, "same_hardware_class": {"const": true},
-        "same_timeout_budget": {"const": true}, "same_top_k": {"const": true},
-        "top_k": {"const": 10}, "run_order_randomized": {"const": true}
+        "hardware_class": {
+          "const": "ops-rt055-equivalent-a"
+        },
+        "corpus_snapshot_version": {
+          "const": "ops-rt055-frozen-corpus-v1"
+        },
+        "same_corpus": {
+          "const": true
+        },
+        "same_hardware_class": {
+          "const": true
+        },
+        "same_timeout_budget": {
+          "const": true
+        },
+        "same_top_k": {
+          "const": true
+        },
+        "top_k": {
+          "const": 10
+        },
+        "run_order_randomized": {
+          "const": true
+        }
       }
     },
     "verifier_attestations": {
-      "type": "object", "additionalProperties": false,
-      "required": ["verifier_id", "builder_separated", "rt054_pool_excluded", "input_disjoint_verified", "category_coverage_verified", "aggregate_only_verified", "no_private_digest_exported"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "builder_id",
+        "verifier_id",
+        "candidate_implementer_id",
+        "builder_separated",
+        "rt054_pool_excluded",
+        "input_disjoint_verified",
+        "category_coverage_verified",
+        "aggregate_only_verified",
+        "no_private_digest_exported"
+      ],
       "properties": {
-        "verifier_id": {"$ref": "#/$defs/opaque"},
-        "builder_separated": {"const": true}, "rt054_pool_excluded": {"const": true},
-        "input_disjoint_verified": {"const": true}, "category_coverage_verified": {"const": true},
-        "aggregate_only_verified": {"const": true}, "no_private_digest_exported": {"const": true}
+        "verifier_id": {
+          "const": "ops-rt055-verifier"
+        },
+        "builder_separated": {
+          "const": true
+        },
+        "rt054_pool_excluded": {
+          "const": true
+        },
+        "input_disjoint_verified": {
+          "const": true
+        },
+        "category_coverage_verified": {
+          "const": true
+        },
+        "aggregate_only_verified": {
+          "const": true
+        },
+        "no_private_digest_exported": {
+          "const": true
+        },
+        "builder_id": {
+          "const": "ops-rt055-builder"
+        },
+        "candidate_implementer_id": {
+          "const": "cwk-rt055-candidate-implementer"
+        }
       }
     },
     "candidates": {
-      "type": "object", "additionalProperties": false,
-      "required": ["cwk-opensearch-dual-channel-v1", "weknora-native-8d7298fb5d759973cb1e481cadc5ecdf16dca599"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cwk-opensearch-dual-channel-v1",
+        "weknora-native-8d7298fb5d759973cb1e481cadc5ecdf16dca599"
+      ],
       "properties": {
-        "cwk-opensearch-dual-channel-v1": {"$ref": "#/$defs/candidateA"},
-        "weknora-native-8d7298fb5d759973cb1e481cadc5ecdf16dca599": {"$ref": "#/$defs/candidateB"}
+        "cwk-opensearch-dual-channel-v1": {
+          "$ref": "#/$defs/candidateA"
+        },
+        "weknora-native-8d7298fb5d759973cb1e481cadc5ecdf16dca599": {
+          "$ref": "#/$defs/candidateB"
+        }
       }
     },
     "rerank_ablation": {
-      "type": "object", "additionalProperties": false,
-      "required": ["enabled", "status", "recall_delta", "p95_delta_ms"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "status",
+        "recall_delta",
+        "p95_delta_ms"
+      ],
       "properties": {
-        "enabled": {"const": true}, "status": {"enum": ["PASS", "FAIL"]},
-        "recall_delta": {"type": "number", "minimum": -1, "maximum": 1},
-        "p95_delta_ms": {"type": "number", "minimum": -1}
+        "enabled": {
+          "const": true
+        },
+        "status": {
+          "enum": [
+            "PASS",
+            "FAIL"
+          ]
+        },
+        "recall_delta": {
+          "type": "number",
+          "minimum": -1,
+          "maximum": 1
+        },
+        "p95_delta_ms": {
+          "type": "number",
+          "minimum": -1
+        }
       }
     },
     "cleanup": {
-      "type": "object", "additionalProperties": false,
-      "required": ["private_holdout_retained_on_ops", "temporary_indices_zero", "temporary_services_zero", "temporary_containers_zero", "cleanup_failures"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "private_holdout_retained_on_ops",
+        "temporary_indices_zero",
+        "temporary_services_zero",
+        "temporary_containers_zero",
+        "cleanup_failures"
+      ],
       "properties": {
-        "private_holdout_retained_on_ops": {"const": true}, "temporary_indices_zero": {"const": true},
-        "temporary_services_zero": {"const": true}, "temporary_containers_zero": {"const": true},
-        "cleanup_failures": {"const": 0}
+        "private_holdout_retained_on_ops": {
+          "const": true
+        },
+        "temporary_indices_zero": {
+          "const": true
+        },
+        "temporary_services_zero": {
+          "const": true
+        },
+        "temporary_containers_zero": {
+          "const": true
+        },
+        "cleanup_failures": {
+          "const": 0
+        }
       }
     },
     "production_invariants": {
-      "type": "object", "additionalProperties": false,
-      "required": ["nas_unchanged", "gateway_unchanged", "existing_indices_unchanged", "production_config_unchanged"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "nas_unchanged",
+        "gateway_unchanged",
+        "existing_indices_unchanged",
+        "production_config_unchanged"
+      ],
       "properties": {
-        "nas_unchanged": {"const": true}, "gateway_unchanged": {"const": true},
-        "existing_indices_unchanged": {"const": true}, "production_config_unchanged": {"const": true}
+        "nas_unchanged": {
+          "const": true
+        },
+        "gateway_unchanged": {
+          "const": true
+        },
+        "existing_indices_unchanged": {
+          "const": true
+        },
+        "production_config_unchanged": {
+          "const": true
+        }
       }
     }
   },
   "$defs": {
-    "opaque": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$", "maxLength": 64},
-    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$", "maxLength": 71},
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "maxLength": 71
+    },
     "libraryMetrics": {
-      "type": "object", "additionalProperties": false,
-      "required": ["total_count", "answerable_count", "recall_hits_at_10", "exact_count", "exact_hits", "no_answer_count", "no_answer_correct", "system_error_count", "timeout_count", "recall_at_10", "exact", "no_answer", "leak_count", "p95_ms", "index_bytes", "build_seconds", "peak_rss_bytes"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total_count",
+        "answerable_count",
+        "recall_hits_at_10",
+        "exact_count",
+        "exact_hits",
+        "no_answer_count",
+        "no_answer_correct",
+        "system_error_count",
+        "answerable_system_error_count",
+        "exact_system_error_count",
+        "no_answer_system_error_count",
+        "timeout_count",
+        "recall_at_10",
+        "exact",
+        "no_answer",
+        "leak_count",
+        "p95_ms",
+        "index_bytes",
+        "build_seconds",
+        "peak_rss_bytes"
+      ],
       "properties": {
-        "total_count": {"type": "integer", "minimum": 1}, "answerable_count": {"type": "integer", "minimum": 1},
-        "recall_hits_at_10": {"type": "integer", "minimum": 0}, "exact_count": {"type": "integer", "minimum": 1},
-        "exact_hits": {"type": "integer", "minimum": 0}, "no_answer_count": {"type": "integer", "minimum": 1},
-        "no_answer_correct": {"type": "integer", "minimum": 0}, "system_error_count": {"type": "integer", "minimum": 0},
-        "timeout_count": {"type": "integer", "minimum": 0}, "recall_at_10": {"type": "number", "minimum": 0, "maximum": 1},
-        "exact": {"type": "number", "minimum": 0, "maximum": 1}, "no_answer": {"type": "number", "minimum": 0, "maximum": 1},
-        "leak_count": {"type": "integer", "minimum": 0}, "p95_ms": {"type": "number", "exclusiveMinimum": 0},
-        "index_bytes": {"type": "integer", "exclusiveMinimum": 0}, "build_seconds": {"type": "number", "exclusiveMinimum": 0},
-        "peak_rss_bytes": {"type": "integer", "exclusiveMinimum": 0}
+        "total_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "answerable_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "recall_hits_at_10": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "exact_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "exact_hits": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "no_answer_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "no_answer_correct": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "system_error_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "timeout_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "recall_at_10": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "exact": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "no_answer": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "leak_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "p95_ms": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "index_bytes": {
+          "type": "integer",
+          "exclusiveMinimum": 0
+        },
+        "build_seconds": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "peak_rss_bytes": {
+          "type": "integer",
+          "exclusiveMinimum": 0
+        },
+        "answerable_system_error_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "exact_system_error_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "no_answer_system_error_count": {
+          "type": "integer",
+          "minimum": 0
+        }
       }
     },
     "libraries": {
-      "type": "object", "additionalProperties": false,
-      "required": ["cwork-3m", "docdb-touqian", "spbp-2027"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cwork-3m",
+        "docdb-touqian",
+        "spbp-2027"
+      ],
       "properties": {
-        "cwork-3m": {"$ref": "#/$defs/libraryMetrics"}, "docdb-touqian": {"$ref": "#/$defs/libraryMetrics"},
-        "spbp-2027": {"$ref": "#/$defs/libraryMetrics"}
+        "cwork-3m": {
+          "$ref": "#/$defs/libraryMetrics"
+        },
+        "docdb-touqian": {
+          "$ref": "#/$defs/libraryMetrics"
+        },
+        "spbp-2027": {
+          "$ref": "#/$defs/libraryMetrics"
+        }
       }
     },
     "operations": {
-      "type": "object", "additionalProperties": false,
-      "required": ["components_count", "upgrade_steps_count", "backup_restore_steps_count"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "components_count",
+        "upgrade_steps_count",
+        "backup_restore_steps_count"
+      ],
       "properties": {
-        "components_count": {"type": "integer", "minimum": 1}, "upgrade_steps_count": {"type": "integer", "minimum": 1},
-        "backup_restore_steps_count": {"type": "integer", "minimum": 1}
+        "components_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "upgrade_steps_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "backup_restore_steps_count": {
+          "type": "integer",
+          "minimum": 1
+        }
       }
     },
     "gateway": {
-      "type": "object", "additionalProperties": false,
-      "required": ["https_query_api", "per_gateway_identity", "kb_grants_server_side", "no_direct_nas_or_search_credentials"],
-      "properties": {
-        "https_query_api": {"type": "boolean"}, "per_gateway_identity": {"type": "boolean"},
-        "kb_grants_server_side": {"type": "boolean"}, "no_direct_nas_or_search_credentials": {"type": "boolean"}
-      }
-    },
-    "freezeCommonProperties": {
       "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "https_query_api",
+        "per_gateway_identity",
+        "kb_grants_server_side",
+        "no_direct_nas_or_search_credentials"
+      ],
       "properties": {
-        "receipt_id": {"$ref": "#/$defs/opaque"}, "code_digest": {"$ref": "#/$defs/digest"},
-        "image_digest": {"$ref": "#/$defs/digest"}, "config_digest": {"$ref": "#/$defs/digest"},
-        "mapping_digest": {"$ref": "#/$defs/digest"}, "query_plan_digest": {"$ref": "#/$defs/digest"},
-        "dependency_digest": {"$ref": "#/$defs/digest"}, "frozen_before_run": {"const": true},
-        "ops_artifacts_verified": {"const": true}
+        "https_query_api": {
+          "type": "boolean"
+        },
+        "per_gateway_identity": {
+          "type": "boolean"
+        },
+        "kb_grants_server_side": {
+          "type": "boolean"
+        },
+        "no_direct_nas_or_search_credentials": {
+          "type": "boolean"
+        }
       }
     },
     "freezeA": {
-      "type": "object", "additionalProperties": false,
-      "required": ["receipt_id", "code_digest", "image_digest", "config_digest", "mapping_digest", "query_plan_digest", "dependency_digest", "frozen_before_run", "ops_artifacts_verified"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "receipt_id",
+        "candidate_id",
+        "code_digest",
+        "image_digest",
+        "config_digest",
+        "mapping_digest",
+        "query_plan_digest",
+        "dependency_digest",
+        "frozen_before_run",
+        "ops_artifacts_verified"
+      ],
       "properties": {
-        "receipt_id": {"$ref": "#/$defs/opaque"}, "code_digest": {"$ref": "#/$defs/digest"}, "image_digest": {"$ref": "#/$defs/digest"},
-        "config_digest": {"$ref": "#/$defs/digest"}, "mapping_digest": {"$ref": "#/$defs/digest"}, "query_plan_digest": {"$ref": "#/$defs/digest"},
-        "dependency_digest": {"$ref": "#/$defs/digest"}, "frozen_before_run": {"const": true}, "ops_artifacts_verified": {"const": true}
+        "receipt_id": {
+          "const": "ops-rt055-freeze-candidate-a"
+        },
+        "code_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "image_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "config_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "mapping_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "query_plan_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "dependency_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "frozen_before_run": {
+          "const": true
+        },
+        "ops_artifacts_verified": {
+          "const": true
+        },
+        "candidate_id": {
+          "const": "cwk-opensearch-dual-channel-v1"
+        }
       }
     },
     "upstreamReceipt": {
-      "type": "object", "additionalProperties": false,
-      "required": ["receipt_id", "repository_id", "commit", "commit_reachable", "verified_on_ops"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "receipt_id",
+        "repository_id",
+        "commit",
+        "commit_reachable",
+        "verified_on_ops"
+      ],
       "properties": {
-        "receipt_id": {"$ref": "#/$defs/opaque"}, "repository_id": {"$ref": "#/$defs/opaque"},
-        "commit": {"const": "8d7298fb5d759973cb1e481cadc5ecdf16dca599"}, "commit_reachable": {"const": true}, "verified_on_ops": {"const": true}
+        "receipt_id": {
+          "const": "ops-rt055-weknora-upstream"
+        },
+        "repository_id": {
+          "const": "github.com/Tencent/WeKnora"
+        },
+        "commit": {
+          "const": "8d7298fb5d759973cb1e481cadc5ecdf16dca599"
+        },
+        "commit_reachable": {
+          "const": true
+        },
+        "verified_on_ops": {
+          "const": true
+        }
       }
     },
     "freezeB": {
-      "type": "object", "additionalProperties": false,
-      "required": ["receipt_id", "code_digest", "image_digest", "config_digest", "mapping_digest", "query_plan_digest", "dependency_digest", "frozen_before_run", "ops_artifacts_verified", "head_matches_commit", "tree_clean", "native_config", "upstream_receipt"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "receipt_id",
+        "candidate_id",
+        "code_digest",
+        "image_digest",
+        "config_digest",
+        "mapping_digest",
+        "query_plan_digest",
+        "dependency_digest",
+        "frozen_before_run",
+        "ops_artifacts_verified",
+        "head_matches_commit",
+        "tree_clean",
+        "native_config",
+        "upstream_receipt"
+      ],
       "properties": {
-        "receipt_id": {"$ref": "#/$defs/opaque"}, "code_digest": {"$ref": "#/$defs/digest"}, "image_digest": {"$ref": "#/$defs/digest"},
-        "config_digest": {"$ref": "#/$defs/digest"}, "mapping_digest": {"$ref": "#/$defs/digest"}, "query_plan_digest": {"$ref": "#/$defs/digest"},
-        "dependency_digest": {"$ref": "#/$defs/digest"}, "frozen_before_run": {"const": true}, "ops_artifacts_verified": {"const": true},
-        "head_matches_commit": {"const": true}, "tree_clean": {"const": true}, "native_config": {"const": true},
-        "upstream_receipt": {"$ref": "#/$defs/upstreamReceipt"}
+        "receipt_id": {
+          "const": "ops-rt055-freeze-candidate-b"
+        },
+        "code_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "image_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "config_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "mapping_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "query_plan_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "dependency_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "frozen_before_run": {
+          "const": true
+        },
+        "ops_artifacts_verified": {
+          "const": true
+        },
+        "head_matches_commit": {
+          "const": true
+        },
+        "tree_clean": {
+          "const": true
+        },
+        "native_config": {
+          "const": true
+        },
+        "upstream_receipt": {
+          "$ref": "#/$defs/upstreamReceipt"
+        },
+        "candidate_id": {
+          "const": "weknora-native-8d7298fb5d759973cb1e481cadc5ecdf16dca599"
+        }
       }
     },
     "candidateA": {
-      "type": "object", "additionalProperties": false,
-      "required": ["identity", "freeze_receipt", "libraries", "operations", "gateway_readiness"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "identity",
+        "freeze_receipt",
+        "libraries",
+        "operations",
+        "gateway_readiness"
+      ],
       "properties": {
-        "identity": {"const": {"kind": "opensearch_dual_channel", "exact_resolver": "deterministic_v1", "lexical_analyzer": "analysis_icu", "doc_collapse": true, "parent_expand": true, "rerank_in_primary": false}},
-        "freeze_receipt": {"$ref": "#/$defs/freezeA"}, "libraries": {"$ref": "#/$defs/libraries"},
-        "operations": {"$ref": "#/$defs/operations"}, "gateway_readiness": {"$ref": "#/$defs/gateway"}
+        "identity": {
+          "const": {
+            "kind": "opensearch_dual_channel",
+            "exact_resolver": "deterministic_v1",
+            "lexical_analyzer": "analysis_icu",
+            "doc_collapse": true,
+            "parent_expand": true,
+            "rerank_in_primary": false
+          }
+        },
+        "freeze_receipt": {
+          "$ref": "#/$defs/freezeA"
+        },
+        "libraries": {
+          "$ref": "#/$defs/libraries"
+        },
+        "operations": {
+          "$ref": "#/$defs/operations"
+        },
+        "gateway_readiness": {
+          "$ref": "#/$defs/gateway"
+        }
       }
     },
     "candidateB": {
-      "type": "object", "additionalProperties": false,
-      "required": ["identity", "freeze_receipt", "libraries", "operations", "gateway_readiness"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "identity",
+        "freeze_receipt",
+        "libraries",
+        "operations",
+        "gateway_readiness"
+      ],
       "properties": {
-        "identity": {"const": {"kind": "weknora", "commit": "8d7298fb5d759973cb1e481cadc5ecdf16dca599", "native_pipeline": true, "core_modified": false}},
-        "freeze_receipt": {"$ref": "#/$defs/freezeB"}, "libraries": {"$ref": "#/$defs/libraries"},
-        "operations": {"$ref": "#/$defs/operations"}, "gateway_readiness": {"$ref": "#/$defs/gateway"}
+        "identity": {
+          "const": {
+            "kind": "weknora",
+            "commit": "8d7298fb5d759973cb1e481cadc5ecdf16dca599",
+            "native_pipeline": true,
+            "core_modified": false
+          }
+        },
+        "freeze_receipt": {
+          "$ref": "#/$defs/freezeB"
+        },
+        "libraries": {
+          "$ref": "#/$defs/libraries"
+        },
+        "operations": {
+          "$ref": "#/$defs/operations"
+        },
+        "gateway_readiness": {
+          "$ref": "#/$defs/gateway"
+        }
       }
     }
   }
