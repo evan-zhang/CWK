@@ -10,7 +10,7 @@
 
 1. **SearchBackend 尚未实现。** `SearchBackend` 只出现在 RT-054 目标合同；当前 `kb_gateway.py` 直接装载 legacy `lexical-index.json`，`kb_gateway_client.py` 是 v2 薄客户端，未存在可替换的 backend 接口。
 2. **Parent/Child 是离线 PoC，不是生产路径。** `kb_stage_b_poc.py` 定义 `Parent`/`Child`、稳定 ID、结构化切块和本地 BM25；OpenSearch 与 OPS runner 只用于 benchmark，没有接入 Gateway、控制面、增量 Worker 或生产索引。
-3. **RT-054 已证明存储机制成立。** 三库 ICU/body excluded 主索引相对旧 lexical JSON 缩小 `94.602% / 95.997% / 97.067%`。这来自 Parent/Child 降重复、取消全量 1/2/3-gram 与正文不进 `_source`，不是靠放宽质量门。
+3. **RT-054 已证明历史存储投影成立。** 三库 ICU/body excluded 主索引相对旧 lexical JSON 缩小 `94.602% / 95.997% / 97.067%`。这是 RT-054 当时 Parent/Child、取消全量 1/2/3-gram 与正文不进 `_source` 的历史投影证据；不是完整候选 A 的实测结论，A 必须在 RT-055 新 holdout/临时索引复测。
 4. **RT-054 没有证明 OpenSearch 失败。** 最终 NO-GO 的 `quality_gate_scope` 明确是 `lexical_analyzer_and_mapping_selection_only`：ICU v2 在 cwork Recall@10 为 `0.88`，docdb exact 为 `0.80`，因此当前 mapping/query 未过门；OpenSearch 的存储门、隔离门和清理门均通过。
 5. **缺口具有可分解机制。** exact 编号/日期/文件名不该继续依赖 analyzer 排名；它们可由规范化元数据上的确定性解析器解决。剩余少量正文/表格 lexical miss 才交给 ICU BM25，并先做文档折叠与 Parent 展开，避免长文 Child 霸榜。
 6. **不得直接复用 RT-054 holdout。** 该集合已经用于 ICU v2 裁决，继续拿它开发会产生反馈污染；它只作为历史证据，不进入 RT-055 的 query、expected 或抽样池。
@@ -45,6 +45,6 @@ Gateway / Query API
 
 **推荐 A，进入实现；B 是有硬边界的淘汰赛对照，不是并行建设路线。**
 
-理由：RT-054 已把最大成本问题解决了约 95%，失败集中在可由确定性元数据解析消除的 exact miss 和少量 lexical miss。A 复用现成 Parent/Child、ICU projection、权限模型、v2 read 和未来 Query API 设计，只新增一个小而可测的 exact 通道及生产 backend；这不是继续调 analyzer。转向 WeKnora 会同时迁移摄取、知识库控制面、任务协调、鉴权/授权、来源定位和 Gateway 合同，并引入其数据库/Redis/对象存储运维面。当前没有证据证明这笔迁移换来质量或资源的显著优势。
+理由：RT-054 的历史投影显示约 95% 存储缩减，失败集中在可由确定性元数据解析消除的 exact miss 和少量 lexical miss；完整 A 尚须在 RT-055 复测，不能把 95% 外推成它的既成成绩。A 可复用 Parent/Child、ICU projection、权限模型、v2 read 和未来 Query API 设计，只新增可测 exact 通道及生产 backend；这不是继续调 analyzer。转向 WeKnora 可能涉及摄取、控制面、任务、鉴权、来源定位和 Gateway 合同迁移，但迁移成本当前是待实验证据，不能自报为已测事实。只有固定 B 的公平实验可决定这笔迁移是否值得。
 
-只有 OPS 新 holdout 出现以下结果才改选 B：A 未过任一硬质量/安全门而 B 全过；或两者全过时，B 的运维复杂度不高于 A，且 P95、索引体积、构建时间、RSS 四项中至少三项总量优于 A `20%`。除此之外实施 A，不维持双栈。
+只有 OPS 新 holdout 出现以下结果才改选 B：A 未过任一硬质量/安全门而 B 全过；或两者全过时，B 的机械运维向量逐项不高于 A，P95 逐库不恶化且须逐库改善 20% 才记一胜，index/build/RSS 三库总量改善 20% 且逐库恶化不超过 10%，四维至少三胜。两者全过时默认 A 是事前批准的 incumbency/迁移决策效用，不是无偏性能结论。除此之外实施 A，不维持双栈。

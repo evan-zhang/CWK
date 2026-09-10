@@ -5,11 +5,11 @@
 ## 方案（给人看）
 
 - **做什么**：用一个全新、与 RT-054 隔离的三库 confidential holdout，同场裁决 A「OpenSearch 双通道」和 B「固定 commit 原版 WeKnora」。先在仓库完成候选身份、聚合结果 Schema、决策 harness、验收门、风险与清理合同；到建立临时索引/部署 WeKnora 前停在 OPS 授权门。
-- **为什么**：RT-054 的 NO-GO 只说明当时 ICU v2 analyzer/mapping 没同时通过 cwork Recall 和 docdb exact 门，不代表 OpenSearch 架构失败。它同时实测证明三库主索引缩小约 95%。下一步应把 exact 从中文分词排名中拿出来确定性处理，再以原版 WeKnora 作真正的替代路线对照，而不是继续调同一 holdout。
-- **代价**：A 需要实现 exact resolver、SearchBackend、文档折叠和 Parent 展开；B 需要部署完整原生依赖并承担控制面、摄取、授权、来源和 Gateway 迁移成本。公平实验需要 OPS 临时算力和一次新的私有标注。
+- **为什么**：RT-054 的 NO-GO 只说明当时 ICU v2 analyzer/mapping 没同时通过 cwork Recall 和 docdb exact 门，不代表 OpenSearch 架构失败。它同时证明当时存储投影使三库主索引缩小约 95%，但这不是完整 A 的已测成绩。下一步应把 exact 从中文分词排名中拿出来确定性处理，再以原版 WeKnora 作真正的替代路线对照，而不是继续调同一 holdout。
+- **代价**：A 需要实现 exact resolver、SearchBackend、文档折叠和 Parent 展开；B 可能需要迁移控制面、摄取、授权、来源和 Gateway，但成本必须由固定原生栈实测，不能预设为事实。公平实验需要 OPS 临时算力和一次新的私有标注。
 - **这次故意不做什么**：不复用或查看 RT-054 final holdout；不部署/修改 OPS、NAS、Gateway、生产配置、旧索引；不 push；不 fork/修改 WeKnora core；不把 rerank 混入 A 主候选；不实现生产 SearchBackend。
 - **用户怎样算成功**：两个固定候选能接收同一份只留 OPS 的新三库 holdout，只返回逐库质量与资源聚合；任一库 Recall@10<0.90、exact<1、no-answer<1、leak>0 或公网 Gateway 硬门缺失都会可靠 NO-GO；通过后给出单一候选，不保留模糊双轨。
-- **建议（推荐）**：选 A 进入实现，B 作为能推翻 A 的淘汰赛对照。A 复用已验证的 Parent/Child 与约 95% 压缩，exact miss 用确定性 resolver 机制消除；只有 B 通过全部硬门且呈现预先定义的显著总成本优势才迁移。
+- **建议（推荐）**：选 A 进入实现，B 作为能推翻 A 的淘汰赛对照。A 复用 RT-054 已验证的 Parent/Child 存储机制，完整压缩/质量/资源必须在新实验复测，exact miss 用确定性 resolver 机制消除；只有 B 通过全部硬门且满足事前机械定义的替换效用才迁移。
 
 ## 假设与现状
 
