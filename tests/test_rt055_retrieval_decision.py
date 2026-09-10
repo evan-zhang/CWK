@@ -238,6 +238,11 @@ class CountAndMeasurementTests(unittest.TestCase):
             report = valid_report(); report["candidates"][decision.CANDIDATE_A]["libraries"]["cwork-3m"][field] = 0
             with self.subTest(field=field), self.assertRaises(decision.ReportError):
                 decision.validate_report(report)
+        for field in ("index_bytes", "peak_rss_bytes"):
+            report = valid_report()
+            report["candidates"][decision.CANDIDATE_A]["libraries"]["cwork-3m"][field] = 1.5
+            with self.subTest(field=field), self.assertRaises(decision.ReportError):
+                decision.validate_report(report)
         report = valid_report(); report["candidates"][decision.CANDIDATE_A]["operations"]["components_count"] = 0
         with self.assertRaises(decision.ReportError):
             decision.validate_report(report)

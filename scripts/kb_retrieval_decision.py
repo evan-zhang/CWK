@@ -298,7 +298,12 @@ def _validate_candidate(candidate_id: str, candidate: Any) -> None:
             if rate > 1 or not math.isclose(rate, expected, rel_tol=0, abs_tol=1e-12):
                 raise ReportError(f"{candidate_id}.{kb}.{field} must equal its fixed count ratio")
         for field in RESOURCE_FIELDS:
-            _finite_number(metrics[field], f"{candidate_id}.{kb}.{field}", strict=True)
+            where = f"{candidate_id}.{kb}.{field}"
+            if field in {"index_bytes", "peak_rss_bytes"}:
+                if _integer(metrics[field], where, minimum=1) < 1:
+                    raise ReportError(f"{where} must be >= 1")
+            else:
+                _finite_number(metrics[field], where, strict=True)
 
     operations = _require_keys(candidate["operations"], {"components_count", "upgrade_steps_count", "backup_restore_steps_count"}, f"candidates.{candidate_id}.operations")
     for field, value in operations.items():
