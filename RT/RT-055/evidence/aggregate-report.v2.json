@@ -1,0 +1,263 @@
+{
+  "candidates": {
+    "cwk-opensearch-dual-channel-v1": {
+      "freeze_receipt": {
+        "candidate_id": "cwk-opensearch-dual-channel-v1",
+        "code_digest": null,
+        "config_digest": null,
+        "dependency_digest": null,
+        "frozen_before_run": false,
+        "image_digest": null,
+        "mapping_digest": null,
+        "ops_artifacts_verified": false,
+        "query_plan_digest": null,
+        "receipt_id": "ops-rt055-freeze-candidate-a"
+      },
+      "gateway_readiness": {
+        "https_query_api": null,
+        "kb_grants_server_side": null,
+        "no_direct_nas_or_search_credentials": null,
+        "per_gateway_identity": null
+      },
+      "identity": {
+        "doc_collapse": true,
+        "exact_resolver": "deterministic_v1",
+        "kind": "opensearch_dual_channel",
+        "lexical_analyzer": "analysis_icu",
+        "parent_expand": true,
+        "rerank_in_primary": false
+      },
+      "libraries": {
+        "cwork-3m": {
+          "answerable_count": null,
+          "answerable_system_error_count": null,
+          "build_seconds": null,
+          "exact": null,
+          "exact_count": null,
+          "exact_hits": null,
+          "exact_system_error_count": null,
+          "index_bytes": null,
+          "leak_count": null,
+          "no_answer": null,
+          "no_answer_correct": null,
+          "no_answer_count": null,
+          "no_answer_system_error_count": null,
+          "p95_ms": null,
+          "peak_rss_bytes": null,
+          "recall_at_10": null,
+          "recall_hits_at_10": null,
+          "system_error_count": null,
+          "timeout_count": null,
+          "total_count": null
+        },
+        "docdb-touqian": {
+          "answerable_count": null,
+          "answerable_system_error_count": null,
+          "build_seconds": null,
+          "exact": null,
+          "exact_count": null,
+          "exact_hits": null,
+          "exact_system_error_count": null,
+          "index_bytes": null,
+          "leak_count": null,
+          "no_answer": null,
+          "no_answer_correct": null,
+          "no_answer_count": null,
+          "no_answer_system_error_count": null,
+          "p95_ms": null,
+          "peak_rss_bytes": null,
+          "recall_at_10": null,
+          "recall_hits_at_10": null,
+          "system_error_count": null,
+          "timeout_count": null,
+          "total_count": null
+        },
+        "spbp-2027": {
+          "answerable_count": null,
+          "answerable_system_error_count": null,
+          "build_seconds": null,
+          "exact": null,
+          "exact_count": null,
+          "exact_hits": null,
+          "exact_system_error_count": null,
+          "index_bytes": null,
+          "leak_count": null,
+          "no_answer": null,
+          "no_answer_correct": null,
+          "no_answer_count": null,
+          "no_answer_system_error_count": null,
+          "p95_ms": null,
+          "peak_rss_bytes": null,
+          "recall_at_10": null,
+          "recall_hits_at_10": null,
+          "system_error_count": null,
+          "timeout_count": null,
+          "total_count": null
+        }
+      },
+      "operations": {
+        "backup_restore_steps_count": null,
+        "components_count": null,
+        "upgrade_steps_count": null
+      }
+    },
+    "weknora-native-8d7298fb5d759973cb1e481cadc5ecdf16dca599": {
+      "freeze_receipt": {
+        "candidate_id": "weknora-native-8d7298fb5d759973cb1e481cadc5ecdf16dca599",
+        "code_digest": null,
+        "config_digest": null,
+        "dependency_digest": null,
+        "frozen_before_run": false,
+        "head_matches_commit": null,
+        "image_digest": null,
+        "mapping_digest": null,
+        "native_config": null,
+        "ops_artifacts_verified": false,
+        "query_plan_digest": null,
+        "receipt_id": "ops-rt055-freeze-candidate-b",
+        "tree_clean": null,
+        "upstream_receipt": {
+          "commit": "8d7298fb5d759973cb1e481cadc5ecdf16dca599",
+          "commit_reachable": null,
+          "receipt_id": "ops-rt055-weknora-upstream",
+          "repository_id": "github.com/Tencent/WeKnora",
+          "verified_on_ops": null
+        }
+      },
+      "gateway_readiness": {
+        "https_query_api": null,
+        "kb_grants_server_side": null,
+        "no_direct_nas_or_search_credentials": null,
+        "per_gateway_identity": null
+      },
+      "identity": {
+        "commit": "8d7298fb5d759973cb1e481cadc5ecdf16dca599",
+        "core_modified": false,
+        "kind": "weknora",
+        "native_pipeline": true
+      },
+      "libraries": {
+        "cwork-3m": {
+          "answerable_count": null,
+          "answerable_system_error_count": null,
+          "build_seconds": null,
+          "exact": null,
+          "exact_count": null,
+          "exact_hits": null,
+          "exact_system_error_count": null,
+          "index_bytes": null,
+          "leak_count": null,
+          "no_answer": null,
+          "no_answer_correct": null,
+          "no_answer_count": null,
+          "no_answer_system_error_count": null,
+          "p95_ms": null,
+          "peak_rss_bytes": null,
+          "recall_at_10": null,
+          "recall_hits_at_10": null,
+          "system_error_count": null,
+          "timeout_count": null,
+          "total_count": null
+        },
+        "docdb-touqian": {
+          "answerable_count": null,
+          "answerable_system_error_count": null,
+          "build_seconds": null,
+          "exact": null,
+          "exact_count": null,
+          "exact_hits": null,
+          "exact_system_error_count": null,
+          "index_bytes": null,
+          "leak_count": null,
+          "no_answer": null,
+          "no_answer_correct": null,
+          "no_answer_count": null,
+          "no_answer_system_error_count": null,
+          "p95_ms": null,
+          "peak_rss_bytes": null,
+          "recall_at_10": null,
+          "recall_hits_at_10": null,
+          "system_error_count": null,
+          "timeout_count": null,
+          "total_count": null
+        },
+        "spbp-2027": {
+          "answerable_count": null,
+          "answerable_system_error_count": null,
+          "build_seconds": null,
+          "exact": null,
+          "exact_count": null,
+          "exact_hits": null,
+          "exact_system_error_count": null,
+          "index_bytes": null,
+          "leak_count": null,
+          "no_answer": null,
+          "no_answer_correct": null,
+          "no_answer_count": null,
+          "no_answer_system_error_count": null,
+          "p95_ms": null,
+          "peak_rss_bytes": null,
+          "recall_at_10": null,
+          "recall_hits_at_10": null,
+          "system_error_count": null,
+          "timeout_count": null,
+          "total_count": null
+        }
+      },
+      "operations": {
+        "backup_restore_steps_count": null,
+        "components_count": null,
+        "upgrade_steps_count": null
+      }
+    }
+  },
+  "cleanup": {
+    "cleanup_failures": 0,
+    "private_holdout_retained_on_ops": true,
+    "temporary_containers_zero": null,
+    "temporary_indices_zero": true,
+    "temporary_services_zero": true
+  },
+  "environment": {
+    "corpus_snapshot_version": "ops-rt055-frozen-corpus-v1",
+    "hardware_class": "ops-rt055-equivalent-a",
+    "run_order_randomized": false,
+    "same_corpus": null,
+    "same_hardware_class": null,
+    "same_timeout_budget": null,
+    "same_top_k": null,
+    "top_k": 10
+  },
+  "holdout_contract": {
+    "aggregate_only_export": true,
+    "created_after_rt054": true,
+    "libraries": [
+      "cwork-3m",
+      "docdb-touqian",
+      "spbp-2027"
+    ],
+    "private_artifacts_retained_on_ops": true,
+    "rt054_final_holdout_reused": false,
+    "single_use_frozen_before_candidate_runs": false,
+    "version": "ops-rt055-confidential-v1"
+  },
+  "production_invariants": {
+    "existing_indices_unchanged": null,
+    "gateway_unchanged": true,
+    "nas_unchanged": null,
+    "production_config_unchanged": null
+  },
+  "run_id": "9e397488-028f-4b74-ae64-97dd0ecdf162",
+  "schema": "cwk.rt055.retrieval-decision.aggregate.v2",
+  "verifier_attestations": {
+    "aggregate_only_verified": true,
+    "builder_id": "ops-rt055-builder",
+    "builder_separated": null,
+    "candidate_implementer_id": "cwk-rt055-candidate-implementer",
+    "category_coverage_verified": true,
+    "input_disjoint_verified": false,
+    "no_private_digest_exported": true,
+    "rt054_pool_excluded": false,
+    "verifier_id": "ops-rt055-verifier"
+  }
+}

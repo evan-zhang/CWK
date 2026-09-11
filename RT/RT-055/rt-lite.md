@@ -62,3 +62,25 @@
 - `git diff HEAD --check` 通过。
 - 门禁脚本加固：`aodw-check.sh`/`rt-guard.sh` 紧邻中文标点的变量展开改为 `${var}` 括界，并按门禁要求刷新 manifest 中 `rt-guard.sh` 的 sha256 pin；此前一次全量尝试在受管 RT 门禁处失败，按失败提示的授权改法修复。
 - 全量 `make ci-full` 最终验收通过（2026-09-11 回填；隔离环境、无项目 .env、独立合成 smoke run 名称；08:16:53–09:27:56，总用时约 71 分钟，退出码 0）：doctor PASS；py_compile 通过；unittest 3671 tests、skipped=12、OK（4245.087s）；smoke / smoke-ai / smoke-ai-degraded 产物门禁全过（模板 dry-run manifest 的 overall_pass=false 为内容层指标，CI 门禁校验产物存在）；aodw-check 通过（仅宿主 handover-pack 未安装既有告警）；governance-audit 通过（788 个受跟踪文件全有主）。日志：`/private/tmp/rt055-ci-final1/ci-full.log`。
+
+## 2026-09-11 OPS 接管终态：INVALID
+
+本节是最新状态，取代前文“尚未获得 OPS 授权”的历史停止点。Evan 已于 15:35 授权 §6，并于 18:46 要求接管执行。此次未重跑 builder，未将私有材料带离 OPS。
+
+- 修正 verifier 错误的输入目录接线，原位读取 builder 文件；没有移动私有材料或修改校验算法。独立后台校验实跑退出 3。
+- 六类覆盖通过，三库各 42 题；但 RT-054 **当前快照重建题池**交集为 4 / 16 / 15，排除及不相交证明均失败。此计数不冒充历史实际 holdout 的精确重叠数量。
+- 按第一道失败门停止：未 freeze，未启动正式 A/B，holdout 未被候选消费。没有删题、重抽或反复运行取 PASS。唯一裁决为 **INVALID**，不是 A/B 质量 NO-GO；RT 不关闭。
+- 接管时 A/B 冒烟已有运行成功回执，模型缓存已完整，无需重下载；B 无答案冒烟未答对。冒烟结果不作为正式质量/资源数据。
+- 原聚合装配器因缺少 freeze 前提退出 1；OPS 与本地决策 harness 均返回 INVALID、退出 2。证据 JSON 使用 v2 闭集形状记录中止状态，未知值为 `null`，**不是 schema-valid 的完整 v2 结果**，不伪造 PASS。
+- 清理脚本首次剩 1 个只读 Go 模块缓存，核实本轮归属后仅在该缓存内恢复所有者清理权限并删除；原失败及调和回执保留。最终未决清理失败 0，实验数据面和后台进程为 0；私有快照、题集、验证与审计材料仍留 OPS。freeze 从未生成，不存在遗失。
+- 三 Gateway 的 8787/8788/8789 均 HTTP 200，进程/命令与基线一致；已覆盖的 NAS 元数据指纹一致。本次未修改生产、NAS、既有索引或配置。完整 NAS/现有索引/生产配置不变性与容器零残留缺独立证明，正式字段保留 `null`，不采信清理脚本推导的成功值。
+- WeKnora 固定 HEAD 与 clean tree 已复核，core 未改。没有 push，没有将 `docs/handover/` 纳入提交。
+- 工程验收：RT-055 合成回归 44 项通过；真实 verifier 和 harness 已证明失败关闭。主会话完整读脚本、白名单结果和清理回执，未安排新的独立 AI 复审，不冒充正式实验或独立评审通过。
+- 未决：真实历史 pool 排除与三角色分离材料；freeze/模型/runbook 核验；Gateway 四能力实测；RSS/构建时间口径；正式日志/egress 证明；生产配置和现有索引完整基线。详见验收记录，未转出或关闭 RT。
+
+证据：
+- [中止轮 v2 字段记录](evidence/aggregate-report.v2.json)
+- [本地唯一裁决](evidence/decision.json)
+- [验收、清理和未决项](evidence/acceptance.md)
+
+本轮已停止且无后台任务；后续需要新的明确指令，先解决上述缺口，再建立独立 holdout，不沿当前失败集合继续取 PASS。
