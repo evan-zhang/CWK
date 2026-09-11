@@ -275,3 +275,18 @@ freeze/正式 A/B/消费仍 0，三库两候选所有正式指标 null；builder
 主 run runtime readiness 与新源码实际 synthetic 隐私门均 PASS；主策略准备严格早于 before，freeze 纳入文件/receipt/source/network/八类目录保护，独立 spawn precheck 两种策略 PASS 而未 Popen。旧策略/回执原件、旧 INVALID window/attempt/claim/void/freeze 及96材料不变；归档1222工件，builder/verifier1/1，三库42@T3/31@T3/42@T2。
 
 全局 exposure/正式 query/result0，新 window attempt/arm0；旧 replacement B attempt1 但零进程与暴露。Gateway3×200，合成/候选/控制器进程0，临时数据面/新临时文件/新TLS/UUID资源0，合成依赖已清理。停止 READY_TO_RUN，不运行 A/B、不 push、不合并、不关闭 RT；完整 NAS/index 不变性仍 UNKNOWN，历史 abort 和服务漂移保留。具体根因、计数及仅观察未重启的 watcher 状态文件时序竞争见 [收口验收](evidence/acceptance.md#amendment-5-ops-收口ready_to_run2026-09-12)。
+
+
+## Amendment 5 正式执行终态：INVALID（2026-09-12）
+
+本节取代上一节 READY_TO_RUN 的**当前状态**，历史准备证据保持原样。使用冻结源 `58951f9`、migration `e5a11f4d-445c-4c05-90b1-2c7e1fbeb0b0` 和同一 window `835c5188-0f29-4f41-8fe6-119b61917e2d`，先只读硬门重算通过，再按冻结 **A→B** 启动正式 coordinator 一次。
+
+A attempt1，已通过 spawn precheck并创建1个进程记录，但 OpenSearch 服务启动报 RuntimeError；B未启动。arm/exposure/正式query/score/完整库/result全0，没有重试或修改冻结源码/配置。只读日志分类发现受保护日志目的地直接错误36条，但唯一根因未证实；原始日志和私有材料不出 OPS，未重新打开 holdout 诊断。主 runtime/socket readiness PASS 并不证明完整候选服务可启动。
+
+确认失败后，仅另调用冻结 INVALID-only 收尾分支一次，完成同窗口 **cleanup→after→abort→decision**。控制器审计共2次（正式1、只收尾1），不隐去第二次，也不把它当作候选重跑。after三库PASS、claim1，本窗口已关闭重放。候选/控制器进程、临时数据面/新tmp/TLS/UUID资源、cleanup failures终态全0，新增进程审计保留，Gateway3×200。
+
+三库仍42@T3、31@T3、42@T2，builder/verifier1/1、deferred=[]。每库A/B的20项正式指标全null，Gateway四能力未测；机械复杂度A=1/6/4、B=2/7/3只是冻结runbook计数。唯一 **INVALID** 为对不完整abort的fail-closed裁决（OPS/本地逐字段相同），不是质量NO-GO或有效v3成绩。NAS/index完整不变性仍null；同窗services/config=false，历史漂移保留；96材料、1222归档及旧claim/void/window/freeze不变。
+
+[完整验收与三格核验](evidence/acceptance.md#amendment-5-正式执行收口a-启动失败后-invalid2026-09-12)、[公开abort](evidence/amendment5-formal-abort.json)、[Schema](evidence/amendment5-formal-abort.schema.json)、[唯一裁决](evidence/amendment5-formal-decision.json)、[QA](evidence/amendment5-formal-qa.json)。174回归与128编译针对未变源码通过；真实启动缺口不能被回归全绿掩盖。
+
+本轮中止收口完成，RT保持in_progress，选型未完成、切流禁止。仅本地提交公开证据和上述文档，不push/合并/清worktree。没有后台实验；任何修复或再跑均需新授权，不自动重建池、before、freeze或窗口。

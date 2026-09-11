@@ -527,3 +527,43 @@ setup、builder、verifier、before、隐私预检与 cleanup/after 均以原进
 根因已收窄为“主策略仍等价早期三目录模板，freeze 漏绑主策略准备，synthetic root PASS 被误当成主 root 就绪”。实际比旧记录多缺 formal-windows 一类，四类每份八条规则。网络规则没有放宽；现有 mtime 不足以证明具体生成时间，chronology 仍未证实。完整 NAS/index 不变性仍 UNKNOWN，历史服务漂移没有被修复或抵销。最终证据提交后须 clean、不 push；该证据提交身份由 Git/交付回执给出，避免自引用。
 
 最终本地 QA：174 tests / 0 fail / 0 error / 0 skip，12 行为破坏检出，45 个公开 Schema 反例全部拒绝；128 文件编译，35 旧公开证据/三文档旧前缀不变，118 相对链接/18 锚点通过，私有字段/digest/secret 命中0。AODW 与863文件治理通过；保留一项既有宿主 Skill 未安装告警，不修改宿主配置。git diff/check 通过，未声称全仓 CI。
+
+
+## Amendment 5 正式执行收口：A 启动失败后 INVALID（2026-09-12）
+
+本节是 READY_TO_RUN 之后新授权的正式执行及失败收口，不改写前述准备成功和历史 abort。唯一裁决 **INVALID**；选型没有完成，不是质量 NO-GO，不允许生产切流。公开权威工件：[abort](amendment5-formal-abort.json)、[闭合 Schema](amendment5-formal-abort.schema.json)、[decision](amendment5-formal-decision.json)、[QA](amendment5-formal-qa.json)。
+
+### 执行边界与失败事实
+
+- 从本地 `2c58167fec86720725e0cfd32f1104501e56d2a3` 接续；执行器始终为冻结的 `58951f92656e7a29b334461c7aa6d1148fec4e8f`。run `ac1ca0c7-6983-4f6e-91ce-8eb45e7673af`；migration `e5a11f4d-445c-4c05-90b1-2c7e1fbeb0b0`；window `835c5188-0f29-4f41-8fe6-119b61917e2d`。本轮没有重新构建题池、重做 privacy/before/freeze/verification 或创建新窗口，没有修改脚本、配置、主策略、候选算法、scorer、WeKnora core。
+- 先只读核验同窗口 fresh before、freeze/verifier、runtime readiness、隐私来源、源码绑定、历史保留和零暴露；均通过。严格顺序 readiness→before 开始→before→freeze→verification 重算通过，before/freeze/verification 各 claim1。
+- 按冻结随机顺序 **A→B**，正常正式 coordinator 只启动一次。A attempt1；这次已通过 spawn precheck，创建 **1** 个 OpenSearch 进程记录和 **1** 个临时数据目录，但服务启动阶段报 RuntimeError，未进入正式评分。与旧 replacement 的 Popen 前拒绝不同，不得混记成零进程创建。B attempt0，没有重试 A、启动 B 或重放任何库。
+- 新 arm/global exposure/正式 query/score/complete/result 均 **0**。硬门后先只读对账，确认候选进程已退出，保存原控制器失败终态，再仅调用冻结 `--closeout-invalid` 分支一次。因此控制器审计 attempt 共 **2**：一次正式执行、一次只做 cleanup→after 的收尾；不把后者隐去，也不把它说成第二次正式运行。
+- 固定分类扫描发现 Operation-not-permitted 标记14次，受保护日志目的地的直接错误行36条、日志配置相关类标记480次、目录创建类标记2次。原始日志、目录和任何私有题面均未出 OPS；诊断没有重新打开 holdout。日志目的地受保护与启动失败相关，但**尚未证明它是唯一根因**，没有现场改权限或绕过保护。窗口失败原因保守记为 CANDIDATE_A_STARTUP_FAILED_BEFORE_PRIVATE_SEARCH。
+- 独立收尾重算显示 frozen artifacts、主 runtime readiness、隐私 receipt 绑定仍通过；角色审核仍通过，但只有 PROCESS_LEVEL_SEPARATION_SINGLE_UID，不夸大为独立 OS 账号隔离。socket/预启动 readiness PASS 不等于完整候选服务可启动，本次真实启动暴露了这一覆盖缺口。
+
+### 三库逐候选成绩与复杂度
+
+三库都参与、deferred=[]；同一保留题池为 cwork-3m **42@T3**、docdb-touqian **31@T3**、spbp-2027 **42@T2**，builder/verifier 仍 **1/1**。这些是题池数，不是正式成绩分母。
+
+每库 A=NOT_MEASURED_STARTUP_ABORT，B=NOT_RUN_PREVIOUS_CANDIDATE_ABORT。每库每候选的20项正式测量——13个计数字段（含 leak_count）、Recall@10/Exact/NoAnswer 三项比率、P95/index_bytes/build_seconds/peak_rss_bytes 四项资源指标——**全部 null**。共120个缺测值，不填0，不挪用 synthetic 或旧成绩。候选 Gateway 四能力也均 null；三个生产 Gateway 的200不能替代候选接入能力验收。
+
+冻结 runbook 的机械复杂度向量（组件/升级步骤/备份恢复步骤）：A **1/6/4**，B **2/7/3**；仅文档机械计数，不是性能结论。
+
+### Finally、生产观测和保留
+
+同窗口 cleanup1→formal-after1→abort evidence→decision 已完成，三个库 after 均 PASS；before/after 文件数均为 **1248、316、317**，私有基线绑定及 comparison 独立重算通过。after 已永久关闭本窗口的重放入口。
+
+- 实时终态：候选/正式控制器进程0，临时数据面0、新临时文件0、新TLS0，精确 UUID 容器/卷/网络/镜像标签/服务0，cleanup failures0；新增的1份进程审计记录保留，不等于残留运行资源。清理只作用于当前实验资源，未动生产 Gateway、NAS、旧索引、宿主配置。
+- 三 Gateway **3×200**，身份与健康内容相等；容器和卷观测相等。NAS、索引和生产配置的已测投影相等，但 NAS/既有索引完整不变性仍 **null**；services_unchanged=false，故 production_config_unchanged=false。没有把局部观测当作完整证明，没有修生产来追平，也没有清除或抵销历史漂移。
+- 96份材料、1222份历史归档、旧原件/claim/void/window/freeze、主策略原字节及私有 holdout/audit 均保留并重算通过。旧 replacement 继续永久 INVALID，旧 VOID_PREQUERY_NO_EXPOSURE 严格有效。未导出私有文本、标识、路径或私有 digest。
+
+### 三格验收及本地交付
+
+- **工程判据**：本轮已运行174项 RT-055 回归，0 fail/error/skip，128个 Python 文件编译通过；继续会话没有重复它们，Git 复核源码未变，结果仍适用于最终树。公开 abort 在 OPS 先通过独立闭集 Schema 再导出；正式 v3 Schema 必须拒绝该 abort，OPS 和本地原裁决 CLI 对同一对象逐字段一致：exit2、INVALID、AGGREGATE_CONTRACT_INVALID、deferred=[]。追加负例覆盖私有字段注入、伪造120个缺测成绩、缺失必要段和虚假成功。没有新增执行器行为破坏实验，因为没有修改执行器；不把 Schema 检查当成候选运行证明。
+- **AI 自检**：主会话审查了单次执行与只收尾分支的区分、冻结源未变、零正式查询、原日志不出 OPS、未越权修保护或重试。没有可用独立审查 worker，不冒称外部审批。明确记录174项回归未覆盖正式原生日志目的地/保护范围组合，不能用全绿否认真实失败。
+- **读真实产出**：读 OPS 白名单启动失败分类、同窗口 cleanup/after/comparison/abort/decision 和本地逐字段复算；核对缺测null、生产false/null、历史与审计保留，不拼接旧结果。
+
+最终 QA 包含隐私/secret 扫描、链接/锚点、历史文件及文档前缀、AODW/governance 与 git diff/check；既有宿主 Skill 告警保留，不修改宿主配置，不冒称全仓 CI。交付仅本地提交两份本 RT 文档和四份公开证据，不 push/合并/删除 worktree，不提交 runs 或交接目录。
+
+本轮失败收口完成，RT 仍 in_progress，选型仍未完成；无后台实验或控制器。恢复需要新的明确授权及独立协议轮，不能因 query=0 或旧 readiness PASS 自动重开本窗口。

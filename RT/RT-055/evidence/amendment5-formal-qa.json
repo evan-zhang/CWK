@@ -1,0 +1,46 @@
+{
+  "schema": "cwk.rt055.amendment5-formal-qa.v1",
+  "status": "PASS",
+  "regression": {
+    "tests": 174,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exit_code": 0
+  },
+  "compiled_files": 128,
+  "regression_repeated_after_resume": false,
+  "regression_applies_to_unchanged_source": true,
+  "abort_schema_valid": true,
+  "not_a_valid_v3_formal_aggregate": true,
+  "ops_local_decision_identical": true,
+  "decision_exit_code": 2,
+  "closed_schema_negative_checks": {
+    "private_field_injections_rejected": 27,
+    "fabricated_metric_values_rejected": 120,
+    "missing_required_sections_rejected": 23,
+    "false_success_outcomes_rejected": 4
+  },
+  "new_runtime_behavior_mutations_run": false,
+  "runtime_source_changed": false,
+  "formal_complete": false,
+  "real_candidate_failure_exposed_gap_beyond_socket_readiness": true,
+  "source_protocol_contracts_meta_unchanged": true,
+  "historical_input_files_unchanged": 44,
+  "document_prefixes_unchanged": 2,
+  "links": 127,
+  "anchors": 19,
+  "privacy_hits": 0,
+  "secret_hits": 0,
+  "private_digests_exported": 0,
+  "full_repository_ci_claimed": false,
+  "independent_agent_approval_claimed": false,
+  "aodw": {
+    "exit_code": 0,
+    "existing_host_skill_warning_retained": true
+  },
+  "governance": {
+    "exit_code": 0
+  },
+  "git_diff_check": true
+}
