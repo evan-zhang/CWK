@@ -330,12 +330,16 @@
       "kind": "exact_set",
       "owner": "RT-055",
       "management_domain": "cwk-governance-v1",
-      "change_entry": "RT → rt-lite.md → tests/test_rt055_retrieval_decision.py + tests/test_rt055_retrieval_candidates.py + make governance-audit",
+      "change_entry": "RT → rt-lite.md → tests/test_rt055_retrieval_decision.py + tests/test_rt055_retrieval_candidates.py + tests/test_rt055_exclusion.py + make governance-audit",
       "evolution_path": "repo-standard-change",
       "rationale": "RT-055 的仓库侧 aggregate-only 检索方案裁决器。只消费 OPS 导出的白名单聚合，冻结 OpenSearch 双通道与固定 commit 原版 WeKnora 的候选身份，拒绝 RT-054 holdout 复用、私有 query/expected/source 形状、逐库硬门失败、生产不变性或清理失败；不连接 OPS、不建索引、不运行 WeKnora。scripts/ 为 exact-only 区，故逐文件登记。 本地实验阶段新增双候选执行适配与私有评分：A 仅在显式调用时创建随机独占临时索引，B 仅接已隔离的原生临时库；不负责部署，不伪造资源/权限/冻结证明。",
       "paths": [
         "scripts/kb_retrieval_decision.py",
-        "scripts/kb_retrieval_candidates.py"
+        "scripts/kb_retrieval_candidates.py",
+        "scripts/rt055_exclusion.py",
+        "scripts/rt055_builder.py",
+        "scripts/rt055_verifier.py",
+        "scripts/rt055_opslib.py"
       ]
     },
     {

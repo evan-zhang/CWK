@@ -96,3 +96,17 @@
 - 唯一当前终态为 **INVALID**，无新逐库成绩，未选出 A/B，不能进入生产实现。旧中止轮 JSON 保持原样；未知值仍按原合同拒绝，不为满足 Schema 填充假数。
 - 恢复只缺一个输入条件：在 OPS 0700 私有位置恢复可绑定到历史实际运行的 RT-054 题池/完整来源项清单和完整性证据。不需要再逐步授权，也不得用当前快照重建近似替代。
 - RT-055 合成回归 44 项通过；OPS/本地 harness 均实际返回 INVALID、退出 2。Schema 自检通过，原中止报告按 false/null 拒绝；递归隐私、证据链接、AODW、791 文件治理审计及 diff 检查通过，仅既有宿主 skill 告警。实际根因、归档和检索证据由主会话核读，不冒充独立复审或正式实验通过。完整记录见 [验收补充](evidence/acceptance.md)。本 RT 不关闭，不 push，不包含 `docs/handover/`。
+
+## 2026-09-11 22:53 父会话裁决：运行前修订排除权威 R
+
+本节取代 22:13 的“等待恢复历史实际池”停止条件；前两轮 INVALID 原始记录保留，不删除或改写。起始 HEAD 为 `3b4c44419305aba1ca6478a32624b60cc129b1d3`，worktree clean。RT-054 私有池按合同销毁，是设计内不可恢复事实。
+
+- 修订 [协议 §2.1](experiment-protocol.md#21-排除权威-r运行前修订evan-2026-09-11-2253-裁决)：用相同 RT-054 seed、sampling/split 版本确定性重建当前快照 R，明确其不是历史精确记录。已实读 acceptance 第 74 行的私有 workdir=0 与 quality JSON 第 112 行的 cleanup.workdirs_zero=true。
+- 新增纯函数 R 与可版本化 builder/verifier、OPS 私有 I/O helper。三路径来源级排除先于锁序/派题；近邻同等排除、检索完整 corpus 保留；verifier 独立回读、重建 R、三类零交集和成员逐项核销。构建锁防止同轮覆盖重抽。
+- 残余风险：内容跨 doc_id 迁移并同时改名仍可能漏检；约两天漂移窗口较小但不为零。旧集合 4/16/15 为当前重建命中，不冒充历史精确重叠。裁决接受该边界，以 R 为本轮权威。
+- **工程判据**：14 项 synthetic-only 行为测试先红（10 failures）后绿；实际断开 builder 排除调用与绕过 verifier 拒绝分支，均使测试退出 1，恢复后绿；RT-055 回归 58 项通过。见 [红绿证据](evidence/r-revision-tests.json)。没有把私有题面放入本地测试。
+- **AI 审查**：主会话逐项检查来源级排除、全库唯一性、近邻、账本核销及失败关闭；尚无新增独立 AI 复审，不把自检冒充独立审批。
+- **读产出**：读取真实合成调用的排除账本/拒绝计数、两次破坏实验退出码，以及 RT-054 原始清理证据行；未读取 OPS 私有题面。OPS 接续实查实验进程 0、三个 Gateway health 均 200、无 freeze。
+- 修订时新 holdout=0、正式 A/B=0；旧 126 题整体作废不动。先单独本地提交修订与测试，再同步 OPS 建一次新池；不 push，不含 docs/handover/ 或 runs/ 临时状态。授权内继续，仅协议硬冲突停止。
+
+修订提交前检查：递归聚合隐私、18 条相对链接、diff、AODW 和 797 文件治理审计通过（仅既有宿主 handover-pack 告警）。隔离快车道先执行 2572 项测试；复制出的源码缺少 Git index，导致 3 failures/1 setUpClass error，均属于 Git 元数据检查。为该纯源码临时副本建立 Git index 后，只重跑受影响的 10 项，全部通过；随后三类 smoke 与 AODW/governance 均通过。没有把初次 `make ci` 的退出 2 写成退出 0，也未重复已通过的整套测试。

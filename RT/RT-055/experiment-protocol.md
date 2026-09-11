@@ -2,18 +2,63 @@
 
 ## 1. 目的与隔离
 
-本实验只回答候选 A 或 B 哪一个成为 CWK 下一条生产实现路线，不是 RT-054 analyzer/mapping 续调。OPS owner 在 RT-054 最终 holdout 消费后，从从未进入 RT-054 case pool 的三库当前快照重新抽样。query、expected/no-answer 标注、原文、标题、文件名、路径、locator、命中片段及这些材料的 hash、case-set 摘要、失败样例永远留在 OPS 0700 私有目录，不提交、不复制到开发机、不进入日志或返回 JSON。
+本实验只回答候选 A 或 B 哪一个成为 CWK 下一条生产实现路线，不是 RT-054 analyzer/mapping 续调。OPS owner 在 RT-054 最终 holdout 消费后，从三库当前快照中未命中 §2.1 排除权威 R 的来源项重新抽样；R 是本轮协议定义的权威依据，不是历史实际题池的精确副本。query、expected/no-answer 标注、原文、标题、文件名、路径、locator、命中片段及这些材料的 hash、case-set 摘要、失败样例永远留在 OPS 0700 私有目录，不提交、不复制到开发机、不进入日志或返回 JSON。
 
 仓库只接收 `contracts/aggregate-report.schema.json` v2 聚合 JSON。所有非度量字符串均冻结为协议常量或严格枚举；唯一动态字符串是 canonical run UUID，以及由 OPS 受控 runner 对候选非 confidential 构建 artifact 生成的 `sha256:` digest。禁止人工填充、私有 case/corpus/query/expected/source hash 或任意 opaque token。harness 对字段闭集、固定常量、artifact digest、严格 UUID、分母/分子和比率二次校验并 fail closed。INVALID 与质量 NO-GO 分开：格式、冻结、未测量或核验失败返回 INVALID；合法结果未过质量门返回 NO-GO。
 
 ## 2. 新 holdout 与运行前冻结
 
 1. OPS builder 固定 `cwork-3m`、`docdb-touqian`、`spbp-2027` 三个 corpus snapshot，私有 manifest 留 OPS。
-2. 从未进入 RT-054 的源项逐库分层抽样。每库必须有非零 answerable、exact、no-answer 分母，并覆盖标题、正文稀有短语、表格行和近邻干扰。exact 是 answerable 子集；`total_count = answerable_count + no_answer_count`。
+2. 从经 §2.1 来源项级排除后的源项逐库分层抽样。每库必须有非零 answerable、exact、no-answer 分母，并覆盖标题、正文稀有短语、表格行和近邻干扰。exact 是 answerable 子集；`total_count = answerable_count + no_answer_count`。
 3. builder 读取材料建立 case；独立 verifier 回读完整库验证 expected/no-answer、类别覆盖和与 RT-054 pool 不复用。候选实现人员不得参与抽样或 query 派生。
 4. 在任何候选运行前，冻结私有 case manifest、corpus snapshot、随机 A/B 顺序，以及两个候选的代码、镜像、配置、mapping、query plan、依赖 digests。聚合报告只带 OPS 受控 runner 生成的候选 artifact `sha256:` digest；绝不导出 case/corpus/query/expected/source hash。receipt id、holdout version、硬件/快照标签和角色 id 全部使用 schema 固定常量，不能承载数据。
 5. OPS verifier 必须针对真实文件、镜像、checkout 与运行配置核验 freeze receipt，不能只检查报告中字符串。builder、verifier、candidate implementer 三个固定角色必须互不相同。A/B receipt id 必须各自固定、互异并绑定 candidate id，且 code/image/config/mapping/query-plan 五项不能全部相同。A/B 都要求 `frozen_before_run=true`、`ops_artifacts_verified=true`。B 还须核验固定 commit 可从官方 `github.com/Tencent/WeKnora` 到达、HEAD 精确匹配、tree clean、native config、core 未改；repository、receipt 与 commit 均是协议常量。
 6. holdout 单次消费。候选代码、mapping、权重、parser 或配置因结果修改，立即废弃本轮并建立另一套独立 holdout，不得重跑取 PASS。
+
+## 2.1 排除权威 R：运行前修订（Evan 2026-09-11 22:53 裁决）
+
+### 历史事实与本次授权
+
+RT-054 原始权威私有池已在收口时按合同销毁，属于设计内事实、不可恢复，不再等待恢复历史记录：
+
+- [RT-054 OPS acceptance「清理与不变性」](../RT-054/evidence/stage-b-ops-acceptance-20260909.md#清理与不变性) 的清理回执行（当前仓库第 74 行）明确为「私有 workdir=0」，并同时记录临时索引、容器、派生镜像和 cleanup failures 为 0。
+- [RT-054 quality JSON](../RT-054/evidence/stage-b-ops-quality-20260909.json) 的 `cleanup` 对象（当前第 105–113 行）内，`/cleanup/workdirs_zero` 在第 112 行为 `true`；同对象的 `case_files_zero=true`、`cleanup_failures=0` 与删除事实一致。行号由文件实读核对，链接指向真实文件，JSON Pointer 才是字段语义依据。
+
+本节在新 holdout 尚未生成、两个候选均未正式运行时修订并先单独本地提交；不消费任何 holdout，不回改原 RT-054 或旧 INVALID 证据。旧 126 题及验证副本继续整体归档作废，不删题、不重采、不重新消费。本节取代此前“必须恢复历史实际 pool”的停止条件，不声称恢复了已删除的记录。
+
+### R 的确定性定义
+
+使用 [原 RT-054 generator](../../scripts/kb_stage_b_ops_cases.py)，与此前 verifier 完全相同的固定 seed `rt054-quality-v1-fixed-seed`、`SAMPLING_VERSION=ops-known-item-stratified-v2`、`SPLIT_VERSION=ops-category-ordinal-calibration-holdout-v1`，对本轮**完整只读当前快照**重建 RT-054 calibration 与 holdout 的来源项/query 集合。版本不符立即拒绝。R 在资格过滤和新随机 seed 派题前形成；R 的成员、成员来源关系和全部私有摘要只留 OPS。
+
+R 的版本为 `rt055-current-snapshot-exclusion-r-v1`，至少包括三个跨库合并集合：
+
+1. `doc_ids`：重建各题的来源文档与近邻干扰文档标识。跨库同值也保守排除。
+2. `queries`：重建全部 query，经 NFKC、Unicode 连字符统一、casefold、连续空白折叠和首尾去空白后的值。
+3. `tokens`：上述来源项的完整标题、完整文件名、文件名 stem，以及标题/文件名/正文内完整字母数字编号的同规则规范化值。完整字段也作为 token；不把文件扩展名或单个汉字单独当 token，不做候选专用 stopword 或按结果放宽。
+
+每个成员保留其来源项集合，供逐项核销。权威实现见 [R 模块](../../scripts/rt055_exclusion.py)。这是当前快照重建的协议权威，不是历史精确记录；候选不能借本节宣称历史零泄漏已被证明。
+
+### 派题前来源项级排除
+
+[builder](../../scripts/rt055_builder.py) 先为每个来源项枚举可派生 query 的超集，包括所有标题/文件名、编号/日期、正文短语、表格候选，以及所有允许的 no-answer mutation 尝试；不是只检查最终选中的 query。任一路径命中就把**整个来源项**记入私有排除账本，不允许从同一项改用另一题：
+
+- 来源 `doc_id` 命中 R；
+- 任一可派生 query 规范化后命中 R；
+- 任一标题/文件名/编号 token 命中 R。
+
+先排除，再以一次全新随机 seed 固定可用来源顺序，最后派题；近邻干扰来源同样不得命中 R。过排除优先，即使因此无法满足六类目标也不放宽。检索 corpus 不因来源排除而删掉干扰文档；唯一性/no-answer 的判断继续使用完整库，两个候选使用同一份按原生摄取上限过滤的 canonical corpus，来源资格与候选对称。排除判定不读取新 holdout 的 expected 标注、候选输出或排名，不给 A/B 加任何特判。
+
+builder 在任何源读取前用独占创建文件领取一次构建锁并记录随机 seed；已领取的轮次不覆盖、不重抽。源项 query 超集若遗漏了实际派生的 R query，直接拒绝整轮，不能跳题继续取 PASS。
+
+### 独立 verifier 的拒绝条件
+
+[verifier](../../scripts/rt055_verifier.py) 不导入 builder；以独立进程只读回读完整三库，核对源快照、资格过滤、私有文件完整性和独立重建 R 的一致性，重新计算来源顺序、expected/no-answer 与六类覆盖，不采信 builder 的通过布尔。
+
+逐库检查所有输出题的来源/近邻 `doc_id`、规范化 query、来源 tokens 与 R 三集合均零交集；即使最后 query 干净，来源项其它可派生 query 命中 R 仍拒绝。逐个重算当前来源项应命中的排除理由，核对完整账本；每个 R 成员的全部当前来源必须被 builder 记录排除，其余来源必须确实不在当前回读快照。未核销成员、伪造/重复账本、任一交集、未知来源、任一题被拒或覆盖不足，均拒绝整轮。完整核销且三类零交集只是隔离门通过，仍须其它正式门全部满足；不能把测试通过替代真实 verify-cases。
+
+### 残余风险与证据边界
+
+内容可能跨 `doc_id` 迁移，且标题/文件名/编号也改变；这样的理论泄漏不能靠当前重建彻底消除。RT-054 距本裁决约两天，漂移窗口较小，但时间短不等于无漂移。此前 R 的前身 query 重建检查已命中上一作废集合 **4 / 16 / 15**，说明重建机制能实际检出重用，不能把这些计数说成历史实际 holdout 的精确重叠数，也不能据此宣称理论风险为零。Evan 的运行前裁决接受此残余风险，以本节 R 为本轮排除权威；不把它外推成历史语义 gold。
 
 ## 3. 固定候选
 
@@ -50,9 +95,9 @@
 
 硬质量门提供公平可比结果；incumbency 与迁移成本政策只在双通过后应用。B 的实际迁移成本目前是**待实验证据**，不得作为已测事实。该政策避免为微小 benchmark 差异建设双栈，同时允许明确优势推翻 A。
 
-## 6. OPS 授权边界（当前停止点）
+## 6. OPS 授权边界（已于 2026-09-11 授权）
 
-未经单独授权，本提交不连接 OPS/NAS/生产。下一次授权只包括：在 OPS 建 RT-055 0700 临时目录并只读三库冻结快照；新建私有 holdout；创建 loopback-only A 临时索引；checkout/核验固定 B commit 并启动 loopback 原生依赖；冻结和核验真实 artifact；采集聚合质量/资源/机械复杂度/Gateway 能力；finally 删除 RT-055 临时索引、服务、容器和导入副本，保留私有 holdout/freeze 审计材料；复核 NAS、Gateway、现有索引和生产配置不变；仅带回 v2 聚合 JSON。
+Evan 15:35 已授予本节边界，22:53 要求按 §2.1 修订后持续执行；不再等待逐步批准。现有授权只包括：在 OPS 建 RT-055 0700 临时目录并只读三库冻结快照；新建私有 holdout；创建 loopback-only A 临时索引；checkout/核验固定 B commit 并启动 loopback 原生依赖；冻结和核验真实 artifact；采集聚合质量/资源/机械复杂度/Gateway 能力；finally 删除 RT-055 临时索引、服务、容器和导入副本，保留私有 holdout/freeze 审计材料；复核 NAS、Gateway、现有索引和生产配置不变；仅带回 v2 聚合 JSON。
 
 生产切流、持久服务、端口开放、NAS 写入、现有 alias/index/config 修改或删除均不在授权内。
 
