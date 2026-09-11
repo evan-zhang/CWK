@@ -21,6 +21,7 @@ class WindowTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.root=Path(self.tmp.name).resolve()/('rt055-'+str(uuid.uuid4()));self.root.mkdir(mode=0o700)
         self.wid=str(uuid.uuid4());self.mid=str(uuid.uuid4())
+        (self.root/'.rt055-owned').write_text(self.root.name.removeprefix('rt055-'))
         for name in ('status','audit','impl','builder','verifier','downloads','bin','sidecar','jieba','jdk'):
             (self.root/name).mkdir()
         self.old={name:b'{"historical":"unchanged"}' for name in ('status/baseline-before.claim','audit/production-before.json','audit/confidentiality-recovery.json')}
@@ -74,8 +75,20 @@ class WindowTests(unittest.TestCase):
         runtime.bind_privacy_migration(self.root,self.mid,1)
         return attempt
 
-    def freeze_fixture(self):
-        self.collect();self.migration()
+    def prepare_policy(self,wid=None):
+        from types import SimpleNamespace
+        import rt055_runtime_readiness as readiness
+        original_run=runtime.subprocess.run
+        def probe(args,**kwargs):
+            if args[0]!='/usr/bin/sandbox-exec':return original_run(args,**kwargs)
+            kind='inbound-only' if str(args[2]).endswith('search-network.sb') else 'loopback'
+            return SimpleNamespace(returncode=0,stdout=json.dumps(readiness.NETWORK['policy_observations'][kind]))
+        with patch.object(runtime.subprocess,'run',side_effect=probe):
+            readiness.prepare(self.root,wid or self.wid,self.mid)
+
+    def freeze_fixture(self,policy=True):
+        self.migration()
+        if policy:self.prepare_policy();self.collect()
         checks={'verified':True,'participating_libraries':list(runtime.ops.LIBRARIES),'deferred_libraries':[]}
         for name,value in {'builder/private-corpus.json':{},'verifier/private-verified.json':{},'verifier/case-verification.json':checks}.items():runtime.ops.write_private_json(self.root/name,value)
         for name in ('downloads/opensearch.tar.gz','bin/weknora-server','jdk/public','sidecar/requirements-freeze.txt'):(self.root/name).write_text('public')
@@ -259,10 +272,13 @@ class WindowTests(unittest.TestCase):
                     calls.append(kb)
                 return []
             def close(self):pass
-        def server(kb,port,side,data,log,rng):
+        def server(kb,port,side,data,log,rng,*,window_id=None):
+            outer.assertEqual(window_id,outer.wid)
             log.write_text('public service started')
             return {'kb_id':kb,'proc':Mock(pid=123),'data_dir':data,'base_url':'http://127.0.0.1:41101'}
-        def sidecar(port,hf,log):log.write_text('public sidecar started');return Mock(pid=124)
+        def sidecar(port,hf,log,*,window_id=None):
+            outer.assertEqual(window_id,outer.wid)
+            log.write_text('public sidecar started');return Mock(pid=124)
         class Response:
             def __init__(self,url):self.url=url
             def __enter__(self):return self

@@ -177,7 +177,7 @@ def run(root,protected_root=None):
         nonlocal denial_probes
         if event!='open' or not isinstance(args[0],(str,bytes,os.PathLike)):return
         p=Path(os.path.realpath(os.fsdecode(args[0])))
-        if any(p.is_relative_to(parent/scope) for parent in protected for scope in ('builder','verifier','consumption','exposure','void-prequery','zero-exposure-migrations','formal-windows')):
+        if any(p.is_relative_to(parent/scope) for parent in protected for scope in runtime.PROTECTED_SCOPES):
             if probing:denial_probes+=1
             else:o['forbidden_reads']+=1
             raise PermissionError('synthetic_private_read_denied')

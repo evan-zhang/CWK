@@ -260,3 +260,9 @@ freeze/正式 A/B/消费仍 0，三库两候选所有正式指标 null；builder
 唯一裁决 **INVALID**，OPS 与本地 decision CLI 一致；没有 schema-valid v3 正式成绩，用闭合公开 abort Schema 明确表达缺测。三库仍 42@T3、31@T3、42@T2，`deferred=[]`；逐库 A/B 全部正式指标为 null，候选四项 Gateway 能力未测。机械复杂度 A=1/6/4、B=2/7/3 来自冻结 runbook，不是性能分数。
 
 本次交付是失败后的完整收口，不是评测成功。RT 保持 in_progress、禁止切流，本窗口 after 已关闭重放。159 项 RT-055 回归零失败/零跳过、36 文件编译、Schema/decision、隐私/secret、链接、历史保留和 AODW/governance 验证见 [QA](evidence/replacement-formal-qa.json)；完整事实与限制见 [验收](evidence/acceptance.md#replacement-正式执行收口启动前策略硬门-invalid2026-09-12)、[公开 abort](evidence/replacement-formal-abort.json)、[Schema](evidence/replacement-formal-abort.schema.json)、[唯一裁决](evidence/replacement-formal-decision.json)。只本地提交，不 push/合并/删除 worktree；后续修主运行策略一致性需要新的明确授权。
+
+## 2026-09-12 Amendment 5：formal runtime policy readiness 修复
+
+06:23 用户授权只恢复 READY_TO_RUN，禁止正式 A/B。旧 replacement window after 已闭合，永久 INVALID，B attempt1、零 Popen/arm/exposure/query/score/result。主策略缺四类账本保护，旧 freeze 只绑定 synthetic 隐私来源而未绑定主策略物化；本节不从 mtime 推断生成时间。
+
+按 [Amendment 5](experiment-protocol.md#amendment-5--formal-runtime-policy-readiness2026-09-12-0623-授权) 增加独占版本化主 readiness，冻结其文件/来源/保护范围并在 spawn 重算。新 before 严格晚于 readiness，source migration 重跑公开真实隐私门，新窗口随机顺序；候选算法、题池、质量门、生产均不改。旧策略/回执只追加归档，历史原件不动。红绿、行为破坏与验收见 [本地验收](evidence/acceptance.md#amendment-5-本地修复主-run-runtime-policy-readiness)。第一提交不表示 OPS 已就绪；实际 READY 回执另行追加。

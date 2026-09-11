@@ -217,7 +217,7 @@ def main(argv=None):
     (w/'status').mkdir(parents=True,mode=0o700,exist_ok=True)
     os.umask(0o077)
     STATUS = w / 'status' / ('baseline-' + mode + '.json')
-    state = {'status': 'RUNNING', 'phase': 'LOCAL', 'process_id': os.getpid(), 'libraries_measured': 0, **binding}
+    state = {'status': 'RUNNING', 'phase': 'LOCAL', 'process_id': os.getpid(), 'libraries_measured': 0, 'started_at':time.time(), **binding}
     claim=w/'status'/('baseline-'+mode+'.claim')
     window.write_once(claim,binding)
     save()

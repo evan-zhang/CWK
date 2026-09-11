@@ -495,3 +495,17 @@ setup、builder、verifier、before、隐私预检与 cleanup/after 均以原进
 最终公开 QA 见 [QA](replacement-formal-qa.json)，唯一裁决见 [decision](replacement-formal-decision.json)。新增私有字段/伪造成绩反例、递归隐私与 secret、历史原件及文档前缀、链接、AODW/governance、Git diff/check 均纳入本轮 QA；保留一项既有宿主 skill 未安装告警，不改宿主配置，不冒称全仓 CI。仅本地提交公开证据和本 RT 文档，不提交 runs、凭据或交接目录，不 push/合并/清理 worktree。
 
 后续若要恢复比较，需要另行授权解决主运行策略部署与验收的一致性；不得把本节当作修改策略或新建 freeze/window 的授权。
+
+## Amendment 5 本地修复：主 run runtime policy readiness
+
+本次为 06:23 明确授权的独立执行器修复，不是重开旧窗口。两份旧主策略各缺四类账本目录的八条保护规则，网络规则未变；源码冻结和 synthetic 隐私 PASS 曾未绑定主策略准备，Popen 前才被拒。生成时间不能只凭 mtime 定论。旧 abort、历史 claim/void 与 96 材料保留。
+
+新增独占、版本化、公开 socket-only 的主 readiness 回执；before 记录真实开始时间，freeze 前验证先后与源/策略/网络/保护范围，freeze 纳入回执与相关文件；A/B 显式 window 传到 spawn 并重算。正式主根不回退旧策略。候选算法、score/质量门、题池/tier/seed 均不变。
+
+- 判据：完整 RT055、pre-freeze 红绿、独立临时源码行为破坏，见 [本地测试证据](runtime-policy-local-tests.json) 与 [Schema](runtime-policy-local-tests.schema.json)。红为旧实现允许缺主 readiness 的 freeze；测试不执行 OPS 正式候选。
+- AI 审查：主工程师复核 policy/version/freeze/spawn 接线、先后顺序与历史不变性；本会话无可用独立 worker，不冒称独立 Agent 审批。
+- 读产出：检查真实 diff、公开 JSON/Schema 和拒绝分支；OPS 隐私、main socket、freeze、清理与不变性须另附真实证据，本地绿不代表已经 READY_TO_RUN。
+
+第一提交限必要 scripts/tests/protocol/acceptance/rt-lite/公开 synthetic 证据/governance；不含 runs/docs/handover/私有材料，不 push。
+
+本地实测：174 tests / 0 fail / 0 error / 0 skip，12 个行为破坏全部检出，恢复绿。另以真实 sandbox-exec 在公开临时 root 运行 socket 与文件权限探针：两种策略网络判据 PASS，每种策略对八类目录的 8 次读、8 次写均拒绝，unexpected=0；未创建候选进程。编译 128 文件，35 个旧公开证据文件与三份文档旧前缀不变，111 个相对链接/17 个锚点通过，公开私有字段/digest 扫描 0。未冒称全仓 CI 或 OPS 正式质量验收。

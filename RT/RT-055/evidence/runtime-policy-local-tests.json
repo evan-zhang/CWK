@@ -1,0 +1,159 @@
+{
+  "schema": "cwk.rt055.runtime-policy-tests.v1",
+  "data_class": "PUBLIC_SYNTHETIC_ONLY_NOT_OPS",
+  "baseline_commit": "518147a88f25d8f46f3f8d5a0f1ed6afd3b4b45e",
+  "red": {
+    "tests": 1,
+    "failures": 1,
+    "errors": 0,
+    "skipped": 0,
+    "exit_code": 1
+  },
+  "green": {
+    "tests": 174,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exit_code": 0
+  },
+  "mutations": [
+    {
+      "mutation": "FREEZE_READINESS_DISCONNECTED",
+      "tests": 15,
+      "failures": 7,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "SPAWN_BINDING_DISCONNECTED",
+      "tests": 15,
+      "failures": 0,
+      "errors": 1,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "CANONICAL_POLICY_CHECK_DISCONNECTED",
+      "tests": 15,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "NETWORK_GATE_CHECK_DISCONNECTED",
+      "tests": 15,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "READINESS_IDENTITY_DISCONNECTED",
+      "tests": 15,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "SOURCE_BINDING_DISCONNECTED",
+      "tests": 15,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "BEFORE_ORDER_CHECK_DISCONNECTED",
+      "tests": 15,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "PREPARATION_AFTER_BEFORE_ALLOWED",
+      "tests": 15,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "EXPOSURE_MIGRATION_ALLOWED",
+      "tests": 15,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "SYNTHETIC_ROOT_ALLOWED",
+      "tests": 15,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "RECEIPT_OMITTED_FROM_FREEZE",
+      "tests": 15,
+      "failures": 1,
+      "errors": 1,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "EXPOSURE_SCOPE_PROTECTION_REMOVED",
+      "tests": 15,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    }
+  ],
+  "ops_formal_queries": 0,
+  "ops_candidate_processes": 0,
+  "ops_builder_runs": 0,
+  "ops_verifier_runs": 0,
+  "restored_green": {
+    "tests": 174,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exit_code": 0
+  },
+  "real_public_policy_probe": {
+    "network_passed": true,
+    "policies": [
+      {
+        "policy": "loopback",
+        "read_denied": 8,
+        "write_denied": 8,
+        "unexpected": 0
+      },
+      {
+        "policy": "inbound-only",
+        "read_denied": 8,
+        "write_denied": 8,
+        "unexpected": 0
+      }
+    ],
+    "candidate_processes": 0,
+    "formal_queries": 0
+  }
+}

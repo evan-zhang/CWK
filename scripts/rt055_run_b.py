@@ -164,7 +164,7 @@ def api_call(base_url: str, method: str, path: str, payload: Any, token: str | N
         return json.loads(resp.read() or b"{}")
 
 
-def launch_sidecar(port: int, hf_home: Path, log_path: Path, *, privacy_probe=False) -> subprocess.Popen:
+def launch_sidecar(port: int, hf_home: Path, log_path: Path, *, privacy_probe=False, window_id=None) -> subprocess.Popen:
     env = runtime.clean_env(ROOT)
     env["HF_HUB_OFFLINE"] = "1"
     env["TRANSFORMERS_OFFLINE"] = "1"
@@ -175,7 +175,7 @@ def launch_sidecar(port: int, hf_home: Path, log_path: Path, *, privacy_probe=Fa
              str(HERE / "rt055_embed_sidecar.py"),
              "--port", str(port), "--model", EMBED_REPO,
              "--hf-home", str(hf_home), *(["--privacy-probe"] if privacy_probe else [])],
-            stdout=log, stderr=subprocess.STDOUT, env=env)
+            stdout=log, stderr=subprocess.STDOUT, env=env, window_id=window_id)
 
     deadline = time.monotonic() + 1800
     while time.monotonic() < deadline:
@@ -192,7 +192,7 @@ def launch_sidecar(port: int, hf_home: Path, log_path: Path, *, privacy_probe=Fa
     raise RuntimeError("sidecar_not_ready")
 
 
-def launch_server(port: int, data_dir: Path, log_path: Path) -> subprocess.Popen:
+def launch_server(port: int, data_dir: Path, log_path: Path, *, window_id=None) -> subprocess.Popen:
     if not all((ROOT / "jieba" / name).is_file() for name in runtime.JIEBA_FILES):
         raise RuntimeError("native_dictionary_assets_missing")
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -213,7 +213,7 @@ def launch_server(port: int, data_dir: Path, log_path: Path) -> subprocess.Popen
     with log_path.open("wb") as log:
         proc = runtime.spawn(ROOT,[str(ROOT / "bin" / "weknora-server")],
                                 stdout=log, stderr=subprocess.STDOUT,
-                                env=env, cwd=str(ROOT / "weknora"))
+                                env=env, cwd=str(ROOT / "weknora"), window_id=window_id)
 
     try:
         ops.wait_for_http(f"http://127.0.0.1:{port}{BASE}/knowledge-bases", timeout=180,
@@ -225,8 +225,8 @@ def launch_server(port: int, data_dir: Path, log_path: Path) -> subprocess.Popen
 
 
 def setup_instance(kb: str, port: int, sidecar_port: int, data_dir: Path,
-                   log_path: Path, rng: random.Random) -> dict[str, Any]:
-    proc = launch_server(port, data_dir, log_path)
+                   log_path: Path, rng: random.Random, *, window_id=None) -> dict[str, Any]:
+    proc = launch_server(port, data_dir, log_path, window_id=window_id)
     try:
         base = f"http://127.0.0.1:{port}"
         password = "Rt055-" + secrets.token_hex(12)
@@ -380,10 +380,10 @@ def main() -> int:
             sidecar_log = log_root / f"sidecar-{kb}.log"
             server_log = log_root / f"weknora-{kb}.log"
             sidecar_log.parent.mkdir(parents=True, exist_ok=True)
-            sidecar = launch_sidecar(sidecar_port, ROOT / "sidecar" / "hf", sidecar_log)
+            sidecar = launch_sidecar(sidecar_port, ROOT / "sidecar" / "hf", sidecar_log, window_id=args.window_id if args.mode=="run" else None)
             processes.append(sidecar)
             server = setup_instance(kb, server_port, sidecar_port,
-                                    data_root / f"b-{kb}", server_log, rng)
+                                    data_root / f"b-{kb}", server_log, rng, window_id=args.window_id if args.mode=="run" else None)
             processes.append(server["proc"])
             transport.add_server(kb, server)
             per_lib_pids[kb] = [sidecar.pid, server["proc"].pid]

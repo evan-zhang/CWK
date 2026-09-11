@@ -118,7 +118,7 @@ class LedgerTests(fixtures.WindowTests):
         self.assertEqual(window.library_result(self.root,self.wid,'a',kb)['metrics']['total_count'],3)
 
     def second_valid_window(self):
-        other=str(uuid.uuid4());self.collect(wid=other)
+        other=str(uuid.uuid4());self.prepare_policy(other);self.collect(wid=other)
         with patch.object(freeze.secrets,'randbits',return_value=1):freeze.create(self.root,other,self.mid)
         freeze.verify_once(self.root,other)
         return other,runtime.claim_candidate(self.root,'a',other)
@@ -173,7 +173,7 @@ class VoidTests(LedgerTests):
         import rt055_zero_exposure as zero
         import hashlib
         import time
-        w=self.freeze_fixture()
+        w=self.freeze_fixture(policy=False)
         # Public synthetic control-flow model; actual OPS requires the three
         # fixed full-source digests, tested independently against the baseline.
         old='''from dataclasses import dataclass
@@ -200,6 +200,7 @@ def score_cases(candidate,cases,timeout=30):
         dep=runtime.ops.read_json(pm/'deployment.json');dep['source_files']['kb_retrieval_candidates.py']=runtime.ops.sha_file(self.root/'impl/kb_retrieval_candidates.py')
         (pm/'deployment.json').write_text(json.dumps(dep))
         (pm/'privacy-receipt.json').write_text(json.dumps(runtime.migration_evidence(self.root,self.mid,1)))
+        self.prepare_policy();self.collect()
         hashes={n:runtime.ops.sha_file(self.root/'impl'/n) for n in zero.LEGACY_PUBLIC_SOURCES}
         self.addCleanup(patch.stopall)
         patch.object(zero,'LEGACY_PUBLIC_SOURCES',hashes).start()
@@ -243,7 +244,7 @@ def score_cases(candidate,cases,timeout=30):
         zero.append_void(self.root,m);zero.validate_void(self.root,'a',kb)
         self.assertTrue(window.holdout_unexposed(self.root))
         self.assertTrue(all((self.root/p).read_bytes()==b for p,b in self.original.items()))
-        self.wid=str(uuid.uuid4());self.collect()
+        self.wid=str(uuid.uuid4());self.prepare_policy();self.collect()
         freeze.create(self.root,self.wid,self.mid);freeze.verify_once(self.root,self.wid)
         attempt=str(uuid.uuid4());window.write_once(window.directory(self.root,self.wid)/'run-a/attempts'/attempt/'claim.json',{**window.envelope(self.root,self.wid,'execution-attempt'),'candidate':'a'})
         window.library_arm(self.root,self.wid,'a',kb,attempt)

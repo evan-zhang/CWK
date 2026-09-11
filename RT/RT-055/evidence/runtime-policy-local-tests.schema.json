@@ -1,0 +1,643 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "data_class",
+    "baseline_commit",
+    "red",
+    "green",
+    "mutations",
+    "ops_formal_queries",
+    "ops_candidate_processes",
+    "ops_builder_runs",
+    "ops_verifier_runs",
+    "restored_green",
+    "real_public_policy_probe"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.runtime-policy-tests.v1"
+    },
+    "data_class": {
+      "const": "PUBLIC_SYNTHETIC_ONLY_NOT_OPS"
+    },
+    "baseline_commit": {
+      "const": "518147a88f25d8f46f3f8d5a0f1ed6afd3b4b45e"
+    },
+    "red": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tests",
+        "failures",
+        "errors",
+        "skipped",
+        "exit_code"
+      ],
+      "properties": {
+        "tests": {
+          "const": 1
+        },
+        "failures": {
+          "const": 1
+        },
+        "errors": {
+          "const": 0
+        },
+        "skipped": {
+          "const": 0
+        },
+        "exit_code": {
+          "const": 1
+        }
+      }
+    },
+    "green": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tests",
+        "failures",
+        "errors",
+        "skipped",
+        "exit_code"
+      ],
+      "properties": {
+        "tests": {
+          "const": 174
+        },
+        "failures": {
+          "const": 0
+        },
+        "errors": {
+          "const": 0
+        },
+        "skipped": {
+          "const": 0
+        },
+        "exit_code": {
+          "const": 0
+        }
+      }
+    },
+    "mutations": {
+      "type": "array",
+      "minItems": 12,
+      "maxItems": 12,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "FREEZE_READINESS_DISCONNECTED"
+            },
+            "tests": {
+              "const": 15
+            },
+            "failures": {
+              "const": 7
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "SPAWN_BINDING_DISCONNECTED"
+            },
+            "tests": {
+              "const": 15
+            },
+            "failures": {
+              "const": 0
+            },
+            "errors": {
+              "const": 1
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "CANONICAL_POLICY_CHECK_DISCONNECTED"
+            },
+            "tests": {
+              "const": 15
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "NETWORK_GATE_CHECK_DISCONNECTED"
+            },
+            "tests": {
+              "const": 15
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "READINESS_IDENTITY_DISCONNECTED"
+            },
+            "tests": {
+              "const": 15
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "SOURCE_BINDING_DISCONNECTED"
+            },
+            "tests": {
+              "const": 15
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "BEFORE_ORDER_CHECK_DISCONNECTED"
+            },
+            "tests": {
+              "const": 15
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "PREPARATION_AFTER_BEFORE_ALLOWED"
+            },
+            "tests": {
+              "const": 15
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "EXPOSURE_MIGRATION_ALLOWED"
+            },
+            "tests": {
+              "const": 15
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "SYNTHETIC_ROOT_ALLOWED"
+            },
+            "tests": {
+              "const": 15
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "RECEIPT_OMITTED_FROM_FREEZE"
+            },
+            "tests": {
+              "const": 15
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 1
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "EXPOSURE_SCOPE_PROTECTION_REMOVED"
+            },
+            "tests": {
+              "const": 15
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "ops_formal_queries": {
+      "const": 0
+    },
+    "ops_candidate_processes": {
+      "const": 0
+    },
+    "ops_builder_runs": {
+      "const": 0
+    },
+    "ops_verifier_runs": {
+      "const": 0
+    },
+    "restored_green": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tests",
+        "failures",
+        "errors",
+        "skipped",
+        "exit_code"
+      ],
+      "properties": {
+        "tests": {
+          "const": 174
+        },
+        "failures": {
+          "const": 0
+        },
+        "errors": {
+          "const": 0
+        },
+        "skipped": {
+          "const": 0
+        },
+        "exit_code": {
+          "const": 0
+        }
+      }
+    },
+    "real_public_policy_probe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "network_passed",
+        "policies",
+        "candidate_processes",
+        "formal_queries"
+      ],
+      "properties": {
+        "network_passed": {
+          "const": true
+        },
+        "policies": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "prefixItems": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "policy",
+                "read_denied",
+                "write_denied",
+                "unexpected"
+              ],
+              "properties": {
+                "policy": {
+                  "const": "loopback"
+                },
+                "read_denied": {
+                  "const": 8
+                },
+                "write_denied": {
+                  "const": 8
+                },
+                "unexpected": {
+                  "const": 0
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "policy",
+                "read_denied",
+                "write_denied",
+                "unexpected"
+              ],
+              "properties": {
+                "policy": {
+                  "const": "inbound-only"
+                },
+                "read_denied": {
+                  "const": 8
+                },
+                "write_denied": {
+                  "const": 8
+                },
+                "unexpected": {
+                  "const": 0
+                }
+              }
+            }
+          ],
+          "items": false
+        },
+        "candidate_processes": {
+          "const": 0
+        },
+        "formal_queries": {
+          "const": 0
+        }
+      }
+    }
+  }
+}

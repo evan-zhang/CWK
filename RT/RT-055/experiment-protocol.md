@@ -212,3 +212,25 @@ Evan 本次明确授权执行第四轮 OPS 全闭环，覆盖上文只做本地�
 先独立本地提交修复、红绿/行为破坏证据与治理归属。OPS 验证严格零暴露后归档/追加 void，再同步此 commit，保留所有历史材料、builder/verifier=1/1 和同一 holdout。新 executioner migration id 必须以当前源真实重跑正常及鉴权错误 query/title 日志、Langfuse/OTEL、loopback model、egress/socket 隐私门；不复用旧 PASS，也不 patch WeKnora core。精确清理新合成资源后，创建全新 formal window、新 before、随机 A/B 顺序及 replacement freeze/verification；绑定当前 migration 与同一未变 holdout。向旧窗口只追加 `superseded-by-zero-exposure-migration` 回执，不覆盖原 INVALID。
 
 最终要求全局 exposure=0、新 arm=0、正式 query=0、replacement freeze 合法、三 Gateway HTTP 200、无活跃 synthetic/native 进程。公开恢复回执只能含计数/布尔/枚举、公开 commit 与随机引用，不含私有 digest。停止 **READY_TO_RUN**，不执行 coordinator 的运行路径、不启动 A/B、不 push、不切流；NAS/index 完整性 UNKNOWN 与生产服务漂移仍如实保留，不被恢复成功抵销。
+
+## Amendment 5 — formal runtime policy readiness（2026-09-12 06:23 授权）
+
+本节只授权修复 pre-spawn 部署缺口、在同一未消费题池上建立全新窗口，停止 **READY_TO_RUN**。旧 replacement window `0155202c-b6a0-40c6-a779-48aff0ab57fe` 的 after 已关闭，永久 INVALID；B attempt=1 保留，不重新执行、不删除 claim，不改旧 freeze/void/abort。任何实际 query/exposure>0 或缺少严格 Popen 前零暴露证据，均禁止迁移。既有 Amendment 4 的旧 claim/void 规则不变。
+
+### 根因与证据边界
+
+只读核实两份主 run 策略与冻结 `a4b3c64` 的期望文本：网络规则相同，但每份均缺 exposure、void-prequery、zero-exposure-migrations、formal-windows 四类目录的读写保护（各 8 行）；旧网络 gate 的 passed 不验证当前策略文本。旧 freeze 未纳入主策略/网络回执，后续 migration 仅重验独立 synthetic root，直到 spawn 才发现主 root 不匹配。这是策略物化与冻结接线缺口，不是候选算法或评分故障。现存文本等价于早期三目录保护版本；仅凭文件 mtime **不能证明**其生成早于 migration，更不能推断谁修改了它。原 abort 原字节保留，本节补全而不追改此前“仅三类”的记录。
+
+### 独占主 run 策略准备
+
+1. 新增 [独立 readiness runner](../../scripts/rt055_runtime_readiness.py)，必须由新 executioner migration 的同一部署源码在 **formal before 启动之前**执行。主 root 的随机 run 身份、归属标记、当前部署源码/commit、migration 与新 window 必须一致。synthetic root 或带 protected-parent 绑定的根不能冒充主 root。
+2. 原策略、原网络回执、旧源码和历史材料先在 OPS 受保护的新私有归档中逐字节保存，原件不动。新策略只写独占的 window 版本目录，目录与 claim 均 exclusive；失败 claim 留存，重复调用拒绝。没有“覆盖旧策略再重验”的隐式修复路径。
+3. 调用同一 `runtime.network_probe(main root)` 的显式版本输出模式：公开 socket probe 必须实测普通策略允许 loopback、拒绝外连；搜索 inbound-only 策略拒绝全部 outbound。策略保持 loopback/inbound-only、外部 egress deny、根外拒写，builder/verifier 与 consumption/exposure/void/zero-exposure archive/formal-window/readiness 私有范围拒读拒写。新版本目录纳入保护；不改候选算法、WeKnora core、tier/seed/floors/质量门/score/效用，不改生产/NAS/index/alias/config。
+4. append-only `runtime-policy-readiness` receipt 绑定主 root、run/window/migration/source commit、完整 migration source set、deployment、两份策略、真实 network gate、claim、受保护根/目录集合和开始/完成时间。验证器从部署源重算 canonical 策略，不接受只重填 passed 或重算错误策略的 hash。
+5. [freeze](../../scripts/rt055_freeze.py) 在 freeze claim 前验证主 readiness，要求 ready 时间严格早于 before 的实测开始时间，纳入全部 policy/network/claim/deployment/receipt 文件；freeze verify 再重算。A/B 启动函数显式传 window 给 [spawn precheck](../../scripts/rt055_runtime.py)，在 Popen 前再次验证窗口开放、freeze verification、来源/策略/网络/receipt 文件及冻结摘要；正式主 root 不允许回退 generic 策略。测试可调用独立 precheck，但不得 Popen/查询。
+
+### 验收与停止点
+
+先红后绿；旧/stale 策略无 main readiness、synthetic 冒充、缺账本保护、外连放宽、错 source/migration/window、receipt/策略漂移、重复 claim、after-before 乱序、有 exposure 迁移、闭窗重开均拒绝。行为破坏在公开临时源码副本进行，恢复后跑完整 RT055 回归、compile、Schema/隐私/links/AODW/governance/diff。旧公开证据字节及文档旧前缀保持。
+
+本地源码修复独立提交、不 push；OPS 在新 migration 下真实重跑公开合成隐私门并清理。之后主 readiness → 全新 before → 随机新顺序 freeze → 独立 verify → 只读 spawn precheck；不得因旧顺序或候选成绩选顺序。最终 builder/verifier=1/1、96 材料不变、旧 window/attempt/void/freeze 不变、global exposure/new arm/new attempt/formal query/result=0、Gateway 3×200、无候选/合成进程或临时数据面。公开 READY evidence/Schema/QA 单独提交，保留旧 INVALID，RT 不关闭、不切流；完整 NAS/index 不变性仍 UNKNOWN，历史服务漂移不被本次准备成功消除。

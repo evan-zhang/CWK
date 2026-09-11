@@ -110,7 +110,7 @@ def ensure_icu_plugin() -> None:
                            + (result.stderr or result.stdout or b"").decode(errors="replace")[-200:])
 
 
-def launch_opensearch(kb: str, port: int, log_path: Path, mode="run") -> tuple[subprocess.Popen, dict[str, str]]:
+def launch_opensearch(kb: str, port: int, log_path: Path, mode="run", window_id=None) -> tuple[subprocess.Popen, dict[str, str]]:
     data_dir = ROOT / ("data-" + mode) / f"a-{kb}"
     logs_dir = log_path.parent / f"a-{kb}"
     data_dir.mkdir(parents=True, exist_ok=False)
@@ -136,7 +136,7 @@ def launch_opensearch(kb: str, port: int, log_path: Path, mode="run") -> tuple[s
              "-E", f"path.logs={logs_dir}",
              "-E", "cluster.routing.allocation.disk.threshold_enabled=false"],
             stdout=log, stderr=subprocess.STDOUT,
-            env=env, cwd=str(ROOT / "opensearch"), network_policy="inbound-only")
+            env=env, cwd=str(ROOT / "opensearch"), network_policy="inbound-only", window_id=window_id)
 
     base = f"http://127.0.0.1:{port}"
     try:
@@ -256,7 +256,7 @@ def main() -> int:
             port = free_port(rng)
             log_path = log_root / f"opensearch-{kb}.log"
             log_path.parent.mkdir(parents=True, exist_ok=True)
-            proc, info = launch_opensearch(kb, port, log_path, args.mode)
+            proc, info = launch_opensearch(kb, port, log_path, args.mode, window_id=args.window_id if args.mode=="run" else None)
             services.append(proc)
             pids.append(proc.pid)
             samplers[kb] = ops.RssSampler([proc.pid]); samplers[kb].start()

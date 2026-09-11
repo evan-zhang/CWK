@@ -355,6 +355,8 @@
         "scripts/rt055_run_b.py",
         "scripts/rt055_runbooks.json",
         "scripts/rt055_runtime.py",
+        "scripts/rt055_runtime_readiness.py",
+        "scripts/rt055_runtime_readiness_qa.py",
         "scripts/rt055_setup.py",
         "scripts/rt055_tiers.py",
         "scripts/rt055_window.py",

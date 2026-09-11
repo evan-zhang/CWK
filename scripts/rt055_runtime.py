@@ -67,6 +67,11 @@ def clean_env(root):
     return env
 
 
+PROTECTED_SCOPES = ('builder','verifier','consumption','exposure','void-prequery',
+                    'zero-exposure-migrations','formal-windows',
+                    'runtime-policy-versions')
+
+
 def sandbox_text(root, network_policy):
     if network_policy not in ('loopback','inbound-only'):
         raise RuntimeError('unsupported_network_policy')
@@ -79,19 +84,30 @@ def sandbox_text(root, network_policy):
     binding = root/'audit/protected-root.json'
     if binding.exists():protected.append(Path(ops.read_json(binding)['root']))
     for parent in protected:
-        for scope in ('builder','verifier','consumption','exposure','void-prequery','zero-exposure-migrations','formal-windows'):
+        for scope in PROTECTED_SCOPES:
             text += '(deny file-read* (subpath %s))\n' % json.dumps(str((parent/scope).resolve()))
             text += '(deny file-write* (subpath %s))\n' % json.dumps(str((parent/scope).resolve()))
     return text
 
 
-def spawn(root, argv, network_policy='loopback', **kwargs):
+def spawn_precheck(root, network_policy='loopback', window_id=None):
+    if window_id is not None:
+        from rt055_runtime_readiness import spawn_profile
+        return spawn_profile(root,window_id,network_policy)
+    # A main formal root cannot fall back to an old generic/synthetic policy.
+    if (root/'verifier/case-verification.json').exists():
+        raise RuntimeError('formal_spawn_requires_window_policy')
     receipt = root/'audit/execution-network-gate.json'
     if not receipt.is_file():raise RuntimeError('network_gate_missing')
     if not ops.read_json(receipt)['passed']:raise RuntimeError('network_gate_failed')
     profile = root/'runtime-policy'/('network.sb' if network_policy=='loopback' else 'search-network.sb')
     if profile.is_symlink() or not profile.is_file() or profile.read_text()!=sandbox_text(root,network_policy):
         raise RuntimeError('network_profile_drift')
+    return profile
+
+
+def spawn(root, argv, network_policy='loopback', window_id=None, **kwargs):
+    profile=spawn_precheck(root,network_policy,window_id)
     validate_environment(kwargs.get('env', {}))
     if any(str(a).endswith('/opensearch') for a in argv):
         if (network_policy != 'inbound-only' or 'network.host=127.0.0.1' not in argv
@@ -147,7 +163,7 @@ MIGRATION_SOURCE_FILES = PRIVACY_SOURCE_FILES + (
     'rt055_window.py','rt055_baseline.py','rt055_formal_coordinator.py',
     'rt055_aggregate.py','rt055_cleanup.py','rt055_tiers.py',
     'kb_retrieval_decision.py','rt055_runbooks.json','aggregate-report.schema.json',
-    'rt055_zero_exposure.py')
+    'rt055_zero_exposure.py','rt055_runtime_readiness.py')
 
 
 def migration_directory(root,migration_id):
@@ -233,9 +249,13 @@ def verify_ready(root,key,window_id):
     if not verify_artifacts(root,window_id):raise RuntimeError('frozen_artifact_drift')
     if not privacy_passed(root,window.receipt(root,window_id)['privacy_migration_id']):raise RuntimeError('confidentiality_gate_failed')
 
-def network_probe(root):
+def network_probe(root, *, policy_directory=None, gate_path=None):
     """Fresh loopback listener + real denied TCP syscalls, no production health."""
-    (root/'runtime-policy').mkdir(mode=0o700,exist_ok=True)
+    if policy_directory is None and (root/'verifier/case-verification.json').exists():
+        raise RuntimeError('formal_probe_requires_versioned_readiness')
+    policy_directory=policy_directory or root/'runtime-policy'
+    gate_path=gate_path or root/'audit/execution-network-gate.json'
+    policy_directory.mkdir(mode=0o700,exist_ok=True)
     listener = http.server.ThreadingHTTPServer(('127.0.0.1',0), http.server.BaseHTTPRequestHandler)
     port = listener.server_port
     program = '''import socket,json,sys
@@ -250,8 +270,10 @@ print(json.dumps(out))
     observations={}
     try:
         for kind, filename in (('loopback','network.sb'),('inbound-only','search-network.sb')):
-            profile=root/'runtime-policy'/filename
-            profile.write_text(sandbox_text(root,kind));profile.chmod(0o600)
+            profile=policy_directory/filename
+            with profile.open('x') as f:
+                f.write(sandbox_text(root,kind));f.flush();os.fsync(f.fileno())
+            profile.chmod(0o600)
             proc=subprocess.run(['/usr/bin/sandbox-exec','-f',str(profile),sys.executable,
                                  '-c',program,str(port)],capture_output=True,timeout=30,
                                 env=clean_env(root))
@@ -262,7 +284,7 @@ print(json.dumps(out))
             and observations.get('inbound-only')=={'external':'DENIED','loopback':'DENIED'})
     result={'passed':passed,'external_denied':passed,'loopback_allowed':passed,
             'policy_observations':observations}
-    ops.write_private_json(root/'audit/execution-network-gate.json',result)
+    window.write_once(gate_path,result)
     if not passed:raise RuntimeError('network_sandbox_unproven')
     return result
 
