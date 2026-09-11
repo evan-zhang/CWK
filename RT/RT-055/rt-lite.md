@@ -266,3 +266,12 @@ freeze/正式 A/B/消费仍 0，三库两候选所有正式指标 null；builder
 06:23 用户授权只恢复 READY_TO_RUN，禁止正式 A/B。旧 replacement window after 已闭合，永久 INVALID，B attempt1、零 Popen/arm/exposure/query/score/result。主策略缺四类账本保护，旧 freeze 只绑定 synthetic 隐私来源而未绑定主策略物化；本节不从 mtime 推断生成时间。
 
 按 [Amendment 5](experiment-protocol.md#amendment-5--formal-runtime-policy-readiness2026-09-12-0623-授权) 增加独占版本化主 readiness，冻结其文件/来源/保护范围并在 spawn 重算。新 before 严格晚于 readiness，source migration 重跑公开真实隐私门，新窗口随机顺序；候选算法、题池、质量门、生产均不改。旧策略/回执只追加归档，历史原件不动。红绿、行为破坏与验收见 [本地验收](evidence/acceptance.md#amendment-5-本地修复主-run-runtime-policy-readiness)。第一提交不表示 OPS 已就绪；实际 READY 回执另行追加。
+
+
+## 2026-09-12 Amendment 5 OPS 终态：READY_TO_RUN
+
+[公开 READY 与独立核验](evidence/runtime-policy-ready.json) / [Schema](evidence/runtime-policy-ready.schema.json) / [QA](evidence/runtime-policy-ready-qa.json)。执行器源码 `58951f92656e7a29b334461c7aa6d1148fec4e8f`；新 migration `e5a11f4d-445c-4c05-90b1-2c7e1fbeb0b0`；新 window `835c5188-0f29-4f41-8fe6-119b61917e2d`，新 freeze 随机 **A→B**。
+
+主 run runtime readiness 与新源码实际 synthetic 隐私门均 PASS；主策略准备严格早于 before，freeze 纳入文件/receipt/source/network/八类目录保护，独立 spawn precheck 两种策略 PASS 而未 Popen。旧策略/回执原件、旧 INVALID window/attempt/claim/void/freeze 及96材料不变；归档1222工件，builder/verifier1/1，三库42@T3/31@T3/42@T2。
+
+全局 exposure/正式 query/result0，新 window attempt/arm0；旧 replacement B attempt1 但零进程与暴露。Gateway3×200，合成/候选/控制器进程0，临时数据面/新临时文件/新TLS/UUID资源0，合成依赖已清理。停止 READY_TO_RUN，不运行 A/B、不 push、不合并、不关闭 RT；完整 NAS/index 不变性仍 UNKNOWN，历史 abort 和服务漂移保留。具体根因、计数及仅观察未重启的 watcher 状态文件时序竞争见 [收口验收](evidence/acceptance.md#amendment-5-ops-收口ready_to_run2026-09-12)。

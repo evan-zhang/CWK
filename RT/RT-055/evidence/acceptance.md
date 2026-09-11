@@ -509,3 +509,21 @@ setup、builder、verifier、before、隐私预检与 cleanup/after 均以原进
 第一提交限必要 scripts/tests/protocol/acceptance/rt-lite/公开 synthetic 证据/governance；不含 runs/docs/handover/私有材料，不 push。
 
 本地实测：174 tests / 0 fail / 0 error / 0 skip，12 个行为破坏全部检出，恢复绿。另以真实 sandbox-exec 在公开临时 root 运行 socket 与文件权限探针：两种策略网络判据 PASS，每种策略对八类目录的 8 次读、8 次写均拒绝，unexpected=0；未创建候选进程。编译 128 文件，35 个旧公开证据文件与三份文档旧前缀不变，111 个相对链接/17 个锚点通过，公开私有字段/digest 扫描 0。未冒称全仓 CI 或 OPS 正式质量验收。
+
+
+## Amendment 5 OPS 收口：READY_TO_RUN（2026-09-12）
+
+公开权威证据：[READY](runtime-policy-ready.json)、[闭合 Schema](runtime-policy-ready.schema.json)、[最终 QA](runtime-policy-ready-qa.json)。只准备，不运行正式 A/B；RT 仍 in_progress，生产切流禁止。前一 replacement abort 全部保留，旧 window 已 after 关闭，不能重新启用。
+
+- 修复源码：`58951f92656e7a29b334461c7aa6d1148fec4e8f`；实际部署、隐私重验和新 freeze 绑定此同一源码。候选算法、题池/tier/seed/质量门/score、WeKnora core 均未改。
+- 新 executioner migration：`e5a11f4d-445c-4c05-90b1-2c7e1fbeb0b0`；私有策略归档：`4845680c-366e-4f75-88b0-5355b4153bcc`；全新 formal window：`835c5188-0f29-4f41-8fe6-119b61917e2d`。新 freeze 随机顺序 **A→B**，未沿用旧 B→A 作选择；before/freeze/verification 各 claim1，new after0。
+- 真实执行顺序：新源码公开 synthetic 隐私 PASS/cleanup → 主 run 版本化 runtime-policy-readiness PASS → before 的实测开始 → before snapshot → freeze → verification。独立重算源码、两份策略、network gate、八类受保护目录、全部 readiness 文件绑定；两种策略的 spawn precheck 均 PASS，未调用 Popen/候选查询。
+- 隐私重验实测：正常 search/native 各1，鉴权错误 query/title 均400，embedding 3/3，13 日志文件 canary0，Langfuse/OTEL tracing0，122 socket samples / external0 / observer errors0 / forbidden reads0。只有公开 synthetic 数据，不是正式质量成绩。
+- OPS 独占归档 1,222 份历史工件；旧 policy/network receipt 原件未动，新策略写新 window 的版本目录。旧 window/attempt/claim/void/freeze 原字节与归档重算一致，96 材料不变；builder/verifier **1/1**，三库保持 **42@T3 / 31@T3 / 42@T2**，无延期。
+- 旧 replacement 的 A attempt0、B attempt1，process/arm/exposure/query/score/result0；旧 INVALID/after 不重开。新 window attempt/arm/score/result/after0；global exposure0、正式 query0、正式 result0。
+- 独立实时核对：Gateway **3×200**；候选/合成/控制器进程0，临时数据面0，新临时文件0、TLS0、当前 UUID 容器/卷/网络/镜像/service 资源0。公开合成依赖目录已清理，审计/源码/回执保留。
+- 两次首读 watcher 早于状态文件生成；只复核并继续观察原 detached worker，未重新 launch controller、重做 claim 或任何已完成阶段。
+
+根因已收窄为“主策略仍等价早期三目录模板，freeze 漏绑主策略准备，synthetic root PASS 被误当成主 root 就绪”。实际比旧记录多缺 formal-windows 一类，四类每份八条规则。网络规则没有放宽；现有 mtime 不足以证明具体生成时间，chronology 仍未证实。完整 NAS/index 不变性仍 UNKNOWN，历史服务漂移没有被修复或抵销。最终证据提交后须 clean、不 push；该证据提交身份由 Git/交付回执给出，避免自引用。
+
+最终本地 QA：174 tests / 0 fail / 0 error / 0 skip，12 行为破坏检出，45 个公开 Schema 反例全部拒绝；128 文件编译，35 旧公开证据/三文档旧前缀不变，118 相对链接/18 锚点通过，私有字段/digest/secret 命中0。AODW 与863文件治理通过；保留一项既有宿主 Skill 未安装告警，不修改宿主配置。git diff/check 通过，未声称全仓 CI。

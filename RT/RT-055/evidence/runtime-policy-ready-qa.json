@@ -1,0 +1,221 @@
+{
+  "anchors": 18,
+  "aodw_pass": true,
+  "behavior_mutations_detected": 12,
+  "builder_runs": 1,
+  "compiled_files": 128,
+  "controllers_not_relaunched": true,
+  "data_class": "PUBLIC_READINESS_AND_SYNTHETIC_QA",
+  "diff_check_pass": true,
+  "existing_host_skill_warning_count": 1,
+  "formal_queries": 0,
+  "full_repository_ci_claimed": false,
+  "global_exposure": 0,
+  "governance_pass": true,
+  "governed_tracked_files": 863,
+  "historical_document_prefixes_unchanged": 3,
+  "ops_independent_verification": "PASS",
+  "ops_privacy_readiness": "PASS",
+  "ops_runtime_readiness": "PASS",
+  "production_cutover_allowed": false,
+  "public_history_files_unchanged": 35,
+  "public_private_field_digest_secret_hits": 0,
+  "ready_not_a_formal_aggregate": true,
+  "regression": {
+    "errors": 0,
+    "exit_code": 0,
+    "failures": 0,
+    "skipped": 0,
+    "tests": 174
+  },
+  "relative_links": 118,
+  "schema": "cwk.rt055.runtime-policy-ready-qa.v1",
+  "schema_negative_cases": [
+    {
+      "case": "PRIVATE_TOP_QUERY",
+      "rejected": true
+    },
+    {
+      "case": "PRIVATE_TOP_TITLE",
+      "rejected": true
+    },
+    {
+      "case": "PRIVATE_TOP_PATH",
+      "rejected": true
+    },
+    {
+      "case": "PRIVATE_TOP_DOC_ID",
+      "rejected": true
+    },
+    {
+      "case": "PRIVATE_TOP_BODY",
+      "rejected": true
+    },
+    {
+      "case": "PRIVATE_TOP_HASH",
+      "rejected": true
+    },
+    {
+      "case": "PRIVATE_TOP_QUERY_HASH",
+      "rejected": true
+    },
+    {
+      "case": "PRIVATE_TOP_PRIVATE_DIGEST",
+      "rejected": true
+    },
+    {
+      "case": "PRIVATE_TOP_EXPECTED",
+      "rejected": true
+    },
+    {
+      "case": "PRIVATE_TOP_LOCATOR",
+      "rejected": true
+    },
+    {
+      "case": "PRIVATE_NESTED_BODY",
+      "rejected": true
+    },
+    {
+      "case": "PRIVATE_NESTED_DIGEST",
+      "rejected": true
+    },
+    {
+      "case": "NONZERO_GLOBAL_EXPOSURE",
+      "rejected": true
+    },
+    {
+      "case": "NONZERO_NEW_ARMS",
+      "rejected": true
+    },
+    {
+      "case": "NONZERO_NEW_CANDIDATE_ATTEMPTS",
+      "rejected": true
+    },
+    {
+      "case": "NONZERO_FORMAL_QUERY_CALLS",
+      "rejected": true
+    },
+    {
+      "case": "NONZERO_FORMAL_RESULTS",
+      "rejected": true
+    },
+    {
+      "case": "NONZERO_FORMAL_AFTER_CLAIMS",
+      "rejected": true
+    },
+    {
+      "case": "NONZERO_CLEANUP_FAILURES",
+      "rejected": true
+    },
+    {
+      "case": "NONZERO_CANDIDATE_PROCESSES",
+      "rejected": true
+    },
+    {
+      "case": "NONZERO_SYNTHETIC_PROCESSES",
+      "rejected": true
+    },
+    {
+      "case": "FALSE_EXTERNAL_EGRESS_DENIED",
+      "rejected": true
+    },
+    {
+      "case": "FALSE_LOOPBACK_ALLOWED",
+      "rejected": true
+    },
+    {
+      "case": "FALSE_SEARCH_OUTBOUND_DENIED",
+      "rejected": true
+    },
+    {
+      "case": "FALSE_FREEZE_VERIFIED",
+      "rejected": true
+    },
+    {
+      "case": "FALSE_FREEZE_BINDS_READINESS",
+      "rejected": true
+    },
+    {
+      "case": "FALSE_SOURCE_BINDING_RECOMPUTED",
+      "rejected": true
+    },
+    {
+      "case": "FALSE_READINESS_BEFORE_BASELINE_START",
+      "rejected": true
+    },
+    {
+      "case": "FALSE_RETAINED_BYTES_EQUAL",
+      "rejected": true
+    },
+    {
+      "case": "FALSE_HISTORICAL_BYTES_EQUAL",
+      "rejected": true
+    },
+    {
+      "case": "WRONG_SOURCE_COMMIT",
+      "rejected": true
+    },
+    {
+      "case": "WRONG_NEW_WINDOW_ID",
+      "rejected": true
+    },
+    {
+      "case": "WRONG_EXECUTIONER_MIGRATION_ID",
+      "rejected": true
+    },
+    {
+      "case": "WRONG_POLICY_ARCHIVE_ID",
+      "rejected": true
+    },
+    {
+      "case": "DELETE_OLD_ATTEMPT",
+      "rejected": true
+    },
+    {
+      "case": "REOPEN_OLD_WINDOW",
+      "rejected": true
+    },
+    {
+      "case": "MISSING_LEDGER_SCOPE",
+      "rejected": true
+    },
+    {
+      "case": "BAD_RUN_ORDER",
+      "rejected": true
+    },
+    {
+      "case": "SYNTHETIC_AS_FORMAL",
+      "rejected": true
+    },
+    {
+      "case": "MISSING_READINESS",
+      "rejected": true
+    },
+    {
+      "case": "MISSING_INDEPENDENT_VERIFICATION",
+      "rejected": true
+    },
+    {
+      "case": "FORGED_PRIVACY_LOG_ZERO",
+      "rejected": true
+    },
+    {
+      "case": "NONZERO_EXTERNAL_OBSERVATION",
+      "rejected": true
+    },
+    {
+      "case": "FORGED_INDEPENDENT_ZERO",
+      "rejected": true
+    },
+    {
+      "case": "FALSE_FULL_PRODUCTION_INVARIANCE",
+      "rejected": true
+    }
+  ],
+  "schema_negatives_rejected": 45,
+  "source_commit": "58951f92656e7a29b334461c7aa6d1148fec4e8f",
+  "source_unchanged_since_privacy_and_freeze": true,
+  "status": "PASS",
+  "verifier_runs": 1,
+  "watcher_initial_status_race_reconciled": true
+}
