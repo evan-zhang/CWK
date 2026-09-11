@@ -421,3 +421,7 @@ setup、builder、verifier、before、隐私预检与 cleanup/after 均以原进
 本地提交不等于 READY_TO_RUN。后续仅按 Amendment 4 完成 OPS 私有 void、新 synthetic 隐私门、新 before 与 replacement freeze；必须另附真实终态回执，绝不执行正式 A/B。
 
 本次本地实测：156 项完整 RT-055 / 0 skip；14 个行为破坏全部检出，恢复后再绿；33 个 Python 文件编译；7 份规则/题池实现/正式 Schema 与 10 个候选类 AST 不变；24 份历史 JSON 与 3 个文档原前缀不变；86 相对链接/13 锚点、7 个公开 Schema 私有字段反例通过。AODW 和治理通过，仅既有宿主 skill 未安装告警；不冒称全仓 CI。详见 [本地 QA](zero-exposure-scorer-qa.json)。
+
+### OPS 私有归档校验的受控模型链接修正
+
+首次归档已成功写入同一独占目录，void 未写入。新验证器错误拒绝了冻结 HuggingFace 缓存的 22 个内部链接；原依赖摘要和旧 freeze 均重算一致，没有 query/score 或源漂移。只允许 sidecar/hf 内的叶文件链接解析到同一缓存内的文件，并保留原相对名与字节摘要；私有路径/账本与跨目录链接仍拒绝。新增公开合成旧 freeze 的真实链接 fixture 先红（15 项/3 errors），修正后 157 全回归及原 14 行为破坏通过。失败校验代码/日志与已成归档保留，不重做归档；只对同一证据重验。见 [链接恢复回执](zero-exposure-model-link-recovery.json)。

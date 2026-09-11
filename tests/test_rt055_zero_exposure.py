@@ -151,6 +151,9 @@ def score_cases(candidate,cases,timeout=30):
  if min(counts.values())==0:raise CandidateError('missing scoring category')
  for c in cases:candidate.search(c.query,c.kb_id,timeout=timeout)
 '''
+        hf=self.root/'sidecar/hf';(hf/'blobs').mkdir(parents=True);(hf/'snapshots').mkdir()
+        (hf/'blobs/public-model').write_text('public model bytes')
+        (hf/'snapshots/public-model').symlink_to('../blobs/public-model')
         (self.root/'impl/kb_retrieval_candidates.py').write_text(old)
         pm=runtime.migration_directory(self.root,self.mid);t=pm/'rt055-synthetic-001'
         (t/'impl/kb_retrieval_candidates.py').write_text(old)
@@ -239,6 +242,14 @@ def score_cases(candidate,cases,timeout=30):
             with self.assertRaises(RuntimeError):zero.validate_void(self.root,'a',kb)
             p.write_bytes(old)
         zero.validate_void(self.root,'a',kb)
+
+    def test_public_model_link_cannot_escape_or_impersonate_private_input(self):
+        zero,w,kb=self.legacy_fixture()
+        link=self.root/'sidecar/hf/snapshots/public-model'
+        self.assertEqual(zero._dependency_path(self.root,str(link.relative_to(self.root))),link)
+        with self.assertRaises(RuntimeError):zero._path(self.root,str(link.relative_to(self.root)))
+        link.unlink();link.symlink_to(self.root/'builder/private-corpus.json')
+        with self.assertRaises(RuntimeError):zero._dependency_path(self.root,str(link.relative_to(self.root)))
 
     def test_forged_void_boolean_without_original_evidence_is_rejected(self):
         zero,w,kb=self.legacy_fixture()

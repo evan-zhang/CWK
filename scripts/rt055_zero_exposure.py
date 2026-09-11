@@ -48,6 +48,21 @@ def _path(root,relative):
     return _checked_path(root,relative)
 
 
+def _dependency_path(root,relative):
+    # HuggingFace snapshot files are links to immutable local blobs. Preserve
+    # their original relative identity and byte hash, but permit no cache escape.
+    p=root/relative
+    if (isinstance(relative,str) and relative.startswith('sidecar/hf/')
+            and not Path(relative).is_absolute() and '..' not in Path(relative).parts
+            and p.is_symlink()):
+        cache=_checked_path(root,'sidecar','hf')
+        _checked_path(root,str(p.parent.relative_to(root)))
+        resolved=p.resolve(strict=True)
+        _need(resolved.is_relative_to(cache) and resolved.is_file())
+        return p
+    return _path(root,relative)
+
+
 def _files(base):
     paths=[]
     for p in base.rglob('*'):
@@ -222,7 +237,7 @@ def validate_evidence(root,m,e,live_source=False):
         for k,p in block['artifact_paths'].items():
             source=_path(a,p) if p.startswith('formal-windows/') else _path(root,p)
             _need(ops.sha_file(source)==block['digests'][k])
-        _need(block['digests']['dependency_digest']==ops.file_manifest([_path(root,p) for p in block['dependency_paths']]+[root/'impl/rt055_runbooks.json'],base=root))
+        _need(block['digests']['dependency_digest']==ops.file_manifest([_dependency_path(root,p) for p in block['dependency_paths']]+[root/'impl/rt055_runbooks.json'],base=root))
     pm=Path('executioner-migrations')/fr['privacy_migration_id'];binding=ops.read_json(a/pm/'privacy-receipt.json')
     dep=ops.read_json(a/pm/'deployment.json');t=pm/('rt055-synthetic-%03d'%binding['attempt'])
     _need(dep['source_files']==binding['source_files'] and binding['deployment_sha256']==ops.sha_file(a/pm/'deployment.json'))
