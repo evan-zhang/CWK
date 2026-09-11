@@ -42,7 +42,7 @@ FORBIDDEN_KEYS = {
     "query_hash", "expected_hash", "source_hash", "failure_example",
 }
 ALLOWED_TOP = {
-    "schema", "run_id", "holdout_contract", "environment", "verifier_attestations",
+    "schema", "run_id", "formal_window", "holdout_contract", "environment", "verifier_attestations",
     "candidates", "rerank_ablation", "cleanup", "production_invariants",
     "participating_libraries", "deferred_libraries", "library_validity",
 }
@@ -142,7 +142,7 @@ def _validate_uuid(value: Any) -> None:
 
 
 def _validate_freeze(candidate_id: str, receipt: Any, *, weknora: bool) -> None:
-    common = DIGEST_FIELDS | {"receipt_id", "candidate_id", "frozen_before_run", "ops_artifacts_verified"}
+    common = DIGEST_FIELDS | {"window_id", "receipt_id", "candidate_id", "frozen_before_run", "ops_artifacts_verified"}
     fields = common | ({"head_matches_commit", "tree_clean", "native_config", "upstream_receipt"} if weknora else set())
     receipt = _require_keys(receipt, fields, f"{candidate_id}.freeze_receipt")
     _constant(receipt["candidate_id"], candidate_id, f"{candidate_id}.freeze_receipt.candidate_id")
@@ -163,6 +163,27 @@ def _validate_freeze(candidate_id: str, receipt: Any, *, weknora: bool) -> None:
         _true_flags(provenance, ("commit_reachable", "verified_on_ops"), "upstream_receipt")
 
 
+FORMAL_WINDOW_FIELDS = {'window_id','before_window_id','after_window_id','freeze_window_id',
+    'verification_window_id','privacy_migration_id','executioner_commit','privacy_revalidation_verified',
+    'before_verified','after_comparison_verified','run_order'}
+
+
+def validate_formal_window(report):
+    w=_require_keys(report['formal_window'],FORMAL_WINDOW_FIELDS,'formal_window')
+    _validate_uuid(w['window_id']);_validate_uuid(w['privacy_migration_id'])
+    if uuid.UUID(w['window_id']).version!=4 or uuid.UUID(w['privacy_migration_id']).version!=4:
+        raise ReportError('formal_window_random_uuid_required')
+    for key in ('before_window_id','after_window_id','freeze_window_id','verification_window_id'):
+        if w[key]!=w['window_id']:raise ReportError('formal_window_binding_mismatch')
+    if not isinstance(w['executioner_commit'],str) or not re.fullmatch('[0-9a-f]{40}',w['executioner_commit']):
+        raise ReportError('executioner_commit_invalid')
+    _true_flags(w,('privacy_revalidation_verified','before_verified','after_comparison_verified'),'formal_window')
+    if w['run_order'] not in (['a','b'],['b','a']):raise ReportError('formal_order_invalid')
+    for candidate in report['candidates'].values():
+        if candidate['freeze_receipt'].get('window_id')!=w['window_id']:
+            raise ReportError('candidate_freeze_window_mismatch')
+
+
 def validate_report(report: Mapping[str, Any]) -> None:
     if not isinstance(report, Mapping):
         raise ReportError("report must be an object")
@@ -178,6 +199,7 @@ def validate_report(report: Mapping[str, Any]) -> None:
         raise ReportError(f"schema must be {SCHEMA}")
     _validate_uuid(report["run_id"])
 
+    validate_formal_window(report)
     holdout = _require_keys(report["holdout_contract"], {
         "version", "created_after_rt054", "rt054_final_holdout_reused", "libraries",
         "private_artifacts_retained_on_ops", "aggregate_only_export",
@@ -398,7 +420,7 @@ def decide(report: Mapping[str, Any]) -> dict[str, Any]:
     else:
         selected, reason = None, "neither_candidate_passes_hard_gates"
     return {
-        "schema": RESULT_SCHEMA, "run_id": report["run_id"],
+        "schema": RESULT_SCHEMA, "run_id": report["run_id"], "window_id":report["formal_window"]["window_id"],
         "decision": 'A' if selected==CANDIDATE_A else 'B' if selected==CANDIDATE_B else 'NO-GO',
         "participating_libraries": report['participating_libraries'], "deferred_libraries": report['deferred_libraries'],
         "production_candidate_libraries": report['participating_libraries'] if selected else [],

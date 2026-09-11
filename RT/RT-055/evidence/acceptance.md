@@ -356,3 +356,15 @@ setup、builder、verifier、before、隐私预检与 cleanup/after 均以原进
 工具失败如实保留：`apply_patch` 对本 worktree 的绝对路径拒绝且未写入，后用支持该路径的 `edit` 完成追加；没有重试 OPS 的已认领阶段。工程检查、链接/锚点、隐私扫描、AODW 和治理明细见[公开 QA](amendment3-ops4-formal-qa.json)。
 
 本次仅提交公开中止证据与两份文档；不改规则、不 push、不合并、不清理 worktree。**正式接续的中止收口已完成，RT-055 选型目标未完成、三库切流继续暂停；无后台任务，不自动重启。**
+
+
+## 同一第四轮：formal window binding migration 本地验收
+
+- 03:34 新授权接续；本节不覆盖上文 e71ee34 abort 或 09e908b recovery。独立迁移提交的父提交是 `e71ee346f42378b58fe03dde673412815503857e`；本提交身份由 Git 回读，不在正文自填未来 hash。
+- 改动限定于执行器窗口/claim/来源绑定、必要 v3 结构检查、对应合成测试、本协议/验收/公开合成证据与治理登记；不含运行私料、runs、docs 或 handover。builder/verifier/题池/排除集/tier/seed、候选检索算法与质量/效用函数未修改。
+- 判据：新窗口真实 baseline→freeze→verification→after→aggregate 路径在公开合成临时目录执行；错 window、旧 before、after 冒充 before、重复 claim、缺新 privacy、源漂移、改 hash 冒充真实 canary、缺消费记录、synthetic/旧结果替代均拒绝。实际 A/B main 也通过合成服务替身执行，验证 claim 在评分前落盘及二次调用不再评分。完整 RT-055 回归、隔离源码行为破坏、恢复 green 与 compile 的可核验结果见 [合成证据](formal-window-migration-tests.json)。
+- 工程检查：独立通读修改后的入口与合成产物，核对窗口引用、源绑定、资源采集原边界和失败状态；未使用已退休 reviewer，也不把执行器自报作为父层验收。当前工具面无可委派的独立 reviewer，故不虚称外部评审。
+- 读产出：窗口报告采用闭合 Schema，真实装配结果保留不变性 UNKNOWN，并由原规则判 INVALID；这证明绑定和 fail-closed 接线，不代表 OPS 正式分数。旧 JSON/Schema 原件与既有协议/验收前缀逐字节核对。
+- 后续仍属本次持续任务：迁移 commit 后再同步 OPS；新真实 synthetic privacy revalidation PASS/精确清理后，才新建 formal window 并推进 freeze→正式 A/B→cleanup/after→aggregate/decision。不得把这次本地通过当作最终交付。
+
+本次本地 QA 实测：142 项 RT-055 回归 / 0 skip；20 个行为破坏全部检出、还原后 142 green；23 个执行源 py_compile；18 份历史 JSON/Schema 与 2 个追加文档旧前缀不变；67 相对链接 / 11 锚点；AODW 79 fixtures、53 RT 与 837 文件治理通过。仅保留既有宿主 handover-pack 未安装告警，未安装或修改宿主配置；未冒称全仓 CI。

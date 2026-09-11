@@ -16,6 +16,7 @@ import urllib.request
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / 'verifier'))
 import rt055_opslib as ops
+import rt055_window as window
 import kb_storage
 STATUS = None
 state = {}
@@ -182,44 +183,58 @@ def nas_state():
     return result
 
 
+def compare_values(before,value):
+    a, b = before['local'], value['local']
+    health_equal = all(a['health'][port]['stable_sha256'] == b['health'][port]['stable_sha256'] and b['health'][port]['http_200'] for port in a['health'])
+    comparison = {'nas_unchanged': before['nas'] == value['nas'],
+        'gateway_unchanged': a['gateways'] == b['gateways'] and health_equal,
+        'gateway_health_content_unchanged': health_equal,
+        'existing_indices_unchanged': a['existing_search_indices'] == b['existing_search_indices'] and all(before['nas'][kb]['existing_indices'] == value['nas'][kb]['existing_indices'] and before['nas'][kb]['index_content_fingerprints']==value['nas'][kb]['index_content_fingerprints'] for kb in ops.LIBRARIES),
+        'production_config_unchanged': a['configuration'] == b['configuration'] and all(before['nas'][kb]['configuration_sha256'] == value['nas'][kb]['configuration_sha256'] for kb in ops.LIBRARIES),
+        'containers_unchanged': a['containers'] == b['containers'], 'volumes_unchanged':a['volumes']==b['volumes'], 'services_unchanged': a['services'] == b['services'],
+        'three_gateways_healthy': all(row['http_200'] for row in b['health'].values()), 'all_items_measured': False}
+    # This collector has complete NAS metadata, but not all file bytes,
+    # every production dependency/process, volume contents, or an owner-
+    # enumerated registry of ALL search endpoints. Preserve measured drift;
+    # an equal projection cannot attest the stronger complete invariant.
+    for field in ('nas_unchanged', 'existing_indices_unchanged', 'production_config_unchanged'):
+        comparison[field + '_measured_projection'] = comparison[field]
+        comparison[field] = False if comparison[field] is False else None
+    if not all(comparison[k] for k in ('containers_unchanged', 'volumes_unchanged', 'services_unchanged')):
+        comparison['production_config_unchanged'] = False
+    return comparison
+
+
 def main(argv=None):
     import argparse
     global STATUS, state
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('mode', choices=('before', 'after'))
-    mode = parser.parse_args(argv).mode
+    parser.add_argument('--window-id')
+    args = parser.parse_args(argv); mode = args.mode
+    w = window.directory(ROOT,args.window_id) if args.window_id else ROOT
+    binding = window.envelope(ROOT,args.window_id,mode) if args.window_id else {}
+    (w/'status').mkdir(parents=True,mode=0o700,exist_ok=True)
     os.umask(0o077)
-    STATUS = ROOT / 'status' / ('baseline-' + mode + '.json')
-    state = {'status': 'RUNNING', 'phase': 'LOCAL', 'process_id': os.getpid(), 'libraries_measured': 0}
-    claim=ROOT/'status'/('baseline-'+mode+'.claim')
-    fd=os.open(claim,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600);os.close(fd)
+    STATUS = w / 'status' / ('baseline-' + mode + '.json')
+    state = {'status': 'RUNNING', 'phase': 'LOCAL', 'process_id': os.getpid(), 'libraries_measured': 0, **binding}
+    claim=w/'status'/('baseline-'+mode+'.claim')
+    window.write_once(claim,binding)
     save()
     try:
+        if args.window_id and mode=='after':window.baseline(ROOT,args.window_id,'before')
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             value = {'local': local_state(), 'nas': nas_state()}
-            value['observed_at'] = time.time()
-            ops.write_private_json(ROOT / 'audit' / ('production-' + mode + '.json'), value)
+            value.update(binding);value['observed_at'] = time.time()
+            artifact=w / 'audit' / ('production-' + mode + '.json')
+            window.write_once(artifact, value)
+            if args.window_id:state.update(artifact=str(artifact.relative_to(ROOT)),artifact_sha256=ops.sha_file(artifact))
         if mode == 'after':
-            before = ops.read_json(ROOT / 'audit/production-before.json')
-            a, b = before['local'], value['local']
-            health_equal = all(a['health'][port]['stable_sha256'] == b['health'][port]['stable_sha256'] and b['health'][port]['http_200'] for port in a['health'])
-            comparison = {'nas_unchanged': before['nas'] == value['nas'],
-                'gateway_unchanged': a['gateways'] == b['gateways'] and health_equal,
-                'gateway_health_content_unchanged': health_equal,
-                'existing_indices_unchanged': a['existing_search_indices'] == b['existing_search_indices'] and all(before['nas'][kb]['existing_indices'] == value['nas'][kb]['existing_indices'] and before['nas'][kb]['index_content_fingerprints']==value['nas'][kb]['index_content_fingerprints'] for kb in ops.LIBRARIES),
-                'production_config_unchanged': a['configuration'] == b['configuration'] and all(before['nas'][kb]['configuration_sha256'] == value['nas'][kb]['configuration_sha256'] for kb in ops.LIBRARIES),
-                'containers_unchanged': a['containers'] == b['containers'], 'volumes_unchanged':a['volumes']==b['volumes'], 'services_unchanged': a['services'] == b['services'],
-                'three_gateways_healthy': all(row['http_200'] for row in b['health'].values()), 'all_items_measured': False}
-            # This collector has complete NAS metadata, but not all file bytes,
-            # every production dependency/process, volume contents, or an owner-
-            # enumerated registry of ALL search endpoints. Preserve measured drift;
-            # an equal projection cannot attest the stronger complete invariant.
-            for field in ('nas_unchanged', 'existing_indices_unchanged', 'production_config_unchanged'):
-                comparison[field + '_measured_projection'] = comparison[field]
-                comparison[field] = False if comparison[field] is False else None
-            if not all(comparison[k] for k in ('containers_unchanged', 'volumes_unchanged', 'services_unchanged')):
-                comparison['production_config_unchanged'] = False
-            ops.write_private_json(ROOT / 'audit/production-comparison.json', comparison)
+            before = window.baseline(ROOT,args.window_id,'before')[0] if args.window_id else ops.read_json(ROOT / 'audit/production-before.json')
+            comparison=compare_values(before,value)
+            if args.window_id:
+                comparison.update(window.envelope(ROOT,args.window_id,'comparison'),before_sha256=ops.sha_file(w/'audit/production-before.json'),after_sha256=ops.sha_file(artifact))
+            window.write_once(w / 'audit/production-comparison.json', comparison)
         state.update(status='PASS', phase='COMPLETE', finished_at=time.time())
     except Exception as exc:
         state.update(status='FAIL', error_kind=type(exc).__name__, finished_at=time.time())

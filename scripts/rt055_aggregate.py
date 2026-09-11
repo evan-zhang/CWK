@@ -22,6 +22,8 @@ sys.path.insert(0, str(HERE))
 
 import kb_retrieval_decision as decision  # noqa: E402
 import rt055_opslib as ops
+import rt055_window as window
+import rt055_runtime as runtime
 from rt055_freeze import role_audit  # noqa: E402
 
 CANDIDATE_A = "cwk-opensearch-dual-channel-v1"
@@ -45,7 +47,7 @@ def freeze_receipt_block(receipt: dict, candidate_key: str, ops_verified: bool) 
     block = receipt["candidates"][candidate_key]
     digests = block["digests"]
     fields = {
-        "receipt_id": block["receipt_id"],
+        "receipt_id": block["receipt_id"], "window_id":receipt["window_id"],
         "candidate_id": block["candidate_id"],
         "code_digest": "sha256:" + digests["code_digest"],
         "image_digest": "sha256:" + digests["image_digest"],
@@ -75,14 +77,23 @@ def freeze_receipt_block(receipt: dict, candidate_key: str, ops_verified: bool) 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--window-id",required=True)
     args = parser.parse_args()
+    w=window.directory(ROOT,args.window_id)
 
-    receipt = ops.read_json(ROOT / "freeze" / "freeze-receipt.json")
-    freeze_verification = ops.read_json(ROOT / "verifier" / "freeze-verification.json")
+    receipt = window.receipt(ROOT,args.window_id)
+    freeze_verification = window.verification(ROOT,args.window_id)
     case_verification = ops.read_json(ROOT / "verifier" / "case-verification.json")
-    run_a = ops.read_json(ROOT / "run-a" / "result.json")
-    run_b = ops.read_json(ROOT / "run-b" / "result.json")
-    cleanup = {"cleanup":ops.read_json(ROOT / "audit/cleanup.json"),"production_invariants":ops.read_json(ROOT / "audit/production-comparison.json")}
+    run_a = window.validate_run(ROOT,args.window_id,'a',case_verification['participating_libraries'])
+    run_b = window.validate_run(ROOT,args.window_id,'b',case_verification['participating_libraries'])
+    cleanup = {"cleanup":ops.read_json(w / "audit/cleanup.json"),"production_invariants":window.comparison(ROOT,args.window_id)}
+    if any(row.get('window_id')!=args.window_id for row in (run_a,run_b,cleanup['cleanup'])):
+        raise RuntimeError('aggregate_window_mismatch')
+    if not runtime.privacy_passed(ROOT,receipt['privacy_migration_id']):raise RuntimeError('aggregate_privacy_binding_invalid')
+    # Recheck retained source/input/config freeze artifacts after cleanup too.
+    from rt055_freeze import verify_artifacts
+    if not verify_artifacts(ROOT,args.window_id):raise RuntimeError('aggregate_freeze_artifact_drift')
+    migration=ops.read_json(runtime.migration_directory(ROOT,receipt['privacy_migration_id'])/'privacy-receipt.json')
     roles=role_audit(ROOT)
     participating=case_verification["participating_libraries"]
     deferred=case_verification["deferred_libraries"]
@@ -131,6 +142,10 @@ def main() -> int:
     operations = operations_from_runbooks()
     report = {
         "schema": decision.SCHEMA,
+        "formal_window":{
+            **{k:args.window_id for k in ('window_id','before_window_id','after_window_id','freeze_window_id','verification_window_id')},
+            'privacy_migration_id':receipt['privacy_migration_id'],'executioner_commit':migration['code_commit'],
+            'privacy_revalidation_verified':True,'before_verified':True,'after_comparison_verified':True,'run_order':receipt['run_order']},
         "run_id": ROOT.name.removeprefix("rt055-"),
         "participating_libraries":participating,"deferred_libraries":deferred,
         "library_validity":case_verification["library_validity"],
@@ -200,14 +215,13 @@ def main() -> int:
         },
     }
 
-    out_dir=ROOT/'aggregate'
-    ops.write_private_json(out_dir/'aggregate-report.json',report)
+    out_dir=w/'aggregate'
     # Structural Schema supports truthful invariant false/null. The decision
     # harness still fails those hard gates closed and produces INVALID.
     # Mandatory structural gate; no skip path.
-    schema_path = ROOT / "contracts" / "aggregate-report.schema.json"
-    if not schema_path.is_file():
-        schema_path = ROOT / "impl" / "aggregate-report.schema.json"
+    # Use the exact Schema covered by the migration source manifest, never an
+    # older independently deployed contracts copy.
+    schema_path = ROOT / "impl" / "aggregate-report.schema.json"
     check = subprocess.run(
         [str(ROOT / "sidecar" / "venv" / "bin" / "python"), "-c",
          "import json,sys,jsonschema;\n"
@@ -222,13 +236,13 @@ def main() -> int:
 
     try:result = decision.decide(report)
     except decision.ReportError:
-        result={'schema':decision.RESULT_SCHEMA,'run_id':report['run_id'],
+        result={'schema':decision.RESULT_SCHEMA,'run_id':report['run_id'],'window_id':args.window_id,
                 'decision':'INVALID','status':'INVALID','selected':None,'error_code':'AGGREGATE_CONTRACT_INVALID',
                 'participating_libraries':participating,'deferred_libraries':deferred,'production_candidate_libraries':[]}
 
-    out_dir = ROOT / "aggregate"
-    ops.write_private_json(out_dir / "aggregate-report.json", report)
-    ops.write_private_json(out_dir / "decision.json", result)
+    out_dir = w / "aggregate"
+    window.write_once(out_dir / "aggregate-report.json", report)
+    window.write_once(out_dir / "decision.json", result)
     print("AGGREGATE OK selected=", result.get("selected"), "status=", result.get("status"))
     print(json.dumps(result.get("candidate_gates", {}), sort_keys=True))
     return 2 if result["status"]=="INVALID" else 0

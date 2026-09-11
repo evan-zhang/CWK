@@ -1,43 +1,105 @@
 #!/usr/bin/env python3
-"""Detached formal sequence: one baseline/freeze/order, finally cleanup+after."""
-import contextlib
-import io
+"""Detached/resumable same-window sequence. Never repeats completed scoring.
+
+Before/freeze/verification/results/cleanup/after/aggregate remain append-only.
+A transport loss does not cancel the detached child. A failed execution attempt
+with no ambiguous consumption stops for reconciliation, not a new experiment.
+"""
+import argparse
+import fcntl
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
 import time
-ROOT=Path(__file__).resolve().parent
+import uuid
+import rt055_opslib as ops
+import rt055_window as window
+import rt055_runtime as runtime
+import rt055_freeze as freeze
+ROOT=Path(__file__).resolve().parent.parent
 
-def main():
-    os.umask(0o077);fd=os.open(ROOT/'status/formal.claim',os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600);os.close(fd)
-    state={'status':'RUNNING','phase':'BEFORE','process_id':os.getpid(),'started_at':time.time(),'completed':[]}
-    def save():
-        p=ROOT/'status/formal.json';tmp=p.with_suffix('.next');tmp.write_text(json.dumps(state));os.replace(tmp,p)
-    def run(name,script,*args):
-        state['phase']=name
-        with (ROOT/'audit'/(name.lower()+'.log')).open('wb') as log:
-            p=subprocess.Popen([sys.executable,str(ROOT/'impl'/script),*args],cwd=ROOT/'impl',stdout=log,stderr=subprocess.STDOUT)
+
+def main(argv=None):
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--window-id',required=True)
+    parser.add_argument('--privacy-migration-id',required=True)
+    parser.add_argument('--closeout-invalid',action='store_true')
+    args=parser.parse_args(argv)
+    os.umask(0o077);w=window.directory(ROOT,args.window_id)
+    (w/'status').mkdir(parents=True,mode=0o700,exist_ok=True)
+    lock=(w/'status/controller.lock').open('a')
+    fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    attempt=str(uuid.uuid4())
+    window.write_once(w/'controllers'/attempt/'claim.json',window.envelope(ROOT,args.window_id,'controller'))
+    state={**window.envelope(ROOT,args.window_id,'formal'),'status':'RUNNING','phase':'PRECHECK',
+           'process_id':os.getpid(),'started_at':time.time(),'completed':[],'controller_attempt':attempt}
+    def save():ops.write_private_json(w/'status/formal.json',state)
+    def run(name,script,*extra):
+        state['phase']=name;save()
+        with (w/'controllers'/attempt/(name.lower()+'.log')).open('xb') as log:
+            p=subprocess.Popen([sys.executable,str(ROOT/'impl'/script),*extra],cwd=ROOT/'impl',
+                               stdin=subprocess.DEVNULL,stdout=log,stderr=subprocess.STDOUT)
             state['child_process_id']=p.pid;save();code=p.wait();state['child_process_id']=0
-        if code:state['failed_phase']=name;state['exit_code']=code;save();return False
-        state['completed'].append(name);save();return True
-    failed=False
+        window.write_once(w/'controllers'/attempt/(name.lower()+'.json'),{'phase':name,'exit_code':code,'finished_at':time.time()})
+        if code:state.update(failed_phase=name,exit_code=code)
+        else:state['completed'].append(name)
+        save();return code
+    def after_and_cleanup():
+        if not (w/'audit/cleanup.json').exists():
+            run('CLEANUP','rt055_cleanup.py','--window-id',args.window_id)
+        if not (w/'status/baseline-after.claim').exists():
+            window.baseline(ROOT,args.window_id,'before')
+            run('AFTER','rt055_baseline.py','after','--window-id',args.window_id)
+        window.comparison(ROOT,args.window_id)
     try:
         save()
-        checks=json.loads((ROOT/'verifier/case-verification.json').read_text())
-        if not checks['verified']:raise RuntimeError('cases_invalid')
-        for phase,script,args in (('BEFORE','rt055_baseline.py',['before']),('FREEZE','rt055_freeze.py',['create']),('VERIFY_FREEZE','rt055_freeze.py',['verify'])):
-            if not run(phase,script,*args):failed=True;break
-        if not failed:
-            receipt=json.loads((ROOT/'freeze/freeze-receipt.json').read_text())
-            for key in receipt['run_order']:
-                if not run('RUN_'+key.upper(),'rt055_run_'+key+'.py','--mode','run'):failed=True;break
-    except Exception as e:state.update(error_kind=type(e).__name__);failed=True
+        if args.closeout_invalid:
+            after_and_cleanup();state.update(status='INVALID',phase='COMPLETE');return 3
+        checks=ops.read_json(ROOT/'verifier/case-verification.json')
+        pool=ops.read_json(ROOT/'status/pool.json')
+        if not checks['verified'] or pool['builder_runs']!=1 or pool['verifier_runs']!=1:
+            raise RuntimeError('roles_or_cases_invalid')
+        if not runtime.privacy_passed(ROOT,args.privacy_migration_id):raise RuntimeError('privacy_migration_invalid')
+        if not (w/'status/baseline-before.claim').exists():
+            if run('BEFORE','rt055_baseline.py','before','--window-id',args.window_id):raise RuntimeError('before_incomplete')
+        window.baseline(ROOT,args.window_id,'before')
+        if not (w/'status/freeze.claim').exists():
+            if run('FREEZE','rt055_freeze.py','create','--window-id',args.window_id,'--privacy-migration-id',args.privacy_migration_id):raise RuntimeError('freeze_create_incomplete')
+        if not (w/'status/freeze-verification.claim').exists():
+            if run('VERIFY_FREEZE','rt055_freeze.py','verify','--window-id',args.window_id):raise RuntimeError('freeze_verify_incomplete')
+        window.verification(ROOT,args.window_id)
+        receipt=window.receipt(ROOT,args.window_id)
+        if receipt['privacy_migration_id']!=args.privacy_migration_id:raise RuntimeError('privacy_receipt_mismatch')
+        for key in receipt['run_order']:
+            result=w/('run-'+key)/'result.json'
+            if result.exists():
+                value=window.validate_run(ROOT,args.window_id,key,checks['participating_libraries'])
+                if value.get('status')!='OK' or value.get('window_id')!=args.window_id:raise RuntimeError('completed_result_invalid')
+                continue
+            runtime.verify_ready(ROOT,key,args.window_id)
+            if run('RUN_'+key.upper(),'rt055_run_'+key+'.py','--mode','run','--window-id',args.window_id):
+                # Completion artifacts survive SSH failures. An unmatched consumption
+                # is never replayed. Only the parent may classify a real hard gate.
+                for kb in checks['participating_libraries']:window.library_result(ROOT,args.window_id,key,kb)
+                state.update(status='WAITING_RECONCILIATION',phase='EXECUTION_ATTEMPT_FAILED')
+                return 4
+        after_and_cleanup()
+        if not (w/'aggregate/decision.json').exists():
+            code=run('AGGREGATE','rt055_aggregate.py','--window-id',args.window_id)
+            if code not in (0,2):raise RuntimeError('aggregate_incomplete')
+        result=ops.read_json(w/'aggregate/decision.json')
+        state.update(status='COMPLETE',phase='COMPLETE',decision=result['decision'])
+        return 0
+    except Exception as exc:
+        # Do not turn an executor/transport fault into terminal INVALID. Preserve
+        # state, safely stop at the boundary, and require explicit reconciliation.
+        state.update(status='WAITING_RECONCILIATION',error_kind=type(exc).__name__)
+        return 4
     finally:
-        cleaned=run('CLEANUP','rt055_cleanup.py')
-        after=run('AFTER','rt055_baseline.py','after') if (ROOT/'audit/production-before.json').exists() else False
-        aggregated=run('AGGREGATE','rt055_aggregate.py') if not failed and cleaned and after else False
-        state.update(status='COMPLETE' if aggregated else 'INVALID',phase='COMPLETE',finished_at=time.time(),child_process_id=0);save()
-    return 0 if state['status']=='COMPLETE' else 3
+        state.update(finished_at=time.time(),child_process_id=0);save()
+        window.write_once(w/'controllers'/attempt/'terminal.json',state)
+        lock.close()
+
 if __name__=='__main__':raise SystemExit(main())

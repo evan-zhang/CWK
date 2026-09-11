@@ -27,7 +27,8 @@ sys.path.insert(0, str(HERE))
 import kb_retrieval_candidates as kbc  # noqa: E402
 import kb_stage_b_poc as poc  # noqa: E402
 import rt055_opslib as ops
-import rt055_runtime as runtime  # noqa: E402
+import rt055_runtime as runtime
+import rt055_window as window  # noqa: E402
 
 OS_VERSION = "3.3.2"
 HEAP = "distribution-default"
@@ -111,7 +112,7 @@ def ensure_icu_plugin() -> None:
 
 def launch_opensearch(kb: str, port: int, log_path: Path, mode="run") -> tuple[subprocess.Popen, dict[str, str]]:
     data_dir = ROOT / ("data-" + mode) / f"a-{kb}"
-    logs_dir = ROOT / "runtime-logs" / f"a-{kb}"
+    logs_dir = log_path.parent / f"a-{kb}"
     data_dir.mkdir(parents=True, exist_ok=False)
     logs_dir.mkdir(parents=True, exist_ok=True)
     env = runtime.clean_env(ROOT)
@@ -181,7 +182,14 @@ def main() -> int:
     parser.add_argument("--mode", choices=("smoke", "run"), required=True)
     parser.add_argument("--case-limit", type=int, default=0,
                         help="smoke only: cap cases per library")
+    parser.add_argument('--window-id')
     args = parser.parse_args()
+    if args.mode=='run' and not args.window_id:parser.error('--window-id required for formal run')
+    w=window.directory(ROOT,args.window_id) if args.mode=='run' else ROOT
+    attempt=None
+    completed={}
+    log_root=ROOT/"runtime-logs"
+
 
     if (ROOT.is_symlink() or not ROOT.is_dir() or not ROOT.name.startswith("rt055-")
             or ROOT.stat().st_mode & 0o077 or not (ROOT / ".rt055-owned").is_file()):
@@ -197,12 +205,14 @@ def main() -> int:
     samplers = {}
     try:
         if args.mode == "run":
-            runtime.claim_candidate(ROOT, "a")
-            verification = ops.read_json(ROOT / "verifier" / "freeze-verification.json")
+            runtime.verify_ready(ROOT,"a",args.window_id)
+            attempt=runtime.claim_candidate(ROOT, "a",args.window_id)
+            log_root=w/"runtime-logs"/"a"/attempt
+            verification = window.verification(ROOT,args.window_id)
             if not verification.get("verified"):
                 print("RUN_A: freeze verification not passed")
                 return 3
-            receipt = ops.read_json(ROOT / "freeze" / "freeze-receipt.json")
+            receipt = window.receipt(ROOT,args.window_id)
             if receipt["candidates"]["a"]["digests"]["code_digest"] != ops.file_manifest(
                     [ROOT / p for p in receipt["candidates"]["a"]["code_files"]], base=ROOT):
                 print("RUN_A: candidate A code digest drifted from freeze")
@@ -211,6 +221,11 @@ def main() -> int:
             verified = ops.read_json(ROOT / "verifier" / "private-verified.json")
             cases = load_cases(verified)
             participating = runtime.participating(ROOT)
+            result['window_id']=args.window_id
+            for kb in participating:
+                saved=window.library_result(ROOT,args.window_id,"a",kb)
+                if saved is not None:completed[kb]=saved
+            participating=[kb for kb in participating if kb not in completed]
         else:
             def smoke_doc(kb: str, n: int) -> dict:
                 return {"doc_id": f"smoke:{kb}:{n}",
@@ -235,11 +250,11 @@ def main() -> int:
         multi = MultiLibraryA()
         pids: list[int] = []
         build_seconds: dict[str, float] = {}
-        if args.mode == "run": runtime.verify_ready(ROOT, "a")
+        if args.mode == "run": runtime.verify_ready(ROOT, "a",args.window_id)
         else: ensure_icu_plugin()
         for kb in participating:
             port = free_port(rng)
-            log_path = ROOT / "runtime-logs" / f"opensearch-{kb}.log"
+            log_path = log_root / f"opensearch-{kb}.log"
             log_path.parent.mkdir(parents=True, exist_ok=True)
             proc, info = launch_opensearch(kb, port, log_path, args.mode)
             services.append(proc)
@@ -258,7 +273,12 @@ def main() -> int:
             for query in ops.WARMUP_QUERIES:
                 multi.instances[kb].search(query, kb, timeout=30)
         gateway = runtime.gateway_probe(ROOT, "a", multi, participating)
-        metrics = kbc.score_cases(multi, cases, timeout=30)
+        metrics={}
+        for kb in participating:
+            if args.mode=='run':window.library_claim(ROOT,args.window_id,'a',kb)
+            metrics.update(kbc.score_cases(multi,[c for c in cases if c.kb_id==kb],timeout=30))
+            if args.mode=='run':window.library_scored(ROOT,args.window_id,'a',kb,metrics[kb])
+
         store_bytes = multi.index_bytes()
         index_bytes = {kb: runtime.data_bytes(ROOT / ("data-" + args.mode) / f"a-{kb}")
                        for kb in participating}
@@ -266,6 +286,10 @@ def main() -> int:
             if index_bytes[kb] <= 0 or store_bytes[kb] <= 0:
                 raise RuntimeError("index_bytes_unmeasured")
         peak_rss = {kb:sampler.stop() for kb,sampler in samplers.items()}
+        if args.mode=='run':
+            for kb in participating:
+                window.library_complete(ROOT,args.window_id,'a',kb,{'metrics':{**metrics[kb],
+                    'index_bytes':index_bytes[kb],'build_seconds':round(build_seconds[kb],3),'peak_rss_bytes':peak_rss[kb]},'gateway_readiness':gateway})
         multi.close()
         leftovers_total = 0
         for kb, url in multi.stats_urls.items():
@@ -285,7 +309,10 @@ def main() -> int:
                         "heap": HEAP},
         })
         if args.mode == "run":
-            ops.write_private_json(ROOT / "run-a" / "result.json", result)
+            result['libraries']={kb:window.library_result(ROOT,args.window_id,'a',kb)['metrics'] for kb in runtime.participating(ROOT)}
+            if completed:
+                result['gateway_readiness']={k:all(v['gateway_readiness'][k] for v in completed.values()) and (gateway[k] if participating else True) for k in next(iter(completed.values()))['gateway_readiness']}
+            window.write_once(w / "run-a" / "result.json", result)
             print("RUN_A OK", json.dumps({kb: {
                 "recall": metrics[kb]["recall_at_10"], "exact": metrics[kb]["exact"],
                 "no_answer": metrics[kb]["no_answer"]} for kb in participating}))
@@ -298,8 +325,8 @@ def main() -> int:
         result["status"] = "FAILED"
         result["error"] = type(exc).__name__
         try:
-            ops.write_private_json(ROOT / ("run-a/smoke-result.json" if args.mode == "smoke"
-                                           else "run-a/result.json"), result)
+            if args.mode=='smoke':ops.write_private_json(ROOT/'run-a/smoke-result.json',result)
+            elif attempt:window.write_once(w/'run-a/attempts'/attempt/'failure.json',result)
         except Exception:
             pass
         print("RUN_A FAILED", type(exc).__name__)

@@ -20,6 +20,7 @@ def freeze_receipt(*, weknora: bool = False) -> dict:
     digest = DIGEST_B if weknora else DIGEST_A
     candidate_id = decision.CANDIDATE_B if weknora else decision.CANDIDATE_A
     receipt = {
+        "window_id":"87654321-4321-4321-8321-cba987654321",
         "receipt_id": decision.FREEZE_RECEIPT_B if weknora else decision.FREEZE_RECEIPT_A,
         "candidate_id": candidate_id, "code_digest": digest, "image_digest": digest,
         "config_digest": digest, "mapping_digest": digest, "query_plan_digest": digest,
@@ -90,6 +91,10 @@ def candidate_b(*, multiplier: float = 1) -> dict:
 def valid_report() -> dict:
     return {
         "schema": decision.SCHEMA,
+        "formal_window":{
+            **{k:"87654321-4321-4321-8321-cba987654321" for k in ('window_id','before_window_id','after_window_id','freeze_window_id','verification_window_id')},
+            'privacy_migration_id':'23456789-1234-4234-8234-123456789abc','executioner_commit':'1'*40,
+            'privacy_revalidation_verified':True,'before_verified':True,'after_comparison_verified':True,'run_order':['a','b']},
         "participating_libraries": list(decision.LIBRARIES), "deferred_libraries": [],
         "library_validity": {kb: {
             'status':'PARTICIPATING','tier':'T3','category_counts':dict(decision.tiers.TARGETS),'total_count':42,

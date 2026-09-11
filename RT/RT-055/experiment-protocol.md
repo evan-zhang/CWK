@@ -172,3 +172,18 @@ Evan 本次明确授权执行第四轮 OPS 全闭环，覆盖上文只做本地�
 - 合成启动/接线失败保留每次独占回执及日志；修复后可在新的空合成子目录复核，不能把这一权限用于 builder/verifier 或正式候选。私有目录对合成 Python 执行器拒读，对原生子进程拒读/拒写；禁止读取数必须为 0，主动拒读探针单列。
 - 新恢复回执独立追加，绑定实际成功观测和公开执行器字节；旧失败 gate、source provenance、before/after 和 cleanup 记录不可覆盖。freeze/运行消费者重新计算隐私门并核验源绑定，不接受单个 `passed=true`。原有生产漂移与 UNKNOWN 不被恢复隐私门抵销。
 - 完成后停止并精确清理合成服务/索引/导入数据，保留审计和待冻结公开依赖；只提交必要 runner/tests、本协议、验收及公开闭集证据/治理归属。不执行 freeze、正式 A/B、holdout 消费，不动生产/NAS/既有资源，不合并、不 push。后续正式阶段仍须父会话明确接续。
+
+
+### 同一第四轮 formal window binding migration（2026-09-12 03:34 授权）
+
+本次明确接续同一 UUID，覆盖前节 READY_TO_FREEZE 停止点和 e71ee34 的接线冲突停止点。e71ee34 的 pre-freeze INVALID 是历史执行器中止，不是本次终点；原 Amendment 3、db0d6b6、cab41c7、09e908b、e71ee34 全部保留。不重启 builder/verifier，不改 corpus/R/seed/tier/类别/floors、候选算法、质量阈值或双通过效用。执行器修复先独立本地提交，不 push；OPS 正式质量尚不能由本地合成通过推断。
+
+- **不可变窗口引用**：新的 canonical UUIDv4 `window_id` 显式传入 baseline 的 before/after、freeze create/verify、正式 runner、cleanup 和 aggregate；私有文件位于同一独占 `formal-windows/<UUID>`。before/after 的状态、模式、run/window、私有 artifact 摘要必须一致。after 只比较该窗口 before，且装配时重算比较。默认无 window 的 baseline 仅保留历史入口；正式路径绝不 fallback 到它，也不自动迁移、重命名或覆盖旧 claim。
+- **append-only**：baseline 各模式、freeze、verification、每候选执行 attempt、每候选/库消费、逐库评分/资源完成、最终 aggregate/decision 均独占创建。可变的 RUNNING/status 仅是观察投影，不替代不可变的 claim/terminal。重复已完成阶段只读核验，不重跑；全 run 作用域消费 claim 防止换 window 再消费。缺消费完成证据不能猜测“没跑过”。
+- **版本化隐私来源**：09e 的 v1 恢复回执与源码集合保持历史原样。新 `executioner-migration-binding.v1` 独立绑定 migration UUID、已提交公开源码 commit/字节、独立新 synthetic attempt 的真实 observation/status/精确 cleanup 和旧恢复原件。观察须重算完整 canary、鉴权后正常/错误 query/title 日志、Langfuse/OTEL、真实模型、loopback listener、socket 与外连拒绝门；只改 hash、缺观察、旧 PASS、当前源或合成执行源漂移均拒绝。该门不读取 holdout。
+- **冻结前迁移**：先在 OPS 归档旧公开源码和绑定/归档既有私有材料，再同步该 commit 的必要公开源；复核原 96 份材料字节、角色 1/1、freeze/消费 0。新真实合成门通过并精确清理后，才创建新的 formal window。freeze 绑定该 window 的 before 状态/私有 artifact、迁移隐私回执、完整执行器源、候选/依赖/权重/runbook。冻结后任何源/config/候选变更使该 freeze 失效；无自动再冻结取 PASS 路径。
+- **正式 A/B 接线**：按 receipt 随机顺序运行，仅参与库，DEFERRED 无调用。候选服务、canonical/top10/预热/超时/资源采样和算法不变；只新增同窗口读写和单次消费检查。逐库评分前先持久化消费 claim，评分后立即追加评分回执，原有资源测量边界追加完成回执。候选最终结果必须逐库等于这些回执；smoke/旧结果不能通过改 window id 冒充正式结果。
+- **故障与恢复**：长任务 OPS detached + status；SSH 断线先对账原 PID。执行 attempt 失败保留独占日志，不覆盖旧结果；未消费的执行器/网络/下载问题可对账恢复，已完成库不重复。消费 claim 无可核验完成状态时不重放；只能如实收口无法恢复的证据缺口。生产漂移不重建 baseline、不修生产。精确 finally/after 后才封装最终 v3 aggregate，从而满足同 window after 的强制绑定；不是用合成或旧窗口数据预填正式指标。
+- **v3 结构扩展而非结果规则变更**：`formal_window` 闭集公开字段只含随机引用、公开 commit、运行顺序与已核验布尔；候选 freeze receipt 加同一 window id。Schema 保持不变性 false/null 可记录，harness 仍 fail-closed。旧 v3 缺窗口字段不会自动补齐成为新正式报告，历史证据保持原字节可追溯。
+
+本地验证和范围见 [迁移合成证据](evidence/formal-window-migration-tests.json) 与 [验收追加记录](evidence/acceptance.md)。这些不是 OPS 实测成绩，不是生产切流授权。

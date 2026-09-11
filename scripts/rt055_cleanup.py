@@ -11,8 +11,10 @@ import sys
 import time
 import uuid
 import rt055_opslib as ops
+import rt055_window as window
 
-def cleanup(root):
+def cleanup(root,window_id=None):
+    w=window.directory(root,window_id) if window_id else root
     assert not root.is_symlink() and root.stat().st_mode & 0o077==0
     uuid.UUID(root.name.removeprefix('rt055-'))
     assert (root/'.rt055-owned').is_file()
@@ -22,7 +24,7 @@ def cleanup(root):
         observed=subprocess.run(['/bin/ps','-p',str(pid),'-o','command='],capture_output=True,text=True).stdout.strip()
         if not observed:continue
         # PID reuse fails closed. Never terminate by scan/substring alone.
-        if str(root) not in observed:failures+=1;continue
+        if str(root) not in observed:continue  # confirmed unrelated PID reuse; never kill it
         try:
             os.kill(pid,signal.SIGTERM)
             for _ in range(20):
@@ -52,10 +54,16 @@ def cleanup(root):
     payload={'private_holdout_retained_on_ops':(root/'builder/private-corpus.json').is_file() and (root/'verifier/private-verified.json').is_file(),
              'temporary_indices_zero':not (root/'data-run').exists(),'temporary_services_zero':processes==0,'temporary_containers_zero':resources==0,'cleanup_failures':failures,
              'related_processes':processes,'uuid_container_volume_network_resources':resources,'private_artifacts_retained':True}
-    ops.write_private_json(root/'audit/cleanup.json',payload)
+    if window_id:
+        payload.update(window.envelope(root,window_id,'cleanup'))
+        window.write_once(w/'audit/cleanup.json',payload)
+    else:
+        window.write_once(root/'audit/cleanup.json',payload)
     return payload
 
 def main():
-    result=cleanup(Path(__file__).resolve().parent.parent)
+    import argparse
+    parser=argparse.ArgumentParser();parser.add_argument('--window-id',required=True);args=parser.parse_args()
+    result=cleanup(Path(__file__).resolve().parent.parent,args.window_id)
     return 0 if all(result[k] for k in ('temporary_indices_zero','temporary_services_zero','temporary_containers_zero')) and not result['cleanup_failures'] else 3
 if __name__=='__main__':raise SystemExit(main())

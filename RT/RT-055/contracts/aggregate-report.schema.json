@@ -15,7 +15,8 @@
     "production_invariants",
     "participating_libraries",
     "deferred_libraries",
-    "library_validity"
+    "library_validity",
+    "formal_window"
   ],
   "properties": {
     "schema": {
@@ -368,6 +369,87 @@
           "$ref": "#/$defs/libraryValidity"
         }
       }
+    },
+    "formal_window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "window_id",
+        "before_window_id",
+        "after_window_id",
+        "freeze_window_id",
+        "verification_window_id",
+        "privacy_migration_id",
+        "executioner_commit",
+        "privacy_revalidation_verified",
+        "before_verified",
+        "after_comparison_verified",
+        "run_order"
+      ],
+      "properties": {
+        "window_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "before_window_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "after_window_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "freeze_window_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "verification_window_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "privacy_migration_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "executioner_commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$",
+          "maxLength": 40
+        },
+        "privacy_revalidation_verified": {
+          "const": true
+        },
+        "before_verified": {
+          "const": true
+        },
+        "after_comparison_verified": {
+          "const": true
+        },
+        "run_order": {
+          "enum": [
+            [
+              "a",
+              "b"
+            ],
+            [
+              "b",
+              "a"
+            ]
+          ]
+        }
+      }
     }
   },
   "$defs": {
@@ -588,7 +670,8 @@
         "query_plan_digest",
         "dependency_digest",
         "frozen_before_run",
-        "ops_artifacts_verified"
+        "ops_artifacts_verified",
+        "window_id"
       ],
       "properties": {
         "receipt_id": {
@@ -620,6 +703,12 @@
         },
         "candidate_id": {
           "const": "cwk-opensearch-dual-channel-v1"
+        },
+        "window_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
         }
       }
     },
@@ -668,7 +757,8 @@
         "head_matches_commit",
         "tree_clean",
         "native_config",
-        "upstream_receipt"
+        "upstream_receipt",
+        "window_id"
       ],
       "properties": {
         "receipt_id": {
@@ -712,6 +802,12 @@
         },
         "candidate_id": {
           "const": "weknora-native-8d7298fb5d759973cb1e481cadc5ecdf16dca599"
+        },
+        "window_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
         }
       }
     },

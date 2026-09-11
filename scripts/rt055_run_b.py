@@ -32,7 +32,8 @@ sys.path.insert(0, str(HERE))
 import kb_retrieval_candidates as kbc  # noqa: E402
 import kb_stage_b_poc as poc  # noqa: E402
 import rt055_opslib as ops
-import rt055_runtime as runtime  # noqa: E402
+import rt055_runtime as runtime
+import rt055_window as window  # noqa: E402
 
 KB_PATH_RE = re.compile(r"^/api/v1/knowledge-bases/([A-Za-z0-9_-]+)")
 KNOWLEDGE_PATH_RE = re.compile(r"^/api/v1/knowledge/([A-Za-z0-9_-]+)$")
@@ -306,7 +307,14 @@ def log_leak_check(log_paths: list[Path], needles: list[str]) -> bool:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=("smoke", "run"), required=True)
+    parser.add_argument('--window-id')
     args = parser.parse_args()
+    if args.mode=='run' and not args.window_id:parser.error('--window-id required for formal run')
+    w=window.directory(ROOT,args.window_id) if args.mode=='run' else ROOT
+    attempt=None
+    completed={}
+    log_root=ROOT/"runtime-logs"
+
 
     if (ROOT.is_symlink() or not ROOT.is_dir() or not ROOT.name.startswith("rt055-")
             or ROOT.stat().st_mode & 0o077 or not (ROOT / ".rt055-owned").is_file()):
@@ -323,13 +331,15 @@ def main() -> int:
     samplers = {}
     try:
         if args.mode == "run":
-            runtime.claim_candidate(ROOT, "b")
-            runtime.verify_ready(ROOT, "b")
-            verification = ops.read_json(ROOT / "verifier" / "freeze-verification.json")
+            runtime.verify_ready(ROOT,"b",args.window_id)
+            attempt=runtime.claim_candidate(ROOT, "b",args.window_id)
+            log_root=w/"runtime-logs"/"b"/attempt
+            runtime.verify_ready(ROOT, "b",args.window_id)
+            verification = window.verification(ROOT,args.window_id)
             if not verification.get("verified"):
                 print("RUN_B: freeze verification not passed")
                 return 3
-            receipt = ops.read_json(ROOT / "freeze" / "freeze-receipt.json")
+            receipt = window.receipt(ROOT,args.window_id)
             if receipt["candidates"]["b"]["digests"]["code_digest"] != ops.file_manifest(
                     [ROOT / p for p in receipt["candidates"]["b"]["code_files"]], base=ROOT):
                 print("RUN_B: candidate B code digest drifted from freeze")
@@ -338,6 +348,11 @@ def main() -> int:
             verified = ops.read_json(ROOT / "verifier" / "private-verified.json")
             cases = load_cases(verified)
             participating = runtime.participating(ROOT)
+            result['window_id']=args.window_id
+            for kb in participating:
+                saved=window.library_result(ROOT,args.window_id,"b",kb)
+                if saved is not None:completed[kb]=saved
+            participating=[kb for kb in participating if kb not in completed]
         else:
             def smoke_doc(kb: str) -> dict:
                 return {"doc_id": f"smoke:{kb}:1",
@@ -362,8 +377,8 @@ def main() -> int:
         for kb in participating:
             sidecar_port = free_port(rng)
             server_port = free_port(rng)
-            sidecar_log = ROOT / "runtime-logs" / f"sidecar-{kb}.log"
-            server_log = ROOT / "runtime-logs" / f"weknora-{kb}.log"
+            sidecar_log = log_root / f"sidecar-{kb}.log"
+            server_log = log_root / f"weknora-{kb}.log"
             sidecar_log.parent.mkdir(parents=True, exist_ok=True)
             sidecar = launch_sidecar(sidecar_port, ROOT / "sidecar" / "hf", sidecar_log)
             processes.append(sidecar)
@@ -391,14 +406,21 @@ def main() -> int:
             build_seconds[kb]=time.monotonic()-started_library
             for query in ops.WARMUP_QUERIES: candidate.search(query,kb,timeout=30)
             gateway_results.append(runtime.gateway_probe(ROOT,'b',candidate,[kb]))
+            if args.mode=='run':window.library_claim(ROOT,args.window_id,'b',kb)
             metrics.update(kbc.score_cases(candidate,[c for c in cases if c.kb_id==kb],timeout=30))
+            if args.mode=='run':window.library_scored(ROOT,args.window_id,'b',kb,metrics[kb])
         build_total=time.monotonic()-build_started
         peaks={kb:sampler.stop() for kb,sampler in samplers.items()}
         index_bytes={kb:runtime.data_bytes(transport.servers[kb]['data_dir']) for kb in participating}
-        gateway={key:all(row[key] for row in gateway_results) for key in gateway_results[0]}
+        gateway_rows=gateway_results+[v['gateway_readiness'] for v in completed.values()]
+        gateway={key:all(row[key] for row in gateway_rows) for key in gateway_rows[0]}
         for kb in participating:
             if index_bytes[kb] <= 0 or build_seconds[kb] <= 0:
                 raise RuntimeError("resource_measurement_incomplete")
+        if args.mode=='run':
+            for kb,gate_result in zip(participating,gateway_results):
+                window.library_complete(ROOT,args.window_id,'b',kb,{'metrics':{**metrics[kb],
+                    'index_bytes':index_bytes[kb],'build_seconds':build_seconds[kb],'peak_rss_bytes':peaks[kb]},'gateway_readiness':gate_result})
         if not log_leak_check(log_paths, list(ops.WARMUP_QUERIES)):
             raise RuntimeError("log_confidentiality_gate_failed")
         result.update({
@@ -413,8 +435,10 @@ def main() -> int:
                         "model": MODEL_NAME, "build_total_seconds": round(build_total, 3)},
             "log_gate": "pass",
         })
-        out = ROOT / "run-b" / ("smoke-result.json" if args.mode == "smoke" else "result.json")
-        ops.write_private_json(out, result)
+        out = w / "run-b" / ("smoke-result.json" if args.mode == "smoke" else "result.json")
+        if args.mode=='run':result['libraries']={kb:window.library_result(ROOT,args.window_id,'b',kb)['metrics'] for kb in runtime.participating(ROOT)}
+        if args.mode=='run':window.write_once(out,result)
+        else:ops.write_private_json(out, result)
         if args.mode == "run":
             print("RUN_B OK", json.dumps({kb: {
                 "recall": metrics[kb]["recall_at_10"], "exact": metrics[kb]["exact"],
@@ -427,8 +451,8 @@ def main() -> int:
         result["status"] = "FAILED"
         result["error"] = type(exc).__name__
         try:
-            ops.write_private_json(ROOT / "run-b" / ("smoke-result.json" if args.mode == "smoke"
-                                                     else "result.json"), result)
+            if args.mode=='smoke':ops.write_private_json(ROOT/'run-b/smoke-result.json',result)
+            elif attempt:window.write_once(w/'run-b/attempts'/attempt/'failure.json',result)
         except Exception:
             pass
         print("RUN_B FAILED", type(exc).__name__)

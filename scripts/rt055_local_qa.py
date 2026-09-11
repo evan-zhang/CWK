@@ -84,7 +84,8 @@ def main(argv=None):
         for index,(name,filename,old,new,test) in enumerate(MUTATIONS):
             target=base/str(index)
             (target/'scripts').mkdir(parents=True);(target/'tests').mkdir()
-            for p in (ROOT/'scripts').glob('*.py'):shutil.copy2(p,target/'scripts'/p.name)
+            for p in (ROOT/'scripts').iterdir():
+                if p.suffix in ('.py','.json'):shutil.copy2(p,target/'scripts'/p.name)
             for p in (ROOT/'tests').glob('test_rt055_*.py'):shutil.copy2(p,target/'tests'/p.name)
             shutil.copytree(ROOT/'RT/RT-055/contracts',target/'RT/RT-055/contracts')
             p=target/filename;text=p.read_text()

@@ -14,6 +14,7 @@ import time
 import urllib.error
 import urllib.request
 import rt055_opslib as ops
+import rt055_window as window
 
 SANDBOX = '''(version 1)
 (allow default)
@@ -113,17 +114,23 @@ def participating(root):
     if not v['verified'] or not v['participating_libraries']:raise RuntimeError('case_verification_failed')
     return v['participating_libraries']
 
-def claim_candidate(root, key):
-    v=ops.read_json(root/'verifier/freeze-verification.json')
-    if not v.get('verified'):raise RuntimeError('freeze_invalid')
-    receipt=ops.read_json(root/'freeze/freeze-receipt.json')
+def claim_candidate(root, key, window_id):
+    window.verification(root,window_id)
+    receipt=window.receipt(root,window_id)
     order=receipt['run_order'];assert key in order
     if order.index(key):
-        first=ops.read_json(root/('run-'+order[0])/'result.json')
-        if first['status']!='OK':raise RuntimeError('run_order_previous_failed')
-    folder=root/'consumption';folder.mkdir(mode=0o700,exist_ok=True)
-    fd=os.open(folder/(key+'.claim'),os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
-    with os.fdopen(fd,'w') as h:json.dump({'candidate':key,'pid':os.getpid(),'time':time.time(),'libraries':participating(root)},h)
+        first=window.validate_run(root,window_id,order[0],participating(root))
+        if first.get('status')!='OK' or first.get('window_id')!=window_id:
+            raise RuntimeError('run_order_previous_failed')
+    w=window.directory(root,window_id)
+    if (w/('run-'+key)/'result.json').exists():raise FileExistsError('candidate_already_complete')
+    # This is an execution-attempt claim, not a holdout-consumption claim.
+    # Actual scoring claims are per library, immediately before score_cases.
+    import uuid
+    attempt=str(uuid.uuid4())
+    window.write_once(w/('run-'+key)/'attempts'/attempt/'claim.json',
+        {**window.envelope(root,window_id,'execution-attempt'),'candidate':key,'pid':os.getpid(),'time':time.time()})
+    return attempt
 
 JIEBA_FILES = ('jieba.dict.utf8','hmm_model.utf8','user.dict.utf8','idf.utf8','stop_words.utf8')
 
@@ -134,8 +141,68 @@ PRIVACY_SOURCE_FILES = ('rt055_runtime.py','rt055_confidentiality.py','rt055_ops
                         'kb_stage_b_opensearch_benchmark.py')
 
 
-def privacy_passed(root):
+# Versioned separately: never change the historical v1 recovery source set.
+MIGRATION_SOURCE_FILES = PRIVACY_SOURCE_FILES + (
+    'rt055_window.py','rt055_baseline.py','rt055_formal_coordinator.py',
+    'rt055_aggregate.py','rt055_cleanup.py','rt055_tiers.py',
+    'kb_retrieval_decision.py','rt055_runbooks.json','aggregate-report.schema.json')
+
+
+def migration_directory(root,migration_id):
+    window.identifier(migration_id)
+    p=root/'executioner-migrations'/migration_id
+    if p.is_symlink() or p.parent.is_symlink():raise RuntimeError('migration_symlink')
+    return p
+
+
+def migration_evidence(root,migration_id,attempt):
+    from rt055_confidentiality import evaluate
+    import re
+    if type(attempt) is not int or not 1<=attempt<=999:raise ValueError('synthetic_attempt_invalid')
+    m=migration_directory(root,migration_id);t=m/('rt055-synthetic-%03d'%attempt)
+    deployment=ops.read_json(m/'deployment.json')
+    if (deployment.get('schema')!='cwk.rt055.executioner-deployment.v1'
+            or deployment.get('run_id')!=root.name.removeprefix('rt055-')
+            or deployment.get('migration_id')!=migration_id
+            or not re.fullmatch('[0-9a-f]{40}',deployment.get('code_commit',''))
+            or set(deployment.get('source_files',{}))!=set(MIGRATION_SOURCE_FILES)):
+        raise RuntimeError('migration_deployment_invalid')
+    for name,digest in deployment['source_files'].items():
+        if ops.sha_file(root/'impl'/name)!=digest or ops.sha_file(t/'impl'/name)!=digest:
+            raise RuntimeError('migration_source_drift')
+    status=ops.read_json(t/'status/confidentiality.json')
+    obs=ops.read_json(t/'audit/confidentiality-observations.json')
+    clean=ops.read_json(t/'audit/synthetic-cleanup.json')
+    if (status.get('status')!='PASS' or status.get('phase')!='COMPLETE'
+            or not evaluate(obs)['passed'] or obs.get('cleanup_error') or 'execution_error_kind' in obs
+            or clean!={'complete':True,'failures':0,'remaining_processes':0,'remaining_data_planes':0}):
+        raise RuntimeError('new_synthetic_privacy_revalidation_required')
+    return {'schema':'cwk.rt055.executioner-migration-binding.v1','run_id':deployment['run_id'],
+            'migration_id':migration_id,'code_commit':deployment['code_commit'],'attempt':attempt,
+            'source_files':deployment['source_files'],'status':'READY_TO_FREEZE',
+            'deployment_sha256':ops.sha_file(m/'deployment.json'),
+            'observations_sha256':ops.sha_file(t/'audit/confidentiality-observations.json'),
+            'status_sha256':ops.sha_file(t/'status/confidentiality.json'),
+            'cleanup_sha256':ops.sha_file(t/'audit/synthetic-cleanup.json'),
+            'historical_recovery_sha256':ops.sha_file(root/'audit/confidentiality-recovery.json')}
+
+
+def bind_privacy_migration(root,migration_id,attempt):
+    row=migration_evidence(root,migration_id,attempt)
+    window.write_once(migration_directory(root,migration_id)/'privacy-receipt.json',row)
+    return row
+
+
+def migration_privacy_passed(root,migration_id):
+    try:
+        row=ops.read_json(migration_directory(root,migration_id)/'privacy-receipt.json')
+        return row==migration_evidence(root,migration_id,row['attempt'])
+    except (OSError,ValueError,KeyError,TypeError,RuntimeError):return False
+
+
+def privacy_passed(root, migration_id=None):
     """An append-only recovery supersedes, but never rewrites, a failed gate."""
+    if migration_id is not None:return migration_privacy_passed(root,migration_id)
     from rt055_confidentiality import evaluate
     receipt = root/'audit/confidentiality-recovery.json'
     try:
@@ -157,10 +224,11 @@ def privacy_passed(root):
     except (OSError,ValueError,KeyError,TypeError):return False
 
 
-def verify_ready(root,key):
+def verify_ready(root,key,window_id):
     from rt055_freeze import verify_artifacts
-    if not verify_artifacts(root):raise RuntimeError('frozen_artifact_drift')
-    if not privacy_passed(root):raise RuntimeError('confidentiality_gate_failed')
+    window.verification(root,window_id)
+    if not verify_artifacts(root,window_id):raise RuntimeError('frozen_artifact_drift')
+    if not privacy_passed(root,window.receipt(root,window_id)['privacy_migration_id']):raise RuntimeError('confidentiality_gate_failed')
 
 def network_probe(root):
     """Fresh loopback listener + real denied TCP syscalls, no production health."""
