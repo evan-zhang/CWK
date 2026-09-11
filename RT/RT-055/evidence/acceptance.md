@@ -1,6 +1,6 @@
 # RT-055 OPS 接管验收：INVALID（2026-09-11）
 
-> 最新状态：Amendment 3 仅做本地修订与第一提交，不启动 OPS 第四轮，生产切流暂停。下文 R 修订轮 INVALID、真实漂移、前三轮历史与旧 JSON 均保持原意；本次记录见文末。
+> 最新状态（2026-09-12）：Amendment 3 第四轮已按新增授权执行，在原生隐私门未建立时 INVALID 收口。三库均参与、无延期；未冻结，正式 A/B 与 holdout 消费均为 0。清理及 after 完成，无遗留 OPS 后台任务；生产切流暂停。当前事实见文末第四轮收口，前三轮历史不改写。
 
 ## 唯一裁决
 
@@ -220,3 +220,61 @@ Schema/harness 升级 v3，v2 原合同可从基线回读，当前入口明确�
 - AODW：79 fixture、受管 RT 门禁、53 个 RT 花名册通过；governance：822 个 tracked files 全有归属。仅既有 handover-pack 宿主未安装告警，非阻断。
 - staged 精确允许列表为 33 文件；不含 runs/、docs/handover/、凭据、私有材料或 WeKnora core。git diff/check 与 staged 范围通过。首提交 hash/提交后 clean 状态由 Git 实查后随交付回执给出，不在提交内自引用未来 hash。
 - 本地原生日志/模型/网络/OPS 集成未运行；完整全仓 CI 未重跑，不把局部验收冒充 make ci-full。
+
+## Amendment 3 第四轮 OPS 收口
+
+### 结论与证据
+
+**INVALID / NATIVE_CONFIDENTIALITY_GATE_INCOMPLETE；不是质量 NO-GO，不选择 A 或 B。** 本轮失败链与 finally 收口完成，RT 选型目标未完成，保持 in_progress；全部生产切流暂停。
+
+- [公开中止证据](amendment3-ops4-abort.json) / [闭集 Schema](amendment3-ops4-abort.schema.json)：只有固定枚举、公开提交、UUID、布尔、计数及未测 null。私有题面、原文、标识、路径和私有 digest 不回传。
+- [本地唯一输出](amendment3-ops4-decision.json)：既有 decision CLI 实际退出 2，输出 INVALID / AGGREGATE_CONTRACT_INVALID / deferred=[]。abort 通过自己的 Schema，但不是正式 v3 aggregate；CLI 拒绝把未运行材料当作完整聚合。**这不是已经完成 A/B 质量或效用裁决。** 既有 harness 和历史 decision 未修改。
+- [本轮 QA](amendment3-ops4-qa.json)，闭集定义为同一 Schema 的 `$defs.qa`。实现未变，复用本轮已完成的 105 项回归与四项行为破坏证据；对新文档和证据另做合同、反例、隐私、链接与治理检查。
+
+### 授权、修复及恢复
+
+00:50 新授权覆盖仅做本地第一提交的阶段停止条件。预承诺为 `2cc386394610bd22f8a833d80304de95651d552e`；唯一必要执行器修复以成功 before 合成路径实际复现退出 3（1 test / 1 failure），只修 after 比较分支缩进，保留独占 claim 和 false/null，再以 `db0d6b66efaeea6b1e67bd33cd26e7d9af58b09c` 提交并同步 OPS。105 tests、0 skip 通过。未改采样、tier、质量门、效用或 WeKnora core。
+
+41 个公开实现文件同步时逐字节核验，清理时归档顶层执行器源文件，最终再次核对 41 个文件一致。32 份旧私有脚本版本及差异留 OPS。第三轮 8 份材料整体封存，最终原件与封存件仍同字节；旧 freeze、正式结果及消费均为 0，未拼接或消费旧池。
+
+setup、builder、verifier、before、隐私预检与 cleanup/after 均以原进程和独占状态恢复。builder=1、verifier=1、before=1、after=1；会话中断后先对账，没有重新派发已完成动作、reseed 或重启实验。
+
+### 真实题池和角色门
+
+参与库为 cwork-3m、docdb-touqian、spbp-2027，deferred=[]。按“标题 / 精确 / 正文 / 表格 / 无证据 / 近邻”排列：
+
+- cwork-3m：42@T3，10/8/10/4/5/5。
+- docdb-touqian：31@T3，10/3/5/3/5/5；达到六类 floor 即有效，不补到 42。
+- spbp-2027：16@T3 为 3/1/3/3/3/3，精确类不足，正确拒绝该 tier；同一次 build/seed 独立完整派出的 T2 为 42，10/8/10/4/5/5。不是给 T3 补题或混池。
+
+独立 verifier 全部检查通过，拒绝数 0；本地再重算轨迹和合计。三库 identifier/query 交集均为 0；两个 T3 库 token 交集为 0，SPBP T2 token 交集为 **114**，如实保留放宽维度，不冒称 T3 全隔离。每库均核销完整 R 的 2158 个成员，未核销 0；R 是当前快照重建，历史语义迁移风险仍在。
+
+三角色为 3 个实际独立进程、1 个 UID、独立 0700 工作区；3 次真实禁止读取探针通过，禁止读取计数 0。等级仅为 **PROCESS_LEVEL_SEPARATION_SINGLE_UID**，不是 OS 用户隔离或任意 syscall 沙箱。
+
+### 隐私门实测与停止原因
+
+上游固定提交 `8d7298fb5d759973cb1e481cadc5ecdf16dca599` 的可达性、HEAD、clean tree 预检通过；二进制 Go buildinfo、revision、unmodified、sqlite_fts5 标记在 OPS 核验。这些不是后续未发生的正式 freeze 绑定。
+
+现有 sandbox 实测外部连接被拒、loopback 可用；同一策略下 IPv4/IPv6 loopback bind 均成功。未放宽网络策略，也不能据此推断全部原生依赖能运行。原版 synthetic runner 的 A 启动在 300 秒就绪等待后失败：日志有 9 处 BindTransportException、14 处 Operation not permitted，未观察到 started。这是日志出现次数，不是 9 次独立实验。A 冒烟 FAILED，隐私 runner 退出 1。
+
+观察到 search 进程 1，B native 与 sidecar 均为 0；正常 native canary、鉴权后的错误 canary，以及 Langfuse/OTEL 关闭和模型调用仅 loopback 的运行态证明均未完成。对应 false 表示“未证明”，不声称观察到这些功能开启。11 份日志未检出 canary，网络观察无错误且未观察到外部 socket，**但未运行路径没有证据，零检出不等于隐私通过**。不接受硬编码成功值、未鉴权错误探针或 health 替代运行态证明。
+
+因此按硬门 INVALID，不启动 B、freeze 或正式候选；不改 core、不放宽沙箱、不重跑取 PASS。这是本轮缺失的具体证明，不推断所有可能配置下都无法运行。
+
+### 正式指标、清理与 after
+
+- freeze 回执与独立核验均不存在。正式 A=0、B=0、结果文件=0、holdout 消费=0。三库两候选 Recall@10、exact、no-answer、leak、P95、索引量、构建时长、峰值 RSS 均为 **NOT_RUN_PRIVACY_GATE_INVALID + null**，不是零分，也不是 DEFERRED。
+- 精确清理本轮已记录 PID 和 UUID 资源，额外移除 7 个工具/缓存子树及 11 个字节码文件。最终相关进程、临时数据/缓存、容器、卷、网络、镜像标签、服务条目均为 0，清理失败 0。
+- 96 份保留的私有/审计文件在清理后及 after 后均逐字节一致；私有 holdout、原生日志、预检及审计材料留 OPS。只清本轮拥有的资源，不改旧池或生产。
+- before/after 同一已提交采集器各一次，三库完整元数据覆盖的文件数为 1248/316/317；逐库新增、删除、元数据变化均为 0。受测目录集合、索引内容和配置指纹同值。
+- 三 Gateway 身份及稳定 health 同值，before、after 和最终即时复查均 3/3 HTTP 200、ok、read_only；4 个既有容器和卷投影同值。
+- **服务清单不变性为 false**：539→540，新增 4、减少 3，均不含本轮 UUID，尚未归因、未修复或重建 baseline。受测配置指纹虽同值，按既定规则，服务漂移仍使完整 production_config_unchanged 为 **false**。
+- 全部文件字节、全部依赖/进程、卷内容、owner 完整搜索端点登记未覆盖。容器发现的搜索端点为 0，不代表完整端点登记已证明。nas_unchanged、existing_indices_unchanged 保留 **null**，all_items_measured=false；不得从三个 health 正常推出生产全量未变。历史 cwork/标签漂移也未在本轮修复或洗掉。
+
+### 验证三格与交付边界
+
+- **工程判据**：105 tests，0 failure/error/skip；四项已完成的真实行为破坏均红，恢复后 105 全绿。本次实现未改，保留同一代码的实测证据，不重复 OPS 或破坏实验。新增 7 个输入合同反例，拒绝私有键、自由原因、假正式成绩、计数错配、空角色、假 freeze、unknown 提升为 unchanged；不把输入反例冒称行为破坏实验。局部 QA 不等于完整全仓 CI。
+- **AI 自检**：主会话审阅真实恢复状态与原生 runner，识别硬编码隐私成功值、未鉴权探针和完整不变性缺口，按缺项停止；未另派独立 AI reviewer，不冒充独立批准。
+- **读真实产出**：仅读取 OPS 白名单投影，核对容量轨迹、交集/核销、角色拒读、失败诊断、before/after、清理及本地 INVALID。未读取或回传私有题面、正文和失败样例。
+
+最终仅提交公开中止证据、Schema、CLI 输出、QA 及两份状态文档；8 份历史 JSON/Schema 与 Amendment 3 第一提交保持字节一致。最终提交 hash 和提交后 clean 状态以交付回执、Git 实查为准，不在提交内自引用未来 hash。不合并、不 push、不清理 worktree，不关闭 RT，无遗留 OPS 后台任务。本轮已终止；任何再试须新授权及新协议轮，不能续消费本轮题池。

@@ -1,0 +1,77 @@
+{
+  "schema": "cwk.rt055.amendment3-ops4-qa.v1",
+  "data_class": "PUBLIC_EVIDENCE_AND_SYNTHETIC_TESTS_ONLY",
+  "regression": {
+    "tests": 105,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exit_code": 0
+  },
+  "regression_evidence_reused_for_identical_code": true,
+  "executor_repair_red": {
+    "tests": 1,
+    "failures": 1,
+    "errors": 0,
+    "skipped": 0,
+    "exit_code": 1
+  },
+  "behavior_mutations": {
+    "executed": 4,
+    "detected": 4,
+    "restored_green_tests": 105
+  },
+  "json": {
+    "parsed_files": 12,
+    "abort_schema_valid": true,
+    "all_schema_self_checks_passed": true,
+    "selection_recalculation_passed": true,
+    "local_decision_exit_code": 2,
+    "local_decision": "INVALID",
+    "ab_quality_harness_evaluated": false
+  },
+  "negative_checks": {
+    "nested_private_key": true,
+    "free_reason": true,
+    "fabricated_formal_score": true,
+    "tier_total_mismatch": true,
+    "role_null": true,
+    "invented_freeze": true,
+    "unknown_promoted_to_unchanged": true
+  },
+  "privacy": {
+    "recursive_keys_checked": 499,
+    "forbidden_key_findings": 0,
+    "secret_pattern_files_checked": 6,
+    "secret_pattern_findings": 0,
+    "private_digest_findings": 0
+  },
+  "links": {
+    "local_links_checked": 36,
+    "anchors_checked": 7,
+    "failures": 0
+  },
+  "scope": {
+    "historical_files_unchanged": 8,
+    "implementation_unchanged_since_repair": true,
+    "staged_files": 6,
+    "staged_allowlist_valid": true,
+    "runs_or_handover_staged": false,
+    "diff_check": true
+  },
+  "gates": {
+    "aodw": "PASS",
+    "governance": "PASS",
+    "framework_fixtures_passed": 79,
+    "roster_entries": 53,
+    "governed_tracked_files": 826,
+    "known_host_skill_warning": true
+  },
+  "final_remote": {
+    "closeout_complete": true,
+    "exact_uuid_processes": 0,
+    "temporary_cache_subtrees": 0,
+    "retained_private_bytes_verified": true,
+    "fresh_gateways_200": 3
+  }
+}

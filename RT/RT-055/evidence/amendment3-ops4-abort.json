@@ -1,0 +1,511 @@
+{
+  "schema": "cwk.rt055.amendment3-ops4-abort.v1",
+  "run_id": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af",
+  "protocol_revision_commit": "2cc386394610bd22f8a833d80304de95651d552e",
+  "executor_repair_commit": "db0d6b66efaeea6b1e67bd33cd26e7d9af58b09c",
+  "status": "INVALID",
+  "reason": "NATIVE_CONFIDENTIALITY_GATE_INCOMPLETE",
+  "result_kind": "PRE_FREEZE_ABORT_NOT_AB_RESULT",
+  "historical_evidence": "UNCHANGED_NOT_CURRENT_RESULTS",
+  "participating_libraries": [
+    "cwork-3m",
+    "docdb-touqian",
+    "spbp-2027"
+  ],
+  "deferred_libraries": [],
+  "library_validity": {
+    "cwork-3m": {
+      "category_counts": {
+        "body_only_rare_phrase": 10,
+        "exact_identifier_date": 8,
+        "near_neighbour": 5,
+        "no_answer_mutation": 5,
+        "table_row": 4,
+        "title_filename": 10
+      },
+      "complete_pool_verified": true,
+      "floors": {
+        "body_only_rare_phrase": 3,
+        "exact_identifier_date": 2,
+        "near_neighbour": 3,
+        "no_answer_mutation": 3,
+        "table_row": 3,
+        "title_filename": 3
+      },
+      "same_build_and_seed": true,
+      "status": "PARTICIPATING",
+      "targets": {
+        "body_only_rare_phrase": 10,
+        "exact_identifier_date": 8,
+        "near_neighbour": 5,
+        "no_answer_mutation": 5,
+        "table_row": 4,
+        "title_filename": 10
+      },
+      "tier": "T3",
+      "total_count": 42,
+      "total_floor": 16,
+      "trace": [
+        {
+          "category_counts": {
+            "body_only_rare_phrase": 10,
+            "exact_identifier_date": 8,
+            "near_neighbour": 5,
+            "no_answer_mutation": 5,
+            "table_row": 4,
+            "title_filename": 10
+          },
+          "floor_pass": true,
+          "tier": "T3",
+          "total_count": 42
+        }
+      ]
+    },
+    "docdb-touqian": {
+      "category_counts": {
+        "body_only_rare_phrase": 5,
+        "exact_identifier_date": 3,
+        "near_neighbour": 5,
+        "no_answer_mutation": 5,
+        "table_row": 3,
+        "title_filename": 10
+      },
+      "complete_pool_verified": true,
+      "floors": {
+        "body_only_rare_phrase": 3,
+        "exact_identifier_date": 2,
+        "near_neighbour": 3,
+        "no_answer_mutation": 3,
+        "table_row": 3,
+        "title_filename": 3
+      },
+      "same_build_and_seed": true,
+      "status": "PARTICIPATING",
+      "targets": {
+        "body_only_rare_phrase": 10,
+        "exact_identifier_date": 8,
+        "near_neighbour": 5,
+        "no_answer_mutation": 5,
+        "table_row": 4,
+        "title_filename": 10
+      },
+      "tier": "T3",
+      "total_count": 31,
+      "total_floor": 16,
+      "trace": [
+        {
+          "category_counts": {
+            "body_only_rare_phrase": 5,
+            "exact_identifier_date": 3,
+            "near_neighbour": 5,
+            "no_answer_mutation": 5,
+            "table_row": 3,
+            "title_filename": 10
+          },
+          "floor_pass": true,
+          "tier": "T3",
+          "total_count": 31
+        }
+      ]
+    },
+    "spbp-2027": {
+      "category_counts": {
+        "body_only_rare_phrase": 10,
+        "exact_identifier_date": 8,
+        "near_neighbour": 5,
+        "no_answer_mutation": 5,
+        "table_row": 4,
+        "title_filename": 10
+      },
+      "complete_pool_verified": true,
+      "floors": {
+        "body_only_rare_phrase": 3,
+        "exact_identifier_date": 2,
+        "near_neighbour": 3,
+        "no_answer_mutation": 3,
+        "table_row": 3,
+        "title_filename": 3
+      },
+      "same_build_and_seed": true,
+      "status": "PARTICIPATING",
+      "targets": {
+        "body_only_rare_phrase": 10,
+        "exact_identifier_date": 8,
+        "near_neighbour": 5,
+        "no_answer_mutation": 5,
+        "table_row": 4,
+        "title_filename": 10
+      },
+      "tier": "T2",
+      "total_count": 42,
+      "total_floor": 16,
+      "trace": [
+        {
+          "category_counts": {
+            "body_only_rare_phrase": 3,
+            "exact_identifier_date": 1,
+            "near_neighbour": 3,
+            "no_answer_mutation": 3,
+            "table_row": 3,
+            "title_filename": 3
+          },
+          "floor_pass": false,
+          "tier": "T3",
+          "total_count": 16
+        },
+        {
+          "category_counts": {
+            "body_only_rare_phrase": 10,
+            "exact_identifier_date": 8,
+            "near_neighbour": 5,
+            "no_answer_mutation": 5,
+            "table_row": 4,
+            "title_filename": 10
+          },
+          "floor_pass": true,
+          "tier": "T2",
+          "total_count": 42
+        }
+      ]
+    }
+  },
+  "pool": {
+    "builder_runs": 1,
+    "verifier_runs": 1,
+    "rejections_total": 0,
+    "checks": {
+      "all_cases_accepted": true,
+      "at_least_one_participating": true,
+      "authority_reconstruction_equal": true,
+      "category_coverage_verified": true,
+      "corpus_eligibility_equal": true,
+      "denominators_nonzero_all_categories": true,
+      "input_disjoint_verified": true,
+      "private_artifact_hashes_verified": true,
+      "rt054_pool_excluded": true,
+      "rt054_pool_reconstructed": true,
+      "selection_verified": true,
+      "single_build_seed_verified": true,
+      "snapshot_reread_equal": true,
+      "verified": true
+    },
+    "exclusion": {
+      "cwork-3m": {
+        "identifier_intersections": 0,
+        "members_absent": 590,
+        "members_accounted": 2158,
+        "members_total": 2158,
+        "members_unaccounted": 0,
+        "normalized_query_intersections": 0,
+        "normalized_token_intersections": 0
+      },
+      "docdb-touqian": {
+        "identifier_intersections": 0,
+        "members_absent": 1918,
+        "members_accounted": 2158,
+        "members_total": 2158,
+        "members_unaccounted": 0,
+        "normalized_query_intersections": 0,
+        "normalized_token_intersections": 0
+      },
+      "spbp-2027": {
+        "identifier_intersections": 0,
+        "members_absent": 1802,
+        "members_accounted": 2158,
+        "members_total": 2158,
+        "members_unaccounted": 0,
+        "normalized_query_intersections": 0,
+        "normalized_token_intersections": 114
+      }
+    }
+  },
+  "roles": {
+    "denial_probes": 3,
+    "distinct_processes": 3,
+    "distinct_uids": 1,
+    "forbidden_reads": 0,
+    "role_separation_level": "PROCESS_LEVEL_SEPARATION_SINGLE_UID",
+    "verified": true
+  },
+  "provenance": {
+    "implementation_commit_matches": true,
+    "implementation_files_verified": 41,
+    "implementation_bytes_match_before": true,
+    "run_root_private": true,
+    "private_previous_script_versions_retained": 32,
+    "upstream_commit": "8d7298fb5d759973cb1e481cadc5ecdf16dca599",
+    "upstream_preflight": {
+      "commit_reachable": true,
+      "head_matches_commit": true,
+      "tree_clean": true,
+      "verified_on_ops": true
+    },
+    "binary_build_identity_before_cleanup": {
+      "go_buildinfo_present": true,
+      "revision_matches": true,
+      "unmodified_build": true,
+      "sqlite_fts5_tag_present": true
+    },
+    "previous_round": {
+      "archive_and_original_bytes_reverified": true,
+      "candidate_results": 0,
+      "formal_consumptions": 0,
+      "freeze_present": false,
+      "sealed_files": 8
+    }
+  },
+  "privacy": {
+    "status": "INVALID",
+    "runtime_gate": {
+      "authenticated_error_canaries": false,
+      "committed_runner_exit_code": 1,
+      "external_egress_denied": true,
+      "external_socket_observations": 0,
+      "log_files_scanned": 11,
+      "native_log_canary_absent": true,
+      "network_observation_errors": 0,
+      "normal_native_canary": false,
+      "observed_process_counts": {
+        "native": 0,
+        "search": 1,
+        "sidecar": 0
+      },
+      "passed": false,
+      "langfuse_runtime_disabled_proven": false,
+      "otel_runtime_disabled_proven": false,
+      "loopback_models_only_proven": false
+    },
+    "network_gate": {
+      "external_denied": true,
+      "loopback_allowed": true,
+      "passed": true
+    },
+    "loopback_bind_diagnostic": {
+      "sandbox_bind_probe_exit": 0,
+      "loopback_bind_probes": {
+        "IPV4_LOOPBACK": {
+          "bind_ok": true,
+          "errno": 0
+        },
+        "IPV6_LOOPBACK": {
+          "bind_ok": true,
+          "errno": 0
+        }
+      },
+      "native_diagnostic_counts": {
+        "bind_transport_exception": 9,
+        "bind_http_exception": 0,
+        "operation_not_permitted": 14,
+        "loopback_ipv4_mentions": 9,
+        "loopback_ipv6_mentions": 0,
+        "wildcard_mentions": 0
+      }
+    },
+    "synthetic_a_status": "FAILED",
+    "synthetic_a_error_kind": "RuntimeError",
+    "native_log_diagnostic_counts": {
+      "bind_failure": 9,
+      "bootstrap_failure": 0,
+      "connection_refused": 0,
+      "native_started": 0,
+      "permission_denied": 14
+    },
+    "diagnostic_interpretation": "COUNTS_ARE_LOG_OCCURRENCES_NOT_UNIQUE_FAILURES",
+    "missing_runtime_proofs_are_not_enabled_state_assertions": true
+  },
+  "formal": {
+    "status": "NOT_RUN_PRE_FREEZE_ABORT",
+    "freeze_present": false,
+    "freeze_verification_present": false,
+    "candidate_runs": {
+      "A": 0,
+      "B": 0
+    },
+    "candidate_output_files": 0,
+    "holdout_consumptions": 0,
+    "libraries": {
+      "cwork-3m": {
+        "A": {
+          "status": "NOT_RUN_PRIVACY_GATE_INVALID",
+          "recall_at_10": null,
+          "exact": null,
+          "no_answer": null,
+          "leak_count": null,
+          "p95_ms": null,
+          "index_bytes": null,
+          "build_seconds": null,
+          "peak_rss_bytes": null
+        },
+        "B": {
+          "status": "NOT_RUN_PRIVACY_GATE_INVALID",
+          "recall_at_10": null,
+          "exact": null,
+          "no_answer": null,
+          "leak_count": null,
+          "p95_ms": null,
+          "index_bytes": null,
+          "build_seconds": null,
+          "peak_rss_bytes": null
+        }
+      },
+      "docdb-touqian": {
+        "A": {
+          "status": "NOT_RUN_PRIVACY_GATE_INVALID",
+          "recall_at_10": null,
+          "exact": null,
+          "no_answer": null,
+          "leak_count": null,
+          "p95_ms": null,
+          "index_bytes": null,
+          "build_seconds": null,
+          "peak_rss_bytes": null
+        },
+        "B": {
+          "status": "NOT_RUN_PRIVACY_GATE_INVALID",
+          "recall_at_10": null,
+          "exact": null,
+          "no_answer": null,
+          "leak_count": null,
+          "p95_ms": null,
+          "index_bytes": null,
+          "build_seconds": null,
+          "peak_rss_bytes": null
+        }
+      },
+      "spbp-2027": {
+        "A": {
+          "status": "NOT_RUN_PRIVACY_GATE_INVALID",
+          "recall_at_10": null,
+          "exact": null,
+          "no_answer": null,
+          "leak_count": null,
+          "p95_ms": null,
+          "index_bytes": null,
+          "build_seconds": null,
+          "peak_rss_bytes": null
+        },
+        "B": {
+          "status": "NOT_RUN_PRIVACY_GATE_INVALID",
+          "recall_at_10": null,
+          "exact": null,
+          "no_answer": null,
+          "leak_count": null,
+          "p95_ms": null,
+          "index_bytes": null,
+          "build_seconds": null,
+          "peak_rss_bytes": null
+        }
+      }
+    },
+    "quality_and_cost_decision_evaluated": false,
+    "production_cutover": "PAUSED_ALL_LIBRARIES"
+  },
+  "cleanup": {
+    "bytecode_files_removed": 11,
+    "cleanup_failures": 0,
+    "committed_cleanup_failures": 0,
+    "exact_uuid_command_processes_remaining": 0,
+    "exact_uuid_containers": 0,
+    "exact_uuid_image_tags": 0,
+    "exact_uuid_networks": 0,
+    "exact_uuid_services": 0,
+    "exact_uuid_volumes": 0,
+    "preserved_files_verified": 96,
+    "private_and_audit_bytes_unchanged": true,
+    "public_implementation_bytes_unchanged": true,
+    "public_implementation_files_reverified": 41,
+    "remaining_role_bytecode_files": 0,
+    "retained_bytes_rechecked_after_baseline": true,
+    "root_executor_sources_archived": true,
+    "status": "COMPLETE",
+    "temporary_cache_subtrees_rechecked": 0,
+    "temporary_tool_cache_subtrees_remaining": 0,
+    "tool_cache_subtrees_removed": 7
+  },
+  "baseline": {
+    "after": {
+      "complete_metadata_libraries": 3,
+      "containers": 4,
+      "gateway_http_200_count": 3,
+      "libraries_measured": 3,
+      "nas_file_counts": {
+        "cwork-3m": 1248,
+        "docdb-touqian": 316,
+        "spbp-2027": 317
+      }
+    },
+    "before": {
+      "complete_metadata_libraries": 3,
+      "containers": 4,
+      "gateway_http_200_count": 3,
+      "libraries_measured": 3,
+      "nas_file_counts": {
+        "cwork-3m": 1248,
+        "docdb-touqian": 316,
+        "spbp-2027": 317
+      }
+    }
+  },
+  "baseline_claims": {
+    "before": 1,
+    "after": 1
+  },
+  "production_comparison": {
+    "all_items_measured": false,
+    "containers_unchanged": true,
+    "existing_indices_unchanged": null,
+    "existing_indices_unchanged_measured_projection": true,
+    "gateway_health_content_unchanged": true,
+    "gateway_unchanged": true,
+    "nas_unchanged": null,
+    "nas_unchanged_measured_projection": true,
+    "production_config_unchanged": false,
+    "production_config_unchanged_measured_projection": true,
+    "services_unchanged": false,
+    "three_gateways_healthy": true,
+    "volumes_unchanged": true
+  },
+  "production_service_delta": {
+    "before_service_entries": 539,
+    "after_service_entries": 540,
+    "added_service_entries": 4,
+    "removed_service_entries": 3,
+    "exact_current_uuid_service_entries": 0,
+    "attribution": "UNRESOLVED_NOT_REPAIRED",
+    "before_container_search_endpoints": 0,
+    "after_container_search_endpoints": 0
+  },
+  "nas_library_comparison": {
+    "cwork-3m": {
+      "added_files": 0,
+      "configuration_equal": true,
+      "directory_set_equal": true,
+      "index_content_equal": true,
+      "metadata_equal": true,
+      "modified_metadata_files": 0,
+      "removed_files": 0
+    },
+    "docdb-touqian": {
+      "added_files": 0,
+      "configuration_equal": true,
+      "directory_set_equal": true,
+      "index_content_equal": true,
+      "metadata_equal": true,
+      "modified_metadata_files": 0,
+      "removed_files": 0
+    },
+    "spbp-2027": {
+      "added_files": 0,
+      "configuration_equal": true,
+      "directory_set_equal": true,
+      "index_content_equal": true,
+      "metadata_equal": true,
+      "modified_metadata_files": 0,
+      "removed_files": 0
+    }
+  },
+  "fresh_gateway_check": {
+    "checked": 3,
+    "http_200_ok_read_only": 3
+  }
+}

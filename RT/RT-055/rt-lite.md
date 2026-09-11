@@ -1,7 +1,7 @@
 # RT-Lite: RT-055 - 双通道 OpenSearch 与原版 WeKnora 检索决策实验
 
 > profile: Spec-Lite | execution_mode: collaborative
-> 当前状态：Amendment 3 本地修订收口；不启动 OPS 第四轮，生产切流暂停。R 修订轮 INVALID 与全部历史证据不改写；RT 选型目标仍未完成。以文末本地交付节为准。
+> 当前状态（2026-09-12）：Amendment 3 第四轮已按新增授权执行，在原生隐私门未建立时 INVALID 收口；三库均参与、无延期，未 freeze、未消费正式 holdout。清理及 after 完成，无遗留 OPS 后台任务；生产切流暂停，RT 选型目标仍未完成。以文末第四轮收口节为准，历史不改写。
 
 ## 方案（给人看）
 
@@ -153,3 +153,31 @@
 - 同 UID 审计是 Python 进程级拒读，不是 OS 用户隔离或任意 syscall 沙箱。现有 baseline 未测完整不变性则输出 null，不能据此进入生产。
 - R 是当前快照重建而非历史原池；低 tier 放宽 query/token 后仍有历史语义迁移残余风险。旧 cwork/服务标签漂移未归因、未修复、未重置 baseline。
 - 本次交付只保留当前分支的一个本地提交；不关闭 RT，不合并、不 push、不清理 worktree，无 OPS 后台任务由本次启动。
+
+## 2026-09-12 Amendment 3 第四轮：隐私硬门失败收口
+
+**INVALID；不是质量 NO-GO，不选择 A/B。** 00:50 新授权允许第四轮全闭环。预承诺 `2cc386394610bd22f8a833d80304de95651d552e` 后，先合成复现 before 执行器失败（1 test / 1 failure），只修 after 比较缩进，以 `db0d6b66efaeea6b1e67bd33cd26e7d9af58b09c` 提交再同步 OPS。未改采样、tier、质量、效用或 core。
+
+### 实际完成与硬门
+
+- 第三轮 8 份私有材料整体封存，最终原件/封存件同字节、正式消费 0。本轮 builder/verifier 各一次；恢复先查原进程和 claim，没有重启、reseed、重复构建或拼池。
+- 参与：cwork-3m 42@T3、docdb-touqian 31@T3、spbp-2027 42@T2；延期=[]。SPBP 的 16@T3 因精确类为 1 正确失败，同 build/seed 独立完整派出 T2，不补题。verifier 全过、拒绝 0；各库 R 成员 2158 全核销、未核销 0。
+- identifier/query 交集均 0，两个 T3 库 token 交集 0，SPBP T2 token 交集 114 如实保留。三角色 3 个 PID、1 个 UID、独立 0700 工作区，3 次拒读探针通过、禁止读取 0；仅证明 PROCESS_LEVEL_SEPARATION_SINGLE_UID。R 历史语义迁移风险仍在。
+- 网络实测外连被拒、loopback 可连且 IPv4/IPv6 可 bind；但 A 原生启动出现 transport bind 权限错误，300 秒就绪等待后失败。B 正常 native canary、鉴权后错误 canary、Langfuse/OTEL 和模型调用的运行态证明未完成。11 份日志零检出不能证明未运行路径安全；不改 core、不放宽网络、不重跑取 PASS。
+- 未 freeze，正式 A/B 各 0、holdout 消费 0。三库两候选质量与资源指标全为 NOT_RUN_PRIVACY_GATE_INVALID + null，不是 DEFERRED 或零分。既有本地 decision CLI 对 abort 实际退出 2、输出 INVALID；没有完成正式质量/效用计算。
+
+### 清理、after 与保留限制
+
+精确清理后本轮相关进程、数据/工具缓存、容器/卷/网络/镜像标签/服务均为 0，失败 0；96 份私有/审计文件字节未变，41 个公开实现文件再次核验一致。before/after 各一次，三库元数据文件数 1248/316/317 同值，受测索引和配置指纹同值，三个 Gateway 最终复查均 200、ok、read_only。
+
+服务清单 539→540（新增 4、减少 3）未归因，services_unchanged=false，按合同 production_config_unchanged=false；没有重建 baseline 或修生产。完整文件字节、全部依赖/卷内容/端点登记未覆盖，NAS 和完整索引不变性仍为 null，all_items_measured=false。局部同值和 health 不证明生产全量未变。
+
+### 验证与交付
+
+- **判据**：已完成 105 tests、0 skip，四项行为破坏均被检测，恢复后全绿；本次实现未改，保留这些实测证据，不重复已完成实验。新证据另做 Schema、轨迹重算、本地 CLI、7 个拒绝反例、递归隐私/秘密、历史字节保持、链接、AODW/governance 与精确暂存检查，不冒称全仓 CI。
+- **AI 自检**：主会话审阅真实运行及证明覆盖，识别硬编码成功值、未鉴权探针和未覆盖项并 fail closed；没有独立 AI 评审或批准。
+- **读产出**：核对 OPS 公开 allowlist 的真实容量/角色、隐私失败、after/清理与本地 INVALID；私有输入、原始日志留 OPS。
+
+详见 [第四轮验收](evidence/acceptance.md#amendment-3-第四轮-ops-收口)、[中止证据](evidence/amendment3-ops4-abort.json)、[闭集 Schema](evidence/amendment3-ops4-abort.schema.json)、[CLI 输出](evidence/amendment3-ops4-decision.json)、[QA](evidence/amendment3-ops4-qa.json)。8 份历史 JSON/Schema 不变；证据提交独立于必要修复，hash 和 clean 状态随 Git 回执交付。
+
+本轮失败收口完成，无遗留 OPS 后台任务。不合并、不 push、不清理 worktree，RT 保持 in_progress、全部切流暂停。后续先复核原生隐私证明、服务漂移和完整不变性范围；任何再试须新授权及新协议轮，不能续消费本轮题池。
