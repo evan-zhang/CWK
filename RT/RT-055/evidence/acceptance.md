@@ -322,3 +322,37 @@ setup、builder、verifier、before、隐私预检与 cleanup/after 均以原进
 收口机械核验：13 个暂存文件与磁盘逐字节一致，8 个 Python 文件解析、公开 Schema、OPS 投影逐字段比对、52 条相对链接/10 个锚点、隐私/秘密扫描均通过；恢复回执送入原 A/B CLI 实际退出 2/INVALID，正确拒作正式结果。AODW 门禁及 53 个 RT 花名册通过，829 文件治理通过；只有既有宿主 skill 未安装告警，未扩权安装。不冒称全仓 CI。
 
 本次只本地提交必要恢复文件，不合并、不 push、不清理 worktree。停在 **READY_TO_FREEZE**，无后台任务；后续正式阶段由父会话明确接续，本会话不会自动 freeze 或消费题池。
+
+## 第四轮正式接续：新基线绑定硬门（2026-09-12）
+
+02:58 的接续授权要求保留同一未消费 holdout、同一 run UUID 和全部历史，同时在恢复后新采 formal-before，并用 09e 的实际代码冻结。此次不把旧隐私失败当成当前失败：恢复隐私门仍通过。新问题是 **09e 的 freeze 没有新基线入口**。
+
+### 发现与选择
+
+- OPS 对账确认 96 份原材料字节一致，builder/verifier=1/1，freeze、正式结果、消费和候选进程均为 0；三个 Gateway 为 200。22 份已部署公开实现与 `09e908b19360e08f1ae05b7a3a7ff888127997b6` 一致。原恢复回执绑定了文件字节但没有最终提交号，本次另追加提交来源回执，不覆盖原 provenance。
+- [baseline](../../../scripts/rt055_baseline.py) 只有 before/after 两个入口，旧 claim 已存在，再执行会被独占创建拒绝。[freeze](../../../scripts/rt055_freeze.py) 的创建与复核都固定要求旧 `production-before`；只新增 formal-before 文件并不能使它绑定新窗口。
+- 修改 freeze 的这段接线又会改变[隐私恢复绑定](../../../scripts/rt055_runtime.py)覆盖的源码字节。合成检查实证：旧 claim 拒绝第二次调用且原件不变；只有新 formal-before 时 freeze 无法创建 receipt；仅改 freeze 源就使原隐私恢复门拒绝。
+- 本次按“使用 09e 实际代码、保留原绑定、禁止替换旧基线”的严格解释停止 freeze。**这是本次边界下的执行器接线冲突，不是声称该缺陷不可修复，也不是候选质量失败。** 没有偷偷改 hash、重绑未重验的隐私证据、改名替换旧文件或临时 monkeypatch 冻结逻辑。
+- 只读收口控制器复用原采集函数，给此次 before/after 使用新的独占 claim 和私有输出；两侧同样补采目录元数据。它不执行 builder/verifier、freeze 或候选，不写生产。旧 before/after、abort、恢复回执及 96 份保留材料继续按原位置核验。
+
+生产选型仍未完成；正式指标只能记未运行，不能用合成测试、空值补零或旧 aggregate 拼出 v3 成绩。后续修复至少需要统一 before/freeze/verify/aggregate 的窗口引用与 append-only 隐私来源迁移；本次没有实施这项迁移，也不擅自再次认领窗口。
+
+### 实际收口结果
+
+**INVALID / FRESH_FORMAL_BASELINE_BINDING_CONFLICT**。新 formal-before、formal-after 各认领一次并 PASS，收口控制器和低频 watcher 均退出。OPS 先通过[闭集中止 Schema](amendment3-ops4-formal-abort.schema.json)，才导出[公开报告](amendment3-ops4-formal-abort.json)；没有导出私有题面、标签、正文、标题、文件名、路径、locator 或其 digest。
+
+- **参加库/题池**：cwork-3m T3/42、docdb-touqian T3/31、spbp-2027 T2/42；deferred=[]。这些是保留题池数，不是正式运行分母。
+- **A/B 正式结果**：三库两候选的十二项计数、Recall@10/Exact/NoAnswer、leak、P95、index bytes/build time/peak RSS、运维步骤与 Gateway readiness 全为 `null`，状态 `NOT_RUN_BASELINE_BINDING_CONFLICT`。freeze 顺序、A/B receipt 均为 null；freeze claim/receipt、A/B result、consumption 均 0。没有产生 aggregate v3，也没有进入质量与代价裁决。[原裁决 CLI 的拒绝结果](amendment3-ops4-formal-decision.json)为 exit 2 / INVALID / AGGREGATE_CONTRACT_INVALID——这是正确拒绝中止报告，不是正式质量成绩。
+- **隐私/角色**：复用并重新核验上一次 append-only 的真实 native 恢复证据，不重跑 canary。正常 search/native 各 1；鉴权后 query/title 错误均 400；embedding 3/3；112 次 socket 样本，外连 0；13 份日志，canary 命中 0；tracing header 0、forbidden read 0，恢复门全部 PASS。角色实证为 `PROCESS_LEVEL_SEPARATION_SINGLE_UID`，不升级声称 OS UID 隔离。固定 WeKnora upstream 可达、HEAD 匹配、checkout clean，native binary 身份再次通过。
+- **新基线范围**：两侧均覆盖三库全部列出的文件与目录之 size/mtime/isdir；文件数依次 1248/316/317，目录数 616/166/171（各含根目录）。两侧均有 4 个既有容器、537 个服务标签；已发现的容器型 search endpoint 为 0，不将它冒称所有可能索引端点为 0。NAS 路径和字节指纹只在 OPS。
+- **实测不变性**：Gateway/PID 与健康内容、容器、卷元数据均 true；NAS、已测索引和已测配置投影均 true。服务集合却新增 1、减少 1，`services_unchanged=false`，因此强口径 `production_config_unchanged=false`。只记录漂移，不归因，也不修改生产“追平”快照。
+- **未证完整不变性**：采集没有覆盖全部文件字节、卷内容、所有生产依赖/进程和经所有者枚举的全部索引端点，因此 `nas_unchanged=null`、`existing_indices_unchanged=null`、`all_items_measured=false`。投影相同不等于完整不变；即使接线缺陷修复，这些 false/UNKNOWN 仍不能放行切流。
+- **finally 与独立检查**：候选进程、正式/合成数据面、精确 UUID 的容器/卷/网络/镜像标签/服务、未确认创建及 cleanup failure 均 0。96 份原材料和历史回执字节一致；22 份公开执行器源码仍与 09e 一致。三个 Gateway 再次为 HTTP 200。未删除旧失败日志/回执，也未移除已批准但空闲的公共依赖。
+
+### 本次公开 QA
+
+123 项 RT-055 回归（0 skip）与 4 项纯合成接线/不变性检查通过；正式数据未参与本地测试。公开 Schema 的 14 个反例拒绝私有字段/digest、自由 reason、伪正式顺序/分数/NO-GO/消费、错误库划分/角色级别/来源、空日志/tracing 和将未证完整性升级为 true。新报告与 OPS 导出逐字段一致，旧 JSON/Schema 和已有文档前缀保持原字节，脚本/测试/正式契约/协议未改。本次没有独立 AI 审批，不冒称父会话验收或全仓 CI。
+
+工具失败如实保留：`apply_patch` 对本 worktree 的绝对路径拒绝且未写入，后用支持该路径的 `edit` 完成追加；没有重试 OPS 的已认领阶段。工程检查、链接/锚点、隐私扫描、AODW 和治理明细见[公开 QA](amendment3-ops4-formal-qa.json)。
+
+本次仅提交公开中止证据与两份文档；不改规则、不 push、不合并、不清理 worktree。**正式接续的中止收口已完成，RT-055 选型目标未完成、三库切流继续暂停；无后台任务，不自动重启。**

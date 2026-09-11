@@ -196,3 +196,15 @@
 - **读产出**：复核 OPS 白名单运行证明、依赖校验及字节保持；没有读取/导出私有题面或 digest。
 
 证据与细节见 [本次验收](evidence/acceptance.md#第四轮同一-run-的-pre-freeze-执行器恢复2026-09-12)、[公开回执](evidence/amendment3-ops4-recovery.json)、[闭集 Schema](evidence/amendment3-ops4-recovery.schema.json)。只本地提交、保留分支；不 push、不合并、不自动执行下一阶段，无后台任务。
+
+## 2026-09-12 正式接续：新基线绑定冲突
+
+02:58 获准继续同一 run，未重建题池、重复 builder/verifier 或改变 tier/seed/规则。隐私恢复仍 PASS；但 09e 的 freeze 创建和复核只接受旧 before，而旧 before/after claim 不可覆盖。新增 formal-before 不能被原入口引用，改 freeze 源则使已绑定的恢复隐私门拒绝。
+
+本次严格保持指定源码与既有回执，停在 freeze 前，按新硬门收口；不把这一执行器问题包装成质量 NO-GO。原 READY_TO_FREEZE 是已完成隐私恢复的历史状态，不等于新正式窗口已可冻结。后续可修复，但必须先解决窗口与来源绑定的迁移，不能覆盖旧基线或绕过源核验。细节见 [本次验收](evidence/acceptance.md#第四轮正式接续新基线绑定硬门2026-09-12)。
+
+**最终 INVALID / FRESH_FORMAL_BASELINE_BINDING_CONFLICT，中止收口完成。** 新 formal-before/after 各一次并 PASS，未覆盖旧窗口；三库文件 1248/316/317、目录 616/166/171。新窗口服务集合新增 1/减少 1，services/config 强口径 false；NAS/index 强口径 UNKNOWN，完整性 false，不能切流。Gateway/容器/卷元数据投影相同，三个 Gateway 200。
+
+freeze/正式 A/B/消费仍 0，三库两候选所有正式指标 null；builder/verifier 1/1；96 份保留材料和 22 份公开源字节一致。候选资源/未确认创建/清理失败 0，OPS 控制器与 watcher 已退出。隐私恢复仍 PASS，角色仍为单 UID 进程隔离，未改 core 或规则。
+
+证据：[公开中止报告](evidence/amendment3-ops4-formal-abort.json)、[闭集 Schema](evidence/amendment3-ops4-formal-abort.schema.json)、[原 CLI 拒绝回执](evidence/amendment3-ops4-formal-decision.json)、[公开 QA](evidence/amendment3-ops4-formal-qa.json)。123 回归/0 skip、4 合成接线检查、14 Schema 反例通过；只本地提交，不 push/合并/清理 worktree。RT-055 选型仍未完成，无后台任务，不自动启动下一轮。
