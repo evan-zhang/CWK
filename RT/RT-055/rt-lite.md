@@ -1,6 +1,7 @@
 # RT-Lite: RT-055 - 双通道 OpenSearch 与原版 WeKnora 检索决策实验
 
 > profile: Spec-Lite | execution_mode: collaborative
+> 当前终态：R 修订轮 INVALID（覆盖不足），清理完成、生产对比有漂移；正式 A/B 未运行。前文开发/历史停止点仅作追溯，以文末收口为准。
 
 ## 方案（给人看）
 
@@ -110,3 +111,21 @@
 - 修订时新 holdout=0、正式 A/B=0；旧 126 题整体作废不动。先单独本地提交修订与测试，再同步 OPS 建一次新池；不 push，不含 docs/handover/ 或 runs/ 临时状态。授权内继续，仅协议硬冲突停止。
 
 修订提交前检查：递归聚合隐私、18 条相对链接、diff、AODW 和 797 文件治理审计通过（仅既有宿主 handover-pack 告警）。隔离快车道先执行 2572 项测试；复制出的源码缺少 Git index，导致 3 failures/1 setUpClass error，均属于 Git 元数据检查。为该纯源码临时副本建立 Git index 后，只重跑受影响的 10 项，全部通过；随后三类 smoke 与 AODW/governance 均通过。没有把初次 `make ci` 的退出 2 写成退出 0，也未重复已通过的整套测试。
+
+
+## 当前 R 修订轮：单次覆盖失败后的第二提交收口
+
+- 首提交 `45a6080a01f4fb6f3ed1aeaa16e7f2d13dad59d4` 已在建池前固化 R 协议。当前随机 run UUID 为 `3bf93a6e-be8e-4c4d-835d-f17eb277f8c2`；本次接管未改 scripts/tests、抽样 seed 或候选实现。
+- builder=1/PASS、verifier=1/FAIL exit 3；新池 **42 / 31 / 16**。六类顺序为标题/文件名、精确编号/日期、正文稀有短语、表格、无答案、近邻，目标 **10/8/10/4/5/5**，三库实际分别 **10/8/10/4/5/5；10/3/5/3/5/5；3/1/3/3/3/3**。后两库未达覆盖目标，唯一状态 **INVALID**，不是质量 NO-GO。
+- R 三类交集各库全部 0；2158 个 R 成员逐库全核销、未核销 0；题目拒绝 0。R 重建、完整 source snapshot reread、资格过滤、材料完整性和隔离均通过，不抵销覆盖不足；理论历史迁移风险仍保留。只有 builder/verifier 独立过程材料，implementer 未执行，三角色完整证明 null。
+- 不重建、不换 seed、不补/删题、不重跑 verifier。freeze 不存在，正式 A/B、holdout 消费及正式索引/服务/容器/数据面创建均 0，无第二次正式实验；三库正式成绩为 null。
+- 同口径 after 和独立 NAS 全目录范围补证均已可靠结束。Gateway PID/命令、指定配置投影、4 个容器投影一致，8787/8788/8789 实时均 HTTP 200；docdb、spbp 的文件集合/元数据一致。**cwork 文件 1206→1248（+42），原有元数据变化 7，其中既有 index 变化 2；launchctl 标签 537→537 但集合增/减各 1，非已记录实验进程变化。真实漂移保留，不重置基线、不擅自归因或修复。**
+- 完整 NAS 内容、index/alias、生产配置/进程全集与容器卷内容缺基线覆盖，均 null；不接受硬编码全测量或用 health 推导不变性。已测投影整体不变性 false，完整生产不变性未证明。
+- 仅清理当前 UUID：6 个根执行器移入私有审计后删除入口，8 个字节码清除；37 份既有私有/审计材料复核不变。旧 126 题的 2 份整体归档仍与原件相同；新 89 题也保留并标 INVALID/禁止消费。精确 UUID 资源、未确认资源、非审计数据面、cleanup failures、相关进程最终均 0。
+- 新增 [本轮中止证据](evidence/r-round-abort.json) 与 [闭集 Schema](evidence/r-round-abort.schema.json)，不冒充 A/B harness。旧 aggregate-report.v2.json / decision.json 与首提交字节不变，只代表第一历史中止轮。前两轮历史和首提交协议修订说明完整保留。
+- **工程判据**：58 项 RT-055 合成回归全过；Schema/隐私/秘密/链接/AODW/governance/staged 范围及 diff 检查见 [QA](evidence/r-round-closeout-qa.json)。不把局部回归称为重新通过全量 CI。
+- **AI 审查**：接管会话核对实际控制流及证据边界，待父会话独立复核第二提交；不自批。
+- **读产出**：读取 OPS 白名单计数、集合/指纹比较布尔与清理回执，不读取或导出私有题面/标注/摘要。
+- 第二提交只含 RT-055 最终证据、acceptance、rt-lite 和必要的中止格式终态；不含 scripts/tests、runs/、docs/handover/，不 push。提交 hash 随回执交父会话；worktree clean 才算本地交付。
+
+详见 [本轮验收](evidence/acceptance.md#当前-r-修订轮失败收口2328-接管指令)。未决是已发现漂移的归属及未覆盖证明、被硬门挡住的正式阶段；它们不授予本轮重试资格。本轮收口完成、无后台任务；RT 选型目标未完成，不关闭。唯一下一步：父会话复核。

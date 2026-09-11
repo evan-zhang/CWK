@@ -1,0 +1,290 @@
+{
+  "schema": "cwk.rt055.r-round-abort.v1",
+  "run_id": "3bf93a6e-be8e-4c4d-835d-f17eb277f8c2",
+  "protocol_revision_commit": "45a6080a01f4fb6f3ed1aeaa16e7f2d13dad59d4",
+  "status": "INVALID",
+  "reason": "CATEGORY_COVERAGE_INSUFFICIENT",
+  "result_kind": "PRE_FREEZE_ABORT_NOT_AB_RESULT",
+  "prior_aggregate_and_decision": "UNCHANGED_HISTORICAL_ABORT_NOT_CURRENT_HARNESS",
+  "pool": {
+    "builder_runs": 1,
+    "verifier_runs": 1,
+    "builder_status": "PASS",
+    "verifier_status": "FAIL",
+    "verifier_exit_code": 3,
+    "single_build_claim_matches": true,
+    "targets": {
+      "title_filename": 10,
+      "exact_identifier_date": 8,
+      "body_only_rare_phrase": 10,
+      "table_row": 4,
+      "no_answer_mutation": 5,
+      "near_neighbour": 5
+    },
+    "libraries": {
+      "cwork-3m": {
+        "total": 42,
+        "categories": {
+          "title_filename": 10,
+          "exact_identifier_date": 8,
+          "body_only_rare_phrase": 10,
+          "table_row": 4,
+          "no_answer_mutation": 5,
+          "near_neighbour": 5
+        },
+        "coverage_met": true,
+        "rejections": 0
+      },
+      "docdb-touqian": {
+        "total": 31,
+        "categories": {
+          "title_filename": 10,
+          "exact_identifier_date": 3,
+          "body_only_rare_phrase": 5,
+          "table_row": 3,
+          "no_answer_mutation": 5,
+          "near_neighbour": 5
+        },
+        "coverage_met": false,
+        "rejections": 0
+      },
+      "spbp-2027": {
+        "total": 16,
+        "categories": {
+          "title_filename": 3,
+          "exact_identifier_date": 1,
+          "body_only_rare_phrase": 3,
+          "table_row": 3,
+          "no_answer_mutation": 3,
+          "near_neighbour": 3
+        },
+        "coverage_met": false,
+        "rejections": 0
+      }
+    }
+  },
+  "exclusion": {
+    "authority": "rt055-current-snapshot-exclusion-r-v1",
+    "authority_reconstruction_equal": true,
+    "source_snapshot_reread_equal": true,
+    "corpus_eligibility_equal": true,
+    "private_artifact_integrity_verified": true,
+    "all_cases_accepted": true,
+    "input_disjoint_verified": true,
+    "category_coverage_verified": false,
+    "all_category_denominators_nonzero": true,
+    "libraries": {
+      "cwork-3m": {
+        "source_identifier_intersections": 0,
+        "normalized_query_intersections": 0,
+        "normalized_token_intersections": 0,
+        "members_total": 2158,
+        "members_accounted": 2158,
+        "members_absent": 590,
+        "members_unaccounted": 0
+      },
+      "docdb-touqian": {
+        "source_identifier_intersections": 0,
+        "normalized_query_intersections": 0,
+        "normalized_token_intersections": 0,
+        "members_total": 2158,
+        "members_accounted": 2158,
+        "members_absent": 1918,
+        "members_unaccounted": 0
+      },
+      "spbp-2027": {
+        "source_identifier_intersections": 0,
+        "normalized_query_intersections": 0,
+        "normalized_token_intersections": 0,
+        "members_total": 2158,
+        "members_accounted": 2158,
+        "members_absent": 1802,
+        "members_unaccounted": 0
+      }
+    },
+    "historical_exact_pool_proven": false
+  },
+  "roles": {
+    "builder_material_present": true,
+    "verifier_material_present": true,
+    "separate_execution_records": true,
+    "separate_process_records": true,
+    "builder_finished_before_verifier": true,
+    "protocol_role_ids_match": true,
+    "implementer_files": 0,
+    "forbidden_role_reads": 0,
+    "candidate_imports": 0,
+    "three_role_separation_verified": null
+  },
+  "formal": {
+    "freeze_present": false,
+    "formal_output_files": 0,
+    "candidate_runs": {
+      "A": 0,
+      "B": 0
+    },
+    "candidate_holdout_consumptions": 0,
+    "resource_creations": {
+      "indices": 0,
+      "services": 0,
+      "containers": 0,
+      "data_planes": 0
+    },
+    "creation_evidence_basis": "STOPPED_BEFORE_CANDIDATE_DISPATCH_EMPTY_IMPL_AND_NO_FORMAL_ARTIFACTS",
+    "scores": {
+      "cwork-3m": {
+        "A": null,
+        "B": null
+      },
+      "docdb-touqian": {
+        "A": null,
+        "B": null
+      },
+      "spbp-2027": {
+        "A": null,
+        "B": null
+      }
+    },
+    "gateway_four_capabilities": null,
+    "second_formal_experiment_run": false
+  },
+  "production": {
+    "before_status": "PASS",
+    "after_status": "PASS",
+    "nas_scope_before_status": "PASS",
+    "nas_scope_after_status": "PASS",
+    "nas": {
+      "cwork-3m": {
+        "before_files": 1206,
+        "after_files": 1248,
+        "before_directories": 613,
+        "after_directories": 616,
+        "added_files": 42,
+        "removed_files": 0,
+        "changed_common_files": 7,
+        "before_index_files": 4,
+        "after_index_files": 4,
+        "changed_index_files": 2,
+        "scope_before_complete": true,
+        "scope_after_complete": true,
+        "file_set_unchanged": false,
+        "file_metadata_unchanged": false,
+        "index_set_unchanged": true,
+        "index_metadata_unchanged": false,
+        "library_configuration_unchanged": true,
+        "all_file_contents_unchanged": null,
+        "index_contents_and_aliases_unchanged": null
+      },
+      "docdb-touqian": {
+        "before_files": 315,
+        "after_files": 315,
+        "before_directories": 166,
+        "after_directories": 166,
+        "added_files": 0,
+        "removed_files": 0,
+        "changed_common_files": 0,
+        "before_index_files": 4,
+        "after_index_files": 4,
+        "changed_index_files": 0,
+        "scope_before_complete": true,
+        "scope_after_complete": true,
+        "file_set_unchanged": true,
+        "file_metadata_unchanged": true,
+        "index_set_unchanged": true,
+        "index_metadata_unchanged": true,
+        "library_configuration_unchanged": true,
+        "all_file_contents_unchanged": null,
+        "index_contents_and_aliases_unchanged": null
+      },
+      "spbp-2027": {
+        "before_files": 317,
+        "after_files": 317,
+        "before_directories": 171,
+        "after_directories": 171,
+        "added_files": 0,
+        "removed_files": 0,
+        "changed_common_files": 0,
+        "before_index_files": 4,
+        "after_index_files": 4,
+        "changed_index_files": 0,
+        "scope_before_complete": true,
+        "scope_after_complete": true,
+        "file_set_unchanged": true,
+        "file_metadata_unchanged": true,
+        "index_set_unchanged": true,
+        "index_metadata_unchanged": true,
+        "library_configuration_unchanged": true,
+        "all_file_contents_unchanged": null,
+        "index_contents_and_aliases_unchanged": null
+      }
+    },
+    "gateways": {
+      "8787": {
+        "live_http_status": 200,
+        "identity_unchanged": true,
+        "health_projection_unchanged": true,
+        "selected_configuration_unchanged": true
+      },
+      "8788": {
+        "live_http_status": 200,
+        "identity_unchanged": true,
+        "health_projection_unchanged": true,
+        "selected_configuration_unchanged": true
+      },
+      "8789": {
+        "live_http_status": 200,
+        "identity_unchanged": true,
+        "health_projection_unchanged": true,
+        "selected_configuration_unchanged": true
+      }
+    },
+    "containers_before": 4,
+    "containers_after": 4,
+    "service_labels_before": 537,
+    "service_labels_after": 537,
+    "service_labels_added": 1,
+    "service_labels_removed": 1,
+    "discovered_search_endpoints_before": 0,
+    "discovered_search_endpoints_after": 0,
+    "native_search_processes_before": 0,
+    "native_search_processes_after": 0,
+    "selected_gateway_configuration_files": 12,
+    "container_inventory_unchanged": true,
+    "service_label_set_unchanged": false,
+    "discovered_search_index_projection_unchanged": true,
+    "selected_production_configuration_unchanged": true,
+    "all_measured_projections_unchanged": false,
+    "baseline_configuration_contains_round_artifacts": false,
+    "removed_service_matches_recorded_experiment_process": false,
+    "service_difference_class": "APPLE_LABEL_CHANGE_NOT_ATTRIBUTED_TO_EXPERIMENT",
+    "nas_drift_attribution": "UNRESOLVED_NO_REBASELINE_OR_REPAIR",
+    "full_production_configuration_unchanged": null,
+    "all_existing_index_contents_and_aliases_unchanged": null,
+    "all_production_processes_unchanged": null,
+    "all_container_volumes_contents_unchanged": null,
+    "collector_all_items_measured_accepted": false
+  },
+  "cleanup": {
+    "status": "COMPLETE",
+    "root_executor_scripts_removed": 6,
+    "bytecode_files_removed": 8,
+    "preserved_files_verified": 37,
+    "historical_archives_preserved": 2,
+    "exact_uuid_containers": 0,
+    "exact_uuid_volumes": 0,
+    "exact_uuid_networks": 0,
+    "exact_uuid_image_tags": 0,
+    "exact_uuid_services": 0,
+    "root_executor_scripts_remaining": 0,
+    "non_audit_data_planes_remaining": 0,
+    "related_processes": 0,
+    "unconfirmed_resources": 0,
+    "cleanup_failures": 0,
+    "executor_source_archived": true,
+    "private_and_audit_bytes_unchanged": true,
+    "historical_archive_original_bytes_equal": true,
+    "new_private_materials_preserved": true,
+    "current_pool_disposition": "INVALID_DO_NOT_CONSUME"
+  },
+  "next_action": "PARENT_REVIEW_ONLY_NO_RETRY"
+}

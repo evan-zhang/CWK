@@ -6,6 +6,10 @@
 
 仓库只接收 `contracts/aggregate-report.schema.json` v2 聚合 JSON。所有非度量字符串均冻结为协议常量或严格枚举；唯一动态字符串是 canonical run UUID，以及由 OPS 受控 runner 对候选非 confidential 构建 artifact 生成的 `sha256:` digest。禁止人工填充、私有 case/corpus/query/expected/source hash 或任意 opaque token。harness 对字段闭集、固定常量、artifact digest、严格 UUID、分母/分子和比率二次校验并 fail closed。INVALID 与质量 NO-GO 分开：格式、冻结、未测量或核验失败返回 INVALID；合法结果未过质量门返回 NO-GO。
 
+### 冻结前硬门中止的证据格式（本轮终态补记）
+
+§1 的 v2 合同只接受完整正式实验，不能用假零/true 填充未测量项。冻结前已经 INVALID 的轮次按 [中止闭集 Schema](evidence/r-round-abort.schema.json) 输出 [独立 abort evidence](evidence/r-round-abort.json)：状态固定 INVALID、原因固定 CATEGORY_COVERAGE_INSUFFICIENT，三库正式 A/B 成绩只能 null；固定枚举、计数/布尔与 canonical UUID 外不承载私有材料。公开首提交身份为固定协议常量。生产实测差异为 false，未覆盖项为 null，不从 health 或硬编码全测量推导。该格式只记录终止与 cleanup，不运行/替代选型 harness、不授予重试资格，也不放宽 §2.1。既有 aggregate/decision 原件保留并标明历史归属。
+
 ## 2. 新 holdout 与运行前冻结
 
 1. OPS builder 固定 `cwork-3m`、`docdb-touqian`、`spbp-2027` 三个 corpus snapshot，私有 manifest 留 OPS。
