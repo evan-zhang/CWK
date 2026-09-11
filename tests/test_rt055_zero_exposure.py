@@ -117,6 +117,46 @@ class LedgerTests(fixtures.WindowTests):
         p.write_bytes(old)
         self.assertEqual(window.library_result(self.root,self.wid,'a',kb)['metrics']['total_count'],3)
 
+    def second_valid_window(self):
+        other=str(uuid.uuid4());self.collect(wid=other)
+        with patch.object(freeze.secrets,'randbits',return_value=1):freeze.create(self.root,other,self.mid)
+        freeze.verify_once(self.root,other)
+        return other,runtime.claim_candidate(self.root,'a',other)
+
+    def test_second_valid_frozen_window_cannot_replay_global_exposure(self):
+        w,attempt=self.ready();other,second=self.second_valid_window();kb=runtime.ops.LIBRARIES[0]
+        window.library_arm(self.root,self.wid,'a',kb,attempt)
+        window.library_expose(self.root,self.wid,'a',kb,attempt)
+        self.assertTrue(freeze.verify_artifacts(self.root,other))
+        with self.assertRaisesRegex(RuntimeError,'already_exposed_no_replay'):
+            window.library_arm(self.root,other,'a',kb,second)
+        with self.assertRaisesRegex(RuntimeError,'exposure_without_completion_no_replay'):
+            window.library_result(self.root,other,'a',kb)
+
+    def test_two_armed_windows_race_allows_exactly_one_search_and_truncation_blocks(self):
+        import concurrent.futures
+        import threading
+        w,attempt=self.ready();other,second=self.second_valid_window();kb=runtime.ops.LIBRARIES[0]
+        for wid,aid in ((self.wid,attempt),(other,second)):window.library_arm(self.root,wid,'a',kb,aid)
+        barrier=threading.Barrier(2);observed=[]
+        def invoke(pair):
+            wid,aid=pair;barrier.wait()
+            try:window.library_expose(self.root,wid,'a',kb,aid)
+            except FileExistsError:return 'DENIED_BEFORE_SEARCH'
+            # This is the first candidate search; it sees a complete durable row.
+            row=json.loads((self.root/'exposure/a'/(kb+'.json')).read_text())
+            observed.append(row['window_id'])
+            return 'SEARCH_EXECUTED'
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            results=list(pool.map(invoke,[(self.wid,attempt),(other,second)]))
+        self.assertEqual(sorted(results),['DENIED_BEFORE_SEARCH','SEARCH_EXECUTED'])
+        self.assertEqual(len(observed),1)
+        # Interrupted/empty exposure is still a global consumed boundary.
+        (self.root/'exposure/a'/(kb+'.json')).write_bytes(b'')
+        self.assertFalse(window.holdout_unexposed(self.root))
+        with self.assertRaisesRegex(RuntimeError,'already_exposed_no_replay'):
+            window.library_arm(self.root,other,'a',kb,second)
+
     def test_closed_old_window_permanently_refuses_new_attempt(self):
         w,attempt=self.ready();self.collect('after')
         with self.assertRaises(RuntimeError):runtime.claim_candidate(self.root,'a',self.wid)

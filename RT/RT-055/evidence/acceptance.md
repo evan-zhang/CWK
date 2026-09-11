@@ -425,3 +425,34 @@ setup、builder、verifier、before、隐私预检与 cleanup/after 均以原进
 ### OPS 私有归档校验的受控模型链接修正
 
 首次归档已成功写入同一独占目录，void 未写入。新验证器错误拒绝了冻结 HuggingFace 缓存的 22 个内部链接；原依赖摘要和旧 freeze 均重算一致，没有 query/score 或源漂移。只允许 sidecar/hf 内的叶文件链接解析到同一缓存内的文件，并保留原相对名与字节摘要；私有路径/账本与跨目录链接仍拒绝。新增公开合成旧 freeze 的真实链接 fixture 先红（15 项/3 errors），修正后 157 全回归及原 14 行为破坏通过。失败校验代码/日志与已成归档保留，不重做归档；只对同一证据重验。见 [链接恢复回执](zero-exposure-model-link-recovery.json)。
+
+
+## Amendment 4 OPS 收口：READY_TO_RUN（2026-09-12）
+
+**零暴露恢复已完成；停止在新窗口可运行状态，不执行正式 A/B。** 本节是上述本地验收的 OPS 终态追加，不覆盖任何历史 INVALID、BLOCKED、并发警报或旧测试数量。05:44 接续时先读取已完成终态和退出状态，只完成本地证据收口；没有重复 void、隐私实测、before 或 freeze。
+
+### 已核验的状态与不变边界
+
+- 严格原始对账、冻结公开代码复现及旧来源重算均满足零暴露条件。A/cwork-3m 的旧 claim/attempt 各 1，正式 query/score/library result 均 0，B attempt 为 0；旧 claim 原件保留。只追加私有 `VOID_PREQUERY_NO_EXPOSURE`，绑定旧 run/window/claim/freeze/attempt 和归档证据，未将旧 claim 删除或清零。
+- 零暴露 migration：`5e3c6265-8cfd-42b9-a2eb-bef592e171cf`。已有归档在受控模型链接修正后复用、重验，未重新制作或覆盖。旧 window/claim/freeze 原字节及 96 份保留材料再次验证一致；builder/verifier 仍 1/1；同一池仍为 cwork-3m 42@T3、docdb-touqian 31@T3、spbp-2027 42@T2，deferred=[]。不重建、删补或重新筛选题池。
+- 必要源码来自已提交 `a4b3c64ebb609eee5d08a8c53dc594798f43ec58`（承接 scorer/ledger 修复 `b157150`）。20 个部署源逐字节核验；此后未改变 OPS 冻结源。最后追加的两个并发/跨窗测试及测试临时目录规范化只涉及本地公开 fixture，不属于新的运行源码部署。
+- 新 executioner migration：`a82157ee-324b-4806-ae01-3a4675b1f8d4`。独立公开合成路径真实重验成功：search/native 正常各 1，鉴权会话实际验证，两类 query/title 错误均 400；embedding 3/3；13 份日志 canary=0；模型请求/native 响应 tracing header=0；123 个 socket 样本外连=0、观察器错误=0。实际环境、loopback 模型和主动外连拒绝通过；禁止读取=0、拒读探针=1，全部门重算 PASS。不是复用旧 passed 字段，也不冒称 socket 采样覆盖所有网络包。
+- 新合成资源已精确清理：进程/数据面/cleanup failures 均 0。独立检查两个控制器均已退出；三个 Gateway HTTP 200。没有更改 WeKnora core、NAS 或生产设置。此时没有后台实验任务。
+
+### replacement freeze 与停止点
+
+同一 run `ac1ca0c7-6983-4f6e-91ce-8eb45e7673af` 下，新窗口为 **`0155202c-b6a0-40c6-a779-48aff0ab57fe`**。fresh before 认领一次、完成三库采集并验证；replacement freeze 创建一次，verification 和随后独立重算均通过；新随机运行顺序为 **B→A**。freeze 绑定新 migration、该窗口新 before、当前已提交源码及未变 holdout。
+
+旧窗口 `7bed2d1c-4943-4da6-b6d2-a23aab5c195f` 仍为 INVALID，只追加 superseded 回执；旧 freeze 不复用。新窗口 **arm=0、candidate attempt=0、正式 query=0、result=0、after claim=0**；全 run **exposure=0**。新 freeze 是待运行承诺，不是成绩；没有生成正式 aggregate 或新的选型裁决。
+
+旧服务/配置漂移未消除，完整 NAS/index 不变性仍未证明；本次没有新 after，不把新 before 或健康检查当作完整不变性证明。RT-055 继续 in_progress，正式评测/选型未完成，所有生产切流暂停。
+
+### 验证三格与证据
+
+- **工程判据**：最终公开合成 RT-055 回归 159 项、0 failure/error/skip。已完成的 14 项行为破坏证据保留，另一次缓存越界保护断线被 1 个失败测试检出；正常源码恢复后全回归通过。补充两项真实行为测试：两个合法冻结窗口不能重放已曝光库；两份 arm 并发争夺全局 exposure 仅一份可进入搜索，截断 exposure 仍拒重放。一次默认 macOS 临时目录别名造成的测试假失败，仅将公开 fixture 根路径规范化，默认环境最终 159 项通过；未因此修改冻结实现或重跑 OPS。
+- **AI 自检**：主会话审阅 scope、首次调用前持久化、全局唯一性、void 严格绑定、source/隐私/freeze 链及停止边界；识别并补强“第二窗口本身不合法也会报错”的弱测试，改为两个都合法的窗口。没有独立外部 reviewer，不自称父会话或外部批准。
+- **读产出**：父层独立重新核验 OPS freeze、当前隐私绑定、旧 void/归档/原件、无曝光/新 arm/attempt、Gateway 与控制器退出，再导出白名单计数/布尔/枚举/随机 UUID/公开 commit。所有私有题面、标题、doc_id、正文、文档路径和私有 digest 留 OPS。
+
+[公开 READY 回执](zero-exposure-ready.json)、[闭集 Schema](zero-exposure-ready.schema.json)、[最终本地 QA](zero-exposure-ready-qa.json)。结构校验不替代上述 OPS 真实复核。回执不是正式 aggregate：原裁决 CLI 必须以 exit 2 / INVALID / AGGREGATE_CONTRACT_INVALID 拒绝它，这不构成质量 NO-GO。
+
+仅本地提交公开恢复证据、必要公开测试和两份追加文档；不 push、不合并、不清理 worktree。已完成步骤不重复；本轮恢复任务完成并停在 READY_TO_RUN，后续正式 A/B 需要另行明确授权。

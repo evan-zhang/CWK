@@ -19,7 +19,7 @@ class WindowTests(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory(prefix='rt055-window-test-')
         self.addCleanup(self.tmp.cleanup)
-        self.root=Path(self.tmp.name)/('rt055-'+str(uuid.uuid4()));self.root.mkdir(mode=0o700)
+        self.root=Path(self.tmp.name).resolve()/('rt055-'+str(uuid.uuid4()));self.root.mkdir(mode=0o700)
         self.wid=str(uuid.uuid4());self.mid=str(uuid.uuid4())
         for name in ('status','audit','impl','builder','verifier','downloads','bin','sidecar','jieba','jdk'):
             (self.root/name).mkdir()

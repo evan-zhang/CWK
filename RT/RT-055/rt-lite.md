@@ -237,3 +237,14 @@ freeze/正式 A/B/消费仍 0，三库两候选所有正式指标 null；builder
 范围与判据以 [Amendment 4](experiment-protocol.md#amendment-4--zero-exposure-prequery-void-与-replacement-freeze2026-09-12-0501-授权) 为准：保留旧 claim，严格零 query/score/result 与冻结源码/隐私重算一致才追加私有 void；单库 scorer 与全库旧语义并存；A/B 共用 arm→exposure→score→complete；有 exposure 即全 window 禁止重放。builder/verifier、96 材料和 42@T3/31@T3/42@T2 不变；不改候选算法/质量/效用，不重建池、不动生产/NAS。
 
 本地红绿、行为破坏与治理见 [合成证据](evidence/zero-exposure-scorer-tests.json) 和 [验收](evidence/acceptance.md)。OPS 尚需独立新隐私实测、cleanup、新 before 与 replacement freeze；未取得最终恢复回执之前，不把本地通过说成 READY_TO_RUN。RT 继续 in_progress，选型未完成，所有切流暂停。
+
+
+## 2026-09-12 Amendment 4 OPS 终态：READY_TO_RUN
+
+本轮零暴露恢复完成，取代上节“尚需 OPS 实测”的当前状态；历史原件不覆盖。旧 A/cwork-3m claim=1 保留，只追加严格私有 void；旧窗口永久 INVALID 并追加 superseded。96 份材料与同一 42@T3/31@T3/42@T2 题池未变，builder/verifier=1/1。
+
+新源码隐私实测与清理通过；新 executioner migration 为 `a82157ee-324b-4806-ae01-3a4675b1f8d4`。新 before、replacement freeze 与独立核验通过，新窗口 `0155202c-b6a0-40c6-a779-48aff0ab57fe`、随机顺序 B→A。全局 exposure=0，新 arm/attempt/正式 query/result/after claim 全为 0。三个 Gateway 200，合成进程/数据面/清理失败/活跃控制器均 0。
+
+工程判据为最终 159 项 RT-055 回归（0 skip）、14 项既有行为破坏加 1 项独立缓存越界破坏，以及新增的合法双窗重放/原子竞争测试；AI 自检核对恢复授权和停止边界；读产出为 OPS 独立重算后的白名单终态。详细三格和限制见 [最终验收](evidence/acceptance.md#amendment-4-ops-收口ready_to_run2026-09-12)、[公开回执](evidence/zero-exposure-ready.json)、[Schema](evidence/zero-exposure-ready.schema.json)、[QA](evidence/zero-exposure-ready-qa.json)。
+
+停止 READY_TO_RUN，不执行正式 A/B；评测和选型仍未完成，完整 NAS/index 不变性 UNKNOWN 与历史漂移不抵销，RT 保持 in_progress、切流暂停。只本地提交，不 push/合并/清理 worktree；没有后台任务。
