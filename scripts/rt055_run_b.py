@@ -406,8 +406,11 @@ def main() -> int:
             build_seconds[kb]=time.monotonic()-started_library
             for query in ops.WARMUP_QUERIES: candidate.search(query,kb,timeout=30)
             gateway_results.append(runtime.gateway_probe(ROOT,'b',candidate,[kb]))
-            if args.mode=='run':window.library_claim(ROOT,args.window_id,'b',kb)
-            metrics.update(kbc.score_cases(candidate,[c for c in cases if c.kb_id==kb],timeout=30))
+            rows=[c for c in cases if c.kb_id==kb]
+            if args.mode=='run':
+                metrics.update(window.score_library(ROOT,args.window_id,'b',kb,attempt,candidate,rows,timeout=30))
+            else:
+                metrics.update(kbc.score_library_cases(candidate,rows,kb,timeout=30))
             if args.mode=='run':window.library_scored(ROOT,args.window_id,'b',kb,metrics[kb])
         build_total=time.monotonic()-build_started
         peaks={kb:sampler.stop() for kb,sampler in samplers.items()}

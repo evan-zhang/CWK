@@ -166,16 +166,25 @@ class WindowTests(unittest.TestCase):
         p=w/'freeze/freeze-receipt.json';r=json.loads(p.read_text());r['run_order'].reverse();p.write_text(json.dumps(r))
         with self.assertRaises(RuntimeError):window.verification(self.root,self.wid)
 
+    def expose_fixture(self,key,kb):
+        import rt055_window as window
+        attempt=str(uuid.uuid4())
+        window.write_once(window.directory(self.root,self.wid)/('run-'+key)/'attempts'/attempt/'claim.json',
+            {**window.envelope(self.root,self.wid,'execution-attempt'),'candidate':key})
+        window.library_arm(self.root,self.wid,key,kb,attempt)
+        window.library_expose(self.root,self.wid,key,kb,attempt)
+
     def test_each_library_consumed_once_and_ambiguous_claim_not_replayed(self):
         import rt055_window as window
         w=self.freeze_fixture();freeze.create(self.root,self.wid,self.mid);freeze.verify_once(self.root,self.wid)
         kb=runtime.ops.LIBRARIES[0]
-        window.library_claim(self.root,self.wid,'a',kb)
+        self.expose_fixture('a',kb)
         with self.assertRaises(RuntimeError):window.library_result(self.root,self.wid,'a',kb)
+        window.library_scored(self.root,self.wid,'a',kb,{'total_count':42})
         window.library_complete(self.root,self.wid,'a',kb,{'metrics':{'total_count':42}})
         self.assertEqual(window.library_result(self.root,self.wid,'a',kb)['metrics']['total_count'],42)
-        with self.assertRaises(FileExistsError):window.library_claim(self.root,self.wid,'a',kb)
-        with self.assertRaises(FileExistsError):window.library_complete(self.root,self.wid,'a',kb,{'metrics':{}})
+        with self.assertRaises(RuntimeError):self.expose_fixture('a',kb)
+        with self.assertRaises(FileExistsError):window.library_complete(self.root,self.wid,'a',kb,{'metrics':{'total_count':42}})
 
     def test_after_comparison_recomputed_and_wrong_window_refused(self):
         import rt055_window as window
@@ -217,7 +226,7 @@ class WindowTests(unittest.TestCase):
         value['mode']='run';p.write_text(json.dumps(value))
         with self.assertRaises(RuntimeError):window.validate_run(self.root,self.wid,'a',list(runtime.ops.LIBRARIES))
         for kb in runtime.ops.LIBRARIES:
-            window.library_claim(self.root,self.wid,'a',kb)
+            self.expose_fixture('a',kb)
             window.library_scored(self.root,self.wid,'a',kb,c['libraries'][kb])
             window.library_complete(self.root,self.wid,'a',kb,{'metrics':c['libraries'][kb],'gateway_readiness':c['gateway_readiness']})
         self.assertEqual(window.validate_run(self.root,self.wid,'a',list(runtime.ops.LIBRARIES))['mode'],'run')
@@ -236,20 +245,20 @@ class WindowTests(unittest.TestCase):
         with patch.object(freeze.secrets,'randbits',return_value=1 if key=='a' else 0):freeze.create(self.root,self.wid,self.mid)
         freeze.verify_once(self.root,self.wid)
         frozen_plan=freeze.artifact_plan(self.root)
-        cases=[SimpleNamespace(kb_id=kb) for kb in runtime.ops.LIBRARIES];calls=[]
+        import kb_retrieval_candidates as kbc
+        cases=[c for kb in runtime.ops.LIBRARIES for c in (kbc.Case(kb,'public exact',frozenset({'public-doc'}),True),kbc.Case(kb,'public absent',frozenset()))];calls=[]
+        root=self.root;outer=self
         gateway=fixture.candidate_a()['gateway_readiness']
         class Candidate:
             ready=True;child_index='public-child';parent_index='public-parent'
             def __init__(self,*a,**kw):pass
             def build(self,*a,**kw):time.sleep(.005)
-            def search(self,*a,**kw):return []
+            def search(self,q,kb,**kw):
+                if q.startswith('public '):
+                    outer.assertTrue((root/'exposure'/key/(kb+'.json')).is_file())
+                    calls.append(kb)
+                return []
             def close(self):pass
-        def score(candidate,rows,**kw):
-            kb=rows[0].kb_id
-            self.assertTrue((self.root/'consumption'/key/(kb+'.claim')).is_file())
-            self.assertFalse((w/('run-'+key)/'scores'/(kb+'.json')).exists())
-            calls.append(kb)
-            return {kb:{k:v for k,v in fixture.library_metrics().items() if k not in ('index_bytes','build_seconds','peak_rss_bytes')}}
         def server(kb,port,side,data,log,rng):
             log.write_text('public service started')
             return {'kb_id':kb,'proc':Mock(pid=123),'data_dir':data,'base_url':'http://127.0.0.1:41101'}
@@ -268,7 +277,6 @@ class WindowTests(unittest.TestCase):
             stack.enter_context(patch.object(runtime,'data_bytes',return_value=1000))
             stack.enter_context(patch.object(runner.ops,'RssSampler',return_value=Mock(stop=Mock(return_value=10000))))
             stack.enter_context(patch.object(runner.ops,'stop_process'))
-            stack.enter_context(patch.object(runner.kbc,'score_cases',side_effect=score))
             if key=='a':
                 stack.enter_context(patch.object(runner,'launch_opensearch',return_value=(Mock(pid=123),{'base_url':'http://127.0.0.1:41101'})))
                 stack.enter_context(patch.object(runner,'verify_icu'))
@@ -279,12 +287,12 @@ class WindowTests(unittest.TestCase):
                 stack.enter_context(patch.object(runner,'setup_instance',side_effect=server))
                 stack.enter_context(patch.object(runner.kbc,'WeKnoraCandidate',Candidate))
             self.assertEqual(runner.main(),0)
-            self.assertEqual(calls,list(runtime.ops.LIBRARIES))
+            self.assertEqual(calls,[kb for kb in runtime.ops.LIBRARIES for _ in range(2)])
             actual=window.validate_run(self.root,self.wid,key,list(runtime.ops.LIBRARIES))
             self.assertTrue(all(v['build_seconds']>0 and v['peak_rss_bytes']>0 and v['index_bytes']>0 for v in actual['libraries'].values()))
             old=(w/('run-'+key)/'result.json').read_bytes()
             self.assertNotEqual(runner.main(),0)
-            self.assertEqual(calls,list(runtime.ops.LIBRARIES))
+            self.assertEqual(calls,[kb for kb in runtime.ops.LIBRARIES for _ in range(2)])
             self.assertEqual((w/('run-'+key)/'result.json').read_bytes(),old)
 
     def test_a_actual_runner_claims_before_score_and_never_replays(self):self.runner_entrypoint('a')
@@ -301,14 +309,14 @@ class WindowTests(unittest.TestCase):
         for k in ('selection_verified','single_build_seed_verified','at_least_one_participating','category_coverage_verified','rt054_pool_excluded','input_disjoint_verified','denominators_nonzero_all_categories'):checks[k]=True
         runtime.ops.write_private_json(self.root/'verifier/case-verification.json',checks)
         freeze.create(self.root,self.wid,self.mid);freeze.verify_once(self.root,self.wid)
-        self.collect('after')
         for key,cid in (('a',aggregate.CANDIDATE_A),('b',aggregate.CANDIDATE_B)):
             c=public['candidates'][cid]
             for kb in public['participating_libraries']:
-                window.library_claim(self.root,self.wid,key,kb)
+                self.expose_fixture(key,kb)
                 window.library_scored(self.root,self.wid,key,kb,c['libraries'][kb])
                 window.library_complete(self.root,self.wid,key,kb,{'metrics':c['libraries'][kb],'gateway_readiness':c['gateway_readiness']})
             window.write_once(w/('run-'+key)/'result.json',{'schema':'cwk.rt055.run-'+key+'.result.v1','mode':'run','status':'OK','window_id':self.wid,'libraries':c['libraries'],'gateway_readiness':c['gateway_readiness']})
+        self.collect('after')
         window.write_once(w/'audit/cleanup.json',{**public['cleanup'],'window_id':self.wid})
         (self.root/'contracts').mkdir()
         (self.root/'contracts/aggregate-report.schema.json').write_bytes((Path(fixture.__file__).parents[1]/'RT/RT-055/contracts/aggregate-report.schema.json').read_bytes())

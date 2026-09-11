@@ -13,7 +13,7 @@ import rt055_tiers as tiers
 import rt055_runtime as runtime
 import rt055_window as window
 PINNED='8d7298fb5d759973cb1e481cadc5ecdf16dca599'
-SHARED=('kb_retrieval_candidates.py','kb_retrieval_decision.py','kb_stage_b_poc.py','kb_stage_b_opensearch_benchmark.py','rt055_runtime.py','rt055_opslib.py','rt055_tiers.py','rt055_confidentiality.py','rt055_window.py','rt055_baseline.py','rt055_formal_coordinator.py','rt055_aggregate.py','rt055_cleanup.py','rt055_freeze.py')
+SHARED=('kb_retrieval_candidates.py','kb_retrieval_decision.py','kb_stage_b_poc.py','kb_stage_b_opensearch_benchmark.py','rt055_runtime.py','rt055_opslib.py','rt055_tiers.py','rt055_confidentiality.py','rt055_window.py','rt055_baseline.py','rt055_formal_coordinator.py','rt055_aggregate.py','rt055_cleanup.py','rt055_freeze.py','rt055_zero_exposure.py')
 
 def upstream(root):
     def git(*args):return subprocess.check_output(['git','-C',str(root/'weknora'),*args],stderr=subprocess.DEVNULL,text=True).strip()
@@ -61,7 +61,7 @@ def create(root,window_id,privacy_migration_id):
     w=window.directory(root,window_id)
     before,before_status,before_artifact=window.baseline(root,window_id,'before')
     if (w/'status/baseline-after.claim').exists():raise RuntimeError('window_already_closed')
-    if any(p.is_file() for p in (root/'consumption').rglob('*')):raise RuntimeError('holdout_already_consumed')
+    if not window.holdout_unexposed(root):raise RuntimeError('holdout_already_exposed')
     checks=ops.read_json(root/'verifier/case-verification.json')
     if not checks['verified']:raise RuntimeError('cases_invalid')
     roles=role_audit(root)
@@ -77,7 +77,8 @@ def create(root,window_id,privacy_migration_id):
     window.write_once(freeze/'role-audit.json',roles)
     receipt={'schema':'cwk.rt055.ops-freeze.amendment3','run_id':root.name.removeprefix('rt055-'),'window_id':window_id,'privacy_migration_id':privacy_migration_id,'created_at':time.time(),'run_order':['a','b'] if secrets.randbits(1) else ['b','a'],
              'participating_libraries':checks['participating_libraries'],'deferred_libraries':checks['deferred_libraries'],
-             'private_files':{p:ops.sha_file(root/p) for p in ('builder/private-corpus.json','verifier/private-verified.json','verifier/case-verification.json',before_path,status_path,privacy_path)},'candidates':{}}
+             'private_files':{p:ops.sha_file(root/p) for p in ('builder/private-corpus.json','verifier/private-verified.json','verifier/case-verification.json',before_path,status_path,privacy_path)+tuple(window.void_paths(root))},'candidates':{},
+             'ledger_contract':'arm-exposure-score-complete-v1'}
     for key in ('a','b'):
         extra=('rt055_run_a.py',) if key=='a' else ('rt055_run_b.py','rt055_embed_sidecar.py')
         code_files=['impl/'+f for f in SHARED+extra]
@@ -107,6 +108,8 @@ def _verify_artifacts(root,window_id):
                         'verifier/case-verification.json',str(before_artifact.relative_to(root)),
                         str((w/'status/baseline-before.json').relative_to(root)),
                         str((runtime.migration_directory(root,privacy_id)/'privacy-receipt.json').relative_to(root))}
+    required_private.update(window.void_paths(root))
+    if receipt.get('ledger_contract')!='arm-exposure-score-complete-v1':return False
     if (set(receipt.get('private_files', {})) != required_private
             or set(receipt.get('candidates', {})) != {'a', 'b'}):return False
     checks = ops.read_json(root/'verifier/case-verification.json')
@@ -154,7 +157,7 @@ def verify_once(root,window_id):
     window.write_once(w/'verifier/freeze-verification.json',{
         **window.envelope(root,window_id,'freeze-verification'),'verified':result,
         'receipt_sha256':ops.sha_file(w/'freeze/freeze-receipt.json'),
-        'verified_before_run':not any(p.is_file() for p in (root/'consumption').rglob('*')),
+        'verified_before_run':window.holdout_unexposed(root),
         'process_id':os.getpid(),'observed_at':time.time()})
     return 0 if result else 3
 if __name__=='__main__':raise SystemExit(main())

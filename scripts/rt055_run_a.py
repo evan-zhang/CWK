@@ -275,8 +275,11 @@ def main() -> int:
         gateway = runtime.gateway_probe(ROOT, "a", multi, participating)
         metrics={}
         for kb in participating:
-            if args.mode=='run':window.library_claim(ROOT,args.window_id,'a',kb)
-            metrics.update(kbc.score_cases(multi,[c for c in cases if c.kb_id==kb],timeout=30))
+            rows=[c for c in cases if c.kb_id==kb]
+            if args.mode=='run':
+                metrics.update(window.score_library(ROOT,args.window_id,'a',kb,attempt,multi,rows,timeout=30))
+            else:
+                metrics.update(kbc.score_library_cases(multi,rows,kb,timeout=30))
             if args.mode=='run':window.library_scored(ROOT,args.window_id,'a',kb,metrics[kb])
 
         store_bytes = multi.index_bytes()

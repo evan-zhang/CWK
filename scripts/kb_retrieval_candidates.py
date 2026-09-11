@@ -409,7 +409,8 @@ class Case:
     exact: bool = False
 
 
-def score_cases(candidate: Any, cases: Sequence[Case], timeout: float = 30) -> dict[str, dict]:
+def score_cases(candidate: Any, cases: Sequence[Case], timeout: float = 30, *,
+                expected_libraries=None, before_first_search=None) -> dict[str, dict]:
     """Private OPS-only scoring, not a complete/attested decision report.
 
     One query is one trial. No warmup queries are generated from this holdout.
@@ -418,11 +419,18 @@ def score_cases(candidate: Any, cases: Sequence[Case], timeout: float = 30) -> d
     must be measured independently, never populated with successful defaults.
     """
     Deadline(timeout)
-    metrics = {kb: {name: 0 for name in decision.COUNT_FIELDS} for kb in decision.LIBRARIES}
-    latencies: dict[str, list[float]] = {kb: [] for kb in decision.LIBRARIES}
+    libraries = tuple(decision.LIBRARIES if expected_libraries is None else expected_libraries)
+    if (not libraries or len(set(libraries)) != len(libraries)
+            or any(kb not in decision.LIBRARIES for kb in libraries)):
+        raise CandidateError('invalid expected scoring libraries')
+    cases = tuple(cases)
+    metrics = {kb: {name: 0 for name in decision.COUNT_FIELDS} for kb in libraries}
+    latencies: dict[str, list[float]] = {kb: [] for kb in libraries}
     seen = set()
     for case in cases:
         _query_scope(case.query, case.kb_id)
+        if case.kb_id not in metrics:
+            raise CandidateError('unexpected scoring library')
         if (not isinstance(case.expected, frozenset) or not all(isinstance(v, str) and v for v in case.expected)
                 or type(case.exact) is not bool or (case.exact and not case.expected)
                 or (case.kb_id, case.query) in seen):
@@ -434,8 +442,12 @@ def score_cases(candidate: Any, cases: Sequence[Case], timeout: float = 30) -> d
         m['exact_count'] += int(case.exact)
     if any(min(m['answerable_count'], m['exact_count'], m['no_answer_count']) <= 0 for m in metrics.values()):
         raise CandidateError('missing scoring category')
-    for case in cases:
+    for index, case in enumerate(cases):
         m = metrics[case.kb_id]
+        # Fail outside the scoring exception handler: a failed durable exposure
+        # must abort without a candidate call or a fabricated system-error score.
+        if index == 0 and before_first_search is not None:
+            before_first_search()
         start = time.monotonic()
         try:
             hits = candidate.search(case.query, case.kb_id, timeout=timeout)
@@ -464,3 +476,9 @@ def score_cases(candidate: Any, cases: Sequence[Case], timeout: float = 30) -> d
         samples = sorted(latencies[kb])
         m['p95_ms'] = samples[math.ceil(.95 * len(samples)) - 1]
     return metrics
+
+
+def score_library_cases(candidate: Any, cases: Sequence[Case], library: str, timeout: float = 30, *, before_first_search=None) -> dict[str, dict]:
+    """Validate all categories of exactly one library before any exposure/call."""
+    return score_cases(candidate, cases, timeout, expected_libraries=(library,),
+                       before_first_search=before_first_search)

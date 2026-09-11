@@ -187,3 +187,28 @@ Evan 本次明确授权执行第四轮 OPS 全闭环，覆盖上文只做本地�
 - **v3 结构扩展而非结果规则变更**：`formal_window` 闭集公开字段只含随机引用、公开 commit、运行顺序与已核验布尔；候选 freeze receipt 加同一 window id。Schema 保持不变性 false/null 可记录，harness 仍 fail-closed。旧 v3 缺窗口字段不会自动补齐成为新正式报告，历史证据保持原字节可追溯。
 
 本地验证和范围见 [迁移合成证据](evidence/formal-window-migration-tests.json) 与 [验收追加记录](evidence/acceptance.md)。这些不是 OPS 实测成绩，不是生产切流授权。
+
+
+## Amendment 4 — zero-exposure prequery void 与 replacement freeze（2026-09-12 05:01 授权）
+
+本次明确授权继续同一第四轮，覆盖上节及历史收口中的单次 claim 不可迁移阻塞；**只恢复到 READY_TO_RUN，不启动正式 A/B**。不重建题池、不重复 builder/verifier、不换 R/seed/tier/floors、不改候选算法、Top-10、错误分母、资源边界、质量门或效用。旧窗口 `7bed2d1c-4943-4da6-b6d2-a23aab5c195f` 永久 INVALID，不复用其 freeze，也不称为已完成评测。前一会话延迟落盘的收口/并发警报保留为历史观察；本节是当前恢复授权，不追溯修改该观察。
+
+### 严格零暴露例外：不能用于已查询或已评分的消费
+
+1. 只允许已登记冻结公开源码可证明的 **PER_LIBRARY_RUNNER_VS_ALL_LIBRARY_SCORER_PREQUERY_CONFLICT**：逐库调用全库 scorer，在首次私有 `candidate.search` 前无条件失败。检查冻结版本完整公开源码摘要，独立解释器用公开三库合成输入复现三次 CandidateError/calls=0；该解释器拒读 holdout，诊断不能解析题面。对账实际私有账本和原始观测：query calls 必须严格为整数 0、score receipts/result 均 0、A 仅原 attempt/claim、B 无 attempt/claim，before/after 与 cleanup 已终止且无活进程。缺证据、任何查询/评分/结果、源漂移或歧义即不可重放。
+2. 零调用原始 reconciliation、终态和原始公开 abort 中的 `private_holdout_reopened_for_diagnosis=false` 必须一致；冻结源码、私有字节与原生隐私观测绑定均重算，不接受重新填一个 passed。原 96 份材料、旧 window/claim/freeze/attempt/observations 和旧公开执行源先在 OPS 新独占目录逐文件归档，原件不动。正文与 digest 不出 OPS；完整性哈希读取不是重开题面或重跑 verifier。
+3. [void 验证器](../../scripts/rt055_zero_exposure.py) 只能追加 **VOID_PREQUERY_NO_EXPOSURE**，绑定原 run/window/claim/freeze/attempt、migration id 和私有证据 hash。发布前再次确认旧部署源未变、全局 exposure=0、无活进程；发布后每次认可旧 claim 都重算原件/归档与证据绑定。不得删除、覆盖、改名 claim；不得以质量结果、异常率、部分得分或候选优劣触发。任何已有实际暴露都不能被 void。
+
+### 单库评分与不可逆曝光账本
+
+- [scorer](../../scripts/kb_retrieval_candidates.py) 新增 `score_library_cases(candidate,cases,library)`；完整验证且仅接受本库 answerable/exact/no-answer 后才查询，仅回本库 metrics。底层 `score_cases` 可显式指定 expected_libraries；缺省仍要求原三库完整类别。错误仍留在分母及延迟样本内，不修改检索算法或评分规则。
+- A/B 都经 [同一 ledger/scorer 接口](../../scripts/rt055_window.py) 运行 **arm → exposure → score → complete**。arm 绑定 window/freeze/attempt，但不是消费；类别错误只留下 arm，不写 exposure。全 run 的候选/库 exposure 在首次实际私有 search 前以独占创建、文件与目录 fsync 持久化；持久化失败在评分异常捕获之外中止，不伪装成一次系统错误并继续查询。
+- 同一候选/库跨任何 window 只允许一份 exposure。崩溃留下 exposure 而没有 complete，或留下不完整 exposure 文件，一律不可重试；不同窗口也拒绝。只有严格 void 验证通过的 legacy claim 才不阻塞新 arm/exposure；未确认 claim 继续 fail-closed。公开预热/隐私 canary 不计私有 holdout exposure，绝不以私有题预热。
+- score 绑定 exposure id/原件 hash 与 window/freeze；complete 再绑定 score hash，读 result 时重新验证整条链及时间顺序。旧/smoke/外窗结果不得补字段冒充。after 或 superseded 标记后的旧窗口永久禁止新 execution attempt/arm。
+- 合成与原生子进程的拒读/拒写矩阵扩展覆盖新 exposure、void、迁移私有归档和 formal-window 审计目录；不因为新增归档留下可绕过原 holdout 隔离的副本。
+
+### 迁移与停止门
+
+先独立本地提交修复、红绿/行为破坏证据与治理归属。OPS 验证严格零暴露后归档/追加 void，再同步此 commit，保留所有历史材料、builder/verifier=1/1 和同一 holdout。新 executioner migration id 必须以当前源真实重跑正常及鉴权错误 query/title 日志、Langfuse/OTEL、loopback model、egress/socket 隐私门；不复用旧 PASS，也不 patch WeKnora core。精确清理新合成资源后，创建全新 formal window、新 before、随机 A/B 顺序及 replacement freeze/verification；绑定当前 migration 与同一未变 holdout。向旧窗口只追加 `superseded-by-zero-exposure-migration` 回执，不覆盖原 INVALID。
+
+最终要求全局 exposure=0、新 arm=0、正式 query=0、replacement freeze 合法、三 Gateway HTTP 200、无活跃 synthetic/native 进程。公开恢复回执只能含计数/布尔/枚举、公开 commit 与随机引用，不含私有 digest。停止 **READY_TO_RUN**，不执行 coordinator 的运行路径、不启动 A/B、不 push、不切流；NAS/index 完整性 UNKNOWN 与生产服务漂移仍如实保留，不被恢复成功抵销。

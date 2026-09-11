@@ -406,3 +406,18 @@ setup、builder、verifier、before、隐私预检与 cleanup/after 均以原进
 ### 接管后并发写入警报：本节收口材料尚未提交
 
 在准备最终工程检查时，05:05–05:08 出现另一写入者对六份 scripts 和新 zero_exposure 测试的修改；来源尚未确认，本会话未写这些源码。前述“142通过/0skip”仅针对并发改动前的树，**不是当前最终树回归结果**；“源码未变”仅指本会话，不能用于声明当前工作树干净。本次证据、QA 与文档均为未提交快照，没有最终提交，不构成已完成交付。已停止代码写入、实验和提交，双方改动均保留；未 reset/stash/clean。OPS 最后只读核验仍为原有效 freeze/隐私绑定、A claim1/B0、评分0、实验进程0，尚无 zero-exposure 迁移部署。当前阻塞同时包含独占执行权失效及单次消费协议；需要先排除并发写入者，再作明确恢复协议裁决。本会话无后台任务。
+
+
+## Amendment 4：zero-exposure scorer recovery 本地验收
+
+05:01 的当前指令已明确零暴露迁移权限，并把终点限制为 READY_TO_RUN。上述旧会话 BLOCKED 和并发警报作为原始历史保留；迟到的六份收口材料稳定后已独立提交 `cb9d2d88a9fc74fe5f8b0b1b2027527fd5d1648a`，未并入任何修复源码，不把其 142 测试作为本轮证据。
+
+- 门前 OPS 只读核验：A/cwork-3m 旧 claim=1、attempt=1；正式私有 query=0、score=0、library result=0；B claim/attempt=0。原始对账明确未重开 holdout；旧 scorer 公开合成三库各自复现首次 query 前拒绝。旧 freeze/源码/隐私绑定重算一致、96 份材料同字节、builder/verifier=1/1、after/cleanup 已完成、无实验进程/数据面。
+- 修复只改 scorer 库域合同和账本接线；A/B 入口测试调用真实 scorer，不再用评分替身。arm 不消费；第一个私有 search 前全局独占 exposure，随后 score/complete 强绑定；曝光后失败、外窗重放、缺严格 void 的 legacy claim 均拒绝。新归档也进入隐私拒读矩阵。
+- 工程判据：先跑新测试，基线 10 项中 1 failure/8 errors；实现后完整 RT055、严格 void 反例、真实 A/B main 的合成服务路径与行为破坏/还原检查见 [本轮合成证据](zero-exposure-scorer-tests.json)。只测公开合成数据，不宣称 OPS 质量通过。
+- AI 自检：本会话逐段检查异常捕获边界、持久化顺序、跨窗全局唯一性、档案隐私、旧源码归档与新隐私来源分离；工具面无独立 reviewer，不冒称外部审批。新增归档隔离是自检发现并修复的路径。
+- 读产出：检查原始私有对账的白名单计数/枚举、单库 scorer 实际输出、ledger 原件链及变造反例；私有 query/title/path/doc_id/body/digest 不出 OPS。旧历史文件和已追加文档前缀字节保持。
+
+本地提交不等于 READY_TO_RUN。后续仅按 Amendment 4 完成 OPS 私有 void、新 synthetic 隐私门、新 before 与 replacement freeze；必须另附真实终态回执，绝不执行正式 A/B。
+
+本次本地实测：156 项完整 RT-055 / 0 skip；14 个行为破坏全部检出，恢复后再绿；33 个 Python 文件编译；7 份规则/题池实现/正式 Schema 与 10 个候选类 AST 不变；24 份历史 JSON 与 3 个文档原前缀不变；86 相对链接/13 锚点、7 个公开 Schema 私有字段反例通过。AODW 和治理通过，仅既有宿主 skill 未安装告警；不冒称全仓 CI。详见 [本地 QA](zero-exposure-scorer-qa.json)。

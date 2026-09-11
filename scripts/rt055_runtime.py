@@ -79,7 +79,7 @@ def sandbox_text(root, network_policy):
     binding = root/'audit/protected-root.json'
     if binding.exists():protected.append(Path(ops.read_json(binding)['root']))
     for parent in protected:
-        for scope in ('builder','verifier','consumption'):
+        for scope in ('builder','verifier','consumption','exposure','void-prequery','zero-exposure-migrations','formal-windows'):
             text += '(deny file-read* (subpath %s))\n' % json.dumps(str((parent/scope).resolve()))
             text += '(deny file-write* (subpath %s))\n' % json.dumps(str((parent/scope).resolve()))
     return text
@@ -115,6 +115,7 @@ def participating(root):
     return v['participating_libraries']
 
 def claim_candidate(root, key, window_id):
+    window.require_open(root,window_id)
     window.verification(root,window_id)
     receipt=window.receipt(root,window_id)
     order=receipt['run_order'];assert key in order
@@ -125,7 +126,7 @@ def claim_candidate(root, key, window_id):
     w=window.directory(root,window_id)
     if (w/('run-'+key)/'result.json').exists():raise FileExistsError('candidate_already_complete')
     # This is an execution-attempt claim, not a holdout-consumption claim.
-    # Actual scoring claims are per library, immediately before score_cases.
+    # Arm is not consumption; global exposure is persisted before the first private search.
     import uuid
     attempt=str(uuid.uuid4())
     window.write_once(w/('run-'+key)/'attempts'/attempt/'claim.json',
@@ -145,7 +146,8 @@ PRIVACY_SOURCE_FILES = ('rt055_runtime.py','rt055_confidentiality.py','rt055_ops
 MIGRATION_SOURCE_FILES = PRIVACY_SOURCE_FILES + (
     'rt055_window.py','rt055_baseline.py','rt055_formal_coordinator.py',
     'rt055_aggregate.py','rt055_cleanup.py','rt055_tiers.py',
-    'kb_retrieval_decision.py','rt055_runbooks.json','aggregate-report.schema.json')
+    'kb_retrieval_decision.py','rt055_runbooks.json','aggregate-report.schema.json',
+    'rt055_zero_exposure.py')
 
 
 def migration_directory(root,migration_id):
@@ -225,6 +227,7 @@ def privacy_passed(root, migration_id=None):
 
 
 def verify_ready(root,key,window_id):
+    window.require_open(root,window_id)
     from rt055_freeze import verify_artifacts
     window.verification(root,window_id)
     if not verify_artifacts(root,window_id):raise RuntimeError('frozen_artifact_drift')

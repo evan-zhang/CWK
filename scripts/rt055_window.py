@@ -34,6 +34,9 @@ def write_once(path,value):
     with os.fdopen(fd,'w') as f:
         json.dump(value,f,sort_keys=True,ensure_ascii=False,allow_nan=False)
         f.write('\n');f.flush();os.fsync(f.fileno())
+    parent_fd=os.open(path.parent,os.O_RDONLY)
+    try:os.fsync(parent_fd)
+    finally:os.close(parent_fd)
 
 
 def envelope(root,window_id,mode):
@@ -101,32 +104,147 @@ def library_claim(root,window_id,key,kb):
                   'receipt_sha256':ops.sha_file(directory(root,window_id)/'freeze/freeze-receipt.json')})
 
 
+def require_open(root,window_id):
+    w=directory(root,window_id)
+    if ((w/'status/baseline-after.claim').exists() or (w/'superseded-by-zero-exposure-migration.json').exists()):
+        raise RuntimeError('closed_window_permanently_invalid')
+
+
+def checked_path(root,*parts):
+    p=root.joinpath(*parts)
+    for node in (p,*p.parents):
+        if node.is_symlink():raise RuntimeError('ledger_symlink')
+        if node==root:break
+    if not p.is_relative_to(root):raise RuntimeError('ledger_escape')
+    return p
+
+
+def void_paths(root):
+    from rt055_zero_exposure import validate_void
+    rows=[]
+    for p in checked_path(root,'consumption').rglob('*'):
+        if p.is_symlink():raise RuntimeError('legacy_ledger_symlink')
+        if not p.is_file():continue
+        relative=p.relative_to(root/'consumption')
+        if len(relative.parts)!=2 or relative.parts[0] not in ('a','b') or p.stem not in ops.LIBRARIES or p.suffix!='.claim':
+            raise RuntimeError('unknown_legacy_ledger_artifact')
+        key,kb=relative.parts[0],p.stem
+        validate_void(root,key,kb)
+        rows.append(str(Path('void-prequery')/key/(kb+'.json')))
+    return sorted(rows)
+
+
+def legacy_allowed(root,key,kb):
+    p=checked_path(root,'consumption',key,kb+'.claim')
+    if p.exists():
+        from rt055_zero_exposure import validate_void
+        validate_void(root,key,kb)
+
+
+def holdout_unexposed(root):
+    void_paths(root)
+    # Any exposure artifact, even an empty interrupted exclusive write, blocks.
+    base=checked_path(root,'exposure')
+    return not any(p.is_file() or p.is_symlink() for p in base.rglob('*'))
+
+
+def _identity(root,window_id,key,kb,mode):
+    if key not in ('a','b') or kb not in ops.LIBRARIES:raise ValueError('ledger_identity_invalid')
+    verification(root,window_id)
+    return {**envelope(root,window_id,mode),'candidate':key,'library':kb,
+            'receipt_sha256':ops.sha_file(directory(root,window_id)/'freeze/freeze-receipt.json')}
+
+
+def _attempt(root,window_id,key,attempt):
+    identifier(attempt)
+    p=directory(root,window_id)/('run-'+key)/'attempts'/attempt/'claim.json'
+    v=ops.read_json(p)
+    if (any(v.get(k)!=x for k,x in envelope(root,window_id,'execution-attempt').items())
+            or v.get('candidate')!=key):raise RuntimeError('arm_attempt_mismatch')
+    return p
+
+
+def library_arm(root,window_id,key,kb,attempt):
+    require_open(root,window_id);identity=_identity(root,window_id,key,kb,'arm')
+    legacy_allowed(root,key,kb)
+    if checked_path(root,'exposure',key,kb+'.json').exists():raise RuntimeError('already_exposed_no_replay')
+    ap=_attempt(root,window_id,key,attempt)
+    row={**identity,'attempt_id':attempt,'attempt_sha256':ops.sha_file(ap),'armed_at':time.time()}
+    write_once(checked_path(root,'formal-windows',window_id,'arms',key,kb+'.json'),row)
+    return row
+
+
+def library_expose(root,window_id,key,kb,attempt):
+    require_open(root,window_id);identity=_identity(root,window_id,key,kb,'exposure')
+    legacy_allowed(root,key,kb)
+    ap=_attempt(root,window_id,key,attempt)
+    arm=checked_path(root,'formal-windows',window_id,'arms',key,kb+'.json');a=ops.read_json(arm)
+    expected={**_identity(root,window_id,key,kb,'arm'),'attempt_id':attempt,'attempt_sha256':ops.sha_file(ap)}
+    if any(a.get(k)!=v for k,v in expected.items()):raise RuntimeError('exposure_arm_mismatch')
+    row={**identity,'attempt_id':attempt,'attempt_sha256':ops.sha_file(ap),
+         'arm_sha256':ops.sha_file(arm),'exposure_id':str(uuid.uuid4()),'exposed_at':time.time()}
+    write_once(checked_path(root,'exposure',key,kb+'.json'),row)
+    return row
+
+
+def exposure(root,window_id,key,kb):
+    p=checked_path(root,'exposure',key,kb+'.json');e=ops.read_json(p)
+    identity=_identity(root,window_id,key,kb,'exposure')
+    if any(e.get(k)!=v for k,v in identity.items()):raise RuntimeError('exposure_binding_invalid')
+    identifier(e['exposure_id']);ap=_attempt(root,window_id,key,e['attempt_id'])
+    arm=checked_path(root,'formal-windows',window_id,'arms',key,kb+'.json');a=ops.read_json(arm)
+    expected={**_identity(root,window_id,key,kb,'arm'),'attempt_id':e['attempt_id'],'attempt_sha256':ops.sha_file(ap)}
+    if (any(a.get(k)!=v for k,v in expected.items()) or e['attempt_sha256']!=ops.sha_file(ap)
+            or e['arm_sha256']!=ops.sha_file(arm)
+            or not e['exposed_at']>=a['armed_at']>=verification(root,window_id)['observed_at']):
+        raise RuntimeError('exposure_arm_binding_invalid')
+    return e,p
+
+
+def score_library(root,window_id,key,kb,attempt,candidate,cases,timeout=30):
+    import kb_retrieval_candidates as kbc
+    library_arm(root,window_id,key,kb,attempt)
+    return kbc.score_library_cases(candidate,cases,kb,timeout,
+        before_first_search=lambda:library_expose(root,window_id,key,kb,attempt))
+
+
 def library_scored(root,window_id,key,kb,metrics):
-    claim=ops.read_json(root/'consumption'/key/(kb+'.claim'))
-    if claim.get('window_id')!=window_id:raise RuntimeError('consumption_window_mismatch')
-    write_once(directory(root,window_id)/('run-'+key)/'scores'/(kb+'.json'),
-               {**envelope(root,window_id,'scored'),'candidate':key,'library':kb,'metrics':metrics,'scored_at':time.time()})
+    e,ep=exposure(root,window_id,key,kb)
+    write_once(checked_path(root,'formal-windows',window_id,'run-'+key,'scores',kb+'.json'),
+               {**_identity(root,window_id,key,kb,'scored'),'exposure_id':e['exposure_id'],
+                'exposure_sha256':ops.sha_file(ep),'metrics':metrics,'scored_at':time.time()})
+
+
+def _scored(root,window_id,key,kb):
+    e,ep=exposure(root,window_id,key,kb)
+    p=checked_path(root,'formal-windows',window_id,'run-'+key,'scores',kb+'.json');v=ops.read_json(p)
+    expected={**_identity(root,window_id,key,kb,'scored'),'exposure_id':e['exposure_id'],'exposure_sha256':ops.sha_file(ep)}
+    if any(v.get(k)!=x for k,x in expected.items()) or v['scored_at']<e['exposed_at']:
+        raise RuntimeError('score_exposure_binding_invalid')
+    return v,p,e,ep
 
 
 def library_complete(root,window_id,key,kb,value):
-    claim=ops.read_json(root/'consumption'/key/(kb+'.claim'))
-    if claim.get('window_id')!=window_id:raise RuntimeError('consumption_window_mismatch')
-    write_once(directory(root,window_id)/('run-'+key)/(kb+'.json'),
-               {**value,**envelope(root,window_id,'library-result'),'candidate':key,'library':kb,'completed_at':time.time()})
+    score,sp,e,ep=_scored(root,window_id,key,kb)
+    if any(value.get('metrics',{}).get(k)!=v for k,v in score['metrics'].items()):raise RuntimeError('completion_score_mismatch')
+    write_once(checked_path(root,'formal-windows',window_id,'run-'+key,kb+'.json'),
+               {**value,**_identity(root,window_id,key,kb,'library-result'),
+                'exposure_id':e['exposure_id'],'exposure_sha256':ops.sha_file(ep),
+                'score_sha256':ops.sha_file(sp),'completed_at':time.time()})
 
 
 def library_result(root,window_id,key,kb):
-    p=directory(root,window_id)/('run-'+key)/(kb+'.json')
+    legacy_allowed(root,key,kb)
+    p=checked_path(root,'formal-windows',window_id,'run-'+key,kb+'.json')
     if not p.exists():
-        if (root/'consumption'/key/(kb+'.claim')).exists():raise RuntimeError('consumption_without_completion_no_replay')
+        if checked_path(root,'exposure',key,kb+'.json').exists():raise RuntimeError('exposure_without_completion_no_replay')
         return None
-    v=ops.read_json(p);c=ops.read_json(root/'consumption'/key/(kb+'.claim'))
-    if (any(v.get(k)!=x for k,x in envelope(root,window_id,'library-result').items())
-            or any(c.get(k)!=x for k,x in envelope(root,window_id,'consumption').items())
-            or v.get('candidate')!=key or v.get('library')!=kb or c.get('candidate')!=key or c.get('library')!=kb
-            or c.get('receipt_sha256')!=ops.sha_file(directory(root,window_id)/'freeze/freeze-receipt.json')
-            or not (v.get('completed_at',0)>=c.get('time',0)>=verification(root,window_id)['observed_at'])):
-        raise RuntimeError('library_result_identity_invalid')
+    v=ops.read_json(p);score,sp,e,ep=_scored(root,window_id,key,kb)
+    expected={**_identity(root,window_id,key,kb,'library-result'),'exposure_id':e['exposure_id'],
+              'exposure_sha256':ops.sha_file(ep),'score_sha256':ops.sha_file(sp)}
+    if (any(v.get(k)!=x for k,x in expected.items())
+            or any(v['metrics'].get(k)!=x for k,x in score['metrics'].items())
+            or v['completed_at']<score['scored_at']):raise RuntimeError('library_result_identity_invalid')
     return v
 
 

@@ -228,3 +228,12 @@ freeze/正式 A/B/消费仍 0，三库两候选所有正式指标 null；builder
 ### 接管后并发写入警报：本节收口材料尚未提交
 
 在准备最终工程检查时，05:05–05:08 出现另一写入者对六份 scripts 和新 zero_exposure 测试的修改；来源尚未确认，本会话未写这些源码。前述“142通过/0skip”仅针对并发改动前的树，**不是当前最终树回归结果**；“源码未变”仅指本会话，不能用于声明当前工作树干净。本次证据、QA 与文档均为未提交快照，没有最终提交，不构成已完成交付。已停止代码写入、实验和提交，双方改动均保留；未 reset/stash/clean。OPS 最后只读核验仍为原有效 freeze/隐私绑定、A claim1/B0、评分0、实验进程0，尚无 zero-exposure 迁移部署。当前阻塞同时包含独占执行权失效及单次消费协议；需要先排除并发写入者，再作明确恢复协议裁决。本会话无后台任务。
+
+
+## 2026-09-12 Amendment 4：严格零暴露执行器恢复
+
+当前授权为修复同一第四轮到 **READY_TO_RUN**，不得执行正式 A/B。历史 BLOCKED/并发警报不改写，前一会话迟到材料已单独保留为 `cb9d2d8`；本次是明确的新消费/冻结恢复裁决，不是常规继续推翻单次消费。
+
+范围与判据以 [Amendment 4](experiment-protocol.md#amendment-4--zero-exposure-prequery-void-与-replacement-freeze2026-09-12-0501-授权) 为准：保留旧 claim，严格零 query/score/result 与冻结源码/隐私重算一致才追加私有 void；单库 scorer 与全库旧语义并存；A/B 共用 arm→exposure→score→complete；有 exposure 即全 window 禁止重放。builder/verifier、96 材料和 42@T3/31@T3/42@T2 不变；不改候选算法/质量/效用，不重建池、不动生产/NAS。
+
+本地红绿、行为破坏与治理见 [合成证据](evidence/zero-exposure-scorer-tests.json) 和 [验收](evidence/acceptance.md)。OPS 尚需独立新隐私实测、cleanup、新 before 与 replacement freeze；未取得最终恢复回执之前，不把本地通过说成 READY_TO_RUN。RT 继续 in_progress，选型未完成，所有切流暂停。

@@ -1,0 +1,18 @@
+{
+  "py_compile_files": 33,
+  "protected_files_byte_equal": 7,
+  "candidate_classes_ast_unchanged": 10,
+  "historical_evidence_byte_equal": 24,
+  "document_prefixes_unchanged": 3,
+  "relative_links": 86,
+  "anchors": 13,
+  "schema_private_field_negatives": 7,
+  "mutations_detected": 14,
+  "regression_tests": 156,
+  "schema": "cwk.rt055.zero-exposure-local-qa.v1",
+  "data_class": "PUBLIC_SYNTHETIC_ONLY_NOT_OPS",
+  "full_repository_ci_claimed": false,
+  "formal_queries": 0,
+  "aodw_pass": true,
+  "governance_pass": true
+}

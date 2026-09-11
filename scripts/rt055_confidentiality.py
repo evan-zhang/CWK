@@ -40,7 +40,7 @@ def assert_synthetic_root(root):
         raise RuntimeError('synthetic_root_invalid')
     if any((root/p).is_file() for p in ('freeze/freeze-receipt.json','run-a/result.json','run-b/result.json')):
         raise RuntimeError('formal_state_present')
-    if any(p.is_file() for name in ('builder','verifier','consumption') for p in (root/name).rglob('*')):
+    if any(p.is_file() for name in ('builder','verifier','consumption','exposure','void-prequery','zero-exposure-migrations','formal-windows') for p in (root/name).rglob('*')):
         raise RuntimeError('private_or_consumed_input_present')
 
 
@@ -177,7 +177,7 @@ def run(root,protected_root=None):
         nonlocal denial_probes
         if event!='open' or not isinstance(args[0],(str,bytes,os.PathLike)):return
         p=Path(os.path.realpath(os.fsdecode(args[0])))
-        if any(p.is_relative_to(parent/scope) for parent in protected for scope in ('builder','verifier','consumption')):
+        if any(p.is_relative_to(parent/scope) for parent in protected for scope in ('builder','verifier','consumption','exposure','void-prequery','zero-exposure-migrations','formal-windows')):
             if probing:denial_probes+=1
             else:o['forbidden_reads']+=1
             raise PermissionError('synthetic_private_read_denied')

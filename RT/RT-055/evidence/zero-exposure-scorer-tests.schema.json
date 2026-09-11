@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "data_class",
+    "baseline_commit",
+    "red",
+    "green",
+    "restored_green",
+    "formal_queries",
+    "builder_runs",
+    "verifier_runs",
+    "mutations"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.zero-exposure-scorer-tests.v1"
+    },
+    "data_class": {
+      "const": "PUBLIC_SYNTHETIC_ONLY_NOT_OPS"
+    },
+    "baseline_commit": {
+      "const": "1af1362b57e639de87a35a9e5c2ce1af7f296da1"
+    },
+    "red": {
+      "$ref": "#/$defs/stats"
+    },
+    "green": {
+      "$ref": "#/$defs/stats"
+    },
+    "restored_green": {
+      "$ref": "#/$defs/stats"
+    },
+    "formal_queries": {
+      "const": 0
+    },
+    "builder_runs": {
+      "const": 0
+    },
+    "verifier_runs": {
+      "const": 0
+    },
+    "mutations": {
+      "type": "array",
+      "minItems": 14,
+      "maxItems": 14,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "tests",
+          "failures",
+          "errors",
+          "skipped",
+          "exit_code",
+          "mutation",
+          "detected"
+        ],
+        "properties": {
+          "tests": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "failures": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "errors": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "skipped": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "exit_code": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "mutation": {
+            "enum": [
+              "SINGLE_LIBRARY_SCOPE_DISCONNECTED",
+              "MISSING_CATEGORY_ACCEPTED",
+              "EXPOSURE_HOOK_DISCONNECTED",
+              "LEGACY_VOID_GUARD_DISCONNECTED",
+              "EXPOSURE_WRITE_DISCONNECTED",
+              "INCOMPLETE_EXPOSURE_REPLAY_ALLOWED",
+              "CLOSED_WINDOW_REOPENED",
+              "RESULT_CHAIN_DISCONNECTED",
+              "ONE_QUERY_VOID_ALLOWED",
+              "ONE_SCORE_VOID_ALLOWED",
+              "OPENED_HOLDOUT_VOID_ALLOWED",
+              "RAW_CALL_RECONCILIATION_IGNORED",
+              "LIBRARY_RESULT_COUNT_IGNORED",
+              "ARCHIVE_DIGEST_BINDING_IGNORED"
+            ]
+          },
+          "detected": {
+            "const": true
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "stats": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tests",
+        "failures",
+        "errors",
+        "skipped",
+        "exit_code"
+      ],
+      "properties": {
+        "tests": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "failures": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "errors": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "skipped": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "exit_code": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}
