@@ -3,14 +3,14 @@ title: 双通道 OpenSearch 与原版 WeKnora 检索决策实验
 type: Experiment
 profile: Spec-Lite
 execution_mode: collaborative
-status: decided
+status: in_progress
 modules: [rt055-retrieval-decision, rt054-lexical-snapshot-performance, rt051-controlled-read-lexical]
 branch: openclaw/rt054-next-decision
 worktree: /Users/evan/.openclaw/gateways/life/state/worktrees/b7867e4d12d85382/rt054-next-decision
 tool: codex
 owner: Evan
 created_at: 2026-09-10T01:34:17Z
-updated_at: 2026-09-10T01:49:22Z
+updated_at: 2026-09-10T07:23:37Z
 closed_at: null
 notes: >
   基于 f34918bb2158099f03eba99ffcc95e59714a15f2 建立。RT-054 的 NO-GO 只裁决

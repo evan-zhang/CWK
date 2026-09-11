@@ -42,3 +42,23 @@
 ## 遗留事项
 
 - 真实候选运行与生产实现不是遗留转出：它们是本 RT 下一阶段，当前因明确 OPS/部署授权门尚未执行。
+
+## 2026-09-10 本地开发续段
+
+用户在当前频道确认恢复此前本地开发；继续不 push、不修改生产/现有索引、不写 NAS、不执行 OPS 部署。沿用已存在 worktree，基线 `4733632`，开始时干净。
+
+- 已实现候选 A 的实验索引构建、通用 exact/ICU 双通道、doc collapse 和有界 Parent 展开。
+- 已实现候选 B 的原生 manual ingestion/ready 检查/hybrid-search 适配；固定 upstream API 已只读核对。
+- 已实现私有逐库评分；不把本地模拟变成真实质量、资源或 freeze 证据。
+- 工程判据：新增合成 transport 行为测试，覆盖 exact 摄取/查询一致性、租户/库过滤、父段越界、部分响应/导入、错误不算 no-answer、超时、原生 Top-10、临时资源清理。最终 RT-055 局部回归 44 tests 全过（23 项候选 + 21 项裁决）；治理回归 62 tests 全过。两项真实行为破坏实验：断开 exact 摄取接线、把无答案异常计作答对，均导致对应测试失败；还原后通过。
+- AI 评审：按 AGENTS 引用的判据纪律，安排只读独立评审，核验合同、公平性、泄漏面和坏行为绕过；独立评审发现原生零结果 null 被算错误（P1）、文件名吞入括号（P2）；父会话已修复，并分别通过 B 适配→评分、摄取→搜索行为测试核验。评审二次读取因 Native hook relay timeout 未完成，不冒充独立复审通过。
+- 读产出：父会话读取真实的合成索引请求、搜索请求、Parent 展开与聚合计数，实际 loopback HTTP JSON/拒绝重定向路径，以及固定 upstream handler/types；真实服务结果尚未生成。
+- 未完成：OPS 的新空库/认证与原生配置、服务部署、私有 holdout/冻结/独立 verifier、全栈资源与 Gateway 能力测量、日志保密验证、清理与生产不变性复核。这些仍属于本 RT，未转出也未关单。
+
+### 当前检查状态
+
+- `env LANG=C LC_ALL=C make aodw-check governance-audit` 通过：79 framework fixtures、全部受管 RT、53 项 roster 一致，788 个受跟踪文件全部有主。宿主 handover-pack 未安装仅为既有告警。
+- 首次沿用宿主 `C.UTF-8` 时，macOS 自带 Bash 在既存方法脚本紧邻中文标点的变量处报 unbound variable；使用与隔离 CI 一致的 `LC_ALL=C` 重跑通过，未修改方法脚本/系统 locale。
+- `git diff HEAD --check` 通过。
+- 门禁脚本加固：`aodw-check.sh`/`rt-guard.sh` 紧邻中文标点的变量展开改为 `${var}` 括界，并按门禁要求刷新 manifest 中 `rt-guard.sh` 的 sha256 pin；此前一次全量尝试在受管 RT 门禁处失败，按失败提示的授权改法修复。
+- 全量 `make ci-full` 最终验收通过（2026-09-11 回填；隔离环境、无项目 .env、独立合成 smoke run 名称；08:16:53–09:27:56，总用时约 71 分钟，退出码 0）：doctor PASS；py_compile 通过；unittest 3671 tests、skipped=12、OK（4245.087s）；smoke / smoke-ai / smoke-ai-degraded 产物门禁全过（模板 dry-run manifest 的 overall_pass=false 为内容层指标，CI 门禁校验产物存在）；aodw-check 通过（仅宿主 handover-pack 未安装既有告警）；governance-audit 通过（788 个受跟踪文件全有主）。日志：`/private/tmp/rt055-ci-final1/ci-full.log`。

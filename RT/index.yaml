@@ -312,6 +312,6 @@ entries:
   created: 2026-09-07
 - id: RT-055
   title: 双通道 OpenSearch 与原版 WeKnora 检索决策实验
-  status: decided
+  status: in_progress
   profile: Spec-Lite
   created: 2026-09-10

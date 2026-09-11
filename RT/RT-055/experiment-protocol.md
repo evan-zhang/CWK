@@ -63,3 +63,15 @@
 B 的控制面、摄取、任务、鉴权、来源定位和 Gateway 迁移成本尚待实测。若 B 按上述公平门和事前效用胜出，就停止自研并迁移；否则实施 A，不维持双栈。
 
 污染、候选漂移、缓存偏差、资源漏算、假 no-answer、泄漏或 cleanup 失败都使轮次 INVALID。所有临时资源使用随机 RT-055 prefix；cleanup 只允许该 prefix，且不得触碰现有资源。
+
+## 8. 本地实验适配（2026-09-10 开发续段）
+
+- `scripts/kb_retrieval_candidates.py` 是实验库，不是生产 SearchBackend，不启动服务，也不读取任何 RT-054 case/holdout。部署、临时库创建/授权、角色隔离与冻结仍由 OPS runner 在单独授权后完成。
+- 两候选收到同一 canonical 输入：原始 title、filename 两行元数据，加空行和规范化正文。A 的 Parent/Child 与 B 的原生 manual Markdown ingestion 均消费这个输入；不对 A 单独执行整文/模板去重。
+- A 摄取和查询共享 NFKC、casefold、Unicode 连字符和有效日历日期规范化。可识别编号、日期、文件名的 query 只走 keyword，多个提取值取 AND；零命中不回退全文。普通文本走官方 ICU BM25，标题/章节/正文权重 3/2/1，无 rerank，doc collapse 后 Top-10 单次有界 Parent mget。请求和展开共享一个截止时间。
+- A 两个 index 均是随机 `rt055-<UUID>-c/p`，只清理该实例收到创建确认的资源。创建超时/未确认必须由 OPS 对该精确随机名称调和，不能声称 cleanup 完成；不扫描或删除其它资源。Parent 数据面也必须计入 index_bytes。
+- B 固定官方接口经源码核验：`POST /api/v1/knowledge-bases/{id}/knowledge/manual` 的 title/content/status=publish；`GET /api/v1/knowledge/{id}` 逐项核验 parse_status=completed；`POST /api/v1/knowledge-bases/{id}/hybrid-search` 传原始 query_text 与 match_count=10。不注入 A 的 resolver、expected 或 rerank，不补齐去重后的文档数量。返回的所有条目先查导入映射和库域，再按原生排名取前十 chunk 评分。
+- B 的新空库、原生配置/模型、认证 transport、checkout/image 固定版本证明及清理在 OPS 外层负责；客户端接口匹配不等于实际运行 artifact 已验证。原生依赖不得向外部模型提供私有输入。
+- **日志上线前门**：固定 upstream 的 HybridSearch handler 记录 query、GetKnowledge 记录标题。必须用原生受支持配置禁用涉及私有输入的日志、Langfuse tracing 和模型 egress 并实际验证；不能仅因适配器错误已脱敏就宣布保密门通过。若原生配置无法满足协议，不 patch core，不执行 confidential holdout，报告阻塞。
+- `score_cases` 只在 OPS 内消费私有 Case，输出逐库固定计数/比率/P95；不输出 case、query、source、异常内容。超时/错误仍在分母与 P95 样本内，无答案异常不能当作答对；跨库返回计 leak 与错误。它不生成完整 v2 报告，不伪造资源、Gateway、freeze、clean-up 或 verifier 成功证明。
+- 当前只有 synthetic transport 测试，无真实 OpenSearch/WeKnora、三库质量、资源或公网 Gateway 测量。OPS 闭环尚未执行，不能因此关闭 RT 或选出生产候选。

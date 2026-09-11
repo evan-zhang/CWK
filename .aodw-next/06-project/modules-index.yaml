@@ -128,7 +128,9 @@ modules:
     root: scripts
     related_files:
       - scripts/kb_retrieval_decision.py
+      - scripts/kb_retrieval_candidates.py
       - RT/RT-055/contracts/aggregate-report.schema.json
       - RT/RT-055/experiment-protocol.md
       - RT/RT-055/architecture-audit.md
       - tests/test_rt055_retrieval_decision.py
+      - tests/test_rt055_retrieval_candidates.py

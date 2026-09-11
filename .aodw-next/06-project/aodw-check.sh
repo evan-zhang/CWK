@@ -61,7 +61,7 @@ if [[ -f "$AODW/tools/fixtures/run-fixtures.sh" ]]; then
     ok "框架 fixture 套件通过"
   else
     printf '%s\n' "$fixture_out" | grep -E '^FAIL' >&2 || true
-    fail "框架 fixture 套件未通过（exit=$fixture_code）——判据行为已偏离预期，先修这里"
+    fail "框架 fixture 套件未通过（exit=${fixture_code}）——判据行为已偏离预期，先修这里"
   fi
 else
   fail "找不到 $AODW/tools/fixtures/run-fixtures.sh"
@@ -86,15 +86,15 @@ else
     (( 10#$n >= from_num )) && managed+=("$rt")
   done
   if [[ ${#managed[@]} -eq 0 ]]; then
-    fail "受管 RT 为空（managed_from=$managed_from）——门禁面为空说明配置错了，不是通过"
+    fail "受管 RT 为空（managed_from=${managed_from}）——门禁面为空说明配置错了，不是通过"
   else
-    ok "门禁面：${managed[*]}（managed_from=$managed_from；更早的 RT 是接入前存量，只作证据）"
+    ok "门禁面：${managed[*]}（managed_from=${managed_from}；更早的 RT 是接入前存量，只作证据）"
     for rt in "${managed[@]}"; do
       if bash "$AODW/tools/rt-guard.sh" --root "$ROOT" --rt "$rt" >/dev/null 2>&1; then
         ok "$rt 门禁通过（error 级判据全过）"
       else
         code=$?
-        fail "$rt 门禁未过（exit=$code）——重跑看明细：bash .aodw-next/tools/rt-guard.sh --root . --rt $rt"
+        fail "$rt 门禁未过（exit=${code}）——重跑看明细：bash .aodw-next/tools/rt-guard.sh --root . --rt $rt"
       fi
     done
   fi
