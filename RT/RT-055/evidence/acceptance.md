@@ -368,3 +368,41 @@ setup、builder、verifier、before、隐私预检与 cleanup/after 均以原进
 - 后续仍属本次持续任务：迁移 commit 后再同步 OPS；新真实 synthetic privacy revalidation PASS/精确清理后，才新建 formal window 并推进 freeze→正式 A/B→cleanup/after→aggregate/decision。不得把这次本地通过当作最终交付。
 
 本次本地 QA 实测：142 项 RT-055 回归 / 0 skip；20 个行为破坏全部检出、还原后 142 green；23 个执行源 py_compile；18 份历史 JSON/Schema 与 2 个追加文档旧前缀不变；67 相对链接 / 11 锚点；AODW 79 fixtures、53 RT 与 837 文件治理通过。仅保留既有宿主 handover-pack 未安装告警，未安装或修改宿主配置；未冒称全仓 CI。
+
+
+## 2026-09-12 唯一继任接管：冻结后评分接线冲突
+
+本节是上一执行会话终止后的实际对账，不覆盖任何历史状态。修复提交 `1af1362b57e639de87a35a9e5c2ce1af7f296da1` 已落库、工作树 clean；迁移测试 JSON/Schema 完整且校验通过。当前继任控制器按 Evan 指定接管，先只读核查本地 HEAD/mtime、OPS 两根、进程、claim、窗口与隐私来源，再在本地 progress card 及 OPS 独占 checkpoint 追加对账。指定的通用 terminal-state/abort-task-state 文件名未找到，采用实际存在的窗口 status、attempt failure、消费 claim 和不可变审计证据；不因旧摘要声称“未消费”而重跑。
+
+### 已完成但上一会话未交付的操作
+
+- 同一 run `ac1ca0c7-6983-4f6e-91ce-8eb45e7673af`、migration `6e70edd0-f77e-4ea9-b0e6-4cdf765970f6`、window `7bed2d1c-4943-4da6-b6d2-a23aab5c195f`：真实合成隐私重绑 PASS，freeze/verification 各一次，随机顺序 A→B，fresh before/after 各一次 PASS；没有重复 builder/verifier（仍 1/1）。
+- 迁移版本参数明确传入后，隐私源绑定、实际观测和 freeze 均重新验证通过；默认无 migration 的旧隐私入口拒绝是预期的版本隔离，不是当前隐私门失败。19 份绑定公开源与迁移提交一致，96 份原材料、499 份迁移归档原件均通过字节核验；497 份当前原件不变，另 2 份仅为原控制器可变 progress/state 观察元数据，原字节已经归档。
+- A 的第一次执行已领取 cwork-3m 消费 claim；正式查询调用 0、评分回执 0、完整库结果 0，B 从未启动。A 的候选资源已经 finally 清理，after、额外两份新建临时 TLS 文件清理及公开 abort 投影也已完成。**本轮不再是“freeze/消费 claim 均为 0”。**
+
+### 机械原因与不能重放的协议边界
+
+旧冲突是 before 窗口不一致：freeze 固定引用旧 before，而正式接续创建新 formal-before；修改 freeze 又使旧隐私源码绑定失效。`1af1362` 已通过显式窗口引用及带真实观测的版本化隐私重绑解决该冲突。
+
+新冲突独立存在：[A runner](../../../scripts/rt055_run_a.py) 与 [B runner](../../../scripts/rt055_run_b.py) 每次只向 [score_cases](../../../scripts/kb_retrieval_candidates.py) 传一库 case，但 scorer 初始化三库计数，要求每库 answerable/exact/no_answer 都非零。因此首库的消费 claim 落盘后，必然在第一次 candidate.search 前抛出 `CandidateError('missing scoring category')`。继任会话用三库各自的公开合成输入直接调用冻结版本 scorer，三次均复现拒绝且调用数为 0；没有读取或重开私有 holdout。此前 142 项回归含 scorer 替身接线测试，不能发现这条真实评分函数组合缺陷；回归绿灯不代表正式实验可完成。
+
+现行协议“故障与恢复”明确规定：消费 claim 无可核验完成状态时不重放；全 run 消费 claim 不允许换窗口再消费；冻结后源变更无自动再冻结路径。继任会话只读调用实际 `library_result`，机械拒绝为 **consumption_without_completion_no_replay**。零查询的控制流证明不等同于已完成评分回执，也不取消 claim。当前指令保留单次消费且仅允许快照绑定失效时重建；本次 freeze/隐私绑定仍有效，不能借 scorer 错误重建题池、换 freeze 或删题。于是任务停在 **BLOCKED_PROTOCOL_SINGLE_USE_NO_REPLAY**，未修改 scorer/runner、未改协议、未启动新候选。若继续实验，需要明确的单次消费/冻结恢复协议裁决；不是普通“继续”确认，也不是代码问题无法修复。
+
+### 唯一裁决、成绩与清理
+
+- [OPS 公开中止证据](formal-window-scorer-abort.json) 先在 OPS 通过[闭集 Schema](formal-window-scorer-abort.schema.json)，继任导出与原件逐字段一致。原件中 WAITING_REPLACEMENT_FREEZE_AUTHORIZATION 保留为上一会话历史观察；当前任务硬阻塞以本节及 [QA](formal-window-scorer-qa.json) 为准。
+- [唯一裁决 CLI 输出](formal-window-scorer-decision.json)：**INVALID / AGGREGATE_CONTRACT_INVALID，exit 2，deferred_libraries=[]**。这是裁决器正确拒绝不完整中止报告，不是质量 NO-GO；没有伪造 aggregate v3，也没有完成质量/代价选型。
+- 三库 cwork-3m、docdb-touqian、spbp-2027 的 A/B 正式质量和资源指标均为 null；A 为 NOT_MEASURED_PREQUERY_ABORT，B 为 NOT_RUN。参加题池仍为 42@T3、31@T3、42@T2；这些是题池数，不是已完成测量分母。DEFERRED=[]。
+- 最终重查：相关旧控制器/候选/sidecar/OpenSearch/WeKnora 进程 0，实验数据面 0，RT-055 容器/卷/网络/镜像标签/服务 0，未完成下载 0，cleanup failure 0。主根旧 data 目录为空；约 3.09 GB 的旧公开发行物/依赖分布在 downloads、OpenSearch、WeKnora、JDK、Go、bin，作为已有公开支撑材料保留，并非运行中候选或遗失索引，不擅自删除。旧 claim、私有池、freeze、审计和归档保留，未清算他人资源。
+- 当前窗口 services 新增 1/减少 1，services_unchanged=false、production_config_unchanged=false；不归因，不修改生产追平。nas_unchanged=null、existing_indices_unchanged=null、all_items_measured=false，明确保持诚实 UNKNOWN。Gateway/健康内容、容器/卷及已测元数据投影相同；三 Gateway 新鲜 HTTP 200，但不升级为全量不变证明。
+
+### 最终验证与交付范围
+
+实际最终树 RT-055 回归 **142 tests / 0 failures / 0 errors / 0 skip**；14 个公开 Schema 反例全部拒绝，三库公开 scorer 探针全部复现查询前冲突。只提交四份公开证据和本节/rt-lite 的追加；旧 JSON/Schema、协议与全部 scripts/tests 保留原字节。没有独立外部 reviewer，不冒称全仓 CI。工程、链接、隐私、AODW、治理和最终提交核验记录在 QA 与本地/OPS append-only checkpoint。
+
+**中止收口与对账完成；RT-055 选型目标未完成，保持 in_progress，切流暂停。无后台实验，不 push、不合并、不清理 worktree。**
+
+
+### 接管后并发写入警报：本节收口材料尚未提交
+
+在准备最终工程检查时，05:05–05:08 出现另一写入者对六份 scripts 和新 zero_exposure 测试的修改；来源尚未确认，本会话未写这些源码。前述“142通过/0skip”仅针对并发改动前的树，**不是当前最终树回归结果**；“源码未变”仅指本会话，不能用于声明当前工作树干净。本次证据、QA 与文档均为未提交快照，没有最终提交，不构成已完成交付。已停止代码写入、实验和提交，双方改动均保留；未 reset/stash/clean。OPS 最后只读核验仍为原有效 freeze/隐私绑定、A claim1/B0、评分0、实验进程0，尚无 zero-exposure 迁移部署。当前阻塞同时包含独占执行权失效及单次消费协议；需要先排除并发写入者，再作明确恢复协议裁决。本会话无后台任务。

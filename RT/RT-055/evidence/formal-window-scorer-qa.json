@@ -1,0 +1,80 @@
+{
+  "aggregate_v3_produced": false,
+  "builder_verifier_repeated": false,
+  "candidate_or_frozen_source_changed": true,
+  "claim_replayed": false,
+  "closed_schema_negative_tests": {
+    "cases": [
+      "unknown_private_key",
+      "invented_score",
+      "nas_unknown_upgraded",
+      "indices_unknown_upgraded",
+      "services_drift_hidden",
+      "configuration_drift_hidden",
+      "claim_erased",
+      "fabricated_completion",
+      "fake_deferred",
+      "role_level_upgraded",
+      "free_text_reason",
+      "private_digest_field",
+      "fake_no_go",
+      "candidate_b_started"
+    ],
+    "rejected": 14
+  },
+  "data_class": "PUBLIC_CLOSEOUT_NOT_FORMAL_AGGREGATE",
+  "decision": {
+    "decision": "INVALID",
+    "deferred_libraries": [],
+    "error_code": "AGGREGATE_CONTRACT_INVALID",
+    "status": "INVALID"
+  },
+  "decision_harness_exit_code": 2,
+  "external_changes_deployed_to_ops": false,
+  "external_source_mutation_detected": true,
+  "final_commit_created": false,
+  "final_tree_regression_verified": false,
+  "formal_experiment_completed": false,
+  "full_repository_ci_run": false,
+  "independent_external_reviewer": false,
+  "independent_public_scorer_probes": [
+    {
+      "candidate_calls": 0,
+      "library": "cwork-3m",
+      "prequery_category_rejection": true
+    },
+    {
+      "candidate_calls": 0,
+      "library": "docdb-touqian",
+      "prequery_category_rejection": true
+    },
+    {
+      "candidate_calls": 0,
+      "library": "spbp-2027",
+      "prequery_category_rejection": true
+    }
+  ],
+  "new_freeze_created": false,
+  "new_holdout_created": false,
+  "ops_public_export_equal": true,
+  "ops_schema_validated": true,
+  "quality_and_cost_decision_evaluated": false,
+  "regression": {
+    "errors": 0,
+    "exit_code": 0,
+    "failures": 0,
+    "skipped": 0,
+    "tests": 142
+  },
+  "regression_scope": "142_PASS_ZERO_SKIP_BEFORE_EXTERNAL_MUTATIONS_NOT_FINAL_TREE",
+  "schema": "cwk.rt055.scorer-abort-closeout-qa.v1",
+  "service_delta": {
+    "added": 1,
+    "removed": 1
+  },
+  "service_drift_attributed": false,
+  "source_changes_by_this_controller": false,
+  "source_commit_preserved": "1af1362b57e639de87a35a9e5c2ce1af7f296da1",
+  "status": "SNAPSHOT_VALIDATED_NOT_FINAL_TREE",
+  "task_status": "BLOCKED_CONCURRENT_WRITER_AND_SINGLE_USE_PROTOCOL"
+}

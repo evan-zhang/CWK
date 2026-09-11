@@ -208,3 +208,23 @@
 freeze/正式 A/B/消费仍 0，三库两候选所有正式指标 null；builder/verifier 1/1；96 份保留材料和 22 份公开源字节一致。候选资源/未确认创建/清理失败 0，OPS 控制器与 watcher 已退出。隐私恢复仍 PASS，角色仍为单 UID 进程隔离，未改 core 或规则。
 
 证据：[公开中止报告](evidence/amendment3-ops4-formal-abort.json)、[闭集 Schema](evidence/amendment3-ops4-formal-abort.schema.json)、[原 CLI 拒绝回执](evidence/amendment3-ops4-formal-decision.json)、[公开 QA](evidence/amendment3-ops4-formal-qa.json)。123 回归/0 skip、4 合成接线检查、14 Schema 反例通过；只本地提交，不 push/合并/清理 worktree。RT-055 选型仍未完成，无后台任务，不自动启动下一轮。
+
+
+## 2026-09-12 唯一继任接管：消费 claim 后评分前中止
+
+**当前 INVALID，任务 BLOCKED_PROTOCOL_SINGLE_USE_NO_REPLAY；没有选出 A/B。** 本节取代上文“未 freeze/未消费”的当前状态判断，历史原件保留。
+
+- `1af1362b57e639de87a35a9e5c2ce1af7f296da1` 已完成 formal-window 迁移。OPS 的真实版本化隐私重绑与 freeze 重新核验通过；随机顺序 A→B，before/after、freeze/verification 各一次。builder/verifier 仍 1/1，角色仍 PROCESS_LEVEL_SEPARATION_SINGLE_UID。
+- 上一会话已领取 A/cwork-3m 消费 claim（1），但逐库 runner 调用三库全覆盖 scorer，在第一次 candidate.search 前拒绝。正式查询 0、评分/完整库结果 0，B 未启动。三库 A/B 正式指标均 null，DEFERRED=[]；42@T3、31@T3、42@T2 只是保留题池数，不是成绩。
+- 继任会话先只读对账，本地与 OPS 确认旧控制器/候选进程均 0；96 份原材料、499 份归档、19 份绑定源核验通过。再追加接管 checkpoint，未更改任何 claim 或冻结实现。
+- 原接口实测拒绝 consumption_without_completion_no_replay。现行单次消费规则不允许用“查询尚未发出”注销 claim；freeze 仍有效，也不符合仅因快照绑定失效而全新重建的条件。继续必须有明确的消费/冻结恢复协议裁决，不能靠常规继续、换窗口或重建池绕过。本次没有修改评分源码或实验规则。
+- 唯一 [裁决器结果](evidence/formal-window-scorer-decision.json) 为 INVALID / AGGREGATE_CONTRACT_INVALID / exit 2；这只是对不完整 [中止证据](evidence/formal-window-scorer-abort.json) 的正确拒绝，不是完整 aggregate v3 或质量 NO-GO。公开证据先经 OPS [闭集 Schema](evidence/formal-window-scorer-abort.schema.json) 验证，当前阻塞与历史 WAITING 状态的区别见 [本次验收](evidence/acceptance.md#2026-09-12-唯一继任接管冻结后评分接线冲突)。
+- 资源已精确清理：实验进程/数据面/UUID 容器卷网络镜像服务/未完成下载/cleanup failure 均 0，两份新临时 TLS 文件已删除；旧公开依赖、私有池/claim/freeze/审计保留。三 Gateway 200。NAS/index 强口径仍 null，services/config=false；同窗服务 +1/-1，不归因、不修改生产追平。
+- 最终树 RT-055 **142 tests、0 skip**，14 个 Schema 反例拒绝，三库真实 scorer 公开探针查询前拒绝。回归虽绿仍漏过组合缺陷，不能据此宣称正式实验成功；不冒称全仓 CI 或独立外部审批。见 [QA](evidence/formal-window-scorer-qa.json)。
+
+中止收口完成，选型目标未完成，RT 继续 in_progress、所有切流暂停。仅本地提交证据，不 push/合并/清理 worktree；无后台实验，不重复 builder/verifier，不换 freeze、不重放 holdout。
+
+
+### 接管后并发写入警报：本节收口材料尚未提交
+
+在准备最终工程检查时，05:05–05:08 出现另一写入者对六份 scripts 和新 zero_exposure 测试的修改；来源尚未确认，本会话未写这些源码。前述“142通过/0skip”仅针对并发改动前的树，**不是当前最终树回归结果**；“源码未变”仅指本会话，不能用于声明当前工作树干净。本次证据、QA 与文档均为未提交快照，没有最终提交，不构成已完成交付。已停止代码写入、实验和提交，双方改动均保留；未 reset/stash/clean。OPS 最后只读核验仍为原有效 freeze/隐私绑定、A claim1/B0、评分0、实验进程0，尚无 zero-exposure 迁移部署。当前阻塞同时包含独占执行权失效及单次消费协议；需要先排除并发写入者，再作明确恢复协议裁决。本会话无后台任务。
