@@ -278,3 +278,47 @@ setup、builder、verifier、before、隐私预检与 cleanup/after 均以原进
 - **读真实产出**：仅读取 OPS 白名单投影，核对容量轨迹、交集/核销、角色拒读、失败诊断、before/after、清理及本地 INVALID。未读取或回传私有题面、正文和失败样例。
 
 最终仅提交公开中止证据、Schema、CLI 输出、QA 及两份状态文档；8 份历史 JSON/Schema 与 Amendment 3 第一提交保持字节一致。最终提交 hash 和提交后 clean 状态以交付回执、Git 实查为准，不在提交内自引用未来 hash。不合并、不 push、不清理 worktree，不关闭 RT，无遗留 OPS 后台任务。本轮已终止；任何再试须新授权及新协议轮，不能续消费本轮题池。
+
+
+## 第四轮同一 run 的 pre-freeze 执行器恢复（2026-09-12）
+
+**READY_TO_FREEZE，仅隐私执行器门恢复；不是 A/B 结果。** 父会话后续明确授权覆盖旧“另建协议轮”停止条件，范围见 [恢复授权](../experiment-protocol.md#第四轮-pre-freeze-执行器恢复授权2026-09-12父会话后续指令)。原 INVALID、12 份历史 JSON/Schema、原 before/after 与失败日志全部保留，不把历史失败改成 PASS。
+
+### 根因与最小修复
+
+- 原 JVM 默认 IPv4-mapped IPv6 socket 与 macOS 沙箱规则组合导致 bind 拒绝。只加 IPv4 偏好仍会让该 JVM 的外连探针穿过旧 loopback 规则，**因此没有采用仅加 JVM flag 的不完整方案**。A 现在显式绑定 127.0.0.1，且采用更严的仅入站策略；实际 JDK Socket/NIO 外连均被拒。
+- 收紧文件写范围后，OpenSearch 启动器默认临时目录越界；用官方 `OPENSEARCH_TMPDIR` 指向独占目录解决，没有放宽文件写权限。
+- 旧清理已删除 embedding venv/模型缓存，公共基座只有锁定依赖清单。合成子目录重新准备该清单和同一公开模型；没有重跑 setup、builder 或 verifier 的原 claim。
+- 原生 Go binary 初始化还依赖其旧构建目录中的 jieba 字典。按固定 core 的 go.mod/go.sum 恢复 gojieba v1.4.7 的五份字典，完整 Go module h1 校验通过；只用 upstream 已支持的 `JIEBA_DICT_DIR`，未改 core。五文件进入后续 dependency freeze 清单。
+- 启动等待改为检查真实子进程存活；失败启动/初始化会停止子进程并关闭日志句柄。环境观察以实际 JVM argv 为准，跳过 shell bootstrap，不把启动器重写的环境值误判为 JVM 未生效。
+- 新恢复回执独立追加并绑定 10 个公开源文件及成功观测。旧 `passed=true` 无运行证据、新源漂移、非法模型 endpoint 或 tracing 环境均被拒；旧网络/失败回执没有覆盖。
+
+### 实际产出与保密证明
+
+三个失败合成尝试均保留：临时目录、缺 embedding 依赖、缺原生字典。第四个独占空合成目录完成全部真实路径：
+
+- A 真实建索引/查询、B 原生摄取/检索各成功一次；真实本地模型调用 **3/3** 成功。
+- 有效鉴权先验证；query 和 title 两条错误请求均返回 **400**，不是拿 401 或未执行路径冒充覆盖。
+- **13** 份运行日志扫描，正常/错误 canary 检出 **0**；注入 incoming trace context 后，模型请求 trace header 和 native trace response header 都是 **0**。
+- 三类真实进程环境、loopback listener 全部观察到；**112** 次按进程 socket 样本，外部连接观察 **0**、观察器错误 **0**。JDK 与 sidecar 的主动外连被拒；非 loopback 模型配置在执行器入口被拒，持久化 native 模型地址实际为本地 sidecar。
+- Langfuse/OTEL 关闭由实际环境、成功模型调用及 header/socket 观察联合判定，不是硬编码布尔。socket 采样不冒充全量抓包，操作系统规则与主动拒绝探针提供另一路证据。
+- 当前合成执行器主动拒读探针 1 次、禁止读取 0；原三角色禁止读取合计仍 0、0700 权限保持。同 UID 角色分离结论不升级为 OS UID 隔离。
+
+### 清理、保留与停止边界
+
+四个合成尝试已停止，合成服务/索引/导入数据面为 0；移除 **37** 个合成数据/工具子树，失败 0。失败/成功日志和回执继续保留。已批准的公共依赖恢复到同一 run 的私有目录，处于空闲待冻结状态，不是运行中的服务。固定 upstream checkout clean、binary 构建身份与五份字典再次验证。
+
+独立复核 **96** 份原私有/审计材料同字节，七个旧执行器源先归档后更新；源绑定和零消费再核验通过。builder/verifier 仍 **1/1**；freeze、正式 A、正式 B、consumption 全 **0**。精确 UUID 的进程、容器、卷、网络、镜像标签及服务均 0；三个 Gateway 新鲜 HTTP 200。
+
+原 before/after 未重做，既有服务漂移 false 和完整性 UNKNOWN 未消除、未改写；本次通过不抵销正式实验的生产不变性硬门，不关闭 RT，不授权切流。
+
+### 验证三格与交付
+
+- **工程判据**：最初 9 个恢复用例先红（2 failures/7 errors）；扩展至 18 个恢复用例后，完整 RT-055 **123 tests、0 skip**。8 次真实代码破坏分别断开 JVM flag、仅入站策略、endpoint guard、telemetry guard、日志检出、鉴权错误门、sidecar trace 观察、源漂移拒绝，均检出；恢复后 123 全绿。一次 fake model 数组形状错误只修测试 fixture，不算生产故障修复。
+- **AI 自检**：本会话检查了“仅加 IPv4 会放行 JVM 外连”、未执行路径空日志、shell bootstrap 误判、清理删除公共依赖和 native 字典的真实断点；没有独立 AI 审批，不自称通过父会话验收。
+- **读产出**：读取白名单运行计数、真实 native 错误状态、环境/socket/header/log 观测、依赖 h1 校验和独立字节比较布尔；私有题面、标注、正文、运行路径和私有 digest 留 OPS。
+- [公开恢复回执](amendment3-ops4-recovery.json) 与 [闭集 Schema](amendment3-ops4-recovery.schema.json) 不是正式 aggregate。10 个反例拒绝私有字段/自由 reason、伪正式运行/freeze/消费、401、空扫描、外连、tracing 和字节漂移。原候选/抽样/tier/效用及 aggregate Schema 七项受保护文件字节不变。
+
+收口机械核验：13 个暂存文件与磁盘逐字节一致，8 个 Python 文件解析、公开 Schema、OPS 投影逐字段比对、52 条相对链接/10 个锚点、隐私/秘密扫描均通过；恢复回执送入原 A/B CLI 实际退出 2/INVALID，正确拒作正式结果。AODW 门禁及 53 个 RT 花名册通过，829 文件治理通过；只有既有宿主 skill 未安装告警，未扩权安装。不冒称全仓 CI。
+
+本次只本地提交必要恢复文件，不合并、不 push、不清理 worktree。停在 **READY_TO_FREEZE**，无后台任务；后续正式阶段由父会话明确接续，本会话不会自动 freeze 或消费题池。

@@ -10,8 +10,9 @@ import sys
 import time
 import rt055_opslib as ops
 import rt055_tiers as tiers
+import rt055_runtime as runtime
 PINNED='8d7298fb5d759973cb1e481cadc5ecdf16dca599'
-SHARED=('kb_retrieval_candidates.py','kb_retrieval_decision.py','kb_stage_b_poc.py','kb_stage_b_opensearch_benchmark.py','rt055_runtime.py','rt055_opslib.py','rt055_tiers.py')
+SHARED=('kb_retrieval_candidates.py','kb_retrieval_decision.py','kb_stage_b_poc.py','kb_stage_b_opensearch_benchmark.py','rt055_runtime.py','rt055_opslib.py','rt055_tiers.py','rt055_confidentiality.py')
 
 def upstream(root):
     def git(*args):return subprocess.check_output(['git','-C',str(root/'weknora'),*args],stderr=subprocess.DEVNULL,text=True).strip()
@@ -41,7 +42,7 @@ def artifact_plan(root):
     import kb_retrieval_candidates as candidate
     from kb_stage_b_opensearch_benchmark import mapping_for
     a_config={'runtime':'opensearch-3.3.2','jdk':'21','bind':'loopback','security_plugin':False,'heap':'distribution-default','top_k':10,'warmup':6,'timeout_seconds':30,'empty_data_plane':True,'body_excluded':True}
-    b_config={'commit':PINNED,'build_tags':'sqlite_fts5','db_driver':'sqlite','retrieve_driver':'sqlite','redis':False,'bind':'loopback','gin_mode':'release','log_level':'fatal','log_path':'devnull','langfuse':False,'otel':False,'model_egress':'loopback-only-sandbox','model':'BAAI-bge-m3','dimension':1024,'top_k':10,'warmup':6,'timeout_seconds':30,'empty_data_plane':True}
+    b_config={'commit':PINNED,'build_tags':'sqlite_fts5','db_driver':'sqlite','jieba':'gojieba-1.4.7-native-dictionaries','retrieve_driver':'sqlite','redis':False,'bind':'loopback','gin_mode':'release','log_level':'fatal','log_path':'devnull','langfuse':False,'otel':False,'model_egress':'loopback-only-sandbox','model':'BAAI-bge-m3','dimension':1024,'top_k':10,'warmup':6,'timeout_seconds':30,'empty_data_plane':True}
     parent={'mappings':{'dynamic':'strict','properties':{'tenant_id':{'type':'keyword'},'kb_id':{'type':'keyword'},'doc_id':{'type':'keyword'},'text':{'type':'text','index':False}}},'settings':{'number_of_shards':1,'number_of_replicas':0}}
     return {'a-config.json':a_config,'b-config.json':b_config,'a-mapping.json':{'child':mapping_for('analysis_icu',False),'parent':parent},'b-mapping.json':{'engine':'sqlite','vector_enabled':True,'keyword_enabled':True,'wiki_enabled':False,'graph_enabled':False},'a-query-plan.json':{'implementation':inspect.getsource(candidate.OpenSearchCandidate.search)},'b-query-plan.json':{'implementation':inspect.getsource(candidate.WeKnoraCandidate.search)}}
 
@@ -50,6 +51,9 @@ def dependencies(root,key):
         files=[p for base in ('jdk','opensearch/lib','opensearch/plugins','opensearch/modules') for p in (root/base).rglob('*') if p.is_file()]
     else:
         files=[root/'sidecar/requirements-freeze.txt']+[p for p in (root/'sidecar/hf').rglob('*') if p.is_file() and '.lock' not in p.name]
+        dictionaries=[root/'jieba'/name for name in runtime.JIEBA_FILES]
+        if not all(p.is_file() for p in dictionaries):raise RuntimeError('native_dictionary_assets_missing')
+        files+=dictionaries
     return sorted(files)
 
 def create(root):
@@ -59,7 +63,7 @@ def create(root):
     if not checks['verified']:raise RuntimeError('cases_invalid')
     roles=role_audit(root)
     if not roles['verified']:raise RuntimeError('roles_invalid')
-    if not ops.read_json(root/'audit/confidentiality-gate.json')['passed']:raise RuntimeError('confidentiality_invalid')
+    if not runtime.privacy_passed(root):raise RuntimeError('confidentiality_invalid')
     if not ops.read_json(root/'status/baseline-before.json')['status']=='PASS':raise RuntimeError('before_missing')
     freeze=root/'freeze';freeze.mkdir(mode=0o700,exist_ok=True)
     for name,value in artifact_plan(root).items():ops.write_private_json(freeze/name,value)

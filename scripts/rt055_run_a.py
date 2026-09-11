@@ -116,27 +116,38 @@ def launch_opensearch(kb: str, port: int, log_path: Path, mode="run") -> tuple[s
     logs_dir.mkdir(parents=True, exist_ok=True)
     env = runtime.clean_env(ROOT)
     env["OPENSEARCH_JAVA_HOME"] = str(ROOT / "jdk" / "Contents" / "Home")
+    env["OPENSEARCH_JAVA_OPTS"] = "-Djava.net.preferIPv4Stack=true"
+    env["OPENSEARCH_TMPDIR"] = str(ROOT / "tmp")
     env.pop("DISABLE_SECURITY_PLUGIN", None)
     env.pop("DISABLE_INSTALL_DEMO_CONFIG", None)
-    proc = runtime.spawn(ROOT,
-        [str(ROOT / "opensearch" / "bin" / "opensearch"),
-         "-E", "network.host=127.0.0.1",
-         "-E", f"http.port={port}",
-         "-E", "discovery.type=single-node",
-         "-E", "plugins.security.disabled=true",
-         "-E", f"path.data={data_dir}",
-         "-E", f"path.logs={logs_dir}",
-         "-E", "cluster.routing.allocation.disk.threshold_enabled=false"],
-        stdout=open(log_path, "wb"), stderr=subprocess.STDOUT,
-        env=env, cwd=str(ROOT / "opensearch"))
+    transport_port = free_port(random.Random())
+    while transport_port == port:transport_port = free_port(random.Random())
+    with log_path.open("wb") as log:
+        proc = runtime.spawn(ROOT,
+            [str(ROOT / "opensearch" / "bin" / "opensearch"),
+             "-E", "network.host=127.0.0.1",
+             "-E", "transport.host=127.0.0.1",
+             "-E", f"transport.port={transport_port}",
+             "-E", f"http.port={port}",
+             "-E", "discovery.type=single-node",
+             "-E", "plugins.security.disabled=true",
+             "-E", f"path.data={data_dir}",
+             "-E", f"path.logs={logs_dir}",
+             "-E", "cluster.routing.allocation.disk.threshold_enabled=false"],
+            stdout=log, stderr=subprocess.STDOUT,
+            env=env, cwd=str(ROOT / "opensearch"), network_policy="inbound-only")
+
     base = f"http://127.0.0.1:{port}"
-    ops.wait_for_http(base + "/", timeout=300)
-    with urllib.request.urlopen(base + "/", timeout=15) as resp:
-        version = str(json.loads(resp.read()).get("version", {}).get("number", ""))
-    if version != OS_VERSION:
+    try:
+        ops.wait_for_http(base + "/", timeout=300, process=proc)
+        with urllib.request.urlopen(base + "/", timeout=15) as resp:
+            version = str(json.loads(resp.read()).get("version", {}).get("number", ""))
+        if version != OS_VERSION:
+            raise RuntimeError("opensearch_version_mismatch")
+        return proc, {"base_url": base, "version": version}
+    except BaseException:
         ops.stop_process(proc)
-        raise RuntimeError(f"opensearch_version_mismatch:{version}")
-    return proc, {"base_url": base, "version": version}
+        raise
 
 
 def verify_icu(base_url: str) -> None:

@@ -160,3 +160,15 @@ Evan 本次明确授权执行第四轮 OPS 全闭环，覆盖上文只做本地�
 - DEFERRED 指标只接受闭集 `{"status":"NOT_RUN_DEFERRED"}`；不接受零分或夹带其它字段。本实现不另设 null 写法，避免两种语义漂移。
 - 本次公开 [合成证据](evidence/amendment3-local-tests.json) 由 [严格 Schema](evidence/amendment3-local-tests.schema.json) 约束，不是 OPS 成绩。角色包装器只在本地合成 0700 工作区与独立子进程中验证；OPS 实测、原生日志/egress、固定 B binary 与 checkout 的构建绑定、全量生产覆盖及资源清理仍未验收。
 - 原生 runner 作为待实测源码保留、全部编译检查，不据此宣称可启动第四轮。当前 baseline 对未覆盖完整内容/配置/索引的同值投影输出 null（已测漂移输出 false）；装配器不得把它转成 true，harness 仍判 INVALID。Gateway 实验 HTTPS shell 证明不等于生产部署证明。
+
+
+### 第四轮 pre-freeze 执行器恢复授权（2026-09-12，父会话后续指令）
+
+本次明确授权覆盖此前“必须另建协议轮”的停止条件，**只恢复同一第四轮的执行器隐私门，止于 READY_TO_FREEZE**。原 INVALID/中止证据不改、不删除；恢复不是正式实验重跑，更不是按候选成绩取 PASS。
+
+- 先对账原 claim、进程、freeze、正式结果、consumption 和保留材料；原 builder/verifier 各一次，不重启、不换 seed、不改 R、tier、分母、质量/效用规则、v3 aggregate Schema 或 WeKnora core。96 份原私有/审计材料以 OPS 内逐文件字节摘要比较，摘要和路径不出 OPS。
+- 只修执行器连接、进程生命周期、运行态观测和受支持原生配置。允许在独占 0700 合成子目录恢复已批准的公开工具/依赖/模型缓存；供给阶段不加载任何私有输入。候选服务仍受操作系统网络限制：A 单节点仅入站、明确 IPv4 loopback；B 与 embedding 只连 loopback。禁止通过取消沙箱、外放绑定或模型地址绕过失败。
+- 必须真实完成 A 建索引/检索、B 原生摄取/检索与模型调用；鉴权后的正常及错误 query/title canary、原生日志扫描、实际进程环境与 socket 观测、JDK/Python 外连拒绝、非 loopback 模型地址拒绝都需实证。未执行路径、空日志集合或写死布尔不能过门。
+- 合成启动/接线失败保留每次独占回执及日志；修复后可在新的空合成子目录复核，不能把这一权限用于 builder/verifier 或正式候选。私有目录对合成 Python 执行器拒读，对原生子进程拒读/拒写；禁止读取数必须为 0，主动拒读探针单列。
+- 新恢复回执独立追加，绑定实际成功观测和公开执行器字节；旧失败 gate、source provenance、before/after 和 cleanup 记录不可覆盖。freeze/运行消费者重新计算隐私门并核验源绑定，不接受单个 `passed=true`。原有生产漂移与 UNKNOWN 不被恢复隐私门抵销。
+- 完成后停止并精确清理合成服务/索引/导入数据，保留审计和待冻结公开依赖；只提交必要 runner/tests、本协议、验收及公开闭集证据/治理归属。不执行 freeze、正式 A/B、holdout 消费，不动生产/NAS/既有资源，不合并、不 push。后续正式阶段仍须父会话明确接续。

@@ -181,3 +181,18 @@
 详见 [第四轮验收](evidence/acceptance.md#amendment-3-第四轮-ops-收口)、[中止证据](evidence/amendment3-ops4-abort.json)、[闭集 Schema](evidence/amendment3-ops4-abort.schema.json)、[CLI 输出](evidence/amendment3-ops4-decision.json)、[QA](evidence/amendment3-ops4-qa.json)。8 份历史 JSON/Schema 不变；证据提交独立于必要修复，hash 和 clean 状态随 Git 回执交付。
 
 本轮失败收口完成，无遗留 OPS 后台任务。不合并、不 push、不清理 worktree，RT 保持 in_progress、全部切流暂停。后续先复核原生隐私证明、服务漂移和完整不变性范围；任何再试须新授权及新协议轮，不能续消费本轮题池。
+
+
+## 2026-09-12 同一第四轮 pre-freeze 恢复：READY_TO_FREEZE
+
+后续父会话明确授权只修同一 run 的执行器隐私门，覆盖上节“另建协议轮”的停止条件；原中止证据保留。**当前止于 READY_TO_FREEZE，不是选出 A/B，也没有正式成绩。**
+
+- 修复 macOS/JVM socket 接线：IPv4 loopback + A 仅入站，主动 JDK 外连拒绝；把 OpenSearch 临时目录限制在私有工作区。仅加 IPv4 会使旧策略放行 JVM 外连，已实测排除该不安全方案。
+- 恢复已删除的公开 embedding 依赖和固定 gojieba v1.4.7 字典，五份字典经 upstream go.sum 校验，使用官方环境配置，未改 WeKnora core；改进失败进程清理和真实环境观察。新恢复回执绑定源与观测，旧失败/网络/baseline 证据不覆盖。
+- 三个合成执行失败逐一保留；第四个合成目录真实 A/B 正常路径各成功一次，鉴权后两类错误均 400，模型调用 3/3，13 份日志 canary 0、trace header 0、112 个进程 socket 样本外连 0，三类 loopback listener/环境都得到实测。
+- 96 份原私有/审计文件同字节；builder/verifier=1/1、禁止读取=0，freeze/正式 A/B/consumption 全 0。合成数据/服务清空、失败 0；公开依赖空闲保留待冻结，精确 UUID 其他资源 0，三 Gateway 新鲜 200。旧生产漂移和覆盖 UNKNOWN 不变，不重做 baseline，不关闭 RT，切流继续暂停。
+- **工程判据**：初始 9 项红，最终 RT-055 123 项全绿/0 skip；8 个行为破坏均检出并恢复为绿，10 个公开合同反例拒绝。只称 RT-055 与定向隐私回归，不冒称全仓 CI。
+- **AI 自检**：核查真实启动链、原生支持配置、仅改 flag 的外连风险及回执不可覆盖；没有独立 AI 审批。
+- **读产出**：复核 OPS 白名单运行证明、依赖校验及字节保持；没有读取/导出私有题面或 digest。
+
+证据与细节见 [本次验收](evidence/acceptance.md#第四轮同一-run-的-pre-freeze-执行器恢复2026-09-12)、[公开回执](evidence/amendment3-ops4-recovery.json)、[闭集 Schema](evidence/amendment3-ops4-recovery.schema.json)。只本地提交、保留分支；不 push、不合并、不自动执行下一阶段，无后台任务。

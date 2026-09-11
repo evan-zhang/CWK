@@ -150,27 +150,32 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 def api_call(base_url: str, method: str, path: str, payload: Any, token: str | None,
              timeout: float = 60) -> Any:
+    runtime.require_loopback_url(base_url)
+    if method == "POST" and path == BASE + "/models" and isinstance(payload, dict):
+        runtime.require_loopback_url(payload.get("parameters", {}).get("base_url", ""))
     raw = None if payload is None else json.dumps(payload).encode()
     headers = {"Content-Type": "application/json", "Accept": "application/json"}
     if token:
         headers["Authorization"] = "Bearer " + token
     request = urllib.request.Request(base_url + path, data=raw, method=method, headers=headers)
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect())
     with opener.open(request, timeout=timeout) as resp:
         return json.loads(resp.read() or b"{}")
 
 
-def launch_sidecar(port: int, hf_home: Path, log_path: Path) -> subprocess.Popen:
+def launch_sidecar(port: int, hf_home: Path, log_path: Path, *, privacy_probe=False) -> subprocess.Popen:
     env = runtime.clean_env(ROOT)
     env["HF_HUB_OFFLINE"] = "1"
     env["TRANSFORMERS_OFFLINE"] = "1"
     env["HF_HOME"] = str(hf_home)
-    proc = runtime.spawn(ROOT,
-        [str(ROOT / "sidecar" / "venv" / "bin" / "python"),
-         str(HERE / "rt055_embed_sidecar.py"),
-         "--port", str(port), "--model", EMBED_REPO,
-         "--hf-home", str(hf_home)],
-        stdout=open(log_path, "wb"), stderr=subprocess.STDOUT, env=env)
+    with log_path.open("wb") as log:
+        proc = runtime.spawn(ROOT,
+            [str(ROOT / "sidecar" / "venv" / "bin" / "python"),
+             str(HERE / "rt055_embed_sidecar.py"),
+             "--port", str(port), "--model", EMBED_REPO,
+             "--hf-home", str(hf_home), *(["--privacy-probe"] if privacy_probe else [])],
+            stdout=log, stderr=subprocess.STDOUT, env=env)
+
     deadline = time.monotonic() + 1800
     while time.monotonic() < deadline:
         try:
@@ -187,12 +192,14 @@ def launch_sidecar(port: int, hf_home: Path, log_path: Path) -> subprocess.Popen
 
 
 def launch_server(port: int, data_dir: Path, log_path: Path) -> subprocess.Popen:
+    if not all((ROOT / "jieba" / name).is_file() for name in runtime.JIEBA_FILES):
+        raise RuntimeError("native_dictionary_assets_missing")
     data_dir.mkdir(parents=True, exist_ok=True)
     data_dir.chmod(0o700)
     env = runtime.clean_env(ROOT)
     env.update({
         "DB_DRIVER": "sqlite", "DB_PATH": str(data_dir / "app.db"),
-        "RETRIEVE_DRIVER": "sqlite",
+        "RETRIEVE_DRIVER": "sqlite", "JIEBA_DICT_DIR": str(ROOT / "jieba"),
         "SERVER_HOST": "127.0.0.1", "SERVER_PORT": str(port),
         "GIN_MODE": "release", "LOG_LEVEL": "fatal", "LOG_PATH": "/dev/null",
         "LANGFUSE_ENABLED": "false", "OTEL_SDK_DISABLED": "true",
@@ -202,12 +209,14 @@ def launch_server(port: int, data_dir: Path, log_path: Path) -> subprocess.Popen
     for name in list(env):
         if name.startswith("LANGFUSE") and name != "LANGFUSE_ENABLED":
             env.pop(name)
-    proc = runtime.spawn(ROOT,[str(ROOT / "bin" / "weknora-server")],
-                            stdout=open(log_path, "wb"), stderr=subprocess.STDOUT,
-                            env=env, cwd=str(ROOT / "weknora"))
+    with log_path.open("wb") as log:
+        proc = runtime.spawn(ROOT,[str(ROOT / "bin" / "weknora-server")],
+                                stdout=log, stderr=subprocess.STDOUT,
+                                env=env, cwd=str(ROOT / "weknora"))
+
     try:
         ops.wait_for_http(f"http://127.0.0.1:{port}{BASE}/knowledge-bases", timeout=180,
-                          expect=(200, 401))
+                          expect=(200, 401), process=proc)
     except Exception:
         ops.stop_process(proc)
         raise
@@ -217,41 +226,45 @@ def launch_server(port: int, data_dir: Path, log_path: Path) -> subprocess.Popen
 def setup_instance(kb: str, port: int, sidecar_port: int, data_dir: Path,
                    log_path: Path, rng: random.Random) -> dict[str, Any]:
     proc = launch_server(port, data_dir, log_path)
-    base = f"http://127.0.0.1:{port}"
-    password = "Rt055-" + secrets.token_hex(12)
-    registration = api_call(base, "POST", BASE + "/auth/register",
-                            {"username": f"rt055b{kb[:6]}", "email": f"rt055-{kb}@example.com",
-                             "password": password}, None)
-    if not registration.get("success"):
-        raise RuntimeError("register_failed")
-    session = api_call(base, "POST", BASE + "/auth/login",
-                       {"email": f"rt055-{kb}@example.com", "password": password}, None)
-    token = str(session.get("token") or "")
-    if not token:
-        raise RuntimeError("login_failed")
-    model = api_call(base, "POST", BASE + "/models",
-                     {"name": MODEL_NAME, "display_name": MODEL_NAME,
-                      "type": "Embedding", "source": "remote",
-                      "parameters": {"base_url": f"http://127.0.0.1:{sidecar_port}/v1",
-                                     "api_key": "rt055-local-only",
-                                     "provider": "openai",
-                                     "embedding_parameters": {"dimension": MODEL_DIM}}},
-                     token)
-    model_id = str((model.get("data") or {}).get("id") or "")
-    if not model_id:
-        raise RuntimeError("model_create_failed")
-    # RETRIEVE_DRIVER=sqlite registers the tenant's built-in sqlite engine;
-    # a nil vector_store_id resolves to the tenant effective engines (native
-    # behavior, and API-created sqlite stores are not a supported engine type).
-    kb_payload = {"name": f"rt055-b-{kb}", "embedding_model_id": model_id,
-                  "indexing_strategy": {"vector_enabled": True, "keyword_enabled": True,
-                                        "wiki_enabled": False, "graph_enabled": False}}
-    created = api_call(base, "POST", BASE + "/knowledge-bases", kb_payload, token)
-    kb_id = str((created.get("data") or {}).get("id") or "")
-    if not kb_id:
-        raise RuntimeError("kb_create_failed")
-    return {"proc": proc, "base_url": base, "port": port, "token": token,
-            "kb_id": kb_id, "data_dir": data_dir, "sidecar_port": sidecar_port}
+    try:
+        base = f"http://127.0.0.1:{port}"
+        password = "Rt055-" + secrets.token_hex(12)
+        registration = api_call(base, "POST", BASE + "/auth/register",
+                                {"username": f"rt055b{kb[:6]}", "email": f"rt055-{kb}@example.com",
+                                 "password": password}, None)
+        if not registration.get("success"):
+            raise RuntimeError("register_failed")
+        session = api_call(base, "POST", BASE + "/auth/login",
+                           {"email": f"rt055-{kb}@example.com", "password": password}, None)
+        token = str(session.get("token") or "")
+        if not token:
+            raise RuntimeError("login_failed")
+        model = api_call(base, "POST", BASE + "/models",
+                         {"name": MODEL_NAME, "display_name": MODEL_NAME,
+                          "type": "Embedding", "source": "remote",
+                          "parameters": {"base_url": f"http://127.0.0.1:{sidecar_port}/v1",
+                                         "api_key": "rt055-local-only",
+                                         "provider": "openai",
+                                         "embedding_parameters": {"dimension": MODEL_DIM}}},
+                         token)
+        model_id = str((model.get("data") or {}).get("id") or "")
+        if not model_id:
+            raise RuntimeError("model_create_failed")
+        # RETRIEVE_DRIVER=sqlite registers the tenant's built-in sqlite engine;
+        # a nil vector_store_id resolves to the tenant effective engines (native
+        # behavior, and API-created sqlite stores are not a supported engine type).
+        kb_payload = {"name": f"rt055-b-{kb}", "embedding_model_id": model_id,
+                      "indexing_strategy": {"vector_enabled": True, "keyword_enabled": True,
+                                            "wiki_enabled": False, "graph_enabled": False}}
+        created = api_call(base, "POST", BASE + "/knowledge-bases", kb_payload, token)
+        kb_id = str((created.get("data") or {}).get("id") or "")
+        if not kb_id:
+            raise RuntimeError("kb_create_failed")
+        return {"proc": proc, "base_url": base, "port": port, "token": token,
+                "kb_id": kb_id, "data_dir": data_dir, "sidecar_port": sidecar_port}
+    except BaseException:
+        ops.stop_process(proc)
+        raise
 
 
 def load_documents(corpus: dict, kb: str):

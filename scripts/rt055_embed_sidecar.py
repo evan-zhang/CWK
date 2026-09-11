@@ -23,6 +23,7 @@ def main() -> int:
     parser.add_argument("--port", type=int, required=True)
     parser.add_argument("--model", default="BAAI/bge-m3")
     parser.add_argument("--hf-home", required=True)
+    parser.add_argument("--privacy-probe", action="store_true", help="public synthetic egress probe only")
     args = parser.parse_args()
 
     hf_home = Path(args.hf_home).resolve()
@@ -38,6 +39,8 @@ def main() -> int:
     model = SentenceTransformer(args.model, device="cpu", local_files_only=True)
     dim = int(model.get_sentence_embedding_dimension())
 
+    counters = {"embedding_calls": 0, "embedding_successes": 0, "trace_headers": 0}
+
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, fmt, *log_args):  # silence all request logging
             return
@@ -52,7 +55,16 @@ def main() -> int:
 
         def do_GET(self) -> None:  # noqa: N802
             if self.path == "/health":
-                self._send(200, {"ok": True, "model": args.model, "dimension": dim})
+                self._send(200, {"ok": True, "model": args.model, "dimension": dim, **counters})
+            elif self.path == "/privacy-probe" and args.privacy_probe:
+                import socket
+                with socket.socket() as sock:
+                    sock.settimeout(5)
+                    try:
+                        sock.connect(("1.1.1.1", 443))
+                        self._send(200, {"denied": False, "errno": 0})
+                    except OSError as exc:
+                        self._send(200, {"denied": exc.errno in (1, 13), "errno": exc.errno})
             else:
                 self._send(404, {"error": "not_found"})
 
@@ -60,6 +72,8 @@ def main() -> int:
             if self.path != "/v1/embeddings":
                 self._send(404, {"error": "not_found"})
                 return
+            counters["embedding_calls"] += 1
+            counters["trace_headers"] += sum(bool(self.headers.get(k)) for k in ("traceparent", "tracestate", "baggage", "x-langfuse-trace-id"))
             try:
                 length = int(self.headers.get("Content-Length") or 0)
                 if length > 64 * 1024 * 1024:
@@ -80,6 +94,7 @@ def main() -> int:
                 data = [{"object": "embedding", "index": i,
                          "embedding": [float(x) for x in vectors[i]]}
                         for i in range(len(texts))]
+                counters["embedding_successes"] += 1
                 self._send(200, {
                     "object": "list", "model": args.model, "data": data,
                     "usage": {"prompt_tokens": sum(len(t) for t in texts),

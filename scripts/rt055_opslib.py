@@ -272,12 +272,14 @@ class RssSampler:
         return self.peak
 
 
-def wait_for_http(url: str, timeout: float, expect: tuple[int, ...] = (200,)) -> None:
+def wait_for_http(url: str, timeout: float, expect: tuple[int, ...] = (200,), process=None) -> None:
     import urllib.error
     import urllib.request
     deadline = time.monotonic() + timeout
     last = "not_tried"
     while time.monotonic() < deadline:
+        if process is not None and process.poll() is not None:
+            raise RuntimeError("service_process_exited")
         try:
             req = urllib.request.Request(url, method="GET")
             with urllib.request.urlopen(req, timeout=5) as resp:
