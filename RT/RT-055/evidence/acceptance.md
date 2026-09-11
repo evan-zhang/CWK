@@ -456,3 +456,42 @@ setup、builder、verifier、before、隐私预检与 cleanup/after 均以原进
 [公开 READY 回执](zero-exposure-ready.json)、[闭集 Schema](zero-exposure-ready.schema.json)、[最终本地 QA](zero-exposure-ready-qa.json)。结构校验不替代上述 OPS 真实复核。回执不是正式 aggregate：原裁决 CLI 必须以 exit 2 / INVALID / AGGREGATE_CONTRACT_INVALID 拒绝它，这不构成质量 NO-GO。
 
 仅本地提交公开恢复证据、必要公开测试和两份追加文档；不 push、不合并、不清理 worktree。已完成步骤不重复；本轮恢复任务完成并停在 READY_TO_RUN，后续正式 A/B 需要另行明确授权。
+
+## Replacement 正式执行收口：启动前策略硬门 INVALID（2026-09-12）
+
+本节承接 `c5901f4` 的 READY_TO_RUN，仅记录新授权发生的动作；前述 abort、recovery、ready 均原样保留。本窗口已关闭，不能再按 READY_TO_RUN 恢复。**唯一裁决 INVALID，不选择 A/B，也不是质量评测后的 NO-GO。** 本次完成异常收口，正式比较未完成，RT 仍 in_progress、禁止切流。
+
+### 正式动作与故障边界
+
+- run `ac1ca0c7-6983-4f6e-91ce-8eb45e7673af`；replacement window `0155202c-b6a0-40c6-a779-48aff0ab57fe`；冻结源码 `a4b3c64ebb609eee5d08a8c53dc594798f43ec58`。本次没有改 scripts、冻结配置、候选算法或 WeKnora core。
+- 只读 precheck 实测 PASS：fresh before、freeze、freeze verifier 各 1；绑定及先后关系有效；同一 builder/verifier 1/1；旧 void 严格有效、96 份材料及旧窗口/claim/freeze 原字节不变；初始 arm/exposure/attempt/query/score/result 均 0，无活跃实验进程，Gateway 3×200。没有重做 builder/verifier、隐私重验、before 或 freeze。
+- 冻结顺序 **B→A**。仅启动未发生的 B：attempt=1，A attempt=0。B 在启动 embedding 服务的进程创建前遭 `RuntimeError`；零新增资源记录、零数据面，arm/exposure/query/score/complete/result 均 0。诊断只读状态、固定错误分类及公开执行源码，没有重新打开私有题池作诊断。
+- 硬门为 `FROZEN_RUNTIME_POLICY_DRIFT_PRESPAWN`：OPS 主运行的 loopback 与 inbound-only 策略文件均不等于冻结执行器生成的期望文本，缺少新增 exposure/void/zero-exposure-migration 账本保护。进程启动函数在 `Popen` 前拒绝，因此不能按传输错误重试。已冻结源码/配置不允许修改，本次没有修策略、绕过门禁或新建窗口。这里的 drift 指运行策略与执行器要求不一致，不推断发生时间或外部修改者。
+- 历史 synthetic privacy PASS 及其源码绑定依然重算通过；它不等于主正式运行策略匹配。冻结工件核验也仍通过，但没有覆盖这两份主运行策略文件。正式网络策略门明确为 false，不能把历史隐私 PASS 写成正式候选已验收。
+
+### 三库与候选指标
+
+三库参与、`deferred=[]`，保留池为 cwork-3m 42@T3、docdb-touqian 31@T3、spbp-2027 42@T2；这些是题池数，不是正式指标分母或成绩。
+
+每一库的 A 都是 `NOT_RUN_PREVIOUS_CANDIDATE_ABORT`，B 都是 `NOT_MEASURED_PRESPAWN_ABORT`。十二项计数及 leak_count、Recall@10、Exact、NoAnswer、P95、index_bytes、build_seconds、peak_rss_bytes **全部 null**，不以 0 充当测量值；没有错误请求可以计入正式分母，也没有 synthetic/历史成绩混入。候选 Gateway 四能力均未测、保持 null，生产 Gateway 健康检查不能替代四能力验收。
+
+冻结 runbook 的机械计数（组件/升级步骤/备份恢复步骤）为 A **1/6/4**、B **2/7/3**，只代表文档机械复杂度，不代表本次运行性能。完整逐库字段见 [公开 abort](replacement-formal-abort.json)，公开合同见 [闭合 Schema](replacement-formal-abort.schema.json)。
+
+### Finally、不变性与保留
+
+在同窗口执行冻结 coordinator 的 INVALID 收口分支：cleanup 一次，formal-after 一次，三库采集完成并与原 fresh before 重算比较。before/after 文件数均为 1248、316、317；未重建 baseline，after 关闭了本窗口的重放入口。
+
+- 候选进程、正式控制器、临时数据面、新临时文件、新 TLS 文件、当前 UUID 容器/镜像标签/网络/服务/卷、未知归属资源、cleanup failures：终态均 0。B 未创建服务，未发生按模糊名称删除资源。
+- 三 Gateway 实时 200，Gateway 身份与健康内容未变；容器和卷观测未变。
+- NAS 和既有索引的已测投影一致，但完整不变性仍为 **null**；生产配置已测投影一致，但服务列表比较为 **false**，因此 production_config_unchanged 为 **false**。未列出服务名或推断变化责任，未修复生产，未把局部观测扩大为完整证明。
+- builder/verifier 仍 1/1；96 材料、旧 window/claim/freeze、私有 holdout、freeze/audit 历史及旧 `VOID_PREQUERY_NO_EXPOSURE` 保留并重算通过。旧窗口仍永久 INVALID。主运行策略字节保持原样；本次没有私有数据或私有 digest 导出。
+
+### 三格验收与裁决复核
+
+- **可运行判据**：本轮完整 159 项 RT-055 回归，0 failure/error/skip；36 个相关 Python 文件编译通过；公开 abort Schema 必须通过、v3 正式 aggregate Schema 必须拒绝此 abort，禁止伪造缺测分数。OPS 冻结 decision CLI 与本地 `kb_retrieval_decision.py` 对同一公开对象均 fail-closed，exit=2、INVALID、deferred=[]，逐字段比对一致。
+- **AI 自检**：核对未重复完成动作、未暴露重试、未改冻结 scripts/config、未导出私有数据、仅当前窗口资源收口；159 回归通过并不能证明生产策略一致性，本次真实启动门检出了本地合成判据未覆盖的部署缺口。
+- **读产出**：同窗口真实 after/cleanup/abort/decision 闭环，缺测为 null，不变性 false/null 如实保留。公开证据首轮 Schema 将 B 的备份恢复步骤误写成 4，OPS 投影校验拒绝；按冻结 runbook 的真实 3 步修正公开 Schema 并追加第二版投影，失败投影仍在 OPS 留存。没有重跑候选、after、cleanup，也没有修改冻结源码。
+
+最终公开 QA 见 [QA](replacement-formal-qa.json)，唯一裁决见 [decision](replacement-formal-decision.json)。新增私有字段/伪造成绩反例、递归隐私与 secret、历史原件及文档前缀、链接、AODW/governance、Git diff/check 均纳入本轮 QA；保留一项既有宿主 skill 未安装告警，不改宿主配置，不冒称全仓 CI。仅本地提交公开证据和本 RT 文档，不提交 runs、凭据或交接目录，不 push/合并/清理 worktree。
+
+后续若要恢复比较，需要另行授权解决主运行策略部署与验收的一致性；不得把本节当作修改策略或新建 freeze/window 的授权。

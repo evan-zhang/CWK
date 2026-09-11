@@ -248,3 +248,15 @@ freeze/正式 A/B/消费仍 0，三库两候选所有正式指标 null；builder
 工程判据为最终 159 项 RT-055 回归（0 skip）、14 项既有行为破坏加 1 项独立缓存越界破坏，以及新增的合法双窗重放/原子竞争测试；AI 自检核对恢复授权和停止边界；读产出为 OPS 独立重算后的白名单终态。详细三格和限制见 [最终验收](evidence/acceptance.md#amendment-4-ops-收口ready_to_run2026-09-12)、[公开回执](evidence/zero-exposure-ready.json)、[Schema](evidence/zero-exposure-ready.schema.json)、[QA](evidence/zero-exposure-ready-qa.json)。
 
 停止 READY_TO_RUN，不执行正式 A/B；评测和选型仍未完成，完整 NAS/index 不变性 UNKNOWN 与历史漂移不抵销，RT 保持 in_progress、切流暂停。只本地提交，不 push/合并/清理 worktree；没有后台任务。
+
+## Replacement 正式执行终态：INVALID（2026-09-12）
+
+新授权从 `c5901f4` 的 READY_TO_RUN 继续，旧记录不改写。只读硬门通过后，使用冻结源码 `a4b3c64` 和同一 replacement window `0155202c-b6a0-40c6-a779-48aff0ab57fe`，按 **B→A** 启动 B。B attempt=1，但在创建首个服务进程前被主运行网络策略匹配门拒绝：loopback/inbound-only 策略均未包含冻结执行器要求的新增账本保护。arm/exposure/query/score/complete/result 全 0，A attempt=0；不是模型或 SSH 传输重试场景。
+
+本次没有修改冻结 scripts/config，没有重做 builder/verifier、privacy、before、freeze，也没有重试 B、启动 A 或创建新窗口。历史 synthetic privacy PASS 和 freeze/source 绑定仍有效，但不能证明主正式策略一致；正式策略门为 false。
+
+同窗口 cleanup→formal-after 已完成，三库 before/after 绑定与比较重算通过。临时进程/数据面/文件、当前 UUID 资源、未知归属资源和 cleanup failures 均 0，三 Gateway 实时 200。Gateway 未变；NAS/既有索引完整不变性仍 null；服务列表变更使 production_config_unchanged=false，未修生产、未重建 baseline。96 份材料及旧 claim/void/window/freeze 保持不变，builder/verifier 仍 1/1。
+
+唯一裁决 **INVALID**，OPS 与本地 decision CLI 一致；没有 schema-valid v3 正式成绩，用闭合公开 abort Schema 明确表达缺测。三库仍 42@T3、31@T3、42@T2，`deferred=[]`；逐库 A/B 全部正式指标为 null，候选四项 Gateway 能力未测。机械复杂度 A=1/6/4、B=2/7/3 来自冻结 runbook，不是性能分数。
+
+本次交付是失败后的完整收口，不是评测成功。RT 保持 in_progress、禁止切流，本窗口 after 已关闭重放。159 项 RT-055 回归零失败/零跳过、36 文件编译、Schema/decision、隐私/secret、链接、历史保留和 AODW/governance 验证见 [QA](evidence/replacement-formal-qa.json)；完整事实与限制见 [验收](evidence/acceptance.md#replacement-正式执行收口启动前策略硬门-invalid2026-09-12)、[公开 abort](evidence/replacement-formal-abort.json)、[Schema](evidence/replacement-formal-abort.schema.json)、[唯一裁决](evidence/replacement-formal-decision.json)。只本地提交，不 push/合并/删除 worktree；后续修主运行策略一致性需要新的明确授权。
