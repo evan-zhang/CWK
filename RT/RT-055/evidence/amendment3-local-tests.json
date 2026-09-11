@@ -1,0 +1,109 @@
+{
+  "schema": "cwk.rt055.amendment3-local-tests.v1",
+  "data_class": "SYNTHETIC_ONLY_NOT_OPS",
+  "predecessor_commit": "45a6080a01f4fb6f3ed1aeaa16e7f2d13dad59d4",
+  "baseline_commit": "c86519425e260a45a11a89917cb0c6600d46a11f",
+  "ops_candidate_runs": 0,
+  "ops_builder_runs": 0,
+  "ops_verifier_runs": 0,
+  "red_basis": "INHERITED_UNCOMMITTED_IMPLEMENTATION_BEFORE_CLOSEOUT_FIXES",
+  "initial_red": {
+    "tests": 24,
+    "failures": 12,
+    "errors": 1,
+    "skipped": 0,
+    "exit_code": 1
+  },
+  "corrected_red": {
+    "tests": 24,
+    "failures": 11,
+    "errors": 0,
+    "skipped": 0,
+    "exit_code": 1
+  },
+  "inherited_regression": {
+    "tests": 72,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exit_code": 0
+  },
+  "initial_red_fixture_issue": "TWO_CAPACITY_TESTS_USED_NON_TABLE_FIXTURE_CORRECTED_BEFORE_IMPLEMENTATION",
+  "intermediate_green_issue": "INHERITED_MUTABLE_FLOOR_FIXTURE_ALIAS_FIXED_NOT_PRODUCTION_RULE_CHANGE",
+  "green": {
+    "tests": 103,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exit_code": 0
+  },
+  "mutations": [
+    {
+      "mutation": "BUILDER_ACCEPTS_FIRST_FAILED_TIER",
+      "tests": 6,
+      "failures": 4,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "rejected": true
+    },
+    {
+      "mutation": "VERIFIER_SELECTION_DISCONNECTED",
+      "tests": 7,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "rejected": true
+    },
+    {
+      "mutation": "DEFERRED_METRIC_REJECTION_DISCONNECTED",
+      "tests": 8,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "rejected": true
+    },
+    {
+      "mutation": "ROLE_ENUM_REJECTION_DISCONNECTED",
+      "tests": 12,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "rejected": true
+    }
+  ],
+  "restored_green": {
+    "tests": 103,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exit_code": 0
+  },
+  "local_gates": {
+    "changed_files": 33,
+    "inherited_files_preserved": 25,
+    "recursive_keys_checked": 673,
+    "forbidden_key_findings": 0,
+    "secret_pattern_files_checked": 33,
+    "secret_pattern_findings": 0,
+    "private_digest_findings": 0,
+    "local_links_checked": 37,
+    "anchors_checked": 7,
+    "link_failures": 0,
+    "historical_files_unchanged": 6,
+    "scope_allowlist_verified": true,
+    "diff_check": true,
+    "aodw": "PASS",
+    "governance": "PASS",
+    "framework_fixtures_passed": 79,
+    "governed_tracked_files": 822,
+    "known_host_skill_warning": true,
+    "py_compile_files": 22,
+    "schema_self_checks": 3,
+    "native_integration": "NOT_RUN_NOT_AUTHORIZED",
+    "whole_repository_ci": "NOT_RUN_SCOPE_IS_RT055"
+  }
+}

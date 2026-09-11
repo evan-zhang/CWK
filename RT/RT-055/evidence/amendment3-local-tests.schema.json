@@ -1,0 +1,434 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.rt055.amendment3-local-tests.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "data_class",
+    "predecessor_commit",
+    "baseline_commit",
+    "ops_candidate_runs",
+    "ops_builder_runs",
+    "ops_verifier_runs",
+    "red_basis",
+    "initial_red_fixture_issue",
+    "intermediate_green_issue",
+    "green",
+    "restored_green",
+    "initial_red",
+    "corrected_red",
+    "inherited_regression",
+    "mutations"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.amendment3-local-tests.v1"
+    },
+    "data_class": {
+      "const": "SYNTHETIC_ONLY_NOT_OPS"
+    },
+    "predecessor_commit": {
+      "const": "45a6080a01f4fb6f3ed1aeaa16e7f2d13dad59d4"
+    },
+    "baseline_commit": {
+      "const": "c86519425e260a45a11a89917cb0c6600d46a11f"
+    },
+    "ops_candidate_runs": {
+      "const": 0
+    },
+    "ops_builder_runs": {
+      "const": 0
+    },
+    "ops_verifier_runs": {
+      "const": 0
+    },
+    "red_basis": {
+      "const": "INHERITED_UNCOMMITTED_IMPLEMENTATION_BEFORE_CLOSEOUT_FIXES"
+    },
+    "initial_red_fixture_issue": {
+      "const": "TWO_CAPACITY_TESTS_USED_NON_TABLE_FIXTURE_CORRECTED_BEFORE_IMPLEMENTATION"
+    },
+    "intermediate_green_issue": {
+      "const": "INHERITED_MUTABLE_FLOOR_FIXTURE_ALIAS_FIXED_NOT_PRODUCTION_RULE_CHANGE"
+    },
+    "green": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tests",
+        "failures",
+        "errors",
+        "skipped",
+        "exit_code"
+      ],
+      "properties": {
+        "tests": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failures": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "errors": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "skipped": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "exit_code": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "restored_green": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tests",
+        "failures",
+        "errors",
+        "skipped",
+        "exit_code"
+      ],
+      "properties": {
+        "tests": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failures": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "errors": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "skipped": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "exit_code": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "initial_red": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code"
+          ],
+          "properties": {
+            "tests": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "failures": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "errors": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "skipped": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "exit_code": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "corrected_red": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code"
+          ],
+          "properties": {
+            "tests": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "failures": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "errors": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "skipped": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "exit_code": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "inherited_regression": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code"
+          ],
+          "properties": {
+            "tests": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "failures": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "errors": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "skipped": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "exit_code": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "mutations": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "mutation",
+          "tests",
+          "failures",
+          "errors",
+          "skipped",
+          "exit_code",
+          "rejected"
+        ],
+        "properties": {
+          "mutation": {
+            "enum": [
+              "BUILDER_ACCEPTS_FIRST_FAILED_TIER",
+              "VERIFIER_SELECTION_DISCONNECTED",
+              "DEFERRED_METRIC_REJECTION_DISCONNECTED",
+              "ROLE_ENUM_REJECTION_DISCONNECTED"
+            ]
+          },
+          "tests": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "failures": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "errors": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "skipped": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "exit_code": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "rejected": {
+            "const": true
+          }
+        }
+      },
+      "prefixItems": [
+        {
+          "properties": {
+            "mutation": {
+              "const": "BUILDER_ACCEPTS_FIRST_FAILED_TIER"
+            }
+          }
+        },
+        {
+          "properties": {
+            "mutation": {
+              "const": "VERIFIER_SELECTION_DISCONNECTED"
+            }
+          }
+        },
+        {
+          "properties": {
+            "mutation": {
+              "const": "DEFERRED_METRIC_REJECTION_DISCONNECTED"
+            }
+          }
+        },
+        {
+          "properties": {
+            "mutation": {
+              "const": "ROLE_ENUM_REJECTION_DISCONNECTED"
+            }
+          }
+        }
+      ]
+    },
+    "local_gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "changed_files",
+        "inherited_files_preserved",
+        "recursive_keys_checked",
+        "forbidden_key_findings",
+        "secret_pattern_files_checked",
+        "secret_pattern_findings",
+        "private_digest_findings",
+        "local_links_checked",
+        "anchors_checked",
+        "link_failures",
+        "historical_files_unchanged",
+        "scope_allowlist_verified",
+        "diff_check",
+        "aodw",
+        "governance",
+        "framework_fixtures_passed",
+        "governed_tracked_files",
+        "known_host_skill_warning",
+        "py_compile_files",
+        "schema_self_checks",
+        "native_integration",
+        "whole_repository_ci"
+      ],
+      "properties": {
+        "changed_files": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "inherited_files_preserved": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "recursive_keys_checked": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "forbidden_key_findings": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "secret_pattern_files_checked": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "secret_pattern_findings": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "private_digest_findings": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "local_links_checked": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "anchors_checked": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "link_failures": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "historical_files_unchanged": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "scope_allowlist_verified": {
+          "const": true
+        },
+        "diff_check": {
+          "const": true
+        },
+        "aodw": {
+          "const": "PASS"
+        },
+        "governance": {
+          "const": "PASS"
+        },
+        "framework_fixtures_passed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "governed_tracked_files": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "known_host_skill_warning": {
+          "const": true
+        },
+        "py_compile_files": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "schema_self_checks": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "native_integration": {
+          "const": "NOT_RUN_NOT_AUTHORIZED"
+        },
+        "whole_repository_ci": {
+          "const": "NOT_RUN_SCOPE_IS_RT055"
+        }
+      }
+    }
+  }
+}

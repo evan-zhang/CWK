@@ -12,10 +12,13 @@ import math
 import re
 import sys
 import uuid
+
+import rt055_tiers as tiers
 from pathlib import Path
 from typing import Any, Mapping
 
-SCHEMA = "cwk.rt055.retrieval-decision.aggregate.v2"
+SCHEMA = "cwk.rt055.retrieval-decision.aggregate.v3"
+RESULT_SCHEMA = "cwk.rt055.retrieval-decision.result.v3"
 LIBRARIES = ("cwork-3m", "docdb-touqian", "spbp-2027")
 CANDIDATE_A = "cwk-opensearch-dual-channel-v1"
 CANDIDATE_B = "weknora-native-8d7298fb5d759973cb1e481cadc5ecdf16dca599"
@@ -41,6 +44,7 @@ FORBIDDEN_KEYS = {
 ALLOWED_TOP = {
     "schema", "run_id", "holdout_contract", "environment", "verifier_attestations",
     "candidates", "rerank_ablation", "cleanup", "production_invariants",
+    "participating_libraries", "deferred_libraries", "library_validity",
 }
 COUNT_FIELDS = {
     "total_count", "answerable_count", "recall_hits_at_10", "exact_count",
@@ -162,6 +166,8 @@ def _validate_freeze(candidate_id: str, receipt: Any, *, weknora: bool) -> None:
 def validate_report(report: Mapping[str, Any]) -> None:
     if not isinstance(report, Mapping):
         raise ReportError("report must be an object")
+    if report.get("schema") == "cwk.rt055.retrieval-decision.aggregate.v2":
+        raise ReportError("LEGACY_V2_REQUIRES_NEW_VERIFIED_RUN")
     _scan_safe(report)
     required_top = ALLOWED_TOP - {"rerank_ablation"}
     missing = required_top - set(report)
@@ -184,6 +190,18 @@ def validate_report(report: Mapping[str, Any]) -> None:
     if holdout["libraries"] != list(LIBRARIES):
         raise ReportError("holdout libraries or order do not match the three-library contract")
 
+    participating, deferred = report['participating_libraries'], report['deferred_libraries']
+    for group in (participating, deferred):
+        if not isinstance(group,list) or group != [kb for kb in LIBRARIES if kb in group]:
+            raise ReportError('library partition must be an ordered closed subset')
+    if not participating or set(participating) & set(deferred) or set(participating+deferred)!=set(LIBRARIES):
+        raise ReportError('library partition invalid or all deferred')
+    validity = _require_keys(report['library_validity'], set(LIBRARIES), 'library_validity')
+    for kb,v in validity.items():
+        try: tiers.validate_selection(v)
+        except (ValueError, TypeError, KeyError) as exc: raise ReportError('tier/floor selection invalid') from exc
+        if (v['status']=='PARTICIPATING') != (kb in participating): raise ReportError('library status mismatch')
+
     environment = _require_keys(report["environment"], {
         "hardware_class", "corpus_snapshot_version", "same_corpus", "same_hardware_class",
         "same_timeout_budget", "same_top_k", "top_k", "run_order_randomized",
@@ -198,6 +216,7 @@ def validate_report(report: Mapping[str, Any]) -> None:
         "builder_id", "verifier_id", "candidate_implementer_id", "builder_separated",
         "rt054_pool_excluded", "input_disjoint_verified", "category_coverage_verified",
         "aggregate_only_verified", "no_private_digest_exported",
+        "role_separation_level", "role_audit_verified",
     }, "verifier_attestations")
     _constant(attest["builder_id"], BUILDER_ID, "verifier_attestations.builder_id")
     _constant(attest["verifier_id"], VERIFIER_ID, "verifier_attestations.verifier_id")
@@ -206,11 +225,14 @@ def validate_report(report: Mapping[str, Any]) -> None:
         raise ReportError("builder, verifier, and candidate implementer roles must be distinct")
     _true_flags(attest, ("builder_separated", "rt054_pool_excluded", "input_disjoint_verified", "category_coverage_verified", "aggregate_only_verified", "no_private_digest_exported"), "verifier_attestations")
 
+    if attest['role_separation_level'] not in tiers.ROLE_LEVELS or attest['role_audit_verified'] is not True:
+        raise ReportError('role audit and non-null actual separation level required')
+
     candidates = report["candidates"]
     if not isinstance(candidates, Mapping) or set(candidates) != {CANDIDATE_A, CANDIDATE_B}:
         raise ReportError("report must contain exactly the two frozen candidates")
     for candidate_id, candidate in candidates.items():
-        _validate_candidate(candidate_id, candidate)
+        _validate_candidate(candidate_id, candidate, participating)
     a_freeze = candidates[CANDIDATE_A]["freeze_receipt"]
     b_freeze = candidates[CANDIDATE_B]["freeze_receipt"]
     if a_freeze["receipt_id"] == b_freeze["receipt_id"]:
@@ -220,12 +242,18 @@ def validate_report(report: Mapping[str, Any]) -> None:
         raise ReportError("candidate critical artifact digests must not all be identical")
     # A and B score the identical frozen cases. Category denominators are
     # therefore invariant across candidates; disagreement means runner drift.
-    for kb in LIBRARIES:
+    for kb in participating:
         a_row = candidates[CANDIDATE_A]["libraries"][kb]
         b_row = candidates[CANDIDATE_B]["libraries"][kb]
         for field in ("total_count", "answerable_count", "exact_count", "no_answer_count"):
             if a_row[field] != b_row[field]:
                 raise ReportError(f"{kb}.{field} must match across candidates")
+
+    for kb in participating:
+        v=validity[kb]; row=candidates[CANDIDATE_A]['libraries'][kb]
+        expected={'total_count':v['total_count'], 'answerable_count':v['total_count']-v['category_counts']['no_answer_mutation'],
+                  'exact_count':v['category_counts']['exact_identifier_date'],'no_answer_count':v['category_counts']['no_answer_mutation']}
+        if any(row[k]!=n for k,n in expected.items()):raise ReportError('candidate denominators differ from frozen pool')
 
     if "rerank_ablation" in report:
         ablation = _require_keys(report["rerank_ablation"], {"enabled", "status", "recall_delta", "p95_delta_ms"}, "rerank_ablation")
@@ -238,24 +266,24 @@ def validate_report(report: Mapping[str, Any]) -> None:
 
     cleanup = _require_keys(report["cleanup"], {"private_holdout_retained_on_ops", "temporary_indices_zero", "temporary_services_zero", "temporary_containers_zero", "cleanup_failures"}, "cleanup")
     _true_flags(cleanup, ("private_holdout_retained_on_ops", "temporary_indices_zero", "temporary_services_zero", "temporary_containers_zero"), "cleanup")
-    if cleanup["cleanup_failures"] != 0:
+    if _integer(cleanup["cleanup_failures"], "cleanup.cleanup_failures") != 0:
         raise ReportError("cleanup_failures must be zero")
 
     invariants = _require_keys(report["production_invariants"], {"nas_unchanged", "gateway_unchanged", "existing_indices_unchanged", "production_config_unchanged"}, "production_invariants")
     _true_flags(invariants, tuple(invariants), "production_invariants")
 
 
-def _validate_candidate(candidate_id: str, candidate: Any) -> None:
+def _validate_candidate(candidate_id: str, candidate: Any, participating=LIBRARIES) -> None:
     candidate = _require_keys(candidate, {"identity", "freeze_receipt", "libraries", "operations", "gateway_readiness"}, f"candidates.{candidate_id}")
     identity = candidate["identity"]
     if candidate_id == CANDIDATE_A:
         expected = {"kind": "opensearch_dual_channel", "exact_resolver": "deterministic_v1", "lexical_analyzer": "analysis_icu", "doc_collapse": True, "parent_expand": True, "rerank_in_primary": False}
-        if identity != expected:
+        if (identity != expected or any(type(identity[k]) is not type(v) for k, v in expected.items())):
             raise ReportError("candidate A identity drifted from the frozen mechanism")
         _validate_freeze(candidate_id, candidate["freeze_receipt"], weknora=False)
     else:
         expected = {"kind": "weknora", "commit": WEKNORA_COMMIT, "native_pipeline": True, "core_modified": False}
-        if identity != expected:
+        if (identity != expected or any(type(identity[k]) is not type(v) for k, v in expected.items())):
             raise ReportError("candidate B must be unmodified native WeKnora at the frozen commit")
         _validate_freeze(candidate_id, candidate["freeze_receipt"], weknora=True)
 
@@ -264,6 +292,9 @@ def _validate_candidate(candidate_id: str, candidate: Any) -> None:
         raise ReportError(f"candidate {candidate_id} must report exactly three libraries")
     expected_fields = COUNT_FIELDS | RATE_FIELDS | RESOURCE_FIELDS
     for kb in LIBRARIES:
+        if kb not in participating:
+            if libraries[kb] != {'status':'NOT_RUN_DEFERRED'}:raise ReportError('deferred metrics must be NOT_RUN_DEFERRED only')
+            continue
         metrics = _require_keys(libraries[kb], expected_fields, f"{candidate_id}.libraries.{kb}")
         counts = {field: _integer(metrics[field], f"{candidate_id}.{kb}.{field}") for field in COUNT_FIELDS}
         if min(counts["total_count"], counts["answerable_count"], counts["exact_count"], counts["no_answer_count"]) <= 0:
@@ -314,9 +345,9 @@ def _validate_candidate(candidate_id: str, candidate: Any) -> None:
         raise ReportError(f"candidate {candidate_id} gateway readiness values must be booleans")
 
 
-def candidate_gate(candidate: Mapping[str, Any]) -> tuple[bool, list[str]]:
+def candidate_gate(candidate: Mapping[str, Any], participating=LIBRARIES) -> tuple[bool, list[str]]:
     failures: list[str] = []
-    for kb in LIBRARIES:
+    for kb in participating:
         row = candidate["libraries"][kb]
         if row["recall_at_10"] < .90:
             failures.append(f"{kb}:recall_at_10")
@@ -331,7 +362,7 @@ def candidate_gate(candidate: Mapping[str, Any]) -> tuple[bool, list[str]]:
     return not failures, failures
 
 
-def _materially_better_b(a: Mapping[str, Any], b: Mapping[str, Any]) -> bool:
+def _materially_better_b(a: Mapping[str, Any], b: Mapping[str, Any], participating=LIBRARIES) -> bool:
     """Apply the precommitted incumbency utility after unbiased hard gates."""
     # Mechanical complexity vector: no subjective score and no component may grow.
     op_fields = ("components_count", "upgrade_steps_count", "backup_restore_steps_count")
@@ -340,17 +371,17 @@ def _materially_better_b(a: Mapping[str, Any], b: Mapping[str, Any]) -> bool:
 
     # Latency cannot be summed across libraries. It counts as a 20% win only
     # when every library improves; any per-library regression rejects B.
-    if any(b["libraries"][kb]["p95_ms"] > a["libraries"][kb]["p95_ms"] for kb in LIBRARIES):
+    if any(b["libraries"][kb]["p95_ms"] > a["libraries"][kb]["p95_ms"] for kb in participating):
         return False
-    wins = int(all(b["libraries"][kb]["p95_ms"] <= a["libraries"][kb]["p95_ms"] * .80 for kb in LIBRARIES))
+    wins = int(all(b["libraries"][kb]["p95_ms"] <= a["libraries"][kb]["p95_ms"] * .80 for kb in participating))
 
-    # Additive resource dimensions use three-library totals, but a candidate
+    # Additive resource dimensions use participating-library totals, but a candidate
     # may not hide a >10% per-library regression inside that total.
     for metric in ("index_bytes", "build_seconds", "peak_rss_bytes"):
-        if any(b["libraries"][kb][metric] > a["libraries"][kb][metric] * 1.10 for kb in LIBRARIES):
+        if any(b["libraries"][kb][metric] > a["libraries"][kb][metric] * 1.10 for kb in participating):
             return False
-        a_total = sum(a["libraries"][kb][metric] for kb in LIBRARIES)
-        b_total = sum(b["libraries"][kb][metric] for kb in LIBRARIES)
+        a_total = sum(a["libraries"][kb][metric] for kb in participating)
+        b_total = sum(b["libraries"][kb][metric] for kb in participating)
         wins += int(b_total <= a_total * .80)
     return wins >= 3
 
@@ -358,16 +389,19 @@ def _materially_better_b(a: Mapping[str, Any], b: Mapping[str, Any]) -> bool:
 def decide(report: Mapping[str, Any]) -> dict[str, Any]:
     validate_report(report)
     a, b = report["candidates"][CANDIDATE_A], report["candidates"][CANDIDATE_B]
-    a_ok, a_failures = candidate_gate(a)
-    b_ok, b_failures = candidate_gate(b)
-    if a_ok and (not b_ok or not _materially_better_b(a, b)):
+    a_ok, a_failures = candidate_gate(a, report["participating_libraries"])
+    b_ok, b_failures = candidate_gate(b, report["participating_libraries"])
+    if a_ok and (not b_ok or not _materially_better_b(a, b, report["participating_libraries"])):
         selected, reason = CANDIDATE_A, "A_passes_precommitted_incumbency_utility"
     elif b_ok:
         selected, reason = CANDIDATE_B, "B_only_eligible_or_meets_precommitted_displacement_utility"
     else:
         selected, reason = None, "neither_candidate_passes_hard_gates"
     return {
-        "schema": "cwk.rt055.retrieval-decision.result.v2", "run_id": report["run_id"],
+        "schema": RESULT_SCHEMA, "run_id": report["run_id"],
+        "decision": 'A' if selected==CANDIDATE_A else 'B' if selected==CANDIDATE_B else 'NO-GO',
+        "participating_libraries": report['participating_libraries'], "deferred_libraries": report['deferred_libraries'],
+        "production_candidate_libraries": report['participating_libraries'] if selected else [],
         "selected": selected, "status": "PASS" if selected else "NO-GO", "reason": reason,
         "candidate_gates": {
             CANDIDATE_A: {"pass": a_ok, "failures": a_failures},
@@ -380,11 +414,16 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("aggregate_report", type=Path)
     args = parser.parse_args(argv)
+    report = {}
     try:
         report = json.loads(args.aggregate_report.read_text(encoding="utf-8"))
         result = decide(report)
-    except (OSError, json.JSONDecodeError, ReportError) as exc:
-        print(json.dumps({"status": "INVALID", "error": str(exc)}, ensure_ascii=False))
+    except (OSError, json.JSONDecodeError, ReportError):
+        error_code = ("LEGACY_V2_REQUIRES_NEW_VERIFIED_RUN"
+                      if isinstance(report, dict) and report.get('schema') == 'cwk.rt055.retrieval-decision.aggregate.v2'
+                      else "AGGREGATE_CONTRACT_INVALID")
+        print(json.dumps({"decision":"INVALID", "status":"INVALID", "error_code":error_code,
+                          "deferred_libraries":[kb for kb in LIBRARIES if isinstance(report,dict) and isinstance(report.get('deferred_libraries'),list) and kb in report['deferred_libraries']]}, ensure_ascii=False))
         return 2
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     return 0 if result["status"] == "PASS" else 3

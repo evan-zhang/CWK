@@ -24,6 +24,7 @@ ROOT = HERE.parent
 sys.path.insert(0, str(HERE))
 
 import rt055_exclusion as exclusion_gate
+import rt055_tiers as tiers
 import rt055_opslib as ops  # noqa: E402  # copied into each role directory on OPS
 
 SAMPLING_VERSION = "ops-rt055-known-item-stratified-v1"
@@ -166,13 +167,14 @@ def mutate_to_absent(base: str, corpus_text: str, salt: str) -> str:
     raise ValueError("no_absent_mutation")
 
 
-def derive_cases_for_library(kb_id: str, docs: Sequence[dict], seed: str, *, exclusion=None, eligible_ids=None) -> dict[str, Any]:
+def derive_cases_for_library(kb_id: str, docs: Sequence[dict], seed: str, *, exclusion=None, eligible_ids=None, tier='T3') -> dict[str, Any]:
+    active_fields = tiers.fields(tier)
     by_id = {doc["doc_id"]: doc for doc in docs}
     if exclusion is None:
         allowed = list(docs) if eligible_ids is None else [d for d in docs if d['doc_id'] in eligible_ids]
         excluded_sources = []
     else:
-        allowed, excluded_sources = exclusion_gate.filter_sources(list(docs), exclusion, eligible_ids)
+        allowed, excluded_sources = exclusion_gate.filter_sources(list(docs), exclusion, eligible_ids, tier)
     allowed_ids = {doc['doc_id'] for doc in allowed}
     locked = locked_expected_documents(kb_id, allowed, seed)
     corpus_norm = {doc_id: normalize("\n".join((d["title"], d["filename"], d["body"])))
@@ -190,7 +192,7 @@ def derive_cases_for_library(kb_id: str, docs: Sequence[dict], seed: str, *, exc
     def add(lock: dict, category: str, category_ordinal: int, query: str, **extra: Any) -> bool:
         if counts[category] >= TARGETS[category]:
             return False
-        if exclusion is not None and exclusion_gate.normalize(query) in exclusion['queries']:
+        if exclusion is not None and 'queries' in active_fields and exclusion_gate.normalize(query) in exclusion['queries']:
             raise ValueError('r_query_inventory_incomplete')
         row = {"ordinal": len(cases), "kb_id": kb_id, "category": category,
                "category_ordinal": category_ordinal, "split": SPLIT,
@@ -252,6 +254,11 @@ def derive_cases_for_library(kb_id: str, docs: Sequence[dict], seed: str, *, exc
             "category_counts": dict(counts), "category_availability": availability}
 
 
+def derive_adaptive_library(kb_id, docs, seed, *, exclusion, eligible_ids=None):
+    return tiers.select_once(lambda tier: derive_cases_for_library(
+        kb_id, docs, seed, exclusion=exclusion, eligible_ids=eligible_ids, tier=tier))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.parse_args()
@@ -301,8 +308,9 @@ def main() -> int:
         libraries[kb] = kept
         load_meta[kb]["excluded_over_manual_limit"] = over
 
-    gates: dict[str, Any] = {"three_libraries_nonempty": all(len(v) > 0 for v in libraries.values())}
-    max_runes = {kb: max(ops.canonical_runes(doc) for doc in docs) for kb, docs in libraries.items()}
+    # Empty/fully ineligible libraries reach T1 and DEFERRED, not max([]).
+    gates: dict[str, Any] = {"three_libraries_present": set(libraries) == set(ops.LIBRARIES)}
+    max_runes = {kb: max((ops.canonical_runes(doc) for doc in docs), default=0) for kb, docs in libraries.items()}
     over_limit = {kb: sum(1 for doc in docs if ops.canonical_runes(doc) > ops.B_MANUAL_MAX_RUNES)
                   for kb, docs in libraries.items()}
     gates["b_manual_limit_ok"] = all(count == 0 for count in over_limit.values())
@@ -311,7 +319,7 @@ def main() -> int:
     gates["b_manual_excluded_counts"] = {kb: load_meta[kb].get("excluded_over_manual_limit", 0)
                                          for kb in ops.LIBRARIES}
     gates["filtered_corpus_documents"] = {kb: len(libraries[kb]) for kb in ops.LIBRARIES}
-    if not all(gates[k] for k in ("three_libraries_nonempty", "b_manual_limit_ok")):
+    if not all(gates[k] for k in ("three_libraries_present", "b_manual_limit_ok")):
         ops.write_private_json(HERE / "private-manifest.json", {
             "schema": "cwk.rt055.ops-builder-manifest.v1", "status": "GATE_FAILED",
             "gates": gates, "load_meta": load_meta, "max_canonical_runes": max_runes,
@@ -319,7 +327,7 @@ def main() -> int:
         print("BUILDER GATE FAILED", json.dumps(gates, ensure_ascii=False))
         return 3
 
-    per_library = {kb: derive_cases_for_library(kb, source_libraries[kb], seed,
+    per_library = {kb: derive_adaptive_library(kb, source_libraries[kb], seed,
                        exclusion=authority, eligible_ids={doc['doc_id'] for doc in docs})
                    for kb, docs in libraries.items()}
     corpus = {"schema": ops.CORPUS_SCHEMA, "created_at": started, "libraries": libraries}
@@ -337,7 +345,7 @@ def main() -> int:
         "exclusion_r_sha256": ops.sha_file(HERE / 'private-exclusion-r.json'),
         "corpus_snapshot_sha256": ops.sha_file(HERE / "private-corpus.json"),
         "candidates_sha256": ops.sha_file(HERE / "private-candidates.json"),
-        "libraries": {kb: {"documents": len(libraries[kb]),
+        "libraries": {kb: {**tiers.public_selection(per_library[kb], verified=False), "documents": len(libraries[kb]),
                            "case_total": len(per_library[kb]["cases"]),
                            "category_counts": per_library[kb]["category_counts"],
                            "category_availability": per_library[kb]["category_availability"],

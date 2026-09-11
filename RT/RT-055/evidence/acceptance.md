@@ -1,6 +1,6 @@
 # RT-055 OPS 接管验收：INVALID（2026-09-11）
 
-> 最新状态：R 修订轮已按覆盖硬门 **INVALID** 收口，清理完成；生产对比存在真实漂移，不能签为全项不变。只返回父会话复核，不重跑或启动 A/B。前两轮历史、首提交修订说明和两个旧 JSON 均保留。
+> 最新状态：Amendment 3 仅做本地修订与第一提交，不启动 OPS 第四轮，生产切流暂停。下文 R 修订轮 INVALID、真实漂移、前三轮历史与旧 JSON 均保持原意；本次记录见文末。
 
 ## 唯一裁决
 
@@ -187,3 +187,36 @@ R 是当前完整快照的确定性排除权威，不是历史精确记录。bui
 - **未决**：cwork 元数据及两项 index 漂移原因、Apple 服务标签变化归属、未覆盖的不变性项目；三角色完整材料以及 freeze/原生日志和 egress/资源计量/Gateway 四能力等正式阶段仍未完成。覆盖硬门已经终止本轮，不将这些列为可以重试的资格，不新建第二次正式实验，不关闭 RT。
 
 **本轮失败收口完成；唯一下一步是父会话复核第二个本地提交。**
+
+## Amendment 3 本地第一提交（2026-09-12）
+
+### 预承诺、迁移与合规边界
+
+本次接管基线 `c86519425e260a45a11a89917cb0c6600d46a11f`，前序协议提交 `45a6080a01f4fb6f3ed1aeaa16e7f2d13dad59d4`。保留已有未提交实现，不 reset/checkout、不重启任何实验。本地第一提交必须先于后续另行授权的第四轮；此次无 OPS/NAS/生产连接、无候选部署、无生产切流、无 push、无 WeKnora core 改动。此前正式候选调用为零；历史冒烟不属于正式 A/B。本修订针对容量证据门，不使用候选成绩重跑取 PASS。
+
+固定 T3=doc_id+query+token → T2=doc_id+query → T1=doc_id，同一 builder run、同一 seed，独立完整派题、首个有效 tier 停止，不重启、不补题、不拼池。六类 floor 3/2/3/3/3/3、总数至少 16；31@T3 满足 floor 不要求目标 42，16 且 exact=1 不满足。T1 仍不足则 DEFERRED，全 DEFERRED 为 INVALID。参与库保持原质量/资源/效用门，延期指标只接受 NOT_RUN_DEFERRED 对象，不参与任何 A/B/GO-NO-GO；全部生产切流暂停。
+
+Schema/harness 升级 v3，v2 原合同可从基线回读，当前入口明确拒绝旧 v2，不自动伪造 tier/角色证明。Schema 负责闭集与 floor 状态，harness 重算轨迹和分母，verifier 重新派出完整集合再逐项比对；Schema-valid 本身不是实测证据。`role_separation_level` 必须是受支持枚举；单 uid 只报告 PROCESS_LEVEL_SEPARATION_SINGLE_UID，不接受 null 或靠固定角色名称自证。
+
+### 真实本地测试记录
+
+- [公开合成证据](amendment3-local-tests.json) 通过 [严格白名单 Schema](amendment3-local-tests.schema.json)。只含固定协议枚举/公开前序提交和数值，不含题面、标识、私有路径、正文或私有 hash。
+- 继承 72 项测试通过；新增 24 项初次红为 12 failures/1 error，其中两项误用无表格容量 fixture。仅修正 fixture 后、实现尚未修复时重跑仍为 11 failures/0 errors。该修订前红证据针对继承未提交实现，不冒称前一会话已做 TDD。
+- 修复后完整 RT-055 103 项通过、0 skip；中间一次 96 项出现 3 errors，原因是继承 fixture 共用全局 floor 字典被反例污染，改为独立拷贝后通过，不为预期结果放宽生产规则。
+- 四项代码破坏（独立临时源码副本，不改断言输入）：tier 选择提前通过→6 tests/4 failures；verifier 选择核验断线→7/2；延期指标拒绝断线→8/1；角色枚举拒绝断线→12/1。均 exit 1，恢复原树后 103 项 exit 0。
+- 本地真实子进程验证三角色不同 PID、同 UID、独立 0700 cwd、禁止读取探针和重复 claim 拒绝。合成完整入口验证 builder 只读一次固定输入、verifier 独立回读、同一 claim/seed；空库延期、全延期、假 claim、伪造延期、账本/交集/未核销、错误 tier/删题/加题/混 seed 均有拒绝判据。并非 OPS 实测。
+
+### 未决与判据边界
+
+继承 OPS runner 已完整审阅、保留并作本地修复；原生服务/网络沙箱/日志 canary、二进制来源绑定、全量生产不变性和精确清理未在此轮执行。本地依赖 jsonschema 可用；原生集成没有得到本次授权，状态是 NOT_RUN_NOT_AUTHORIZED，不是环境跳过的 PASS。baseline 对未覆盖的完整内容/索引/配置保留 null，已知漂移保留 false；当前证据不足会令正式 harness INVALID，不允许假填 true。Gateway 实验 HTTPS shell 不等于真实生产部署证明。
+
+本会话做代码/协议自检，未安排新的独立 AI 复审；读过真实 synthetic 产出与旧公开 abort，不读取私有题面。历史 r-round-abort/Schema/QA、aggregate-report.v2.json、decision.json 与基线逐字节不变。R 的历史语义迁移风险及旧 cwork/系统标签漂移仍未解决，不把本地收口当 RT 选型完成。
+
+### 最终本地门禁
+
+- 完整 RT-055：103 tests，0 failures、0 errors、0 skip；四次行为破坏均红，恢复后全绿。decision 反例与 v2 迁移拒绝均实测。
+- py_compile：20 个 rt055 脚本及 candidate/decision，共 22 个文件全部通过；3 份 Schema 自检、abort 与新增公开证据验证通过。
+- 递归隐私禁键、私有 digest 和秘密模式零发现；33 个提交文件已扫描。37 条本地链接及 7 个锚点通过。6 份历史 JSON/Schema 与基线字节一致。
+- AODW：79 fixture、受管 RT 门禁、53 个 RT 花名册通过；governance：822 个 tracked files 全有归属。仅既有 handover-pack 宿主未安装告警，非阻断。
+- staged 精确允许列表为 33 文件；不含 runs/、docs/handover/、凭据、私有材料或 WeKnora core。git diff/check 与 staged 范围通过。首提交 hash/提交后 clean 状态由 Git 实查后随交付回执给出，不在提交内自引用未来 hash。
+- 本地原生日志/模型/网络/OPS 集成未运行；完整全仓 CI 未重跑，不把局部验收冒充 make ci-full。

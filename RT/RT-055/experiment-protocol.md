@@ -4,7 +4,7 @@
 
 本实验只回答候选 A 或 B 哪一个成为 CWK 下一条生产实现路线，不是 RT-054 analyzer/mapping 续调。OPS owner 在 RT-054 最终 holdout 消费后，从三库当前快照中未命中 §2.1 排除权威 R 的来源项重新抽样；R 是本轮协议定义的权威依据，不是历史实际题池的精确副本。query、expected/no-answer 标注、原文、标题、文件名、路径、locator、命中片段及这些材料的 hash、case-set 摘要、失败样例永远留在 OPS 0700 私有目录，不提交、不复制到开发机、不进入日志或返回 JSON。
 
-仓库只接收 `contracts/aggregate-report.schema.json` v2 聚合 JSON。所有非度量字符串均冻结为协议常量或严格枚举；唯一动态字符串是 canonical run UUID，以及由 OPS 受控 runner 对候选非 confidential 构建 artifact 生成的 `sha256:` digest。禁止人工填充、私有 case/corpus/query/expected/source hash 或任意 opaque token。harness 对字段闭集、固定常量、artifact digest、严格 UUID、分母/分子和比率二次校验并 fail closed。INVALID 与质量 NO-GO 分开：格式、冻结、未测量或核验失败返回 INVALID；合法结果未过质量门返回 NO-GO。
+当前 Amendment 3 只接收 `contracts/aggregate-report.schema.json` v3 聚合 JSON；历史 v2 与中止证据保持原样。所有非度量字符串均冻结为协议常量或严格枚举；唯一动态字符串是 canonical run UUID，以及由 OPS 受控 runner 对候选非 confidential 构建 artifact 生成的 `sha256:` digest。禁止人工填充、私有 case/corpus/query/expected/source hash 或任意 opaque token。harness 对字段闭集、固定常量、artifact digest、严格 UUID、分母/分子和比率二次校验并 fail closed。INVALID 与质量 NO-GO 分开：格式、冻结、未测量或核验失败返回 INVALID；合法结果未过质量门返回 NO-GO。
 
 ### 冻结前硬门中止的证据格式（本轮终态补记）
 
@@ -124,3 +124,35 @@ B 的控制面、摄取、任务、鉴权、来源定位和 Gateway 迁移成本
 - **日志上线前门**：固定 upstream 的 HybridSearch handler 记录 query、GetKnowledge 记录标题。必须用原生受支持配置禁用涉及私有输入的日志、Langfuse tracing 和模型 egress 并实际验证；不能仅因适配器错误已脱敏就宣布保密门通过。若原生配置无法满足协议，不 patch core，不执行 confidential holdout，报告阻塞。
 - `score_cases` 只在 OPS 内消费私有 Case，输出逐库固定计数/比率/P95；不输出 case、query、source、异常内容。超时/错误仍在分母与 P95 样本内，无答案异常不能当作答对；跨库返回计 leak 与错误。它不生成完整 v2 报告，不伪造资源、Gateway、freeze、clean-up 或 verifier 成功证明。
 - 当前只有 synthetic transport 测试，无真实 OpenSearch/WeKnora、三库质量、资源或公网 Gateway 测量。OPS 闭环尚未执行，不能因此关闭 RT 或选出生产候选。
+
+## Amendment 3 — 固定容量 tier 与逐库延期（2026-09-12，运行前）
+
+Evan 已批准本 Amendment 3 的容量规则；2026-09-12 00:24 本次指令只授权本地修订、验证和第一提交，明确禁止启动 OPS 第四轮，覆盖 §6 的历史持续执行授权。本节在第四轮 builder、freeze 和任何正式候选调用之前固化；与 §2/§2.1 的全库 T3、目标即硬门约定冲突时，以本节为准。前三轮协议迭代均发生在正式候选运行之前，没有正式候选结果（历史 synthetic/native 冒烟不算正式 A/B）；历史 INVALID 保留，不构成按候选成绩重跑取 PASS。合规提交链为 `45a6080a01f4fb6f3ed1aeaa16e7f2d13dad59d4` → `c86519425e260a45a11a89917cb0c6600d46a11f` → 本 Amendment 3 首提交（提交身份见 Git 与本次回执，避免提交内自引用未来 hash）。先单独提交本节、实现、Schema/harness、红绿测试及治理归属，本次到本地提交即停止，不部署 runner、不夹带运行数据。
+
+### 固定选择与最低证据
+
+- 每库仅在同一个独占构建 claim、同一完整当前快照、同一 R、同一个新随机 seed 内依次评估 **T3=doc_id+query+token → T2=doc_id+query → T1=doc_id**。每一 tier 都从该 tier 完整合格来源重新确定锁序并派出一套完整题池；不是在上一个 tier 上补题。第一次满足全部 floors 即停止；禁止越级、换 seed、重启 builder、补题、删类、把不同 tier/轮次题池拼接。
+- 六类顺序与目标仍为 title_filename / exact_identifier_date / body_only_rare_phrase / table_row / no_answer_mutation / near_neighbour = **10/8/10/4/5/5**。逐类 validity floors 为 **3/2/3/3/3/3**，总数至少 **16**；同时满足六类事实上至少 17 题，但总数门仍独立校验。达到 floor 只表示最低裁决证据，不代表达到目标。DocDB 的 10/3/5/3/5/5=31@T3 直接有效；SPBP 的 3/1/3/3/3/3=16@T3 必须红。
+- tier 选择只读取 corpus、R、固定 floors 和 seed，不读取候选输出、排名或效用。中间 tier 的题面仅在一次进程的内存中用于容量评估；持久化只有最终选定 tier 的完整题池。私有 manifest 保存全部已评估 tier 的六类计数、floor 判定、同 build/seed 证明与最终状态。verifier 独立重放选择轨迹和完整最终集合，不能只相信 builder 布尔。
+- T1 仍不足则库为 **DEFERRED**：最终 tier=null，正式可消费池为空，保留 T3/T2/T1 容量轨迹而不保留中间题面。不得伪造 0 分；A/B 对该库的正式指标唯一闭集表示为 `{"status":"NOT_RUN_DEFERRED"}`，不包含计数、资源或质量。至少一库参与；全 DEFERRED 固定 **INVALID**。
+- aggregate 顶层显式列出按协议库顺序排列的 `participating_libraries` 与 `deferred_libraries`；三库必须恰好分区。`library_validity` 保存闭集状态、tier、floors、目标、计数及完整前缀轨迹。参与库 A/B 分母必须等于最终题池计数；错误、资源、quality、Gateway、freeze、cleanup 和生产不变性硬门不放宽。
+- R 的 doc_id 始终零交集。T3 还要求 query/token 零交集，T2 要求 query 零交集，T1 不宣称 query/token 零交集；所有 tier 仍逐项核销完整 R 成员及其来源。低 tier 的已放宽维度应实报交集计数，不能标成 T3 全隔离。历史语义迁移风险仍保留。
+- DEFERRED 不进入任何 GO/NO-GO、质量、资源合计或候选效用。§5 中“三库”在本轮效用运算中严格替换为“全部参与库”，逐库门和双通过规则不变，不平均抵销。唯一裁决枚举 **A / B / NO-GO / INVALID**，显式带 deferred 列表。所有生产切流当前暂停；`production_candidate_libraries` 仅为研究裁决的参与库范围，不是切流授权。延期库不切流，语料增长过门槛后另行授权补证。
+
+### 角色、执行与证据闭集
+
+- builder、verifier、candidate implementer 使用独立 0700 工作区与独立进程；审计 PID、UID、真实 cwd、目录权限、独占调用 claim 及禁止读取矩阵。builder 禁读 verifier/implementer 数据与候选实现；verifier 可读 builder 私有产物但禁读 builder 代码及候选实现；implementer 禁读 query/expected 和 builder/verifier 私有产物。正式评分执行器另进程读取被冻结的 corpus/verified 输入，不作为 implementer 角色隔离证明。
+- Python 进程审计阻断禁止读取并记录计数，启动时实际测试拒读。harness 的 `role_separation_level` 必须为 `PROCESS_LEVEL_SEPARATION_SINGLE_UID` 或 `OS_UID_SEPARATION`，且 `role_audit_verified=true`。同 UID 只能报告前者，不声称 OS 用户隔离或任意 syscall 沙箱；三个固定角色 id 不能替代执行证明，null 一律 INVALID。
+- 第三轮三库部分题池整体归档作废并证明正式消费 0；第四轮使用新 UUID、新 seed、新 claim，不加载前三轮题池作为候选池、不消费或拼用旧池。builder/verifier 各一次，SSH 恢复先查 claim/PID/status，不重新提交已领取任务。
+- verify 后为本轮独占建立新的 before 时间窗口；旧 cwork 漂移按现状取样，禁止回滚或修复。before/after 同口径实测全部现有 index/alias/统计、三 Gateway health/身份/配置指纹、生产相关进程、容器/卷投影及 NAS 完整文件覆盖元数据；覆盖不足是 UNKNOWN，不由 health 推导。外部漂移记 false，不重建 baseline。
+- 正式前以合成 canary 实测正常和错误路径 query/title 日志禁用、Langfuse/tracing 禁用、私有输入模型 egress 限 loopback；不满足则不消费 holdout，不 patch WeKnora core。实际候选从空的新随机 UUID 数据面开始；禁 query/title/异常原文日志，不用预热结果代替四项 Gateway 能力验收。
+- freeze 绑定真实 artifact、依赖、模型权重、runbook 及单次输入；query/corpus/expected、路径等私有 digest 一律留 OPS。导出 digest 仅限预先登记的公开代码/发行物/无私有值配置/映射/查询计划/依赖。生产不变性 false/null 可按闭集记录并由 decision 判 INVALID，不能伪造成功以满足 JSON Schema；未完成正式运行的中止证据另用闭集 abort 格式，绝不假填正式指标。
+- 所有 OPS 长任务脱离式运行并写状态文件；finally 只清理本轮确认创建资源，创建结果未确认按精确随机名称调和。保留私有 holdout/freeze/审计，不删改生产/NAS/既有 index/alias/config，不 push。
+
+### v2 → v3 显式迁移与本地交付边界
+
+- v3 新增严格分区、完整容量轨迹、延期未运行指标和非空角色枚举。v2 的历史 Schema/实现可由基线 `c86519425e260a45a11a89917cb0c6600d46a11f` 回读；当前 harness 对 v2 明确报 `LEGACY_V2_REQUIRES_NEW_VERIFIED_RUN`，不自动补角色/floor/tier，也不重新解释历史 INVALID。
+- Schema 校验闭集与 floor 布尔、顺序和状态；harness 再重算计数合计、完整轨迹与指标分母等跨字段关系；真实 verifier 独立生成每 tier 的完整题池并比对选择，不共用 builder 的选择分支/floor 函数。三层必须同时成立，Schema-valid 不等于实测有效。
+- DEFERRED 指标只接受闭集 `{"status":"NOT_RUN_DEFERRED"}`；不接受零分或夹带其它字段。本实现不另设 null 写法，避免两种语义漂移。
+- 本次公开 [合成证据](evidence/amendment3-local-tests.json) 由 [严格 Schema](evidence/amendment3-local-tests.schema.json) 约束，不是 OPS 成绩。角色包装器只在本地合成 0700 工作区与独立子进程中验证；OPS 实测、原生日志/egress、固定 B binary 与 checkout 的构建绑定、全量生产覆盖及资源清理仍未验收。
+- 原生 runner 作为待实测源码保留、全部编译检查，不据此宣称可启动第四轮。当前 baseline 对未覆盖完整内容/配置/索引的同值投影输出 null（已测漂移输出 false）；装配器不得把它转成 true，harness 仍判 INVALID。Gateway 实验 HTTPS shell 证明不等于生产部署证明。

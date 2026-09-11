@@ -1,7 +1,7 @@
 # RT-Lite: RT-055 - 双通道 OpenSearch 与原版 WeKnora 检索决策实验
 
 > profile: Spec-Lite | execution_mode: collaborative
-> 当前终态：R 修订轮 INVALID（覆盖不足），清理完成、生产对比有漂移；正式 A/B 未运行。前文开发/历史停止点仅作追溯，以文末收口为准。
+> 当前状态：Amendment 3 本地修订收口；不启动 OPS 第四轮，生产切流暂停。R 修订轮 INVALID 与全部历史证据不改写；RT 选型目标仍未完成。以文末本地交付节为准。
 
 ## 方案（给人看）
 
@@ -129,3 +129,27 @@
 - 第二提交只含 RT-055 最终证据、acceptance、rt-lite 和必要的中止格式终态；不含 scripts/tests、runs/、docs/handover/，不 push。提交 hash 随回执交父会话；worktree clean 才算本地交付。
 
 详见 [本轮验收](evidence/acceptance.md#当前-r-修订轮失败收口2328-接管指令)。未决是已发现漂移的归属及未覆盖证明、被硬门挡住的正式阶段；它们不授予本轮重试资格。本轮收口完成、无后台任务；RT 选型目标未完成，不关闭。唯一下一步：父会话复核。
+
+## 2026-09-12 Amendment 3：本地第一提交预承诺与收口
+
+### 授权、前序与变更记录
+
+- Evan 明确批准固定 T3→T2→T1 与逐库 DEFERRED；本次只接管现有未提交改动、修复验证并本地提交，不启动第四轮、不连接 OPS/NAS/生产、不 push、不改 WeKnora core。无 reset/checkout 丢改动；25 个继承文件先保留本地保护副本，再逐项审阅修复。
+- 前序 `45a6080a01f4fb6f3ed1aeaa16e7f2d13dad59d4` → 基线 `c86519425e260a45a11a89917cb0c6600d46a11f` → 本 Amendment 3 第一提交。完整提交 hash 在提交后回执与 Git 中给出，不为自引用再造第二提交。
+- 此前没有正式候选运行或可用于选型的 A/B 结果；历史冒烟与预冻结容量失败不是候选成绩。旧 INVALID、r-round-abort、旧 aggregate/decision 保持字节不变，不把历史 31/16 池重新评级或消费，不构成按成绩重跑取 PASS。
+- 预承诺详见 [Amendment 3](experiment-protocol.md#amendment-3--固定容量-tier-与逐库延期2026-09-12运行前)：同一次构建、同一 seed，各 tier 独立完整派题，保留首个达 floor 的完整池；六类 floor 3/2/3/3/3/3、总数门 16，六类同时达标实际至少 17。T1 不足 DEFERRED，全延期 INVALID。至少一库参与，延期不进入 A/B/效用，所有生产切流暂停。
+- 合同升级 v3，拒绝静默迁移 v2；新增 Schema 状态/分区约束、独立 verifier 选择重放、严格角色与指标闭集。修复继承测试的可变全局 floor 别名污染、baseline 导入即执行/失败退出码、空库 max([])、freeze 空清单绕过、角色权限仅信账面的问题。保留全部新 runner，并修复 A 数据面计量与 B 辅助函数未定义变量。
+
+### 验证三格与证据边界
+
+- **工程判据**：继承 72 项通过不作修订已完成证据；新增 24 项先红，纠正两个容量 fixture 后仍有 11 个真实行为失败，修复后完整 RT-055 103 项通过、0 skip。四项真实代码破坏实验分别破坏首个有效 tier 选择、verifier 选择核验、延期指标拒绝、角色枚举拒绝，均使对应测试失败；源树不动，在隔离副本中破坏，回到原树再跑 103 项全绿。[结构化证据](evidence/amendment3-local-tests.json) / [白名单 Schema](evidence/amendment3-local-tests.schema.json)。
+- **AI 审查**：本接管会话完整审阅继承 diff、新 runner、协议及旧证据，检查坏实现能否穿过判据；没有另派独立 AI 评审，不冒充独立审批。新增回归确认三种库身份均能成为唯一参与者，参与库原有质量门和双通过效用不变。
+- **读产出**：实际读取本地合成 builder/verifier 的 31@T3、16→T2/T1→DEFERRED、T2/T1 放宽后的完整题池/排除核销结果与子进程审计；公开仅保留计数、枚举和通过布尔。真实 OPS 原文、题面、标识、路径和私有 digest 没有读取或导出。
+- 本地最终 Schema/编译/隐私/链接/AODW/governance/暂存范围门禁见 [本次验收](evidence/acceptance.md#amendment-3-本地第一提交2026-09-12)。完整 RT-055 回归不冒充全仓 `make ci-full`；当前不执行任何原生服务集成，不把未执行登记成 skip/PASS。
+
+### 未决实施风险（不启动 OPS）
+
+- OPS 三角色 0700/独立进程实测、原生正常及错误日志/egress 门、二进制与固定源码构建绑定、完整生产资源/索引/配置覆盖和精确清理仍需后续授权验证；本地编译不替代这些证明。
+- 同 UID 审计是 Python 进程级拒读，不是 OS 用户隔离或任意 syscall 沙箱。现有 baseline 未测完整不变性则输出 null，不能据此进入生产。
+- R 是当前快照重建而非历史原池；低 tier 放宽 query/token 后仍有历史语义迁移残余风险。旧 cwork/服务标签漂移未归因、未修复、未重置 baseline。
+- 本次交付只保留当前分支的一个本地提交；不关闭 RT，不合并、不 push、不清理 worktree，无 OPS 后台任务由本次启动。

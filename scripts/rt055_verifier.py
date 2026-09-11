@@ -23,6 +23,7 @@ ROOT = HERE.parent
 sys.path.insert(0, str(HERE))
 
 import rt055_exclusion as exclusion_gate
+import rt055_tiers as tiers
 import rt055_opslib as ops  # noqa: E402
 
 SAMPLING_VERSION = "ops-rt055-known-item-stratified-v1"
@@ -108,13 +109,14 @@ def table_line_contains(doc: dict, query: str) -> bool:
     return False
 
 
-def verify_library(kb_id: str, docs: Sequence[dict], generated: dict, seed: str, *, exclusion=None, eligible_ids=None) -> dict:
+def verify_library(kb_id: str, docs: Sequence[dict], generated: dict, seed: str, *, exclusion=None, eligible_ids=None, tier='T3') -> dict:
+    tiers.fields(tier)
     by_id = {doc["doc_id"]: doc for doc in docs}
     # Independently recompute the admissible source order, not builder output.
     allowed = [doc for doc in docs if (eligible_ids is None or doc['doc_id'] in eligible_ids)
-               and (exclusion is None or not any(exclusion_gate.intersections(doc, exclusion).values()))]
+               and (exclusion is None or not any(exclusion_gate.intersections(doc, exclusion, tier).values()))]
     locked = independent_locked_order(kb_id, allowed, seed)
-    exclusion_proof = (exclusion_gate.verify_exclusion(list(docs), exclusion, generated)
+    exclusion_proof = (exclusion_gate.verify_exclusion(list(docs), exclusion, generated, tier)
                        if exclusion is not None else {'verified': False})
     corpus_text = {doc_id: normalize("\n".join((d["title"], d["filename"], d["body"])))
                    for doc_id, d in by_id.items()}
@@ -197,7 +199,7 @@ def verify_library(kb_id: str, docs: Sequence[dict], generated: dict, seed: str,
 
     counts = Counter(row["category"] for row in verified)
     coverage = {category: {"target": TARGETS[category], "verified": counts[category],
-                           "ok": counts[category] >= TARGETS[category]}
+                           "floor": tiers.FLOORS[category], "ok": counts[category] >= tiers.FLOORS[category]}
                 for category in CATEGORIES}
     return {"kb_id": kb_id, "cases": verified, "case_total": len(verified),
             "category_counts": dict(counts), "category_coverage": coverage,
@@ -207,7 +209,86 @@ def verify_library(kb_id: str, docs: Sequence[dict], generated: dict, seed: str,
                            "reason_counts": dict(Counter(r["reason"] for r in rejected))}}
 
 
+def independent_replay(kb_id, docs, seed, authority, eligible_ids, tier):
+    """Independently enumerate the complete deterministic pool; never import builder."""
+    historical = exclusion_gate.historical
+    allowed, ledger = exclusion_gate.filter_sources(list(docs), authority, eligible_ids, tier)
+    by_id = {d['doc_id']:d for d in docs}
+    ordered = independent_locked_order(kb_id, allowed, seed)
+    text = {k:normalize('\n'.join((d['title'],d['filename'],d['body']))) for k,d in by_id.items()}
+    corpus = '\n'.join(text.values())
+    relations = {k:relation_tokens(d) for k,d in by_id.items()}
+    def owner(q):
+        found=[k for k,v in text.items() if normalize(q) and normalize(q) in v]
+        return found[0] if len(found)==1 else None
+    def mutate(base, origin):
+        digest=hashlib.sha256((SAMPLING_VERSION+'\x1f'+origin+'\x1f'+base).encode()).hexdigest()
+        for attempt in range(32):
+            suffix=''.join('qzxvkj'[int(c,16)%6] for c in digest[attempt:attempt+12])
+            q=f'zz{suffix}{attempt:02d}'
+            if q.casefold() not in corpus:return q
+        raise ValueError('no_absent_mutation')
+    rows=[]; counts=Counter()
+    for cat in CATEGORIES:
+        for lock, origin in enumerate(ordered):
+            if counts[cat]>=TARGETS[cat]:break
+            doc=by_id[origin]
+            if cat=='title_filename': options=historical.title_filename_candidates(doc)
+            elif cat=='exact_identifier_date': options=historical.exact_candidates(doc)
+            elif cat=='table_row': options=historical.table_candidates(doc)
+            else: options=historical.phrase_candidates(doc['body'])
+            for q in options:
+                if cat=='body_only_rare_phrase' and normalize(q) in normalize(doc['title']+'\n'+doc['filename']):continue
+                if owner(q)!=origin:continue
+                extra={}
+                if cat=='no_answer_mutation':q=mutate(q,origin);extra={'mutation_source':'rare_phrase'}
+                if cat=='near_neighbour':
+                    neighbours=[(len(relations[origin]&relations[other]),stable_int(seed,origin,other),other)
+                                for other in ordered if other!=origin and len(relations[origin]&relations[other])>=2]
+                    if not neighbours:continue
+                    extra={'neighbour_doc_id':max(neighbours)[2]}
+                if 'queries' in tiers.fields(tier) and exclusion_gate.normalize(q) in authority['queries']:raise ValueError('r_query_inventory_incomplete')
+                rows.append({'ordinal':len(rows),'kb_id':kb_id,'category':cat,'category_ordinal':counts[cat],
+                             'split':SPLIT,'query':q,'expected_doc_id':origin,'expected_lock_ordinal':lock,
+                             'expected_stratum':stratum(doc),'sampling_version':SAMPLING_VERSION,'seed':seed,**extra})
+                counts[cat]+=1;break
+    return {'cases':rows,'category_counts':dict(counts),'excluded_sources':ledger,'seed':seed}
+
+
+def verify_adaptive_library(kb_id, docs, generated, seed, *, exclusion, eligible_ids=None):
+    # Independent selector and floor arithmetic, not the builder's helper.
+    trace = []
+    selected = None
+    for tier in ('T3', 'T2', 'T1'):
+        pool = independent_replay(kb_id, docs, seed, exclusion, eligible_ids, tier)
+        counts = Counter(row['category'] for row in pool['cases'])
+        counts = {category: counts[category] for category in CATEGORIES}
+        minima = dict(zip(CATEGORIES, (3, 2, 3, 3, 3, 3)))
+        passed = len(pool['cases']) >= 16 and all(
+            minima[c] <= counts[c] <= TARGETS[c] for c in CATEGORIES)
+        trace.append({'tier': tier, 'category_counts': counts,
+                      'total_count': len(pool['cases']), 'floor_pass': passed})
+        if passed:
+            selected = tier
+            break
+    replay = {**pool, 'status': 'PARTICIPATING' if selected else 'DEFERRED',
+              'tier': selected, 'trace': trace, 'floors': minima,
+              'targets': dict(TARGETS), 'total_floor': 16,
+              'category_counts': counts if selected else dict.fromkeys(CATEGORIES, 0),
+              'cases': pool['cases'] if selected else []}
+    compare=('cases','seed','status','tier','trace','floors','targets','total_floor','category_counts','excluded_sources')
+    selection_ok=all(generated.get(k)==replay[k] for k in compare)
+    tier=replay['tier'] or 'T1'
+    checked=verify_library(kb_id,docs,generated,seed,exclusion=exclusion,eligible_ids=eligible_ids,tier=tier)
+    checked.update(status=replay['status'],tier=replay['tier'],selection_verified=selection_ok,
+                   validity=tiers.public_selection(replay,verified=selection_ok))
+    return checked
+
+
 def mode_verify_cases() -> int:
+    import os
+    with os.fdopen(os.open(HERE / 'single-verify-claim', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w') as claim:
+        claim.write('claimed')
     builder = ROOT / 'builder'
     manifest = ops.read_json(builder / 'private-manifest.json')
     if manifest.get('status') != 'OK':
@@ -231,6 +312,10 @@ def mode_verify_cases() -> int:
                 for kb, rows in source_libraries.items()}
     corpus_equal = corpus['libraries'] == filtered
     seed = candidates.get('seed')
+    claim = ops.read_json(builder/'single-build-claim.json')
+    claim_equal = (isinstance(seed, str) and bool(re.fullmatch(r'[0-9a-f]{32}', seed))
+                   and set(claim) == {'seed', 'single_build_claimed'}
+                   and claim.get('single_build_claimed') is True and claim.get('seed') == seed)
     schema_ok = (bool(seed) and candidates.get('schema') == 'cwk.rt055.ops-known-item-candidates.v1'
                  and candidates.get('sampling_version') == SAMPLING_VERSION
                  and candidates.get('split_version') == 'ops-rt055-single-use-holdout-v1'
@@ -238,15 +323,19 @@ def mode_verify_cases() -> int:
                  and set(candidates.get('libraries', {})) == set(ops.LIBRARIES))
     if not schema_ok:
         return 3
-    libraries = {kb: verify_library(kb, source_libraries[kb], candidates['libraries'][kb], seed,
+    libraries = {kb: verify_adaptive_library(kb, source_libraries[kb], candidates['libraries'][kb], seed,
                                     exclusion=authority,
                                     eligible_ids={doc['doc_id'] for doc in filtered[kb]})
                  for kb in ops.LIBRARIES}
-    coverage_ok = all(all(row['ok'] for row in lib['category_coverage'].values()) for lib in libraries.values())
-    denominators_ok = all(all(lib['category_counts'].get(category, 0) > 0 for category in CATEGORIES) for lib in libraries.values())
+    participating = {kb:lib for kb,lib in libraries.items() if lib['status']=='PARTICIPATING'}
+    coverage_ok = bool(participating) and all(lib['case_total'] >= 16 and all(row['ok'] for row in lib['category_coverage'].values()) for lib in participating.values())
+    denominators_ok = all(all(lib['category_counts'].get(category, 0) > 0 for category in CATEGORIES) for lib in participating.values())
     rejections = sum(lib['rejections']['total'] for lib in libraries.values())
     disjoint = all(lib['exclusion_verified'] for lib in libraries.values())
     gates = {
+        'single_build_seed_verified': claim_equal,
+        'selection_verified': all(lib['selection_verified'] for lib in libraries.values()),
+        'at_least_one_participating': bool(participating),
         'category_coverage_verified': coverage_ok,
         'denominators_nonzero_all_categories': denominators_ok,
         'rt054_pool_reconstructed': True,
@@ -264,7 +353,10 @@ def mode_verify_cases() -> int:
         'seed': seed, 'corpus_snapshot_sha256': ops.sha_file(builder / 'private-corpus.json'),
         'libraries': libraries})
     ops.write_private_json(HERE / 'case-verification.json', {
-        **gates, 'verified': ok, 'exclusion_authority_version': exclusion_gate.AUTHORITY_VERSION,
+        **gates, 'verified': ok,
+        'participating_libraries':list(participating),
+        'deferred_libraries':[kb for kb in ops.LIBRARIES if kb not in participating],
+        'library_validity':{kb:lib['validity'] for kb,lib in libraries.items()}, 'exclusion_authority_version': exclusion_gate.AUTHORITY_VERSION,
         'rt054_reconstruction_overlap_counts': {kb: lib['exclusion_proof']['overlap_counts'] for kb, lib in libraries.items()},
         'r_member_accounting': {kb: {key: lib['exclusion_proof'][key] for key in
                                    ('members_total', 'members_accounted', 'members_absent', 'members_unaccounted')}

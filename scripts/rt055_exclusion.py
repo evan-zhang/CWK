@@ -12,6 +12,7 @@ import unicodedata
 from collections import defaultdict
 
 import kb_stage_b_ops_cases as historical
+import rt055_tiers as tiers
 
 AUTHORITY_VERSION = 'rt055-current-snapshot-exclusion-r-v1'
 RT054_SEED = 'rt054-quality-v1-fixed-seed'
@@ -108,20 +109,21 @@ def validate_r(authority: dict) -> None:
         raise ValueError('r_member_coverage_mismatch')
 
 
-def intersections(doc: dict, authority: dict) -> dict:
+def intersections(doc: dict, authority: dict, tier='T3') -> dict:
+    active = tiers.fields(tier)
     return {
         'doc_ids': sorted({doc['doc_id']} & set(authority['doc_ids'])),
-        'queries': sorted(potential_queries(doc) & set(authority['queries'])),
-        'tokens': sorted(source_tokens(doc) & set(authority['tokens'])),
+        'queries': sorted(potential_queries(doc) & set(authority['queries'])) if 'queries' in active else [],
+        'tokens': sorted(source_tokens(doc) & set(authority['tokens'])) if 'tokens' in active else [],
     }
 
 
-def filter_sources(docs: list[dict], authority: dict, eligible_ids=None) -> tuple[list[dict], list[dict]]:
+def filter_sources(docs: list[dict], authority: dict, eligible_ids=None, tier='T3') -> tuple[list[dict], list[dict]]:
     validate_r(authority)
     eligible = {doc['doc_id'] for doc in docs} if eligible_ids is None else set(eligible_ids)
     allowed, ledger = [], []
     for doc in docs:
-        matches = intersections(doc, authority)
+        matches = intersections(doc, authority, tier)
         if any(matches.values()):
             ledger.append({'source_id': doc['doc_id'], 'matches': matches})
         elif doc['doc_id'] in eligible:
@@ -129,7 +131,7 @@ def filter_sources(docs: list[dict], authority: dict, eligible_ids=None) -> tupl
     return allowed, ledger
 
 
-def verify_exclusion(docs: list[dict], authority: dict, generated: dict) -> dict:
+def verify_exclusion(docs: list[dict], authority: dict, generated: dict, tier='T3') -> dict:
     """Independent reconciliation: recompute, never trust builder booleans.
 
     Check all emitted source references (expected AND distractor), every query,
@@ -146,7 +148,7 @@ def verify_exclusion(docs: list[dict], authority: dict, generated: dict) -> dict
             ledger_valid = False
             continue
         ledger[source_id] = row.get('matches')
-    computed = {source_id: intersections(doc, authority) for source_id, doc in by_id.items()}
+    computed = {source_id: intersections(doc, authority, tier) for source_id, doc in by_id.items()}
     for source_id, matches in computed.items():
         if any(matches.values()) and ledger.get(source_id) != matches:
             ledger_valid = False
@@ -180,7 +182,7 @@ def verify_exclusion(docs: list[dict], authority: dict, generated: dict) -> dict
         elif present <= ledger.keys() and all(ledger[source_id] == computed[source_id] and any(computed[source_id].values()) for source_id in present):
             accounted += 1
     unaccounted = len(authority['members']) - accounted
-    ok = ledger_valid and not unknown_sources and source_level_ok and not any(overlaps.values()) and unaccounted == 0
+    ok = ledger_valid and not unknown_sources and source_level_ok and not any(overlaps[field] for field in tiers.fields(tier)) and unaccounted == 0
     return {'verified': ok, 'overlap_counts': overlaps, 'ledger_verified': ledger_valid,
             'source_level_verified': source_level_ok, 'members_total': len(authority['members']),
             'members_accounted': accounted, 'members_absent': absent,

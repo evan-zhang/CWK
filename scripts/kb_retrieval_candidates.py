@@ -327,10 +327,10 @@ class WeKnoraCandidate:
     candidate_id = decision.CANDIDATE_B
 
     def __init__(self, request: Transport, kb_bindings: Mapping[str, str]):
-        if (set(kb_bindings) != set(decision.LIBRARIES)
-                or len(set(kb_bindings.values())) != len(decision.LIBRARIES)
+        if (not kb_bindings or not set(kb_bindings) <= set(decision.LIBRARIES)
+                or len(set(kb_bindings.values())) != len(kb_bindings)
                 or not all(SAFE_ID.fullmatch(v) for v in kb_bindings.values())):
-            raise CandidateError('three distinct native KB bindings required')
+            raise CandidateError('nonempty distinct participating native KB bindings required')
         self.request = request
         self.kb_bindings = dict(kb_bindings)
         self.documents: dict[str, tuple[str, str]] = {}

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "cwk.rt055.retrieval-decision.aggregate.v2",
+  "$id": "cwk.rt055.retrieval-decision.aggregate.v3",
   "title": "RT-055 OPS aggregate-only retrieval comparison",
   "type": "object",
   "additionalProperties": false,
@@ -12,11 +12,14 @@
     "verifier_attestations",
     "candidates",
     "cleanup",
-    "production_invariants"
+    "production_invariants",
+    "participating_libraries",
+    "deferred_libraries",
+    "library_validity"
   ],
   "properties": {
     "schema": {
-      "const": "cwk.rt055.retrieval-decision.aggregate.v2"
+      "const": "cwk.rt055.retrieval-decision.aggregate.v3"
     },
     "run_id": {
       "type": "string",
@@ -116,7 +119,9 @@
         "input_disjoint_verified",
         "category_coverage_verified",
         "aggregate_only_verified",
-        "no_private_digest_exported"
+        "no_private_digest_exported",
+        "role_separation_level",
+        "role_audit_verified"
       ],
       "properties": {
         "verifier_id": {
@@ -145,6 +150,15 @@
         },
         "candidate_implementer_id": {
           "const": "cwk-rt055-candidate-implementer"
+        },
+        "role_separation_level": {
+          "enum": [
+            "PROCESS_LEVEL_SEPARATION_SINGLE_UID",
+            "OS_UID_SEPARATION"
+          ]
+        },
+        "role_audit_verified": {
+          "const": true
         }
       }
     },
@@ -233,16 +247,125 @@
       ],
       "properties": {
         "nas_unchanged": {
-          "const": true
+          "type": [
+            "boolean",
+            "null"
+          ]
         },
         "gateway_unchanged": {
-          "const": true
+          "type": [
+            "boolean",
+            "null"
+          ]
         },
         "existing_indices_unchanged": {
-          "const": true
+          "type": [
+            "boolean",
+            "null"
+          ]
         },
         "production_config_unchanged": {
-          "const": true
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "participating_libraries": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "cwork-3m",
+          "docdb-touqian",
+          "spbp-2027"
+        ]
+      },
+      "enum": [
+        [
+          "cwork-3m"
+        ],
+        [
+          "docdb-touqian"
+        ],
+        [
+          "spbp-2027"
+        ],
+        [
+          "cwork-3m",
+          "docdb-touqian"
+        ],
+        [
+          "cwork-3m",
+          "spbp-2027"
+        ],
+        [
+          "docdb-touqian",
+          "spbp-2027"
+        ],
+        [
+          "cwork-3m",
+          "docdb-touqian",
+          "spbp-2027"
+        ]
+      ]
+    },
+    "deferred_libraries": {
+      "type": "array",
+      "maxItems": 2,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "cwork-3m",
+          "docdb-touqian",
+          "spbp-2027"
+        ]
+      },
+      "enum": [
+        [],
+        [
+          "cwork-3m"
+        ],
+        [
+          "docdb-touqian"
+        ],
+        [
+          "spbp-2027"
+        ],
+        [
+          "cwork-3m",
+          "docdb-touqian"
+        ],
+        [
+          "cwork-3m",
+          "spbp-2027"
+        ],
+        [
+          "docdb-touqian",
+          "spbp-2027"
+        ]
+      ]
+    },
+    "library_validity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cwork-3m",
+        "docdb-touqian",
+        "spbp-2027"
+      ],
+      "properties": {
+        "cwork-3m": {
+          "$ref": "#/$defs/libraryValidity"
+        },
+        "docdb-touqian": {
+          "$ref": "#/$defs/libraryValidity"
+        },
+        "spbp-2027": {
+          "$ref": "#/$defs/libraryValidity"
         }
       }
     }
@@ -374,13 +497,34 @@
       ],
       "properties": {
         "cwork-3m": {
-          "$ref": "#/$defs/libraryMetrics"
+          "oneOf": [
+            {
+              "$ref": "#/$defs/libraryMetrics"
+            },
+            {
+              "$ref": "#/$defs/deferredMetrics"
+            }
+          ]
         },
         "docdb-touqian": {
-          "$ref": "#/$defs/libraryMetrics"
+          "oneOf": [
+            {
+              "$ref": "#/$defs/libraryMetrics"
+            },
+            {
+              "$ref": "#/$defs/deferredMetrics"
+            }
+          ]
         },
         "spbp-2027": {
-          "$ref": "#/$defs/libraryMetrics"
+          "oneOf": [
+            {
+              "$ref": "#/$defs/libraryMetrics"
+            },
+            {
+              "$ref": "#/$defs/deferredMetrics"
+            }
+          ]
         }
       }
     },
@@ -638,6 +782,872 @@
           "$ref": "#/$defs/gateway"
         }
       }
+    },
+    "libraryValidity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "tier",
+        "category_counts",
+        "total_count",
+        "floors",
+        "total_floor",
+        "targets",
+        "trace",
+        "same_build_and_seed",
+        "complete_pool_verified"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "PARTICIPATING",
+            "DEFERRED"
+          ]
+        },
+        "tier": {
+          "enum": [
+            "T3",
+            "T2",
+            "T1",
+            null
+          ]
+        },
+        "category_counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "title_filename",
+            "exact_identifier_date",
+            "body_only_rare_phrase",
+            "table_row",
+            "no_answer_mutation",
+            "near_neighbour"
+          ],
+          "properties": {
+            "title_filename": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10
+            },
+            "exact_identifier_date": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 8
+            },
+            "body_only_rare_phrase": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10
+            },
+            "table_row": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "no_answer_mutation": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5
+            },
+            "near_neighbour": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5
+            }
+          }
+        },
+        "total_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 42
+        },
+        "floors": {
+          "const": {
+            "title_filename": 3,
+            "exact_identifier_date": 2,
+            "body_only_rare_phrase": 3,
+            "table_row": 3,
+            "no_answer_mutation": 3,
+            "near_neighbour": 3
+          }
+        },
+        "total_floor": {
+          "const": 16
+        },
+        "targets": {
+          "const": {
+            "title_filename": 10,
+            "exact_identifier_date": 8,
+            "body_only_rare_phrase": 10,
+            "table_row": 4,
+            "no_answer_mutation": 5,
+            "near_neighbour": 5
+          }
+        },
+        "trace": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "tier",
+              "category_counts",
+              "total_count",
+              "floor_pass"
+            ],
+            "properties": {
+              "tier": {
+                "enum": [
+                  "T3",
+                  "T2",
+                  "T1"
+                ]
+              },
+              "category_counts": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "title_filename",
+                  "exact_identifier_date",
+                  "body_only_rare_phrase",
+                  "table_row",
+                  "no_answer_mutation",
+                  "near_neighbour"
+                ],
+                "properties": {
+                  "title_filename": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10
+                  },
+                  "exact_identifier_date": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 8
+                  },
+                  "body_only_rare_phrase": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10
+                  },
+                  "table_row": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4
+                  },
+                  "no_answer_mutation": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 5
+                  },
+                  "near_neighbour": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 5
+                  }
+                }
+              },
+              "total_count": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 42
+              },
+              "floor_pass": {
+                "type": "boolean"
+              }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "category_counts": {
+                      "properties": {
+                        "title_filename": {
+                          "minimum": 3
+                        },
+                        "exact_identifier_date": {
+                          "minimum": 2
+                        },
+                        "body_only_rare_phrase": {
+                          "minimum": 3
+                        },
+                        "table_row": {
+                          "minimum": 3
+                        },
+                        "no_answer_mutation": {
+                          "minimum": 3
+                        },
+                        "near_neighbour": {
+                          "minimum": 3
+                        }
+                      }
+                    }
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "floor_pass": {
+                      "const": true
+                    },
+                    "total_count": {
+                      "minimum": 16
+                    }
+                  }
+                },
+                "else": {
+                  "properties": {
+                    "floor_pass": {
+                      "const": false
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "same_build_and_seed": {
+          "const": true
+        },
+        "complete_pool_verified": {
+          "const": true
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "status": {
+              "const": "PARTICIPATING"
+            },
+            "tier": {
+              "const": "T3"
+            },
+            "category_counts": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "title_filename",
+                "exact_identifier_date",
+                "body_only_rare_phrase",
+                "table_row",
+                "no_answer_mutation",
+                "near_neighbour"
+              ],
+              "properties": {
+                "title_filename": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 10
+                },
+                "exact_identifier_date": {
+                  "type": "integer",
+                  "minimum": 2,
+                  "maximum": 8
+                },
+                "body_only_rare_phrase": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 10
+                },
+                "table_row": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 4
+                },
+                "no_answer_mutation": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 5
+                },
+                "near_neighbour": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 5
+                }
+              }
+            },
+            "total_count": {
+              "minimum": 16
+            },
+            "trace": {
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "properties": {
+                    "tier": {
+                      "const": "T3"
+                    },
+                    "floor_pass": {
+                      "const": true
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "properties": {
+            "status": {
+              "const": "PARTICIPATING"
+            },
+            "tier": {
+              "const": "T2"
+            },
+            "category_counts": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "title_filename",
+                "exact_identifier_date",
+                "body_only_rare_phrase",
+                "table_row",
+                "no_answer_mutation",
+                "near_neighbour"
+              ],
+              "properties": {
+                "title_filename": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 10
+                },
+                "exact_identifier_date": {
+                  "type": "integer",
+                  "minimum": 2,
+                  "maximum": 8
+                },
+                "body_only_rare_phrase": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 10
+                },
+                "table_row": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 4
+                },
+                "no_answer_mutation": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 5
+                },
+                "near_neighbour": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 5
+                }
+              }
+            },
+            "total_count": {
+              "minimum": 16
+            },
+            "trace": {
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "properties": {
+                    "tier": {
+                      "const": "T3"
+                    },
+                    "floor_pass": {
+                      "const": false
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "tier": {
+                      "const": "T2"
+                    },
+                    "floor_pass": {
+                      "const": true
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "properties": {
+            "status": {
+              "const": "PARTICIPATING"
+            },
+            "tier": {
+              "const": "T1"
+            },
+            "category_counts": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "title_filename",
+                "exact_identifier_date",
+                "body_only_rare_phrase",
+                "table_row",
+                "no_answer_mutation",
+                "near_neighbour"
+              ],
+              "properties": {
+                "title_filename": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 10
+                },
+                "exact_identifier_date": {
+                  "type": "integer",
+                  "minimum": 2,
+                  "maximum": 8
+                },
+                "body_only_rare_phrase": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 10
+                },
+                "table_row": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 4
+                },
+                "no_answer_mutation": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 5
+                },
+                "near_neighbour": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 5
+                }
+              }
+            },
+            "total_count": {
+              "minimum": 16
+            },
+            "trace": {
+              "minItems": 3,
+              "maxItems": 3,
+              "prefixItems": [
+                {
+                  "properties": {
+                    "tier": {
+                      "const": "T3"
+                    },
+                    "floor_pass": {
+                      "const": false
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "tier": {
+                      "const": "T2"
+                    },
+                    "floor_pass": {
+                      "const": false
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "tier": {
+                      "const": "T1"
+                    },
+                    "floor_pass": {
+                      "const": true
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "properties": {
+            "status": {
+              "const": "DEFERRED"
+            },
+            "tier": {
+              "const": null
+            },
+            "total_count": {
+              "const": 0
+            },
+            "category_counts": {
+              "const": {
+                "title_filename": 0,
+                "exact_identifier_date": 0,
+                "body_only_rare_phrase": 0,
+                "table_row": 0,
+                "no_answer_mutation": 0,
+                "near_neighbour": 0
+              }
+            },
+            "trace": {
+              "minItems": 3,
+              "maxItems": 3,
+              "prefixItems": [
+                {
+                  "properties": {
+                    "tier": {
+                      "const": "T3"
+                    },
+                    "floor_pass": {
+                      "const": false
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "tier": {
+                      "const": "T2"
+                    },
+                    "floor_pass": {
+                      "const": false
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "tier": {
+                      "const": "T1"
+                    },
+                    "floor_pass": {
+                      "const": false
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "deferredMetrics": {
+      "const": {
+        "status": "NOT_RUN_DEFERRED"
+      }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "deferred_libraries": {
+            "contains": {
+              "const": "cwork-3m"
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "participating_libraries": {
+            "not": {
+              "contains": {
+                "const": "cwork-3m"
+              }
+            }
+          },
+          "library_validity": {
+            "properties": {
+              "cwork-3m": {
+                "properties": {
+                  "status": {
+                    "const": "DEFERRED"
+                  }
+                }
+              }
+            }
+          },
+          "candidates": {
+            "properties": {
+              "cwk-opensearch-dual-channel-v1": {
+                "properties": {
+                  "libraries": {
+                    "properties": {
+                      "cwork-3m": {
+                        "$ref": "#/$defs/deferredMetrics"
+                      }
+                    }
+                  }
+                }
+              },
+              "weknora-native-8d7298fb5d759973cb1e481cadc5ecdf16dca599": {
+                "properties": {
+                  "libraries": {
+                    "properties": {
+                      "cwork-3m": {
+                        "$ref": "#/$defs/deferredMetrics"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "participating_libraries": {
+            "contains": {
+              "const": "cwork-3m"
+            }
+          },
+          "library_validity": {
+            "properties": {
+              "cwork-3m": {
+                "properties": {
+                  "status": {
+                    "const": "PARTICIPATING"
+                  }
+                }
+              }
+            }
+          },
+          "candidates": {
+            "properties": {
+              "cwk-opensearch-dual-channel-v1": {
+                "properties": {
+                  "libraries": {
+                    "properties": {
+                      "cwork-3m": {
+                        "$ref": "#/$defs/libraryMetrics"
+                      }
+                    }
+                  }
+                }
+              },
+              "weknora-native-8d7298fb5d759973cb1e481cadc5ecdf16dca599": {
+                "properties": {
+                  "libraries": {
+                    "properties": {
+                      "cwork-3m": {
+                        "$ref": "#/$defs/libraryMetrics"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "deferred_libraries": {
+            "contains": {
+              "const": "docdb-touqian"
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "participating_libraries": {
+            "not": {
+              "contains": {
+                "const": "docdb-touqian"
+              }
+            }
+          },
+          "library_validity": {
+            "properties": {
+              "docdb-touqian": {
+                "properties": {
+                  "status": {
+                    "const": "DEFERRED"
+                  }
+                }
+              }
+            }
+          },
+          "candidates": {
+            "properties": {
+              "cwk-opensearch-dual-channel-v1": {
+                "properties": {
+                  "libraries": {
+                    "properties": {
+                      "docdb-touqian": {
+                        "$ref": "#/$defs/deferredMetrics"
+                      }
+                    }
+                  }
+                }
+              },
+              "weknora-native-8d7298fb5d759973cb1e481cadc5ecdf16dca599": {
+                "properties": {
+                  "libraries": {
+                    "properties": {
+                      "docdb-touqian": {
+                        "$ref": "#/$defs/deferredMetrics"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "participating_libraries": {
+            "contains": {
+              "const": "docdb-touqian"
+            }
+          },
+          "library_validity": {
+            "properties": {
+              "docdb-touqian": {
+                "properties": {
+                  "status": {
+                    "const": "PARTICIPATING"
+                  }
+                }
+              }
+            }
+          },
+          "candidates": {
+            "properties": {
+              "cwk-opensearch-dual-channel-v1": {
+                "properties": {
+                  "libraries": {
+                    "properties": {
+                      "docdb-touqian": {
+                        "$ref": "#/$defs/libraryMetrics"
+                      }
+                    }
+                  }
+                }
+              },
+              "weknora-native-8d7298fb5d759973cb1e481cadc5ecdf16dca599": {
+                "properties": {
+                  "libraries": {
+                    "properties": {
+                      "docdb-touqian": {
+                        "$ref": "#/$defs/libraryMetrics"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "deferred_libraries": {
+            "contains": {
+              "const": "spbp-2027"
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "participating_libraries": {
+            "not": {
+              "contains": {
+                "const": "spbp-2027"
+              }
+            }
+          },
+          "library_validity": {
+            "properties": {
+              "spbp-2027": {
+                "properties": {
+                  "status": {
+                    "const": "DEFERRED"
+                  }
+                }
+              }
+            }
+          },
+          "candidates": {
+            "properties": {
+              "cwk-opensearch-dual-channel-v1": {
+                "properties": {
+                  "libraries": {
+                    "properties": {
+                      "spbp-2027": {
+                        "$ref": "#/$defs/deferredMetrics"
+                      }
+                    }
+                  }
+                }
+              },
+              "weknora-native-8d7298fb5d759973cb1e481cadc5ecdf16dca599": {
+                "properties": {
+                  "libraries": {
+                    "properties": {
+                      "spbp-2027": {
+                        "$ref": "#/$defs/deferredMetrics"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "participating_libraries": {
+            "contains": {
+              "const": "spbp-2027"
+            }
+          },
+          "library_validity": {
+            "properties": {
+              "spbp-2027": {
+                "properties": {
+                  "status": {
+                    "const": "PARTICIPATING"
+                  }
+                }
+              }
+            }
+          },
+          "candidates": {
+            "properties": {
+              "cwk-opensearch-dual-channel-v1": {
+                "properties": {
+                  "libraries": {
+                    "properties": {
+                      "spbp-2027": {
+                        "$ref": "#/$defs/libraryMetrics"
+                      }
+                    }
+                  }
+                }
+              },
+              "weknora-native-8d7298fb5d759973cb1e481cadc5ecdf16dca599": {
+                "properties": {
+                  "libraries": {
+                    "properties": {
+                      "spbp-2027": {
+                        "$ref": "#/$defs/libraryMetrics"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$comment": "Amendment 3. Historical v2 remains at c86519425e260a45a11a89917cb0c6600d46a11f; no in-place migration. Arithmetic and artifact provenance require the decision harness and OPS verifier."
 }

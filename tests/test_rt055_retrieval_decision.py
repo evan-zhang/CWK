@@ -38,17 +38,17 @@ def freeze_receipt(*, weknora: bool = False) -> dict:
     return receipt
 
 
-def library_metrics(*, recall_hits: int = 46, exact_hits: int = 10,
-                    no_answer_correct: int = 10, leak: int = 0,
+def library_metrics(*, recall_hits: int = 34, exact_hits: int = 8,
+                    no_answer_correct: int = 5, leak: int = 0,
                     multiplier: float = 1) -> dict:
     return {
-        "total_count": 60, "answerable_count": 50, "recall_hits_at_10": recall_hits,
-        "exact_count": 10, "exact_hits": exact_hits, "no_answer_count": 10,
+        "total_count": 42, "answerable_count": 37, "recall_hits_at_10": recall_hits,
+        "exact_count": 8, "exact_hits": exact_hits, "no_answer_count": 5,
         "no_answer_correct": no_answer_correct, "system_error_count": 0,
         "answerable_system_error_count": 0, "exact_system_error_count": 0,
         "no_answer_system_error_count": 0, "timeout_count": 0,
-        "recall_at_10": recall_hits / 50,
-        "exact": exact_hits / 10, "no_answer": no_answer_correct / 10,
+        "recall_at_10": recall_hits / 37,
+        "exact": exact_hits / 8, "no_answer": no_answer_correct / 5,
         "leak_count": leak, "p95_ms": 400 * multiplier,
         "index_bytes": int(100_000_000 * multiplier),
         "build_seconds": 1000 * multiplier,
@@ -90,6 +90,12 @@ def candidate_b(*, multiplier: float = 1) -> dict:
 def valid_report() -> dict:
     return {
         "schema": decision.SCHEMA,
+        "participating_libraries": list(decision.LIBRARIES), "deferred_libraries": [],
+        "library_validity": {kb: {
+            'status':'PARTICIPATING','tier':'T3','category_counts':dict(decision.tiers.TARGETS),'total_count':42,
+            'floors':dict(decision.tiers.FLOORS),'total_floor':16,'targets':dict(decision.tiers.TARGETS),
+            'trace':[{'tier':'T3','category_counts':dict(decision.tiers.TARGETS),'total_count':42,'floor_pass':True}],
+            'same_build_and_seed':True,'complete_pool_verified':True} for kb in decision.LIBRARIES},
         "run_id": "12345678-1234-4234-8234-123456789abc",
         "holdout_contract": {
             "version": decision.HOLDOUT_VERSION, "created_after_rt054": True,
@@ -110,6 +116,7 @@ def valid_report() -> dict:
             "rt054_pool_excluded": True, "input_disjoint_verified": True,
             "category_coverage_verified": True, "aggregate_only_verified": True,
             "no_private_digest_exported": True,
+            "role_separation_level":"PROCESS_LEVEL_SEPARATION_SINGLE_UID", "role_audit_verified":True,
         },
         "candidates": {decision.CANDIDATE_A: candidate_a(), decision.CANDIDATE_B: candidate_b()},
         "cleanup": {"private_holdout_retained_on_ops": True,
@@ -219,9 +226,9 @@ class CountAndMeasurementTests(unittest.TestCase):
     def test_candidate_denominators_must_match_same_frozen_cases(self):
         report = valid_report()
         row = report["candidates"][decision.CANDIDATE_B]["libraries"]["cwork-3m"]
-        row["total_count"] = 61
-        row["no_answer_count"] = 11
-        row["no_answer"] = 10 / 11
+        row["total_count"] = 43
+        row["no_answer_count"] = 6
+        row["no_answer"] = 5 / 6
         with self.assertRaisesRegex(decision.ReportError, "must match across candidates"):
             decision.validate_report(report)
 
@@ -255,7 +262,7 @@ class DecisionBehaviorTests(unittest.TestCase):
     def test_quality_gates_are_per_library(self):
         report = valid_report()
         row = report["candidates"][decision.CANDIDATE_A]["libraries"]["docdb-touqian"]
-        row["exact_hits"] = 9; row["exact"] = .9
+        row["exact_hits"] = 7; row["exact"] = 7 / 8
         result = decision.decide(report)
         self.assertIn("docdb-touqian:exact", result["candidate_gates"][decision.CANDIDATE_A]["failures"])
         self.assertEqual(result["selected"], decision.CANDIDATE_B)
@@ -288,7 +295,7 @@ class DecisionBehaviorTests(unittest.TestCase):
         report = valid_report()
         for candidate in report["candidates"].values():
             row = candidate["libraries"]["cwork-3m"]
-            row["recall_hits_at_10"] = 44; row["recall_at_10"] = .88
+            row["recall_hits_at_10"] = 32; row["recall_at_10"] = 32 / 37
         result = decision.decide(report)
         self.assertEqual(result["status"], "NO-GO"); self.assertIsNone(result["selected"])
 
