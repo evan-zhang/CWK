@@ -249,6 +249,39 @@ class RunnerBoundaryTests(unittest.TestCase):
             env={'PATH':os.environ['PATH'],'PYTHONDONTWRITEBYTECODE':'1'},capture_output=True,timeout=20)
         self.assertEqual(proc.returncode,0)
 
+    def test_baseline_before_success_does_not_execute_after_comparison(self):
+        import rt055_baseline as baseline
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td);(root/'status').mkdir();(root/'audit').mkdir()
+            with patch.object(baseline,'ROOT',root), patch.object(baseline,'local_state',return_value={'synthetic':True}), patch.object(baseline,'nas_state',return_value={'synthetic':True}):
+                self.assertEqual(baseline.main(['before']),0)
+                state=json.loads((root/'status/baseline-before.json').read_text())
+                self.assertEqual(state['status'],'PASS')
+                self.assertTrue((root/'audit/production-before.json').is_file())
+                self.assertFalse((root/'audit/production-comparison.json').exists())
+                original=(root/'audit/production-before.json').read_bytes()
+                with self.assertRaises(FileExistsError):baseline.main(['before'])
+                self.assertEqual(original,(root/'audit/production-before.json').read_bytes())
+
+    def test_baseline_after_keeps_unknown_and_measured_drift(self):
+        import rt055_baseline as baseline
+        local=dict(gateways=[],health={'8787':dict(stable_sha256='synthetic',http_200=True)},
+                   existing_search_indices={},configuration={},containers=[],volumes=[],services=[])
+        nas={kb:dict(existing_indices={},index_content_fingerprints={},configuration_sha256='synthetic') for kb in baseline.ops.LIBRARIES}
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td);(root/'status').mkdir();(root/'audit').mkdir()
+            before=dict(local=copy.deepcopy(local),nas=copy.deepcopy(nas))
+            (root/'audit/production-before.json').write_text(json.dumps(before))
+            nas['cwork-3m']['index_content_fingerprints']['synthetic-index']='changed'
+            with patch.object(baseline,'ROOT',root), patch.object(baseline,'local_state',return_value=local), patch.object(baseline,'nas_state',return_value=nas):
+                self.assertEqual(baseline.main(['after']),0)
+            comparison=json.loads((root/'audit/production-comparison.json').read_text())
+            self.assertIs(comparison['nas_unchanged'],False)
+            self.assertIs(comparison['existing_indices_unchanged'],False)
+            self.assertIsNone(comparison['production_config_unchanged'])
+            self.assertIs(comparison['all_items_measured'],False)
+            self.assertEqual(json.loads((root/'audit/production-before.json').read_text()),before)
+
     def test_freeze_rejects_empty_artifact_manifest_before_external_checks(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td);(root/'freeze').mkdir()

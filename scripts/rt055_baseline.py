@@ -211,15 +211,15 @@ def main(argv=None):
                 'containers_unchanged': a['containers'] == b['containers'], 'volumes_unchanged':a['volumes']==b['volumes'], 'services_unchanged': a['services'] == b['services'],
                 'three_gateways_healthy': all(row['http_200'] for row in b['health'].values()), 'all_items_measured': False}
             # This collector has complete NAS metadata, but not all file bytes,
-        # every production dependency/process, volume contents, or an owner-
-        # enumerated registry of ALL search endpoints. Preserve measured drift;
-        # an equal projection cannot attest the stronger complete invariant.
-        for field in ('nas_unchanged', 'existing_indices_unchanged', 'production_config_unchanged'):
-            comparison[field + '_measured_projection'] = comparison[field]
-            comparison[field] = False if comparison[field] is False else None
-        if not all(comparison[k] for k in ('containers_unchanged', 'volumes_unchanged', 'services_unchanged')):
-            comparison['production_config_unchanged'] = False
-        ops.write_private_json(ROOT / 'audit/production-comparison.json', comparison)
+            # every production dependency/process, volume contents, or an owner-
+            # enumerated registry of ALL search endpoints. Preserve measured drift;
+            # an equal projection cannot attest the stronger complete invariant.
+            for field in ('nas_unchanged', 'existing_indices_unchanged', 'production_config_unchanged'):
+                comparison[field + '_measured_projection'] = comparison[field]
+                comparison[field] = False if comparison[field] is False else None
+            if not all(comparison[k] for k in ('containers_unchanged', 'volumes_unchanged', 'services_unchanged')):
+                comparison['production_config_unchanged'] = False
+            ops.write_private_json(ROOT / 'audit/production-comparison.json', comparison)
         state.update(status='PASS', phase='COMPLETE', finished_at=time.time())
     except Exception as exc:
         state.update(status='FAIL', error_kind=type(exc).__name__, finished_at=time.time())

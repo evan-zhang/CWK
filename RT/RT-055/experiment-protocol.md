@@ -149,6 +149,10 @@ Evan 已批准本 Amendment 3 的容量规则；2026-09-12 00:24 本次指令只
 - freeze 绑定真实 artifact、依赖、模型权重、runbook 及单次输入；query/corpus/expected、路径等私有 digest 一律留 OPS。导出 digest 仅限预先登记的公开代码/发行物/无私有值配置/映射/查询计划/依赖。生产不变性 false/null 可按闭集记录并由 decision 判 INVALID，不能伪造成功以满足 JSON Schema；未完成正式运行的中止证据另用闭集 abort 格式，绝不假填正式指标。
 - 所有 OPS 长任务脱离式运行并写状态文件；finally 只清理本轮确认创建资源，创建结果未确认按精确随机名称调和。保留私有 holdout/freeze/审计，不删改生产/NAS/既有 index/alias/config，不 push。
 
+### 第四轮 OPS 执行授权与必要执行器修复（2026-09-12 00:50）
+
+Evan 本次明确授权执行第四轮 OPS 全闭环，覆盖上文只做本地第一提交的阶段停止条件；Amendment 3 第一提交为 `2cc386394610bd22f8a833d80304de95651d552e`，规则和历史证据不改。执行前检查发现 baseline 的 after 比较分支缩进错误：before 成功采集仍引用未定义的 comparison 并失败。合成成功路径实际复现退出 3，新增回归后只修该分支缩进，另测 after 保留 false/null 和原 baseline 不变；先单独提交修复再同步 OPS。未在发现前启动第四轮 builder、verifier、freeze 或候选；不属于按数据改规则、重抽或重跑。授权允许此类必须先提交的真实执行器修复，最终证据提交独立保留。
+
 ### v2 → v3 显式迁移与本地交付边界
 
 - v3 新增严格分区、完整容量轨迹、延期未运行指标和非空角色枚举。v2 的历史 Schema/实现可由基线 `c86519425e260a45a11a89917cb0c6600d46a11f` 回读；当前 harness 对 v2 明确报 `LEGACY_V2_REQUIRES_NEW_VERIFIED_RUN`，不自动补角色/floor/tier，也不重新解释历史 INVALID。
