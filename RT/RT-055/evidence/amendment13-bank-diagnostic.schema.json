@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "all_private_string_leaves_and_json_variants",
+    "bank_construction_attempts",
+    "candidate_synthetic_invocations",
+    "capacity_weakened",
+    "controller_attempts",
+    "controller_commands_invoked",
+    "current_source_privacy_gate",
+    "diagnostic_only_no_filter_reconstruction",
+    "error",
+    "failed_stage",
+    "failure_retried",
+    "input_bytes_unchanged",
+    "leaf_over_capacity",
+    "maximum_leaf_cap_bytes",
+    "maximum_needle_bytes",
+    "needle_bank_sent_to_candidate",
+    "needle_bank_written_to_disk",
+    "needle_count",
+    "needle_values_or_digests_exported",
+    "needles_subsetted",
+    "original_failure_preserved",
+    "pattern_bytes",
+    "pattern_cap_bytes",
+    "privacy_runner_invocations",
+    "private_json_files",
+    "public_canaries_included",
+    "schema",
+    "status",
+    "total_bank_over_capacity"
+  ],
+  "properties": {
+    "all_private_string_leaves_and_json_variants": {
+      "const": true
+    },
+    "bank_construction_attempts": {
+      "const": 1
+    },
+    "candidate_synthetic_invocations": {
+      "const": 0
+    },
+    "capacity_weakened": {
+      "const": false
+    },
+    "controller_attempts": {
+      "const": 1
+    },
+    "controller_commands_invoked": {
+      "const": 0
+    },
+    "current_source_privacy_gate": {
+      "const": "FAIL"
+    },
+    "diagnostic_only_no_filter_reconstruction": {
+      "const": true
+    },
+    "error": {
+      "const": "CAPACITY"
+    },
+    "failed_stage": {
+      "const": "FULL_PRIVATE_BANK_CAPACITY"
+    },
+    "failure_retried": {
+      "const": false
+    },
+    "input_bytes_unchanged": {
+      "const": true
+    },
+    "leaf_over_capacity": {
+      "const": true
+    },
+    "maximum_leaf_cap_bytes": {
+      "const": 8388608
+    },
+    "maximum_needle_bytes": {
+      "const": 47978891
+    },
+    "needle_bank_sent_to_candidate": {
+      "const": false
+    },
+    "needle_bank_written_to_disk": {
+      "const": false
+    },
+    "needle_count": {
+      "const": 6481
+    },
+    "needle_values_or_digests_exported": {
+      "const": false
+    },
+    "needles_subsetted": {
+      "const": false
+    },
+    "original_failure_preserved": {
+      "const": true
+    },
+    "pattern_bytes": {
+      "const": 285809127
+    },
+    "pattern_cap_bytes": {
+      "const": 134217728
+    },
+    "privacy_runner_invocations": {
+      "const": 0
+    },
+    "private_json_files": {
+      "const": 11
+    },
+    "public_canaries_included": {
+      "const": true
+    },
+    "schema": {
+      "const": "cwk.rt055.amendment13-bank-diagnostic.v1"
+    },
+    "status": {
+      "const": "READONLY_DIAGNOSED_FAILURE_PRESERVED"
+    },
+    "total_bank_over_capacity": {
+      "const": true
+    }
+  }
+}

@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "regression_tests",
+    "regression_failures",
+    "regression_errors",
+    "regression_skipped",
+    "public_behavior_mutations_detected",
+    "restored_green_after_mutations",
+    "compiled_python_files",
+    "preqa_schemas",
+    "preqa_negative_schema_mutations",
+    "final_schemas",
+    "final_negative_schema_mutations",
+    "private_field_or_digest_hits",
+    "credential_hits",
+    "old_public_files_byte_identical",
+    "old_documents_prefix_preserved",
+    "formal_metric_null_count",
+    "gateway_capability_null_count",
+    "append_only_scope_verified",
+    "source_after_gate_unchanged",
+    "aodw_check",
+    "governance_audit",
+    "full_make_ci_run",
+    "third_party_agent_review_claimed",
+    "parent_source_semantic_review",
+    "independent_ops_terminal_audit",
+    "independent_audit_process_exited",
+    "bank_count_diagnostic_did_not_retry_filter_or_privacy",
+    "private_values_or_digests_exported",
+    "production_cutover_allowed"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.amendment13-qa.v1"
+    },
+    "status": {
+      "const": "PASS"
+    },
+    "regression_tests": {
+      "const": 280
+    },
+    "regression_failures": {
+      "const": 0
+    },
+    "regression_errors": {
+      "const": 0
+    },
+    "regression_skipped": {
+      "const": 0
+    },
+    "public_behavior_mutations_detected": {
+      "const": 10
+    },
+    "restored_green_after_mutations": {
+      "const": true
+    },
+    "compiled_python_files": {
+      "const": 142
+    },
+    "preqa_schemas": {
+      "const": 8
+    },
+    "preqa_negative_schema_mutations": {
+      "const": 1213
+    },
+    "final_schemas": {
+      "const": 9
+    },
+    "final_negative_schema_mutations": {
+      "const": 1285
+    },
+    "private_field_or_digest_hits": {
+      "const": 0
+    },
+    "credential_hits": {
+      "const": 0
+    },
+    "old_public_files_byte_identical": {
+      "const": 181
+    },
+    "old_documents_prefix_preserved": {
+      "const": 3
+    },
+    "formal_metric_null_count": {
+      "const": 120
+    },
+    "gateway_capability_null_count": {
+      "const": 24
+    },
+    "append_only_scope_verified": {
+      "const": true
+    },
+    "source_after_gate_unchanged": {
+      "const": true
+    },
+    "aodw_check": {
+      "const": "PASS"
+    },
+    "governance_audit": {
+      "const": "PASS"
+    },
+    "full_make_ci_run": {
+      "const": false
+    },
+    "third_party_agent_review_claimed": {
+      "const": false
+    },
+    "parent_source_semantic_review": {
+      "const": true
+    },
+    "independent_ops_terminal_audit": {
+      "const": "PASS_WITH_HISTORICAL_AND_CURRENT_FAILURES_PRESERVED"
+    },
+    "independent_audit_process_exited": {
+      "const": true
+    },
+    "bank_count_diagnostic_did_not_retry_filter_or_privacy": {
+      "const": true
+    },
+    "private_values_or_digests_exported": {
+      "const": false
+    },
+    "production_cutover_allowed": {
+      "const": false
+    }
+  }
+}

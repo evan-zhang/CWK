@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "decision",
+    "deferred_libraries",
+    "error_code",
+    "participating_libraries",
+    "production_candidate_libraries",
+    "run_id",
+    "schema",
+    "selected",
+    "status",
+    "window_id"
+  ],
+  "properties": {
+    "decision": {
+      "const": "INVALID"
+    },
+    "deferred_libraries": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 0
+    },
+    "error_code": {
+      "const": "CURRENT_SOURCE_PRIVACY_GATE_FAILED"
+    },
+    "participating_libraries": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "prefixItems": [
+        {
+          "const": "cwork-3m"
+        },
+        {
+          "const": "docdb-touqian"
+        },
+        {
+          "const": "spbp-2027"
+        }
+      ]
+    },
+    "production_candidate_libraries": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 0
+    },
+    "run_id": {
+      "const": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af"
+    },
+    "schema": {
+      "const": "cwk.rt055.retrieval-decision.result.v3"
+    },
+    "selected": {
+      "const": null
+    },
+    "status": {
+      "const": "INVALID"
+    },
+    "window_id": {
+      "const": "be602a43-c84f-4d02-94fa-10cdb7ad268b"
+    }
+  }
+}

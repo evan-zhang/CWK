@@ -497,3 +497,12 @@ RT055回归265项与源码红绿/行为破坏通过；最终Schema negatives、�
 修复只影响旧作废证明的核验：核对原冻结链和归档源码哈希后，仅提取原公开源码里的纯 `evaluate` 谓词与固定 KINDS；不 import 归档模块，不执行 initializer，不授予 I/O 或 Popen。原判据的 FAIL 仍被拒绝，源码 hash 不符仍被拒绝。旧 exposure 永不可 void、所有旧 claim/私有字节/冻结链检查不变。当前 migration 仍独立要求最新 `evaluate_current` 的完整 bank + 独立 PID 强门，不能使用此历史核验作为放行。
 
 部署后续采用独立 append-only resolution/resume claim：先确认第一次没有 source/隐私/候选副作用，再在 controller 内使用已提交、hash-bound 的新公开核验器做只读 preflight；首次 source 安装和单次 current privacy 预算均未提前消费。旧部署失败回执不覆盖，旧 gate 不重跑。
+
+
+### Amendment 13 实际终态：INVALID_CLOSED（2026-09-12）
+
+当前完整内存 bank 为 285,809,127 bytes / 最长 needle 47,978,891 bytes，分别超过既有 128 MiB / 8 MiB 上限，CAPACITY 硬失败。controller/bank construction=1/1；synthetic privacy runner=0，workload/readiness/before/freeze/formal=0，A/B=0/0，exposure/query=0。没有子集降级、放宽容量门或重试；当前 socket/firewall/postscan 为 NOT_RUN，不冒充 PASS。
+
+唯一 cleanup PASS → after FAIL（无 fresh before、0 库、不重试）→ abort/INVALID 裁决已独立核验。120 正式指标、24 Gateway 能力全 null；聚合未生成。历史 UNKNOWN/FAIL 及首次部署前置失败均保留，历史原字节与 96 材料、builder/verifier 1/1 保持，残留 0，Gateway 3×200/ok/read_only=true；完整 NAS/index UNKNOWN、历史 services/config false 不清除。RT-055 选型尚未完成。
+
+详见 [Amendment 13 完整收口](evidence/amendment13-summary.md)。

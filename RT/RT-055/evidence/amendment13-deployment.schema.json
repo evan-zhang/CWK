@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "archived_source_files",
+    "builder_runs",
+    "executioner_migration_id",
+    "global_exposure",
+    "historical_bytes_equal",
+    "historical_prior_files_verified",
+    "history_files_verified",
+    "new_window_id",
+    "old_after_retried",
+    "old_after_status",
+    "old_window_id",
+    "previous_archive_bytes_equal",
+    "previous_archived_files",
+    "retained_bytes_equal",
+    "retained_files",
+    "run_id",
+    "scoring_archive_id",
+    "source_commit",
+    "source_files_changed",
+    "status",
+    "verifier_runs",
+    "workload_authorized_runs",
+    "workload_reason",
+    "original_deployment_precheck_status",
+    "original_failure_stage",
+    "original_failure_reason",
+    "original_source_installs",
+    "original_current_privacy_invocations",
+    "append_only_resolution",
+    "first_source_install_verified",
+    "original_failure_overwritten",
+    "current_gate_failure_retried"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.amendment13-deployment.v1"
+    },
+    "archived_source_files": {
+      "const": 27
+    },
+    "builder_runs": {
+      "const": 1
+    },
+    "executioner_migration_id": {
+      "const": "a5769e70-da2f-447a-84ea-6ba1c21a2eca"
+    },
+    "global_exposure": {
+      "const": 0
+    },
+    "historical_bytes_equal": {
+      "const": true
+    },
+    "historical_prior_files_verified": {
+      "const": 390197
+    },
+    "history_files_verified": {
+      "const": 390258
+    },
+    "new_window_id": {
+      "const": "be602a43-c84f-4d02-94fa-10cdb7ad268b"
+    },
+    "old_after_retried": {
+      "const": false
+    },
+    "old_after_status": {
+      "const": "FAIL"
+    },
+    "old_window_id": {
+      "const": "999c334f-5018-4d83-b571-b406f49fe605"
+    },
+    "previous_archive_bytes_equal": {
+      "const": true
+    },
+    "previous_archived_files": {
+      "const": 27
+    },
+    "retained_bytes_equal": {
+      "const": true
+    },
+    "retained_files": {
+      "const": 96
+    },
+    "run_id": {
+      "const": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af"
+    },
+    "scoring_archive_id": {
+      "const": "0ed37551-86f9-478e-a3dd-a422faa5d477"
+    },
+    "source_commit": {
+      "const": "982da5492cfcd7c56719c5e29f1fc075dbab4983"
+    },
+    "source_files_changed": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "prefixItems": [
+        {
+          "const": "rt055_runtime.py"
+        },
+        {
+          "const": "rt055_confidentiality.py"
+        },
+        {
+          "const": "rt055_zero_exposure.py"
+        },
+        {
+          "const": "rt055_candidate_startup.py"
+        },
+        {
+          "const": "rt055_log_firewall.py"
+        },
+        {
+          "const": "rt055_workload_readiness.py"
+        }
+      ]
+    },
+    "status": {
+      "const": "ARCHIVED_AND_DEPLOYED"
+    },
+    "verifier_runs": {
+      "const": 1
+    },
+    "workload_authorized_runs": {
+      "const": 1
+    },
+    "workload_reason": {
+      "const": "SOURCE_BINDING_REQUIRES_NEW_WORKLOAD"
+    },
+    "original_deployment_precheck_status": {
+      "const": "FAILED_PRESERVED"
+    },
+    "original_failure_stage": {
+      "const": "PRECHECK"
+    },
+    "original_failure_reason": {
+      "const": "HISTORICAL_PREDICATE_VERSION_MISMATCH"
+    },
+    "original_source_installs": {
+      "const": 0
+    },
+    "original_current_privacy_invocations": {
+      "const": 0
+    },
+    "append_only_resolution": {
+      "const": "SOURCE_BOUND_ORIGINAL_PREDICATE_VERIFIED"
+    },
+    "first_source_install_verified": {
+      "const": true
+    },
+    "original_failure_overwritten": {
+      "const": false
+    },
+    "current_gate_failure_retried": {
+      "const": false
+    }
+  }
+}

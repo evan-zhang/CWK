@@ -1,0 +1,522 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "amendment10_candidate_log_checks",
+    "amendment10_controller_log_checks",
+    "amendment11_event_binding_available",
+    "amendment11_external_observations",
+    "amendment11_log_checks",
+    "amendment11_socket_attribution",
+    "amendment11_socket_samples",
+    "amendment11_window_status",
+    "amendment12_causal_attribution",
+    "amendment12_current_privacy_invocations",
+    "amendment12_extended_scan",
+    "amendment12_first_audit",
+    "amendment12_window_status",
+    "historical_invalid_preserved",
+    "historical_transfer_proven",
+    "legacy_zero_exposure_original_contract_verified",
+    "matched_literal_also_exact_public_source_constant_count",
+    "matched_literals_count",
+    "old_after_retried",
+    "old_failures_reclassified",
+    "old_windows",
+    "old_windows_reopened",
+    "original_deployment_precheck_error",
+    "original_deployment_precheck_failure_preserved",
+    "history_files_verified",
+    "historical_prior_files_verified",
+    "history_bytes_equal",
+    "retained_files",
+    "builder_runs",
+    "verifier_runs",
+    "old_request_failed_root_cause"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.amendment13-historical-preservation.v1"
+    },
+    "amendment10_candidate_log_checks": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "all_streams_verified",
+            "archived_log_files",
+            "firewall_verified",
+            "independent_scan_hit_files",
+            "postscan_hit_files",
+            "postscan_passed",
+            "redactions",
+            "remaining_owned_runtime",
+            "streams",
+            "workspace_cleanup_complete"
+          ],
+          "properties": {
+            "all_streams_verified": {
+              "const": true
+            },
+            "archived_log_files": {
+              "const": 6
+            },
+            "firewall_verified": {
+              "const": true
+            },
+            "independent_scan_hit_files": {
+              "const": 0
+            },
+            "postscan_hit_files": {
+              "const": 0
+            },
+            "postscan_passed": {
+              "const": true
+            },
+            "redactions": {
+              "const": 9
+            },
+            "remaining_owned_runtime": {
+              "const": 0
+            },
+            "streams": {
+              "const": 6
+            },
+            "workspace_cleanup_complete": {
+              "const": true
+            }
+          }
+        }
+      ]
+    },
+    "amendment10_controller_log_checks": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "closed",
+            "eof",
+            "error",
+            "independent_postscan_hit_files",
+            "postscan_hits",
+            "verified"
+          ],
+          "properties": {
+            "closed": {
+              "const": true
+            },
+            "eof": {
+              "const": true
+            },
+            "error": {
+              "const": "CHILD_NONZERO"
+            },
+            "independent_postscan_hit_files": {
+              "const": 0
+            },
+            "postscan_hits": {
+              "const": 0
+            },
+            "verified": {
+              "const": false
+            }
+          }
+        }
+      ]
+    },
+    "amendment11_event_binding_available": {
+      "const": false
+    },
+    "amendment11_external_observations": {
+      "const": 1
+    },
+    "amendment11_log_checks": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "all_streams_verified",
+            "archived_log_files",
+            "expanded_original_scope_hit_files",
+            "firewall_verified",
+            "independent_scan_hit_files",
+            "postscan_hit_files",
+            "postscan_passed",
+            "redactions",
+            "remaining_owned_runtime",
+            "streams",
+            "workspace_cleanup_complete"
+          ],
+          "properties": {
+            "all_streams_verified": {
+              "const": true
+            },
+            "archived_log_files": {
+              "const": 1
+            },
+            "expanded_original_scope_hit_files": {
+              "const": 1
+            },
+            "firewall_verified": {
+              "const": true
+            },
+            "independent_scan_hit_files": {
+              "const": 0
+            },
+            "postscan_hit_files": {
+              "const": 0
+            },
+            "postscan_passed": {
+              "const": true
+            },
+            "redactions": {
+              "const": 0
+            },
+            "remaining_owned_runtime": {
+              "const": 0
+            },
+            "streams": {
+              "const": 1
+            },
+            "workspace_cleanup_complete": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "all_streams_verified",
+            "archived_log_files",
+            "expanded_original_scope_hit_files",
+            "firewall_verified",
+            "independent_scan_hit_files",
+            "postscan_hit_files",
+            "postscan_passed",
+            "redactions",
+            "remaining_owned_runtime",
+            "streams",
+            "workspace_cleanup_complete"
+          ],
+          "properties": {
+            "all_streams_verified": {
+              "const": true
+            },
+            "archived_log_files": {
+              "const": 2
+            },
+            "expanded_original_scope_hit_files": {
+              "const": 0
+            },
+            "firewall_verified": {
+              "const": true
+            },
+            "independent_scan_hit_files": {
+              "const": 0
+            },
+            "postscan_hit_files": {
+              "const": 0
+            },
+            "postscan_passed": {
+              "const": true
+            },
+            "redactions": {
+              "const": 0
+            },
+            "remaining_owned_runtime": {
+              "const": 0
+            },
+            "streams": {
+              "const": 2
+            },
+            "workspace_cleanup_complete": {
+              "const": true
+            }
+          }
+        }
+      ]
+    },
+    "amendment11_socket_attribution": {
+      "const": "UNKNOWN"
+    },
+    "amendment11_socket_samples": {
+      "const": 108
+    },
+    "amendment11_window_status": {
+      "const": "INVALID_CLOSED"
+    },
+    "amendment12_causal_attribution": {
+      "const": "UNKNOWN"
+    },
+    "amendment12_current_privacy_invocations": {
+      "const": 0
+    },
+    "amendment12_extended_scan": {
+      "const": "FAIL"
+    },
+    "amendment12_first_audit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "error_kind",
+        "phase",
+        "status"
+      ],
+      "properties": {
+        "error_kind": {
+          "const": "AssertionError"
+        },
+        "phase": {
+          "const": "LOG_FIREWALL"
+        },
+        "status": {
+          "const": "AUDIT_FAILED"
+        }
+      }
+    },
+    "amendment12_window_status": {
+      "const": "INVALID_CLOSED"
+    },
+    "historical_invalid_preserved": {
+      "const": true
+    },
+    "historical_transfer_proven": {
+      "const": null
+    },
+    "legacy_zero_exposure_original_contract_verified": {
+      "const": true
+    },
+    "matched_literal_also_exact_public_source_constant_count": {
+      "const": 1
+    },
+    "matched_literals_count": {
+      "const": 1
+    },
+    "old_after_retried": {
+      "const": false
+    },
+    "old_failures_reclassified": {
+      "const": false
+    },
+    "old_windows": {
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 7,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "after_status",
+            "decision",
+            "source_evidence_preserved",
+            "window_id"
+          ],
+          "properties": {
+            "after_status": {
+              "const": "PASS"
+            },
+            "decision": {
+              "const": "INVALID"
+            },
+            "source_evidence_preserved": {
+              "const": true
+            },
+            "window_id": {
+              "const": "0155202c-b6a0-40c6-a779-48aff0ab57fe"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "after_status",
+            "decision",
+            "source_evidence_preserved",
+            "window_id"
+          ],
+          "properties": {
+            "after_status": {
+              "const": "FAIL"
+            },
+            "decision": {
+              "const": "INVALID"
+            },
+            "source_evidence_preserved": {
+              "const": true
+            },
+            "window_id": {
+              "const": "3330a46e-bfdd-4639-bb0c-ea5c1b3df622"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "after_status",
+            "decision",
+            "source_evidence_preserved",
+            "window_id"
+          ],
+          "properties": {
+            "after_status": {
+              "const": "PASS"
+            },
+            "decision": {
+              "const": "INVALID"
+            },
+            "source_evidence_preserved": {
+              "const": true
+            },
+            "window_id": {
+              "const": "835c5188-0f29-4f41-8fe6-119b61917e2d"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "after_status",
+            "decision",
+            "source_evidence_preserved",
+            "window_id"
+          ],
+          "properties": {
+            "after_status": {
+              "const": "FAIL"
+            },
+            "decision": {
+              "const": "INVALID"
+            },
+            "source_evidence_preserved": {
+              "const": true
+            },
+            "window_id": {
+              "const": "999c334f-5018-4d83-b571-b406f49fe605"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "after_status",
+            "decision",
+            "source_evidence_preserved",
+            "window_id"
+          ],
+          "properties": {
+            "after_status": {
+              "const": "PASS"
+            },
+            "decision": {
+              "const": "INVALID"
+            },
+            "source_evidence_preserved": {
+              "const": true
+            },
+            "window_id": {
+              "const": "be3ab168-0568-4d39-a06e-824b4cd26a58"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "after_status",
+            "decision",
+            "source_evidence_preserved",
+            "window_id"
+          ],
+          "properties": {
+            "after_status": {
+              "const": "PASS"
+            },
+            "decision": {
+              "const": "INVALID"
+            },
+            "source_evidence_preserved": {
+              "const": true
+            },
+            "window_id": {
+              "const": "c66757c6-93f6-481d-aa92-be7de83b9aa1"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "after_status",
+            "decision",
+            "source_evidence_preserved",
+            "window_id"
+          ],
+          "properties": {
+            "after_status": {
+              "const": "PASS"
+            },
+            "decision": {
+              "const": "INVALID"
+            },
+            "source_evidence_preserved": {
+              "const": true
+            },
+            "window_id": {
+              "const": "d408cfab-40f7-41d3-8ccb-75fb0aaa2b65"
+            }
+          }
+        }
+      ]
+    },
+    "old_windows_reopened": {
+      "const": false
+    },
+    "original_deployment_precheck_error": {
+      "const": "HISTORICAL_PREDICATE_VERSION_MISMATCH"
+    },
+    "original_deployment_precheck_failure_preserved": {
+      "const": true
+    },
+    "history_files_verified": {
+      "const": 390258
+    },
+    "historical_prior_files_verified": {
+      "const": 390197
+    },
+    "history_bytes_equal": {
+      "const": true
+    },
+    "retained_files": {
+      "const": 96
+    },
+    "builder_runs": {
+      "const": 1
+    },
+    "verifier_runs": {
+      "const": 1
+    },
+    "old_request_failed_root_cause": {
+      "const": "UNKNOWN"
+    }
+  }
+}
