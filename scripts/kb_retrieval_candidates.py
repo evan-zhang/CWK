@@ -59,7 +59,7 @@ class NativeImportState(str, Enum):
     FAILED = "failed"
 
 def native_import_state(value):
-    if value in ("pending", "processing", "unprocessed", "parsing"):
+    if value in ("pending", "processing", "unprocessed", "parsing", "finalizing"):
         return NativeImportState.PENDING
     if value == "completed":return NativeImportState.COMPLETED
     if value in ("failed", "error"):return NativeImportState.FAILED

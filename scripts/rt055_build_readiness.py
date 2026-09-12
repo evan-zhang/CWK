@@ -12,7 +12,18 @@ class NativeHTTPError(kbc.CandidateError):
         self.code=value if value in HTTP_CODES else 'NATIVE_HTTP_OTHER'
         super().__init__(self.code)
 
-CODES=HTTP_CODES+('NONE','NATIVE_PENDING','NATIVE_TERMINAL_FAILED','BUILD_DEADLINE','REQUEST_FAILED','SCOPE_INVALID','FIREWALL_FAILED','UNKNOWN_EXECUTION_FAILURE','IMPORT_CONTRACT_REJECTED')
+# Exact public exception constants only; unmatched text is never exported.
+REQUEST_CODES={
+    'native ingestion status invalid':'NATIVE_STATE_UNRECOGNIZED',
+    'invalid native ingestion receipt':'NATIVE_RECEIPT_INVALID',
+    'response size exceeded':'NATIVE_RESPONSE_SIZE_EXCEEDED',
+    'native response json invalid':'NATIVE_RESPONSE_JSON_INVALID',
+    'native response encoding invalid':'NATIVE_RESPONSE_ENCODING_INVALID',
+    'native transport failed':'NATIVE_TRANSPORT_FAILED',
+    'redirect refused':'NATIVE_REDIRECT_REFUSED',
+    'invalid request path':'NATIVE_ROUTE_INVALID',
+}
+CODES=HTTP_CODES+tuple(REQUEST_CODES.values())+('NONE','NATIVE_PENDING','NATIVE_TERMINAL_FAILED','BUILD_DEADLINE','REQUEST_FAILED','SCOPE_INVALID','FIREWALL_FAILED','UNKNOWN_EXECUTION_FAILURE','IMPORT_CONTRACT_REJECTED')
 def error_code(exc):
     if isinstance(exc,kbc.CandidateImportContractError):return 'IMPORT_CONTRACT_REJECTED'
     if isinstance(exc,NativeHTTPError):return exc.code
@@ -21,7 +32,7 @@ def error_code(exc):
     if isinstance(exc,kbc.CandidatePending):return 'NATIVE_PENDING'
     if isinstance(exc,kbc.CandidateTimeout):return 'BUILD_DEADLINE'
     if isinstance(exc,kbc.CandidateLeak):return 'SCOPE_INVALID'
-    if isinstance(exc,kbc.CandidateError):return 'REQUEST_FAILED'
+    if isinstance(exc,kbc.CandidateError):return REQUEST_CODES.get(str(exc),'REQUEST_FAILED')
     return 'UNKNOWN_EXECUTION_FAILURE'
 def counts(transport):
     return {kb:{'imported':len(transport.imported[kb]),'completed':len(transport.completed[kb]),

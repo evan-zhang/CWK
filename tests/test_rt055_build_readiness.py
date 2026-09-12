@@ -65,3 +65,38 @@ class NativeReadinessTests(unittest.TestCase):
         for status in (400,422,500,999):
             e=build.NativeHTTPError(status);self.assertIn(build.error_code(e),build.HTTP_CODES)
             self.assertEqual(str(e),build.error_code(e))
+
+class ClosedRequestDiagnosticTests(unittest.TestCase):
+    def test_error_messages_map_only_to_closed_codes(self):
+        mapping={'native ingestion status invalid':'NATIVE_STATE_UNRECOGNIZED',
+            'invalid native ingestion receipt':'NATIVE_RECEIPT_INVALID',
+            'response size exceeded':'NATIVE_RESPONSE_SIZE_EXCEEDED',
+            'native response json invalid':'NATIVE_RESPONSE_JSON_INVALID',
+            'native response encoding invalid':'NATIVE_RESPONSE_ENCODING_INVALID',
+            'native transport failed':'NATIVE_TRANSPORT_FAILED',
+            'redirect refused':'NATIVE_REDIRECT_REFUSED',
+            'invalid request path':'NATIVE_ROUTE_INVALID'}
+        for text,code in mapping.items():
+            self.assertEqual(build.error_code(kbc.CandidateError(text)),code)
+            self.assertIn(code,build.CODES)
+        self.assertEqual(build.error_code(kbc.CandidateError('PUBLIC_CANARY http://secret.invalid private-path')),'REQUEST_FAILED')
+    def test_transport_errors_are_classified_without_retry_or_body(self):
+        import urllib.error
+        cases=[(OSError('PUBLIC_CANARY'),'NATIVE_TRANSPORT_FAILED'),
+            (urllib.error.URLError('PUBLIC_CANARY'),'NATIVE_TRANSPORT_FAILED'),
+            (TimeoutError('PUBLIC_CANARY'),'BUILD_DEADLINE')]
+        t=b.RoutingTransport();t.add_server('cwork-3m',{'kb_id':'public-kb','base_url':'http://127.0.0.1:1','token':'public-token'})
+        for error,code in cases:
+            opener=Mock();opener.open.side_effect=error
+            with patch.object(b.urllib.request,'build_opener',return_value=opener):
+                with self.assertRaises(kbc.CandidateError) as ctx:t._request('GET','/api/v1/knowledge/public-id',None,1,'cwork-3m')
+            self.assertEqual(build.error_code(ctx.exception),code);self.assertNotIn('CANARY',str(ctx.exception));self.assertEqual(opener.open.call_count,1)
+    def test_response_shape_encoding_size_remain_bounded(self):
+        t=b.RoutingTransport();t.add_server('cwork-3m',{'kb_id':'public-kb','base_url':'http://127.0.0.1:1','token':'public-token'})
+        for body,code in [(b'{PUBLIC_CANARY','NATIVE_RESPONSE_JSON_INVALID'),(b'\xff','NATIVE_RESPONSE_ENCODING_INVALID'),(b'x'*(kbc.MAX_RESPONSE_BYTES+1),'NATIVE_RESPONSE_SIZE_EXCEEDED')]:
+            from unittest.mock import MagicMock
+            opener=MagicMock();response=opener.open.return_value.__enter__.return_value;response.read.return_value=body
+            with patch.object(b.urllib.request,'build_opener',return_value=opener):
+                with self.assertRaises(kbc.CandidateError) as ctx:t._request('GET','/api/v1/knowledge/public-id',None,1,'cwork-3m')
+            self.assertEqual(build.error_code(ctx.exception),code);self.assertNotIn('CANARY',str(ctx.exception))
+            response.read.assert_called_once_with(kbc.MAX_RESPONSE_BYTES+1);self.assertEqual(opener.open.call_count,1)

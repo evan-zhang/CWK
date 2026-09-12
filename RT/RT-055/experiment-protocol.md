@@ -503,3 +503,17 @@ B CWork42份56.203秒完成；投前31份导入后1 failed/30 pending，立即�
 ## Amendment 10 唯一正式执行收口 — INVALID
 
 Source `43207eefbe30557b53d556055fa5438c8afe47ee`；本窗 `be3ab168-0568-4d39-a06e-824b4cd26a58`；顺序 B → A，原 coordinator 1次，A/B attempts=0/1。B 首库IMPORT阶段 REQUEST_FAILED；arm/exposure/query/score/complete/result逐库全0，不重放、不启动A。原formal `WAITING_RECONCILIATION / EXECUTION_ATTEMPT_FAILED / RUN_B` 保留，独立失败helper1次完成 cleanup→after→abort/唯一INVALID decision；before PASS，after PASS（claim1不重试），cleanup0，无任务/临时数据面残留。候选6流firewall/scan通过；coordinator firewall false/CHILD_NONZERO、后置scan0，失败值如实保留。正式20指标及Gateway四能力缺测全部null；机械向量A=1/6/4，B=2/7/3来自冻结runbook。96材料、42/31/42、builder/verifier1/1及历史字节保持；旧Am9 after FAIL不重试。完整NAS/index UNKNOWN及历史drift不清除，未改生产，不切流，不以INVALID关闭选型RT。详见[完整证据、逐库指标及QA](evidence/amendment10-summary.md)。仅本地提交，不push/merge/清worktree。
+
+## Amendment 11 — 原生 finalizing 合同与封闭请求诊断（2026-09-12）
+
+从 Amendment 10 的唯一 INVALID/INVALID_CLOSED 终态接续。旧 ead/89ed migration、be3/7652 window、所有 claim/attempt/freeze/after/decision 原件永久只读；旧 coordinator 不重启，旧候选不重放。
+
+只读诊断确认旧 B 首库 imported30/completed29/pending1/failed0、IMPORT、REQUEST_FAILED，未耗尽7200秒。6路已验证净化日志独立扫描0；仅有3个 MISSING_TABLE 标记，没有异常子型或 finalizing 观测。旧回执只保留通用异常，无法证明 transport/server、输入/响应大小、状态竞态或其它子型，旧根因严格保留 **UNKNOWN**；不把 SQL 标记或后续成功倒推成旧根因。
+
+固定公开 WeKnora `8d7298fb5d759973cb1e481cadc5ecdf16dca599` 的 `internal/types/knowledge.go` 和 `internal/types/interfaces/knowledge.go` 明确：`finalizing` 是主解析完成、附加子任务尚未结束的合法中间态，最后子任务才原子晋升 completed。现有适配器漏掉该状态；独立公开合成序列复现 CandidateError/REQUEST_FAILED。这是已证实的适配合同缺口，但不是旧私有故障的已证因果归属。
+
+- 最小行为修复仅将 finalizing 纳入 pending：继续 GET 同一ID，仍只有 completed 才允许下一 POST 或 READY；finalizing 不晋升 completed，不重导入、不延长统一deadline，不改 core、检索/质量/分母/seed/tier/floor/题池/7200或A/B对称门。
+- 错误观测仅将既有常量异常映射为封闭码：未知原生状态、无效导入回执、响应大小超限、响应JSON/编码错误、transport失败、redirect拒绝、route无效。HTTP闭枚举、deadline和terminal失败优先级不变；未知异常仍 REQUEST_FAILED。不保存或导出HTTP body、异常原文、私有状态值、ID/路径/内容/query/expected/哈希；无新增重试策略。
+- 新 source commit、新 append-only migration/archive及新随机window。源码绑定要求新公开privacy与同形workload **仅运行1次**，原因 SOURCE_BINDING_REQUIRES_NEW_WORKLOAD；不为取PASS重复。独立合成finalizing红绿不是原生OPS workload，也不冒充正式成绩。
+- 全部 source/privacy/runtime/workspace/scoring/freeze/zero-exposure/no-Popen/Gateway/readiness 门通过后才按一次新随机冻结顺序正式执行；每候选最多1 attempt，任一 exposure 后绝不重放。builder/verifier保持1/1。
+- 新窗 fresh before；失败同窗 cleanup→after唯一尝试→append-only abort/唯一decision。原formal错误终态不改写；不可测正式指标与Gateway四能力null。完整NAS/index UNKNOWN和历史services/config漂移保留。最终独立核验日志/账本/无残留/3路健康/96材料和历史字节；仅本地提交，禁止push/merge/清worktree/生产改动。

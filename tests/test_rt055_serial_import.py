@@ -138,3 +138,40 @@ class SerializedTests(unittest.TestCase):
             receipt['logs'][0]['overflow']=True
             with patch.object(work.fw,'finalize',return_value=receipt),patch.object(work.cw,'scan',return_value={'passed':True,'hit_files':0}):
                 with self.assertRaises(fw.FirewallError):work.finalize_streams(space,{},['public'])
+
+class FinalizingContractTests(unittest.TestCase):
+    """Pinned native finalizing is not completed; reproduce scheduling without private input."""
+    def test_finalizing_waits_for_completed_before_next_post(self):
+        events=[];states=iter(('processing','finalizing','finalizing','completed','finalizing','completed'));current=[0]
+        def request(method,path,payload,timeout):
+            if method=='POST':current[0]+=1;state='pending'
+            else:state=next(states)
+            events.append((method,state))
+            return {'success':True,'data':{'id':'public-'+str(current[0]),'knowledge_base_id':'public-kb','parse_status':state}}
+        c=kbc.WeKnoraCandidate(request,{KB:'public-kb'})
+        with patch.object(kbc.time,'sleep'):c.build(docs(),timeout=2)
+        self.assertTrue(c.ready)
+        posts=[i for i,x in enumerate(events) if x[0]=='POST'];self.assertEqual(len(posts),2)
+        self.assertEqual(events[posts[1]-1],('GET','completed'))
+        self.assertEqual(sum(x==('GET','finalizing') for x in events),3)
+    def test_finalizing_never_becomes_ready_at_deadline(self):
+        calls=[]
+        def request(method,path,payload,timeout):
+            calls.append(method)
+            return {'success':True,'data':{'id':'public-1','knowledge_base_id':'public-kb','parse_status':'finalizing'}}
+        c=kbc.WeKnoraCandidate(request,{KB:'public-kb'})
+        with self.assertRaises(kbc.CandidateTimeout):c.build(docs(),timeout=.01)
+        self.assertFalse(c.ready);self.assertEqual(calls.count('POST'),1)
+    def test_finalizing_then_failed_aborts_no_reimport(self):
+        states=iter(('pending','finalizing','failed'));calls=[]
+        def request(method,path,payload,timeout):
+            calls.append(method)
+            return {'success':True,'data':{'id':'public-1','knowledge_base_id':'public-kb','parse_status':next(states)}}
+        c=kbc.WeKnoraCandidate(request,{KB:'public-kb'})
+        with patch.object(kbc.time,'sleep'):
+            with self.assertRaises(kbc.CandidateBuildFailed):c.build(docs(),timeout=2)
+        self.assertEqual(calls,['POST','GET','GET']);self.assertFalse(c.ready)
+    def test_unrecognized_state_remains_closed_failure(self):
+        with self.assertRaises(kbc.CandidateError) as ctx:kbc.native_import_state('PUBLIC_UNRECOGNIZED_CANARY')
+        self.assertEqual(build.error_code(ctx.exception),'NATIVE_STATE_UNRECOGNIZED')
+        self.assertNotIn('CANARY',str(ctx.exception))

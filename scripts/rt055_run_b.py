@@ -158,8 +158,12 @@ class RoutingTransport:
         except urllib.error.HTTPError as exc:
             status=exc.code;exc.close()
             raise build_readiness.NativeHTTPError(status) from None
-        except (ValueError, OSError):
-            raise kbc.CandidateError("native request failed") from None
+        except UnicodeError:
+            raise kbc.CandidateError("native response encoding invalid") from None
+        except ValueError:
+            raise kbc.CandidateError("native response json invalid") from None
+        except OSError:
+            raise kbc.CandidateError("native transport failed") from None
         self._instrument(method, path, payload, data, kb)
         if self.observer:self.observer()
         return data
