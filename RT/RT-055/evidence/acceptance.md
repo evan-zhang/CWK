@@ -693,3 +693,19 @@ window `c66757c6-93f6-481d-aa92-be7de83b9aa1`，migration `11b62e31-ddbe-469e-ba
 - **读真实产出**：只读OPS运行失败类型、arm/exposure/score/complete/result、39文件日志扫描摘要、Gateway布尔探针、cleanup/after/归档/源绑定与闭集输出；不导出私有query/原文/expected/title/filename/path/doc_id/locator/body/片段或私有hash。
 
 [公开abort](amendment6-formal-abort.json) · [闭集Schema](amendment6-formal-abort.schema.json) · [唯一裁决](amendment6-formal-decision.json) · [QA](amendment6-formal-qa.json)。OPS先同window保存公开abort再运行冻结裁决器一次；本地仅接收allowlist，裁决一致。仅本地提交公开证据/QA与两份RT文档，不push、不合并、不清worktree，不含runs/或docs/handover/。失败收口完成，正式A/B比较仍未完成，RT保持in_progress，禁止切流；无后台实验任务。
+
+## Amendment 7 本地修复 — pre-exposure scorer 输入合同
+
+公开合成红测复现同题不同 identity 被旧 scorer 拒绝；OPS 只读复核 4/4/5 个合法跨类别二元组，
+未导出 query/expected/doc_id/ordinal 等值或私有 hash。严格 `(kb, ordinal)` trial、legacy
+重复拒绝、同题冲突拒绝、完整分母、A/B shared loader、主 input readiness 和 freeze/coordinator
+接线见 [Amendment 7](../experiment-protocol.md#amendment-7--scoring-input-readiness2026-09-12)。
+
+判据使用公开 fixture 的真实 pure validator/loader/readiness，测试 before claim 前拒绝、
+错 source/window/receipt/after/exposure 时零 attempt/Popen，保留全池逐行计数和原子 exposure。
+行为破坏在临时副本运行，恢复绿后记入公开 synthetic QA。源码第一提交仅表示本地修复，
+不能代替主 OPS readiness；新 READY 及实测 QA 另行追加，正式 A/B 不执行。
+
+人工式源码自查聚焦：不放宽 legacy、no_evidence 原始语义、私有 identity 不进 repr、
+main/synthetic 边界、无正式 attempt 副作用、历史字节不修改。未调用独立 reviewer Agent；
+主会话读实际 fixture 输出、diff 和 OPS 闭合投影，不以 worker 自报代替核验。

@@ -1,0 +1,126 @@
+{
+  "schema": "cwk.rt055.scoring-input-tests.v1",
+  "data_class": "PUBLIC_SYNTHETIC_ONLY",
+  "red": {
+    "tests": 1,
+    "errors": 1,
+    "failure": "DUPLICATE_QUERY_PREEXPOSURE"
+  },
+  "green": {
+    "tests": 219,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exit_code": 0
+  },
+  "mutations": [
+    {
+      "name": "DUPLICATE_IDENTITY_ALLOWED",
+      "detected": true,
+      "tests": 18,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1
+    },
+    {
+      "name": "CONFLICTING_QUERY_ALLOWED",
+      "detected": true,
+      "tests": 18,
+      "failures": 3,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1
+    },
+    {
+      "name": "IDENTITY_LOST_BY_LOADER",
+      "detected": true,
+      "tests": 18,
+      "failures": 1,
+      "errors": 6,
+      "skipped": 0,
+      "exit_code": 1
+    },
+    {
+      "name": "EXACT_COERCED",
+      "detected": true,
+      "tests": 18,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1
+    },
+    {
+      "name": "REPR_DISCLOSES_IDENTITY",
+      "detected": true,
+      "tests": 18,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1
+    },
+    {
+      "name": "NO_EVIDENCE_ORIGIN_CONFLICT_ALLOWED",
+      "detected": true,
+      "tests": 18,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1
+    },
+    {
+      "name": "MAIN_BEFORE_GATE_DISCONNECTED",
+      "detected": true,
+      "tests": 18,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1
+    },
+    {
+      "name": "COORDINATOR_GATE_DISCONNECTED",
+      "detected": true,
+      "tests": 18,
+      "failures": 4,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1
+    },
+    {
+      "name": "FREEZE_READINESS_BINDING_LOST",
+      "detected": true,
+      "tests": 18,
+      "failures": 3,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1
+    },
+    {
+      "name": "BEFORE_ORDERING_IGNORED",
+      "detected": true,
+      "tests": 18,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1
+    },
+    {
+      "name": "INPUT_TOTALS_IGNORED",
+      "detected": true,
+      "tests": 18,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1
+    }
+  ],
+  "formal_queries": 0,
+  "ops_calls": 0,
+  "restored_green": {
+    "tests": 219,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exit_code": 0
+  }
+}

@@ -214,6 +214,9 @@ def main(argv=None):
     args = parser.parse_args(argv); mode = args.mode
     w = window.directory(ROOT,args.window_id) if args.window_id else ROOT
     binding = window.envelope(ROOT,args.window_id,mode) if args.window_id else {}
+    if args.window_id and mode=='before':
+        from rt055_scoring_input import before_precheck
+        before_precheck(ROOT,args.window_id)
     (w/'status').mkdir(parents=True,mode=0o700,exist_ok=True)
     os.umask(0o077)
     STATUS = w / 'status' / ('baseline-' + mode + '.json')

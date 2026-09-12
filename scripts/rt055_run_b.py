@@ -284,13 +284,8 @@ def load_documents(corpus: dict, kb: str):
 
 
 def load_cases(verified: dict) -> list[kbc.Case]:
-    cases = []
-    for kb, lib in verified["libraries"].items():
-        for row in lib["cases"]:
-            expected = frozenset(() if row["expected_outcome"] == "no_evidence"
-                                 else (row["expected_doc_id"],))
-            cases.append(kbc.Case(kb, row["query"], expected, bool(row["exact"])))
-    return cases
+    from rt055_scoring_input import load_cases as load_private_trials
+    return load_private_trials(verified)
 
 
 def sqlite_bytes(data_dir: Path) -> int:

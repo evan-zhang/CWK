@@ -28,6 +28,9 @@ def main(argv=None):
     parser.add_argument('--closeout-invalid',action='store_true')
     args=parser.parse_args(argv)
     os.umask(0o077);w=window.directory(ROOT,args.window_id)
+    if not args.closeout_invalid:
+        from rt055_scoring_input import coordinator_precheck
+        coordinator_precheck(ROOT,args.window_id,args.privacy_migration_id)
     (w/'status').mkdir(parents=True,mode=0o700,exist_ok=True)
     lock=(w/'status/controller.lock').open('a')
     fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)

@@ -359,6 +359,8 @@
         "scripts/rt055_runtime_readiness_qa.py",
         "scripts/rt055_candidate_workspace.py",
         "scripts/rt055_candidate_startup.py",
+        "scripts/rt055_scoring_input.py",
+        "scripts/rt055_scoring_input_qa.py",
         "scripts/rt055_candidate_workspace_qa.py",
         "scripts/rt055_setup.py",
         "scripts/rt055_tiers.py",

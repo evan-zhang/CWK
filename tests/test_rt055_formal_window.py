@@ -31,7 +31,10 @@ class WindowTests(unittest.TestCase):
         self.nas={kb:dict(existing_indices={},index_content_fingerprints={},configuration_sha256='synthetic') for kb in runtime.ops.LIBRARIES}
 
     def collect(self,mode='before',wid=None):
-        with patch.object(baseline,'ROOT',self.root),patch.object(baseline,'local_state',return_value=copy.deepcopy(self.local)),patch.object(baseline,'nas_state',return_value=copy.deepcopy(self.nas)):
+        # Baseline-only fixtures have no pool; full freeze fixtures use the real gate.
+        import rt055_scoring_input as scoring
+        gate=contextlib.nullcontext() if (self.root/'verifier/case-verification.json').exists() else patch.object(scoring,'before_precheck')
+        with gate, patch.object(baseline,'ROOT',self.root),patch.object(baseline,'local_state',return_value=copy.deepcopy(self.local)),patch.object(baseline,'nas_state',return_value=copy.deepcopy(self.nas)):
             return baseline.main([mode,'--window-id',wid or self.wid])
 
     def test_new_window_before_and_after_leave_history_unchanged(self):
@@ -111,11 +114,18 @@ class WindowTests(unittest.TestCase):
         row['finished_at']=time.time();window.write_once(base/'workspace-readiness.json',row)
 
 
+    def input_fixture(self):
+        from test_rt055_scoring_input import public_verified
+        checks={'verified':True,'participating_libraries':list(runtime.ops.LIBRARIES),'deferred_libraries':[],
+                'library_validity':{kb:{'total_count':3} for kb in runtime.ops.LIBRARIES}}
+        for name,value in {'builder/private-corpus.json':{},'verifier/private-verified.json':public_verified(),'verifier/case-verification.json':checks}.items():
+            runtime.ops.write_private_json(self.root/name,value)
+
     def freeze_fixture(self,policy=True):
-        self.migration()
-        if policy:self.prepare_policy();self.collect()
-        checks={'verified':True,'participating_libraries':list(runtime.ops.LIBRARIES),'deferred_libraries':[]}
-        for name,value in {'builder/private-corpus.json':{},'verifier/private-verified.json':{},'verifier/case-verification.json':checks}.items():runtime.ops.write_private_json(self.root/name,value)
+        import rt055_scoring_input as scoring
+        self.migration();self.input_fixture()
+        if policy:
+            self.prepare_policy();scoring.prepare(self.root,self.wid,self.mid);self.collect()
         for name in ('downloads/opensearch.tar.gz','bin/weknora-server','jdk/public','sidecar/requirements-freeze.txt'):(self.root/name).write_text('public')
         for name in runtime.JIEBA_FILES:(self.root/'jieba'/name).write_text('public')
         stack=contextlib.ExitStack();self.addCleanup(stack.close)
@@ -359,11 +369,19 @@ class WindowTests(unittest.TestCase):
         import rt055_window as window
         import test_rt055_retrieval_decision as fixture
         import subprocess
-        w=self.freeze_fixture();public=fixture.valid_report()
+        w=self.freeze_fixture(policy=False);public=fixture.valid_report()
         checks=runtime.ops.read_json(self.root/'verifier/case-verification.json')
         checks.update(library_validity=public['library_validity'])
         for k in ('selection_verified','single_build_seed_verified','at_least_one_participating','category_coverage_verified','rt054_pool_excluded','input_disjoint_verified','denominators_nonzero_all_categories'):checks[k]=True
         runtime.ops.write_private_json(self.root/'verifier/case-verification.json',checks)
+        # Construct the aggregate's larger public pool BEFORE input readiness.
+        import rt055_scoring_input as scoring
+        verified=runtime.ops.read_json(self.root/'verifier/private-verified.json')
+        for kb,lib in verified['libraries'].items():
+            for ordinal in range(3,checks['library_validity'][kb]['total_count']):
+                lib['cases'].append({**lib['cases'][0],'ordinal':ordinal,'query':'PUBLIC extra '+str(ordinal)})
+        runtime.ops.write_private_json(self.root/'verifier/private-verified.json',verified)
+        self.prepare_policy();scoring.prepare(self.root,self.wid,self.mid);self.collect()
         freeze.create(self.root,self.wid,self.mid);freeze.verify_once(self.root,self.wid)
         for key,cid in (('a',aggregate.CANDIDATE_A),('b',aggregate.CANDIDATE_B)):
             c=public['candidates'][cid]

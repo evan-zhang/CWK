@@ -191,7 +191,7 @@ MIGRATION_SOURCE_FILES = PRIVACY_SOURCE_FILES + (
     'rt055_window.py','rt055_baseline.py','rt055_formal_coordinator.py',
     'rt055_aggregate.py','rt055_cleanup.py','rt055_tiers.py',
     'kb_retrieval_decision.py','rt055_runbooks.json','aggregate-report.schema.json',
-    'rt055_zero_exposure.py','rt055_runtime_readiness.py','rt055_candidate_workspace.py','rt055_candidate_startup.py')
+    'rt055_zero_exposure.py','rt055_runtime_readiness.py','rt055_candidate_workspace.py','rt055_candidate_startup.py','rt055_scoring_input.py')
 
 
 def migration_directory(root,migration_id):

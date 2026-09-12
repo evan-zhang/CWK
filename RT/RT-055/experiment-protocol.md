@@ -348,3 +348,39 @@ Gateway3×200；候选/controller/临时数据面/candidate-runtime残留0。独
 [公开 READY](evidence/candidate-workspace-ready.json) · [闭集 Schema](evidence/candidate-workspace-ready.schema.json) ·
 [QA](evidence/candidate-workspace-ready-qa.json)。未执行正式 A/B，未产生质量成绩，不关闭 RT，不切流；
 完整 NAS/index 不变性仍 UNKNOWN，历史漂移不抵销。只本地公开证据提交，不 push、不合并、不清 worktree。
+
+## Amendment 7 — scoring input readiness（2026-09-12）
+
+本次只修复 pre-exposure 输入合同并建立全新 READY_TO_RUN，不执行正式 coordinator/A/B。
+Amendment 6 的 closed window 保留 INVALID/after，旧 attempt/arm/claim/freeze 不删不改。
+
+- 根因：A/B loader 丢弃固定题池行的 ordinal，scorer 把 `(kb, query)` 当成 trial 唯一键。
+  合法跨类别同题因此在首次 search/exposure 前被拒。OPS 只读分类：三库重复额外行
+  4/4/5，分别为 4/4/5 个二元组；均跨类别，同 expected/exact/answerability；ordinal
+  在每库有效且全局唯一，category + category_ordinal 有效且唯一。只出计数/布尔，不出私有值/hash。
+- 正式 trial identity 是 `(kb, ordinal)`：ordinal 直接取固定 builder→verified 行，严格
+  非负 int（拒 bool/string/float），不得重排重编号。`Case.trial_id` 为私有 `repr=False`。
+  A/B 共用 strict loader；不把 exact 或 ordinal 强制类型转换。相同 query 仅在 identity
+  不同且 expected/exact/answerability 完全相同时允许，仍逐行评分和计分母；私有原始
+  expected_doc_id/outcome 的同题冲突也拒绝，包括 no_evidence 的不同来源标识。
+- 评分前先纯验证全部输入：identity 唯一、query 合法、expected/exact 合法、每库
+  answerable/exact/no-answer 三分母均大于零。混合提供/缺失 identity 拒绝；全部未提供
+  identity 的 legacy 调用保留 `(kb,query)` 唯一语义，重复仍拒绝。正式 loader 缺 identity
+  永远不回退 legacy。验证结束后首次实际 search 紧前的原子 exposure 规则不变。
+- 新 append-only `scoring-input-readiness` 位于主 window 对应 runtime-policy 版本目录下，
+  复用现有私有读写保护。仅控制器从部署源码读取 verified private rows、执行纯验证；
+  不创建候选、不调用 query、不重跑 builder/verifier。claim/receipt 绑定主 run、window、
+  executioner migration、source commit/source files、私有输入文件及三库总数/重复组计数/
+  语义一致/ordinal 唯一/正分母；私有值和所有输入摘要仅留 OPS。
+- 必须先新 migration 的真实公开 synthetic 隐私门，再主 runtime readiness 和公开候选
+  workspace startup，随后主 scoring-input-readiness，再正式 before/freeze/verify。
+  main before 创建 claim 前要求 receipt；freeze 绑定 receipt 和文件并重算，严格
+  readiness.ready_at < before.started_at。synthetic smoke 不可冒充 main input readiness。
+  formal coordinator 在任何 controller/candidate attempt 前重验 source/receipt/freeze，
+  错 window/source/receipt、已 after 或已有全局 exposure 拒绝；本轮不运行该 coordinator。
+- 新窗口随机抽取顺序，止于无 Popen spawn precheck + 纯私有 input preflight PASS。
+  不改题池/tier/seed/质量门/候选算法/WeKnora core；不删/合并重复行，不换 query。
+  三库完整分母保持 42/31/42，96 材料与历史证据字节保持，builder/verifier 仍 1/1。
+- 完成须新 attempt/arm/exposure/query/score/result/after 全 0，旧 window 留存，Gateway
+  3×200，无候选/controller/临时 runtime，公开证据 Schema/QA 通过。本地提交，不 push。
+  完整 NAS/index 不变性未证明，不把既有 UNKNOWN 或历史 drift 擦成 PASS。

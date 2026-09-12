@@ -407,41 +407,63 @@ class Case:
     query: str = field(repr=False)
     expected: frozenset[str] = field(repr=False)
     exact: bool = False
+    trial_id: int | None = field(default=None, repr=False)
 
 
-def score_cases(candidate: Any, cases: Sequence[Case], timeout: float = 30, *,
-                expected_libraries=None, before_first_search=None) -> dict[str, dict]:
-    """Private OPS-only scoring, not a complete/attested decision report.
+def validate_cases(cases: Sequence[Case], *, expected_libraries=None,
+                   require_trial_identity=False) -> dict[str, dict]:
+    """Pure pre-exposure validation. No candidate, callback, I/O or private output.
 
-    One query is one trial. No warmup queries are generated from this holdout.
-    Errors remain in denominators and latency samples; exceptions/hits are
-    discarded without serializing details. Resource/Gateway/freeze evidence
-    must be measured independently, never populated with successful defaults.
+    Explicit identities are nonnegative builder row ordinals, scoped by library.
+    All-legacy inputs retain query uniqueness; mixed identity modes fail closed.
     """
-    Deadline(timeout)
     libraries = tuple(decision.LIBRARIES if expected_libraries is None else expected_libraries)
     if (not libraries or len(set(libraries)) != len(libraries)
             or any(kb not in decision.LIBRARIES for kb in libraries)):
         raise CandidateError('invalid expected scoring libraries')
     cases = tuple(cases)
+    explicit = require_trial_identity or any(case.trial_id is not None for case in cases)
     metrics = {kb: {name: 0 for name in decision.COUNT_FIELDS} for kb in libraries}
-    latencies: dict[str, list[float]] = {kb: [] for kb in libraries}
-    seen = set()
+    seen, queries = set(), {}
     for case in cases:
         _query_scope(case.query, case.kb_id)
         if case.kb_id not in metrics:
             raise CandidateError('unexpected scoring library')
-        if (not isinstance(case.expected, frozenset) or not all(isinstance(v, str) and v for v in case.expected)
-                or type(case.exact) is not bool or (case.exact and not case.expected)
-                or (case.kb_id, case.query) in seen):
+        if (not isinstance(case.expected, frozenset)
+                or not all(isinstance(v, str) and v.strip() for v in case.expected)
+                or type(case.exact) is not bool or (case.exact and not case.expected)):
             raise CandidateError('invalid scoring cases')
-        seen.add((case.kb_id, case.query))
+        if explicit and (type(case.trial_id) is not int or case.trial_id < 0):
+            raise CandidateError('invalid scoring trial identity')
+        identity = (case.kb_id, case.trial_id if explicit else case.query)
+        if identity in seen:
+            raise CandidateError('duplicate scoring trial identity')
+        seen.add(identity)
+        query_key = (case.kb_id, case.query)
+        semantics = (case.expected, case.exact, bool(case.expected))
+        if query_key in queries and (not explicit or queries[query_key] != semantics):
+            raise CandidateError('conflicting scoring query semantics')
+        queries[query_key] = semantics
         m = metrics[case.kb_id]
         m['total_count'] += 1
         m['answerable_count' if case.expected else 'no_answer_count'] += 1
         m['exact_count'] += int(case.exact)
     if any(min(m['answerable_count'], m['exact_count'], m['no_answer_count']) <= 0 for m in metrics.values()):
         raise CandidateError('missing scoring category')
+    return metrics
+
+
+def score_cases(candidate: Any, cases: Sequence[Case], timeout: float = 30, *,
+                expected_libraries=None, before_first_search=None) -> dict[str, dict]:
+    """Each validated row is one trial; no holdout warmup or deduplication.
+
+    Errors remain in denominators/latency; private exception/hit details vanish.
+    Full validation finishes before the atomic first-search exposure callback.
+    """
+    Deadline(timeout)
+    cases = tuple(cases)
+    metrics = validate_cases(cases, expected_libraries=expected_libraries)
+    latencies: dict[str, list[float]] = {kb: [] for kb in metrics}
     for index, case in enumerate(cases):
         m = metrics[case.kb_id]
         # Fail outside the scoring exception handler: a failed durable exposure

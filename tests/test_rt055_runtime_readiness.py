@@ -89,7 +89,9 @@ class ReadinessTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):ready.verify(self.root,self.wid,self.mid)
 
     def test_readiness_after_before_is_refused_even_if_snapshot_is_later(self):
-        self.f.freeze_fixture(policy=False);self.f.collect()
+        self.f.freeze_fixture(policy=False)
+        import rt055_scoring_input as scoring
+        scoring.prepare(self.root,self.wid,self.mid);self.f.collect()
         with self.assertRaises(RuntimeError):self.f.prepare_policy()
         # A forged timing receipt cannot circumvent comparison with before start.
         self.setUp();self.fixture();p=self.base/'receipt.json';row=json.loads(p.read_text())

@@ -333,3 +333,14 @@ A1/B0/after及全局claim1/void1原样保留；builder/verifier1/1。96材料、
 隐私/runtime/workspace/freeze源绑定重算PASS，builder/verifier1/1、单UID进程角色分离；A日志39文件0命中并保留OPS。96材料/1222前归档/2570本次归档、5失败synthetic和旧window/claim/void保持。终态候选/controller/runtime/临时资源/failures0，同窗after1且三库PASS，窗口禁止重放。不变性：`nas_unchanged=null`；`existing_indices_unchanged=null`；`production_config_unchanged=false`；`services_unchanged=false`；`gateway_unchanged=true`；`all_items_measured=false`；不修生产、不补baseline，历史漂移保持。
 
 [完整验收与三格核验](evidence/acceptance.md#amendment-6-正式执行收口评分输入硬门-invalid2026-09-12)、[公开abort](evidence/amendment6-formal-abort.json)、[Schema](evidence/amendment6-formal-abort.schema.json)、[唯一裁决](evidence/amendment6-formal-decision.json)、[QA](evidence/amendment6-formal-qa.json)。201回归和133编译通过不掩盖真实scorer输入门失败；未冒称全仓CI。失败收口完成、无后台任务；RT选型目标未达成，保持in_progress、禁止切流。只保留本地公开证据提交，不push/合并/清worktree。
+
+## Amendment 7 — 修复 scorer trial identity，止于新 READY_TO_RUN
+
+用户授权恢复输入合同，不授权执行正式 A/B。旧 Amendment 6 window 已 INVALID/after，
+A attempt1/arm1 而 exposure/query/score/complete/result0；旧证据留存。
+根因是完整题池的合法跨类别同题被 `(kb,query)` 唯一键误拒；新增私有 `(kb,ordinal)`
+identity，并要求 main scoring-input-readiness 严格早于 before/freeze，coordinator 在
+attempt 前复核。无题池/候选算法/生产变更，三库保持 42/31/42。
+详见 [协议](experiment-protocol.md#amendment-7--scoring-input-readiness2026-09-12) 与
+[本地验收](evidence/acceptance.md#amendment-7-本地修复--pre-exposure-scorer-输入合同)。
+本地实现完成不代表 OPS READY；正式运行仍需单独授权。
