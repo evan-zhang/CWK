@@ -79,6 +79,7 @@ class ExecutionerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td);(root/'runtime-logs').mkdir();space=public_workspace(root,'b')
             (root/'weknora/config').mkdir(parents=True);(root/'weknora/config/config.yaml').write_text('public: true')
+            (root/'weknora/migrations/sqlite').mkdir(parents=True);(root/'weknora/migrations/sqlite/0001.sql').write_text('SELECT 1;')
             with patch.object(native,'ROOT',root),patch.object(runtime,'spawn') as spawn:
                 with self.assertRaisesRegex(RuntimeError,'native_dictionary_assets_missing'):
                     native.launch_server(41101,cw.file(space,'data','native'),cw.file(space,'logs','native.log'),workspace=space)

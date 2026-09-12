@@ -310,3 +310,11 @@ listing 与 sibling 内容读取仍拒绝，另有断开 metadata 接线的行�
 
 日志扫描与留存同时覆盖租约内所有 `logs/` 子目录及 `.log` 文件，防止 native 兜底日志躲在数据
 目录；数据库与文档内容不是日志，不参与该扫描，也不归档成日志。该接线有真实命中拒绝测试。
+
+### Amendment 6 补充 — 公开 SQLite schema 依赖
+
+native 的官方 migration loader 还依赖 cwd 下的 `migrations/sqlite`。第五次 synthetic 的
+HTTP 初始化失败及清理回执保留；把这份**公开应用 schema 文件**与 config 一起逐字节复制、
+spawn 前核对并纳入 freeze。它不是执行器/曝光控制账本，后者的隔离不变。
+资源采集仍统计数据库、WAL、对象文件与缓存；仅排除新复制的、字节核对过的公开 config/schema
+静态依赖，避免把程序支持文件误计为索引数据。候选检索、scorer 和质量门不变。

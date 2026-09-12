@@ -118,24 +118,26 @@ def file(s,area,name):
 
 def native_config(root,s,data_dir,*,create=False):
     require_path(s,data_dir,'data')
-    source=checked(root,root/'weknora/config');dest=checked(s.root,data_dir/'config')
-    if not (source/'config.yaml').is_file():raise RuntimeError('candidate_native_config_missing')
-    if create:dest.mkdir(mode=0o700,exist_ok=False)
-    expected=set()
-    for p in sorted(source.rglob('*')):
-        checked(root,p);target=checked(s.root,dest/p.relative_to(source))
-        if p.is_dir():
-            if create:target.mkdir(mode=0o700,exist_ok=False)
-        elif p.is_file():
-            data=p.read_bytes()
-            if create:
-                with target.open('xb') as f:f.write(data)
-                target.chmod(0o600)
-            if target.read_bytes()!=data:raise RuntimeError('candidate_native_config_drift')
-            expected.add(target)
-        else:raise RuntimeError('candidate_native_config_special_file')
-    if set(p for p in dest.rglob('*') if p.is_file())!=expected:raise RuntimeError('candidate_native_config_extra_file')
-    return dest
+    if not (root/'weknora/config/config.yaml').is_file():raise RuntimeError('candidate_native_config_missing')
+    if not list((root/'weknora/migrations/sqlite').glob('*.sql')):raise RuntimeError('candidate_native_migrations_missing')
+    for relative in ('config','migrations/sqlite'):
+        source=checked(root,root/'weknora'/relative);dest=checked(s.root,data_dir/relative)
+        if create:dest.mkdir(mode=0o700,parents=True,exist_ok=False)
+        expected=set()
+        for p in sorted(source.rglob('*')):
+            checked(root,p);target=checked(s.root,dest/p.relative_to(source))
+            if p.is_dir():
+                if create:target.mkdir(mode=0o700,exist_ok=False)
+            elif p.is_file():
+                data=p.read_bytes()
+                if create:
+                    with target.open('xb') as f:f.write(data)
+                    target.chmod(0o600)
+                if target.read_bytes()!=data:raise RuntimeError('candidate_native_config_drift')
+                expected.add(target)
+            else:raise RuntimeError('candidate_native_config_special_file')
+        if set(p for p in dest.rglob('*') if p.is_file())!=expected:raise RuntimeError('candidate_native_config_extra_file')
+    return data_dir/'config'
 
 
 def search_launcher(root,s,component,*,create=False):

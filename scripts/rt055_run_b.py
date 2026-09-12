@@ -433,7 +433,7 @@ def main() -> int:
             if args.mode=='run':window.library_scored(ROOT,args.window_id,'b',kb,metrics[kb])
         build_total=time.monotonic()-build_started
         peaks={kb:sampler.stop() for kb,sampler in samplers.items()}
-        index_bytes={kb:runtime.data_bytes(transport.servers[kb]['data_dir']) for kb in participating}
+        index_bytes={kb:runtime.data_bytes(transport.servers[kb]['data_dir'],exclude=('config','migrations')) for kb in participating}
         gateway_rows=gateway_results+[v['gateway_readiness'] for v in completed.values()]
         gateway={key:all(row[key] for row in gateway_rows) for key in gateway_rows[0]}
         for kb in participating:

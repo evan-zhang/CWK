@@ -148,9 +148,10 @@ def spawn(root, argv, network_policy='loopback', window_id=None, workspace=None,
          **({'workspace':workspace.identity()} if workspace else {})})
     return proc
 
-def data_bytes(root):
+def data_bytes(root, *, exclude=()):
     # Entire data plane, including DB/WAL/cache/object files; not just main DB.
-    return sum(p.stat().st_size for p in root.rglob('*') if p.is_file())
+    return sum(p.stat().st_size for p in root.rglob('*') if p.is_file()
+               and p.relative_to(root).parts[0] not in exclude)
 
 def participating(root):
     v=ops.read_json(root/'verifier/case-verification.json')

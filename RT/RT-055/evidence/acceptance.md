@@ -606,3 +606,9 @@ here-string 临时写入被拒，而 owned stdin 在同一严格策略下成功�
 A 真实公开启动/检索已成功，B sidecar 已成功；第四个 synthetic 的 native config 缺失失败及
 cleanup 全部保留。最新源码把未改动的公开配置复制进各 B 数据目录，并扫描/归档嵌套兜底日志。
 见 [最新完整回归](candidate-workspace-native-config-tests.json)。仍不以 synthetic 代替正式指标。
+
+### Amendment 6 native assets 补丁（本地）
+
+官方 loader 的公开 SQLite schema 与 config 同属相对路径运行依赖，现均在独占数据面完整复制、
+核对。第五个 synthetic 失败不覆盖；新 [完整回归](candidate-workspace-native-assets-tests.json)
+验证配置/schema 不改、目录隔离、数据字节排除静态依赖、嵌套日志扫描与精确 cleanup。
