@@ -292,3 +292,11 @@ heap 或其它选项。每次 spawn 重算该副本，config 原始字节进入 
 
 预 before 的 synthetic startup 资源记录不属于正式 attempt，正式 cleanup 必须忽略其已终止的
 审计记录；进程回执增加随机后缀并独占写入，避免 PID 再用时覆盖历史。
+
+### Amendment 6 补充 — 仅本租约祖先 metadata
+
+第三次公开 synthetic 已启动主 JVM，但 Lucene/keystore 的 canonical-path 检查逐级读取租约
+父目录 metadata，被全 runtime 的读拒绝拦住。本地真实 `realpath(strict=True)` 已重现。
+只向本租约已知的三个父目录授予 literal `file-read-metadata`，不授予目录枚举、文件内容或
+其它候选访问；formal-windows 与其它账本仍完全拒读写。两种策略下 realpath 成功、父目录
+listing 与 sibling 内容读取仍拒绝，另有断开 metadata 接线的行为破坏测试。

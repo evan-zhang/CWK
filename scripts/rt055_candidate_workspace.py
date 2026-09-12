@@ -187,6 +187,10 @@ def policy(s,base_text):
     # More-specific allowed lease; explicit deny-except prevents an allow from
     # accidentally superseding a broader deny on another SBPL implementation.
     text+='(allow file-read* file-write* (subpath %s))\n'%json.dumps(str(s.base.resolve()))
+    # Canonical-path APIs inspect each ancestor. Grant only metadata on these
+    # exact known directories; listing, sibling data and all ledgers stay denied.
+    for ancestor in (s.base.parent,s.base.parent.parent,s.root/'candidate-runtime'):
+        text+='(allow file-read-metadata (literal %s))\n'%json.dumps(str(ancestor.resolve()))
     for area in ('audit','resources','impl','executioner-migrations'):
         p=s.root/area
         if area=='executioner-migrations':

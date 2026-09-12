@@ -92,6 +92,25 @@ class WorkspaceTests(unittest.TestCase):
         stdin.write_text('FOREIGN')
         with self.assertRaises(RuntimeError):cw.search_launcher(self.root,s,'a-public')
 
+    def test_realpath_traversal_allowed_but_parent_listing_and_sibling_data_denied(self):
+        s=self.make();other=self.make('b');target=cw.file(s,'data','public');target.write_text('PUBLIC')
+        foreign=cw.file(other,'data','public');foreign.write_text('PUBLIC')
+        program="""import os,sys,json
+out=[]
+for kind,p in json.loads(sys.argv[1]):
+ try:
+  if kind=='realpath':os.path.realpath(p,strict=True)
+  elif kind=='listing':os.listdir(p)
+  else:open(p).read()
+  out.append('ALLOWED')
+ except PermissionError:out.append('DENIED')
+print(json.dumps(out))
+"""
+        probes=[('realpath',str(target)),('listing',str(s.base.parent)),('read',str(foreign))]
+        for kind in ('loopback','inbound-only'):
+            p=subprocess.run(['/usr/bin/sandbox-exec','-p',cw.policy(s,rt.sandbox_text(self.root,kind)),sys.executable,'-c',program,json.dumps(probes)],capture_output=True,text=True)
+            self.assertEqual(p.returncode,0);self.assertEqual(json.loads(p.stdout),['ALLOWED','DENIED','DENIED'])
+
     def test_formal_without_claim_rejected(self):
         with self.assertRaises((RuntimeError,OSError)):cw.create(self.root,self.wid,'a',self.aid)
         self.assertFalse((self.root/'candidate-runtime').exists())

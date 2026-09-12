@@ -594,3 +594,9 @@ needle 硬门、私有日志留存、精确 cleanup、main-root 公开完整 sta
 第二个 synthetic 失败及清理回执保留；没有正式窗口或 query。真实 Bash 破坏/恢复测试确认
 here-string 临时写入被拒，而 owned stdin 在同一严格策略下成功。见
 [launcher 回归](candidate-workspace-launcher-tests.json)。正式候选算法/模型和原始发行配置不变。
+
+### Amendment 6 路径规范化补丁（本地）
+
+第三个 synthetic 失败（keystore canonical path）及零残留清理均保留。修复只允许本租约
+祖先 metadata，不开放目录列表、其它 runtime 或账本。见
+[最新完整回归与破坏测试](candidate-workspace-traversal-tests.json)。OPS 未通过前不创建新正式 before。

@@ -9,6 +9,7 @@ import tempfile
 import rt055_local_qa as qa
 ROOT=Path(__file__).resolve().parents[1]
 MUTATIONS=(
+ ('OWNED_ANCESTOR_TRAVERSAL_REMOVED','rt055_candidate_workspace.py',"for ancestor in (s.base.parent,s.base.parent.parent,s.root/'candidate-runtime'):","for ancestor in ():",'test_rt055_candidate_workspace'),
  ('CROSS_WINDOW_GUARD_REMOVED','rt055_candidate_workspace.py',"if window_id is not None and s.window_id!=window_id:raise RuntimeError('candidate_workspace_cross_window')","if False:raise RuntimeError('candidate_workspace_cross_window')",'test_rt055_candidate_workspace'),
  ('SYMLINK_GUARD_REMOVED','rt055_candidate_workspace.py',"if node.is_symlink():raise RuntimeError('candidate_workspace_symlink')","if False:raise RuntimeError('candidate_workspace_symlink')",'test_rt055_candidate_workspace'),
  ('OWNERSHIP_GUARD_REMOVED','rt055_candidate_workspace.py',"if value!={**s.identity(),'device':st.st_dev,'inode':st.st_ino,'uid':st.st_uid} or st.st_mode&0o777!=0o700:","if False:",'test_rt055_candidate_workspace'),
