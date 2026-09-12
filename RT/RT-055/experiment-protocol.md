@@ -479,3 +479,11 @@ B CWork42份56.203秒完成；投前31份导入后1 failed/30 pending，立即�
 - before 和最终三 Gateway 必须各实测 HTTP200、ok=true、read_only 字段存在且 true；缺字段即 BLOCKED，不改 Gateway。新 attempt/arm/exposure/query/score/result/after 全零；清理与历史不变性检查后才发布 READY。
 
 公开结果入口：[Amendment 9 证据](evidence/amendment9-summary.md)（最终收口时更新）。
+
+## Amendment 9 续接终态 — BLOCKED，无正式 A/B
+
+部署源 `6b32584023cd27096e7c2167c0c28f47b380f922` 未改；migration `89edbd10-2905-41f1-9037-62b502890856` 的公开privacy与42/31/42同形仍PASS，未重跑。预留window `7652dbee-3679-4886-a391-ffcf871e712c` 的main runtime/workspace/scoring、严格before健康、before/freeze/verify已完成，冻结顺序B → A未重抽。
+
+最终no-Popen coordinator precheck因旧claim/void验证的`_proof()`调用子进程而被guard拒绝。独立只读复核确认，未放宽guard或删历史。已freeze的原件不能删除或写成未freeze；仅一次cleanup/after尝试，cleanup PASS，after因NAS `TransientStorageError` 为FAIL（已测1库），after快照与comparison未生成。保留失败after claim/status，不重试。window INVALID/after-failed、READY receipt未创建。新attempt/arm/exposure/query/score/result及global formal exposure/query/result全0；after claim=1、after FAIL是失败收口记录，不冒充完整after验证或READY要求的after=0。
+
+96材料、5938/97376/194848归档及历史集合/字节保持；builder/verifier1/1，cleanup0、无运行残留。Gateway before 与独立最终均 3×HTTP200、ok=true、read_only 字段存在且 true；完整NAS/index仍UNKNOWN。只本地公开证据提交，不push、不改source scripts、不执行正式coordinator。根因、全部门、QA和后续授权边界见[Amendment9最终证据](evidence/amendment9-summary.md)。

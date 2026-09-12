@@ -1,0 +1,378 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "data_class",
+    "status",
+    "source_commit",
+    "run_id",
+    "old_window_id",
+    "executioner_migration_id",
+    "new_window_id",
+    "scoring_archive_id",
+    "reason",
+    "controller_failed_phase",
+    "controller_error_kind",
+    "controller_known_reason",
+    "source_frames",
+    "independent_precloseout_checks",
+    "independent_final_no_popen_gate",
+    "attempted_subprocess_kind",
+    "actual_subprocesses_started_by_denied_probe",
+    "formal_coordinator_invocations",
+    "formal_queries",
+    "source_scripts_modified",
+    "guard_relaxed",
+    "old_claim_or_void_removed",
+    "controller_restarted",
+    "readiness_controller_launches",
+    "failure_closeout_launches",
+    "ssh_observer_interruptions",
+    "original_pid_claim_reconciled_before_resuming_observation",
+    "after_closeout",
+    "after_status",
+    "after_error_kind",
+    "after_retried",
+    "failed_after_bytes_preserved",
+    "failed_controller_and_freeze_preserved",
+    "private_values_or_digests_exported"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.amendment9-readiness-failure.v1"
+    },
+    "data_class": {
+      "const": "PUBLIC_CONTROL_FLOW_ONLY"
+    },
+    "status": {
+      "const": "HARD_GATE_CONFIRMED"
+    },
+    "source_commit": {
+      "const": "6b32584023cd27096e7c2167c0c28f47b380f922"
+    },
+    "run_id": {
+      "const": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af"
+    },
+    "old_window_id": {
+      "const": "d408cfab-40f7-41d3-8ccb-75fb0aaa2b65"
+    },
+    "executioner_migration_id": {
+      "const": "89edbd10-2905-41f1-9037-62b502890856"
+    },
+    "new_window_id": {
+      "const": "7652dbee-3679-4886-a391-ffcf871e712c"
+    },
+    "scoring_archive_id": {
+      "const": "1b9f56b2-688f-4b94-a95d-e1fa55d074c5"
+    },
+    "reason": {
+      "const": "LEGACY_VOID_PROOF_REQUIRES_POPEN"
+    },
+    "controller_failed_phase": {
+      "const": "READONLY_PRECHECK_NO_POPEN_NO_QUERY"
+    },
+    "controller_error_kind": {
+      "const": "AssertionError"
+    },
+    "controller_known_reason": {
+      "const": "NO_POPEN"
+    },
+    "source_frames": {
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 7,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "line",
+            "module"
+          ],
+          "properties": {
+            "line": {
+              "const": 78
+            },
+            "module": {
+              "const": "amendment9-main-readiness-controller.py"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "line",
+            "module"
+          ],
+          "properties": {
+            "line": {
+              "const": 137
+            },
+            "module": {
+              "const": "rt055_scoring_input.py"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "line",
+            "module"
+          ],
+          "properties": {
+            "line": {
+              "const": 145
+            },
+            "module": {
+              "const": "rt055_window.py"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "line",
+            "module"
+          ],
+          "properties": {
+            "line": {
+              "const": 132
+            },
+            "module": {
+              "const": "rt055_window.py"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "line",
+            "module"
+          ],
+          "properties": {
+            "line": {
+              "const": 280
+            },
+            "module": {
+              "const": "rt055_zero_exposure.py"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "line",
+            "module"
+          ],
+          "properties": {
+            "line": {
+              "const": 218
+            },
+            "module": {
+              "const": "rt055_zero_exposure.py"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "line",
+            "module"
+          ],
+          "properties": {
+            "line": {
+              "const": 136
+            },
+            "module": {
+              "const": "rt055_zero_exposure.py"
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "independent_precloseout_checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_privacy",
+        "freeze_regular_readonly",
+        "spawn_loopback",
+        "spawn_inbound-only",
+        "scoring_input_readonly",
+        "freeze_no_popen",
+        "coordinator_precheck_only"
+      ],
+      "properties": {
+        "source_privacy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "passed"
+          ],
+          "properties": {
+            "passed": {
+              "const": true
+            }
+          }
+        },
+        "freeze_regular_readonly": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "passed"
+          ],
+          "properties": {
+            "passed": {
+              "const": true
+            }
+          }
+        },
+        "spawn_loopback": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "passed"
+          ],
+          "properties": {
+            "passed": {
+              "const": true
+            }
+          }
+        },
+        "spawn_inbound-only": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "passed"
+          ],
+          "properties": {
+            "passed": {
+              "const": true
+            }
+          }
+        },
+        "scoring_input_readonly": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "passed"
+          ],
+          "properties": {
+            "passed": {
+              "const": true
+            }
+          }
+        },
+        "freeze_no_popen": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "passed",
+            "error_kind",
+            "known_reason"
+          ],
+          "properties": {
+            "passed": {
+              "const": false
+            },
+            "error_kind": {
+              "const": "AssertionError"
+            },
+            "known_reason": {
+              "const": "NO_POPEN"
+            }
+          }
+        },
+        "coordinator_precheck_only": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "passed",
+            "error_kind",
+            "known_reason"
+          ],
+          "properties": {
+            "passed": {
+              "const": false
+            },
+            "error_kind": {
+              "const": "AssertionError"
+            },
+            "known_reason": {
+              "const": "NO_POPEN"
+            }
+          }
+        }
+      }
+    },
+    "independent_final_no_popen_gate": {
+      "const": "FAIL_CONFIRMED"
+    },
+    "attempted_subprocess_kind": {
+      "const": "PUBLIC_LEGACY_PROOF_INTERPRETER"
+    },
+    "actual_subprocesses_started_by_denied_probe": {
+      "const": 0
+    },
+    "formal_coordinator_invocations": {
+      "const": 0
+    },
+    "formal_queries": {
+      "const": 0
+    },
+    "source_scripts_modified": {
+      "const": false
+    },
+    "guard_relaxed": {
+      "const": false
+    },
+    "old_claim_or_void_removed": {
+      "const": false
+    },
+    "controller_restarted": {
+      "const": false
+    },
+    "readiness_controller_launches": {
+      "const": 1
+    },
+    "failure_closeout_launches": {
+      "const": 1
+    },
+    "ssh_observer_interruptions": {
+      "const": 2
+    },
+    "original_pid_claim_reconciled_before_resuming_observation": {
+      "const": true
+    },
+    "after_closeout": {
+      "const": 1
+    },
+    "after_status": {
+      "const": "FAIL"
+    },
+    "after_error_kind": {
+      "const": "TransientStorageError"
+    },
+    "after_retried": {
+      "const": false
+    },
+    "failed_after_bytes_preserved": {
+      "const": true
+    },
+    "failed_controller_and_freeze_preserved": {
+      "const": true
+    },
+    "private_values_or_digests_exported": {
+      "const": false
+    }
+  }
+}

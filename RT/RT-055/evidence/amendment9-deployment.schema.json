@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "builder_runs",
+    "executioner_migration_id",
+    "formal_query_calls",
+    "global_exposure",
+    "historical_bytes_equal",
+    "new_archive_files",
+    "new_window_id",
+    "old_after_closed",
+    "old_arms",
+    "old_attempts",
+    "old_window_id",
+    "old_window_status",
+    "previous_archive_bytes_equal",
+    "previous_archived_files",
+    "retained_bytes_equal",
+    "retained_files",
+    "run_id",
+    "scoring_archive_id",
+    "source_commit",
+    "status",
+    "verifier_runs"
+  ],
+  "properties": {
+    "builder_runs": {
+      "const": 1
+    },
+    "executioner_migration_id": {
+      "const": "89edbd10-2905-41f1-9037-62b502890856"
+    },
+    "formal_query_calls": {
+      "const": 0
+    },
+    "global_exposure": {
+      "const": 0
+    },
+    "historical_bytes_equal": {
+      "const": true
+    },
+    "new_archive_files": {
+      "const": 194848
+    },
+    "new_window_id": {
+      "const": "7652dbee-3679-4886-a391-ffcf871e712c"
+    },
+    "old_after_closed": {
+      "const": true
+    },
+    "old_arms": {
+      "const": 0
+    },
+    "old_attempts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "a",
+        "b"
+      ],
+      "properties": {
+        "a": {
+          "const": 0
+        },
+        "b": {
+          "const": 1
+        }
+      }
+    },
+    "old_window_id": {
+      "const": "d408cfab-40f7-41d3-8ccb-75fb0aaa2b65"
+    },
+    "old_window_status": {
+      "const": "INVALID"
+    },
+    "previous_archive_bytes_equal": {
+      "const": true
+    },
+    "previous_archived_files": {
+      "const": 97376
+    },
+    "retained_bytes_equal": {
+      "const": true
+    },
+    "retained_files": {
+      "const": 96
+    },
+    "run_id": {
+      "const": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af"
+    },
+    "scoring_archive_id": {
+      "const": "1b9f56b2-688f-4b94-a95d-e1fa55d074c5"
+    },
+    "source_commit": {
+      "const": "6b32584023cd27096e7c2167c0c28f47b380f922"
+    },
+    "status": {
+      "const": "ARCHIVED_AND_DEPLOYED"
+    },
+    "verifier_runs": {
+      "const": 1
+    }
+  }
+}

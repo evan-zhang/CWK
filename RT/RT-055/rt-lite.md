@@ -432,3 +432,11 @@ B失败总回执未回填firewall_verified，单独最终drain回执6流全部PA
 - AI 评审：本轮由父执行者直接审查双重完成屏障、pending/terminal 单次 POST、计时与 source-bound 无 Popen 预检；不调用已退役固定 reviewer，不以自述代替证据。
 - 读产出：父执行者读取计数与封闭状态的公开 OPS workload、最终 drain、Gateway 两次观测、freeze/order/零暴露和归档字节复核。旧私有值及 hash 不出 OPS，旧失败日志不复制。
 - 收口与剩余边界：[公开 Amendment 9 证据](evidence/amendment9-summary.md)。未明确授权前禁止正式 coordinator；禁止 push/merge、生产/core/config/sandbox/egress 改动、重建题池和旧窗重开。
+
+## Amendment 9 续接终态 — BLOCKED，无正式 A/B
+
+部署源 `6b32584023cd27096e7c2167c0c28f47b380f922` 未改；migration `89edbd10-2905-41f1-9037-62b502890856` 的公开privacy与42/31/42同形仍PASS，未重跑。预留window `7652dbee-3679-4886-a391-ffcf871e712c` 的main runtime/workspace/scoring、严格before健康、before/freeze/verify已完成，冻结顺序B → A未重抽。
+
+最终no-Popen coordinator precheck因旧claim/void验证的`_proof()`调用子进程而被guard拒绝。独立只读复核确认，未放宽guard或删历史。已freeze的原件不能删除或写成未freeze；仅一次cleanup/after尝试，cleanup PASS，after因NAS `TransientStorageError` 为FAIL（已测1库），after快照与comparison未生成。保留失败after claim/status，不重试。window INVALID/after-failed、READY receipt未创建。新attempt/arm/exposure/query/score/result及global formal exposure/query/result全0；after claim=1、after FAIL是失败收口记录，不冒充完整after验证或READY要求的after=0。
+
+96材料、5938/97376/194848归档及历史集合/字节保持；builder/verifier1/1，cleanup0、无运行残留。Gateway before 与独立最终均 3×HTTP200、ok=true、read_only 字段存在且 true；完整NAS/index仍UNKNOWN。只本地公开证据提交，不push、不改source scripts、不执行正式coordinator。根因、全部门、QA和后续授权边界见[Amendment9最终证据](evidence/amendment9-summary.md)。

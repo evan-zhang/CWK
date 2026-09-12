@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "status",
+    "source_commit",
+    "all_private_string_leaves_and_json_variants",
+    "no_popen",
+    "no_query",
+    "capacity_validated",
+    "private_values_exported"
+  ],
+  "properties": {
+    "status": {
+      "const": "PASS"
+    },
+    "source_commit": {
+      "const": "6b32584023cd27096e7c2167c0c28f47b380f922"
+    },
+    "all_private_string_leaves_and_json_variants": {
+      "const": true
+    },
+    "no_popen": {
+      "const": true
+    },
+    "no_query": {
+      "const": true
+    },
+    "capacity_validated": {
+      "const": true
+    },
+    "private_values_exported": {
+      "const": false
+    }
+  }
+}
