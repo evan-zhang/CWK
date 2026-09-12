@@ -915,3 +915,12 @@ Source `43207eefbe30557b53d556055fa5438c8afe47ee`；本窗 `be3ab168-0568-4d39-a
 预留新window `3330a46e-bfdd-4639-bb0c-ea5c1b3df622` 仅作终态收口：cleanup PASS→原after实现唯一1次FAIL（fresh before未创建、RuntimeError、0库、无快照/比较，不借旧窗基线不重试）→abort/唯一INVALID decision；formal INVALID为追加abort状态，非正式coordinator执行。120正式指标和24 Gateway能力均null，机械向量A1/6/4、B2/7/3只为未变runbook计数。新public3流firewall/scan通过，旧B6流PASS、旧coordinator false/CHILD_NONZERO保留。独立核验390079历史文件/96材料字节不变，builder/verifier1/1，42/31/42不变、残留0、Gateway3×200/ok/read_only=true。本窗comparison不可测；完整NAS/index UNKNOWN、历史services/config drift不清除。
 
 RT055回归265项与源码红绿/行为破坏通过；最终Schema negatives、隐私/凭据、QA/治理详见[Amendment11完整证据](amendment11-summary.md)。本修订已收口，无后台任务；RT-055选型未完成，不切流、不自动重试，仅本地提交，不push/merge/清worktree。
+
+
+## Amendment 12 验收增量：历史隐私硬门失败，选型未完成
+
+源修复`6c524bc10369464f0a8cf50d1380504deb64f9aa`已本地272项回归及3项行为破坏验证；新migration`7f3a28e9-195f-4d5e-a4f0-5451b10fdb43`仅迁移隔离源码。历史单次socket缺PID/phase/state/target关联，归因与传输仍UNKNOWN，按明确fail-closed门停止：新privacy=0（上限1）、workload/readiness/before/freeze/formal=0；A/B0/0，逐库全部消费账本0。新terminal-only窗`999c334f-5018-4d83-b571-b406f49fe605`唯一cleanup PASS→after FAIL（无fresh before，0库，不重试）→INVALID裁决，120指标/24能力null；旧窗不重开，旧after/失败布尔不改。历史390197文件覆盖390079旧文件与96材料字节不变，builder/verifier1/1；最终三Gateway健康，资源0，完整NAS/index仍UNKNOWN，历史services/config false保留。
+
+判据：红绿/真实sandbox probe/3项行为破坏；AI检查：主执行者针对未知归因、PID例外边界、空日志与null语义交叉复核（未设独立Agent）；读产出：OPS只读闭集、独立最终审计、唯一decision和公开摘要。首次终审额外全集字符串扫描1文件/1串命中（同为公开源码常量），因果UNKNOWN，扩展扫描FAIL原样保留；补充终审仅完成采集，未重跑实验。不是正式隐私PASS或质量NO-GO，RT-055选型目标仍未完成。
+
+详见[Amendment12完整收口](amendment12-summary.md)、[终审](amendment12-final.json)、[QA](amendment12-qa.json)。

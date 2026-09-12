@@ -1,0 +1,16 @@
+{
+  "decision": "INVALID",
+  "deferred_libraries": [],
+  "error_code": "HISTORICAL_SOCKET_ATTRIBUTION_UNKNOWN",
+  "participating_libraries": [
+    "cwork-3m",
+    "docdb-touqian",
+    "spbp-2027"
+  ],
+  "production_candidate_libraries": [],
+  "run_id": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af",
+  "schema": "cwk.rt055.retrieval-decision.result.v3",
+  "selected": null,
+  "status": "INVALID",
+  "window_id": "999c334f-5018-4d83-b571-b406f49fe605"
+}

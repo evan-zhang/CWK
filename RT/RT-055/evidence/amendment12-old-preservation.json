@@ -1,0 +1,162 @@
+{
+  "schema": "cwk.rt055.amendment12-old-preservation.v1",
+  "old_amendment10_formal": {
+    "completed": [],
+    "exit_code": 2,
+    "failed_phase": "RUN_B",
+    "phase": "EXECUTION_ATTEMPT_FAILED",
+    "status": "WAITING_RECONCILIATION"
+  },
+  "old_amendment10_attempts": {
+    "a": 0,
+    "b": 1
+  },
+  "old_amendment10_ledger": {
+    "a": {
+      "cwork-3m": {
+        "arm": 0,
+        "complete": 0,
+        "exposure": 0,
+        "query_count": 0,
+        "result": 0,
+        "score": 0
+      },
+      "docdb-touqian": {
+        "arm": 0,
+        "complete": 0,
+        "exposure": 0,
+        "query_count": 0,
+        "result": 0,
+        "score": 0
+      },
+      "spbp-2027": {
+        "arm": 0,
+        "complete": 0,
+        "exposure": 0,
+        "query_count": 0,
+        "result": 0,
+        "score": 0
+      }
+    },
+    "b": {
+      "cwork-3m": {
+        "arm": 0,
+        "complete": 0,
+        "exposure": 0,
+        "query_count": 0,
+        "result": 0,
+        "score": 0
+      },
+      "docdb-touqian": {
+        "arm": 0,
+        "complete": 0,
+        "exposure": 0,
+        "query_count": 0,
+        "result": 0,
+        "score": 0
+      },
+      "spbp-2027": {
+        "arm": 0,
+        "complete": 0,
+        "exposure": 0,
+        "query_count": 0,
+        "result": 0,
+        "score": 0
+      }
+    }
+  },
+  "old_amendment10_candidate_log_checks": [
+    {
+      "all_streams_verified": true,
+      "archive_inventory_matches_firewall": true,
+      "archived_log_files": 6,
+      "candidate": "b",
+      "firewall_streams": 6,
+      "firewall_verified": true,
+      "hit_files": 0,
+      "independent_post_scan_hit_files": 0,
+      "log_files": 6,
+      "logs_retained": true,
+      "redaction_count": 9,
+      "remaining_owned_runtime": 0,
+      "scan_passed": true,
+      "workspace_cleanup_complete": true
+    }
+  ],
+  "old_amendment10_controller_log_checks": [
+    {
+      "closed": true,
+      "eof": true,
+      "error": "CHILD_NONZERO",
+      "independent_post_scan_hits": 0,
+      "post_scan_hits": 0,
+      "redaction_count": 0,
+      "verified": false
+    }
+  ],
+  "old_amendment10_after": {
+    "error_kind": null,
+    "libraries_measured": 3,
+    "phase": "COMPLETE",
+    "status": "PASS"
+  },
+  "old_amendment10_closeout": {
+    "error_kind": null,
+    "phase": "COMPLETE",
+    "status": "INVALID_CLOSED"
+  },
+  "old_amendment11_formal_status": "INVALID",
+  "old_amendment11_after_status": "FAIL",
+  "old_amendment11_privacy_counts": {
+    "embedding_calls": 3,
+    "embedding_successes": 3,
+    "external_socket_observations": 1,
+    "forbidden_reads": 0,
+    "log_canary_hits": 0,
+    "log_files_scanned": 3,
+    "observer_errors": 0,
+    "socket_samples": 108
+  },
+  "old_amendment11_log_checks": [
+    {
+      "all_streams_verified": true,
+      "archived_log_files": 1,
+      "expanded_all_private_literal_hit_files": 1,
+      "expanded_all_private_literal_scan_passed": false,
+      "firewall_verified": true,
+      "independent_scan_hit_files": 0,
+      "post_scan_hits": 0,
+      "post_scan_passed": true,
+      "redaction_count": 0,
+      "remaining_owned_runtime": 0,
+      "streams": 1,
+      "workspace_cleanup_complete": true
+    },
+    {
+      "all_streams_verified": true,
+      "archived_log_files": 2,
+      "expanded_all_private_literal_hit_files": 0,
+      "expanded_all_private_literal_scan_passed": true,
+      "firewall_verified": true,
+      "independent_scan_hit_files": 0,
+      "post_scan_hits": 0,
+      "post_scan_passed": true,
+      "redaction_count": 0,
+      "remaining_owned_runtime": 0,
+      "streams": 2,
+      "workspace_cleanup_complete": true
+    }
+  ],
+  "old_after_retried": false,
+  "old_windows_reopened": false,
+  "history_files_verified": 390197,
+  "historical_prior_files_verified": 390079,
+  "retained_materials": 96,
+  "builder_runs": 1,
+  "verifier_runs": 1,
+  "bytes_equal": true,
+  "old_request_failed_root_cause": "UNKNOWN",
+  "old_socket_attribution": "UNKNOWN",
+  "external_transfer_proven": null,
+  "old_failures_waived": false
+}

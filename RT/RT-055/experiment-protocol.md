@@ -537,3 +537,12 @@ Amendment11 的一次 external observation 不可归因：OPS 保留17份合成�
 候选search/native/sidecar观察全程保留；所有非loopback（含预期canary目标、UNBOUND及SYN_SENT）仍累计external并要求总数0，未知状态/协议硬失败。lsof使用PID/FD/协议/状态字段；原始非公开端点立即丢弃，OPS仅保留PID职责和phase/state/scope/count，phase跨采样变化记TRANSITION；公开投影只导出闭集与计数/布尔，不导出PID或私有值。LISTEN必须实测LISTEN，不能用单端点字符串冒充。
 
 本地红绿与行为破坏实验见[源码QA](evidence/amendment12-source-qa.json)，旧观察边界见[只读诊断](evidence/amendment12-diagnostic.json)。未修改候选算法、quality、seed/tier/floor/题池/42-31-42、7200或A/B对称timeout；未改WeKnora core及production/NAS/index/alias/config。
+
+
+## Amendment 12 terminal execution receipt
+
+源修复`6c524bc10369464f0a8cf50d1380504deb64f9aa`已本地272项回归及3项行为破坏验证；新migration`7f3a28e9-195f-4d5e-a4f0-5451b10fdb43`仅迁移隔离源码。历史单次socket缺PID/phase/state/target关联，归因与传输仍UNKNOWN，按明确fail-closed门停止：新privacy=0（上限1）、workload/readiness/before/freeze/formal=0；A/B0/0，逐库全部消费账本0。新terminal-only窗`999c334f-5018-4d83-b571-b406f49fe605`唯一cleanup PASS→after FAIL（无fresh before，0库，不重试）→INVALID裁决，120指标/24能力null；旧窗不重开，旧after/失败布尔不改。历史390197文件覆盖390079旧文件与96材料字节不变，builder/verifier1/1；最终三Gateway健康，资源0，完整NAS/index仍UNKNOWN，历史services/config false保留。
+
+判据：红绿/真实sandbox probe/3项行为破坏；AI检查：主执行者针对未知归因、PID例外边界、空日志与null语义交叉复核（未设独立Agent）；读产出：OPS只读闭集、独立最终审计、唯一decision和公开摘要。首次终审额外全集字符串扫描1文件/1串命中（同为公开源码常量），因果UNKNOWN，扩展扫描FAIL原样保留；补充终审仅完成采集，未重跑实验。不是正式隐私PASS或质量NO-GO，RT-055选型目标仍未完成。
+
+详见[Amendment12完整收口](evidence/amendment12-summary.md)、[终审](evidence/amendment12-final.json)、[QA](evidence/amendment12-qa.json)。
