@@ -431,7 +431,13 @@ def _main() -> int:
             workspace=workspace_api.create(ROOT,str(uuid.uuid4()),"b",str(uuid.uuid4()),synthetic=True)
             log_root=workspace.base/"logs"
         log_needles=workspace_api.needles(corpus,cases)+list(ops.WARMUP_QUERIES)+(workspace_api.needles(verified,[]) if args.mode=="run" else [])
-        firewall.bind(workspace,log_needles)
+        if args.mode=='run':
+            from rt055_confidentiality import load_private_bank
+            log_bank,_=load_private_bank(ROOT)
+            log_bank=log_bank.extend(log_needles)
+            log_needles=log_bank.values
+            firewall.bind(workspace,log_bank)
+        else:firewall.bind(workspace,log_needles)
         data_root=workspace.base/"data"
         transport = RoutingTransport()
         per_lib_pids: dict[str, list[int]] = {}

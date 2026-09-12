@@ -61,8 +61,8 @@ def run(root,wid,mid):
            'status':'RUNNING','a_started':0,'b_started':0,'sidecars_started':0,'private_reads':0,
            'formal_attempts':0,'formal_queries':0,'cleanup_failures':0,'remaining_runtime':0,
            'started_at':time.time(),'leases':[]}
-    bank,_=load_private_bank(root)
-    values=list(bank.values)+['RT055_PUBLIC_STARTUP_NEEDLE_NOT_IN_LOG']
+    bank,_=load_private_bank(root,['RT055_PUBLIC_STARTUP_NEEDLE_NOT_IN_LOG'])
+    values=bank.values
     def deny_private(event,args):
         if event=='open' and isinstance(args[0],(str,bytes,os.PathLike)):
             p=Path(os.path.realpath(os.fsdecode(args[0])))
@@ -75,7 +75,7 @@ def run(root,wid,mid):
     try:
         for key in ('a','b'):
             s=cw.create(root,wid,key,str(uuid.uuid4()),synthetic=True,migration_id=mid);spaces.append(s)
-            firewall.bind(s,values)
+            firewall.bind(s,bank)
             for kb in ops.LIBRARIES:
                 if key=='a':
                     proc,info=a.launch_opensearch(kb,free_port(),cw.file(s,'logs','opensearch-'+kb+'.log'),'smoke',workspace=s)

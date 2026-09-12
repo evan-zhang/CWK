@@ -39,11 +39,12 @@ def main(argv=None):
     state={**window.envelope(ROOT,args.window_id,'formal'),'status':'RUNNING','phase':'PRECHECK',
            'process_id':os.getpid(),'started_at':time.time(),'completed':[],'controller_attempt':attempt}
     def save():ops.write_private_json(w/'status/formal.json',state)
+    from rt055_confidentiality import load_private_bank
+    log_bank,_=load_private_bank(ROOT)
     def run(name,script,*extra):
         state['phase']=name;save()
         from rt055_log_firewall import run_command
-        from rt055_candidate_workspace import needles
-        values=needles(ops.read_json(ROOT/'builder/private-corpus.json'),[])+needles(ops.read_json(ROOT/'verifier/private-verified.json'),[])
+        values=log_bank.values
         code=run_command([sys.executable,str(ROOT/'impl'/script),*extra],
             w/'controllers'/attempt/(name.lower()+'.log'),values,cwd=ROOT/'impl',stdin=subprocess.DEVNULL)
         state['child_process_id']=0

@@ -282,11 +282,29 @@ def private_bank_paths(root):
     return sorted(paths)
 
 
-def load_private_bank(root):
+_PRIVATE_BANKS={}
+
+
+def load_private_bank(root,public_values=()):
     """Controller only, before audit-hook installation; never passed to any child."""
     paths=private_bank_paths(root)
     manifest={str(p.relative_to(root)):ops.sha_file(p) for p in paths}
-    bank=firewall.MemoryBank([ops.read_json(p) for p in paths],NEEDLES+tuple(ops.WARMUP_QUERIES))
+    import weakref
+    if len(_PRIVATE_BANKS)>=2:
+        import gc
+        gc.collect()
+    for stale,(ref,_) in list(_PRIVATE_BANKS.items()):
+        if ref() is None:del _PRIVATE_BANKS[stale]
+    key=str(root.resolve())
+    if key in _PRIVATE_BANKS:
+        ref,old_manifest=_PRIVATE_BANKS[key];bank=ref()
+        if any(v not in bank.values for v in public_values):raise RuntimeError('private_bank_extension_after_compile')
+        if old_manifest!=manifest:raise RuntimeError('private_bank_input_drift')
+    else:
+        if len(_PRIVATE_BANKS)>=2:raise firewall.FirewallError('CAPACITY')
+        if sum(p.stat().st_size for p in paths)>512*1024*1024:raise firewall.FirewallError('CAPACITY')
+        bank=firewall.MemoryBank((ops.read_json(p) for p in paths),NEEDLES+tuple(ops.WARMUP_QUERIES)+tuple(public_values))
+        _PRIVATE_BANKS[key]=(weakref.ref(bank),manifest)
     verify_private_bank_inputs(root,manifest)
     return bank,manifest
 
@@ -298,11 +316,11 @@ def verify_private_bank_inputs(root,manifest):
 
 def bind_current_logs(space,bank):
     if not isinstance(bank,firewall.MemoryBank):raise RuntimeError('full_private_bank_required')
-    return firewall.bind(space,bank.values)
+    return firewall.bind(space,bank)
 
 
 def independent_scan(paths,values):
-    paths=list(paths);patterns=tuple({v.encode('utf-8') for v in values if v})
+    paths=list(paths);patterns=firewall.byte_patterns(values)
     if not patterns:raise RuntimeError('independent_scan_bank_empty')
     hits=0
     for p in paths:

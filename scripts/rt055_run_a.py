@@ -262,7 +262,13 @@ def _main() -> int:
             cases = cases[:args.case_limit]
 
         log_needles=workspace_api.needles(corpus,cases)+list(ops.WARMUP_QUERIES)+(workspace_api.needles(verified,[]) if args.mode=="run" else [])
-        firewall.bind(workspace,log_needles)
+        if args.mode=='run':
+            from rt055_confidentiality import load_private_bank
+            log_bank,_=load_private_bank(ROOT)
+            log_bank=log_bank.extend(log_needles)
+            log_needles=log_bank.values
+            firewall.bind(workspace,log_bank)
+        else:firewall.bind(workspace,log_needles)
         multi = MultiLibraryA()
         pids: list[int] = []
         build_seconds: dict[str, float] = {}

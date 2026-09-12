@@ -506,3 +506,10 @@ RT055回归265项与源码红绿/行为破坏通过；最终Schema negatives、�
 唯一 cleanup PASS → after FAIL（无 fresh before、0 库、不重试）→ abort/INVALID 裁决已独立核验。120 正式指标、24 Gateway 能力全 null；聚合未生成。历史 UNKNOWN/FAIL 及首次部署前置失败均保留，历史原字节与 96 材料、builder/verifier 1/1 保持，残留 0，Gateway 3×200/ok/read_only=true；完整 NAS/index UNKNOWN、历史 services/config false 不清除。RT-055 选型尚未完成。
 
 详见 [Amendment 13 完整收口](evidence/amendment13-summary.md)。
+
+
+## Amendment 14 — 完整超大 bank 防火墙（2026-09-12，新 source 门前）
+
+本增量依据用户 19:14 授权：共享完整 bank，固定短 prefix 索引候选位置后完整匹配；每流 64MiB raw 仅在 controller 内存收集，EOF 后清洗再落盘。512MiB bank/64MiB leaf 固定上限，保留全部 leaf、escaped 变体与 leftmost/longest；12 raw slots、1M 候选/8GiB 比较工作上限均 fail-closed。完整 bank 不按 workspace/stream 重编译或复制；派生新增 matcher 复用原完整索引。独立全 bank postscan 不复用清洗算法。
+
+公开 6481-needle/六个 48MiB leaf 基准、跨 chunk/Unicode/escaped/overlap/无换行、raw 不落盘、共享、cap/线程/EOF/child nonzero 和行为破坏验证见 [设计](evidence/amendment14-design.md)。旧 Am11 UNKNOWN、Am12 FAIL、Am13 CAPACITY/INVALID_CLOSED 与旧 after 全部保持；本段不宣称当前新门 PASS。源码提交后创建新 migration，当前隐私门只跑一次，PASS 才按原算法/题池/7200/对称性继续 readiness→fresh before→新随机 freeze→正式 A/B，否则唯一 cleanup→after→abort/decision，120+24 正式项 null。禁止 production/WeKnora core/NAS/index/alias/config 变更、push/merge/清 worktree。

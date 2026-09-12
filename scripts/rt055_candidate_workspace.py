@@ -259,10 +259,13 @@ def log_files(s):
 
 def scan(s,values):
     paths=log_files(s)
-    from rt055_log_firewall import verified_paths,FirewallError
+    from rt055_log_firewall import verified_paths,FirewallError,byte_patterns
     try:firewall_verified=set(paths)==verified_paths(s)
     except FirewallError:firewall_verified=False
-    hits=sum(any(n in p.read_text(errors='replace') for n in values if n) for p in paths)
+    patterns=byte_patterns(values)
+    hits=0
+    for p in paths:
+        body=p.read_bytes();hits+=int(any(n in body for n in patterns))
     row={'schema':'cwk.rt055.candidate-log-scan.v1','passed':bool(paths) and bool(values) and hits==0 and firewall_verified,'firewall_verified':firewall_verified,
          'log_files':len(paths),'hit_files':hits,'needles_present':bool(values),'content_exported':False}
     window.write_once(s.ledger.parent/'log-scan.json',row)

@@ -107,7 +107,10 @@ def run(root,mid,source_commit):
     if binding.exists():protected.append(Path(ops.read_json(binding)['root']))
     from rt055_confidentiality import load_private_bank
     if len(protected)!=2:raise RuntimeError('full_private_bank_protected_root_required')
-    full_bank,_=load_private_bank(protected[-1])
+    public_docs={kb:documents(kb) for kb in COUNTS}
+    public_trials=[kbc.Case(kb,f'Public synthetic reference-{i:03d}',frozenset({d.doc_id}) if i%3!=2 else frozenset(),i%3==0,i+1)
+                    for kb,ds in public_docs.items() for i,d in enumerate(ds)]
+    full_bank,_=load_private_bank(protected[-1],cw.needles({kb:[vars(d) for d in ds] for kb,ds in public_docs.items()},public_trials)+[SQL_CANARY])
     def deny(event,args):
         if event=='open' and isinstance(args[0],(str,bytes,os.PathLike)):
             p=Path(os.path.realpath(os.fsdecode(args[0])))
@@ -127,8 +130,8 @@ def run(root,mid,source_commit):
                     for kb,ds in docs.items() for i,d in enumerate(ds)]
             totals=kbc.validate_cases(trials,require_trial_identity=True)
             if {kb:v['total_count'] for kb,v in totals.items()}!=COUNTS:raise RuntimeError('public_trial_counts_invalid')
-            values=cw.needles({kb:[vars(d) for d in ds] for kb,ds in docs.items()},trials)+[SQL_CANARY]+list(full_bank.values)
-            firewall=fw.bind(space,values)
+            values=full_bank.values
+            firewall=fw.bind(space,full_bank)
             current={'libraries':{},'searches':0,'firewall_verified':False,'post_scan_hits':0};row['candidates'][key]=current
             transport=b.RoutingTransport()
             services={}

@@ -39,7 +39,7 @@ class StreamingTests(unittest.TestCase):
     def test_long_no_newline_bounded_and_cap(self):
         f=fw.Filter([CANARY]);out=b''
         for _ in range(1024):
-            out=f.feed(b'x'*fw.CHUNK);self.assertLess(len(f.buffer),f.maximum)
+            out=f.feed(b'x'*fw.CHUNK);self.assertEqual(out,b'');self.assertLessEqual(len(f.buffer),fw.CAP)
         self.assertEqual(f.input_bytes,64*1024*1024)
         with self.assertRaises(fw.FirewallError):f.feed(b'x')
         self.assertNotIn(CANARY.encode(),out)
@@ -123,12 +123,123 @@ class StreamingTests(unittest.TestCase):
         procs=[f.spawn([sys.executable,'-c','print("ready")'],p,{}) for p in (p1,p2)]
         for p in procs:p.wait(5)
         self.assertIs(procs[0]._rt055_firewall.filter.patterns,procs[1]._rt055_firewall.filter.patterns)
-        self.assertEqual(fw.PATTERN_CAP,128*1024*1024);self.assertEqual(fw.CAP,64*1024*1024)
+        self.assertEqual(fw.PATTERN_CAP,512*1024*1024);self.assertEqual(fw.CAP,64*1024*1024)
         f.finalize();cw.scan(s,[CANARY]);cw.cleanup(s)
         with patch.object(fw,'PATTERN_CAP',5):
             with self.assertRaises(fw.FirewallError):fw.Filter([CANARY])
     def test_output_expansion_cap_and_actual_byte_accounting(self):
         s=self.make();path=cw.file(s,'logs','expansion.log');stream=fw.Stream(path,['X'],cap=100)
-        proc=subprocess.Popen([sys.executable,'-c','import os,time;os.write(1,b"X"*10);time.sleep(20)'],stdout=subprocess.PIPE,start_new_session=True)
+        proc=subprocess.Popen([sys.executable,'-c','import os,time;os.write(1,b"X"*10)'],stdout=subprocess.PIPE,start_new_session=True)
         stream.attach(proc);proc.wait(5);row=stream.finish()
         self.assertTrue(row['overflow']);self.assertEqual(row['input_bytes'],10);self.assertEqual(row['output_bytes'],0);self.assertEqual(path.read_bytes(),b'')
+
+
+class Amendment14Tests(unittest.TestCase):
+    def test_eof_only_and_shared_across_workspaces(self):
+        bank=fw.MemoryBank({'text':'PUBLIC_PRIVATE_雪'},['abc','abcdef'])
+        a=fw.Filter(bank);b=fw.Filter(bank.values)
+        self.assertIs(a.bank,b.bank);self.assertIs(a.patterns,b.patterns)
+        self.assertEqual(a.feed(b'abcdef'),b'')
+        self.assertEqual(a.feed(b'',True),fw.REPLACEMENT)
+        with self.assertRaises(fw.FirewallError):a.feed(b'new')
+        s1=StreamingTests.make(self);s2=StreamingTests.make(self)
+        f1=fw.bind(s1,bank);f2=fw.bind(s2,bank)
+        self.assertIs(f1.bank,f2.bank)
+        self.assertNotIn('PUBLIC_PRIVATE',repr(bank))
+
+    def test_overlap_safe_failed_prefix_and_short_closed_set(self):
+        values=['a'*16+'end','a'*17+'end','aba','ab','babc','雪🙂','x\n"quoted"']
+        raw=('a'*17+'end'+'abababc'+'雪🙂'+'x\n"quoted"').encode()
+        def oracle(body,patterns):
+            out=b'';pos=0
+            while pos<len(body):
+                hit=next((p for p in sorted(patterns,key=lambda p:-len(p)) if body.startswith(p,pos)),None)
+                if hit:out+=fw.REPLACEMENT;pos+=len(hit)
+                else:out+=body[pos:pos+1];pos+=1
+            return out
+        expected=oracle(raw,[v.encode() for v in values])
+        for cut in range(len(raw)+1):
+            f=fw.Filter(values,cap=4096)
+            self.assertEqual(f.feed(raw[:cut])+f.feed(raw[cut:])+f.feed(b'',True),expected)
+        # First fixed prefix is a false full match; the next overlaps it.
+        f=fw.Filter(['a'*16+'b'],cap=1024)
+        self.assertEqual(f.feed(b'a'*17+b'b',True),b'a'+fw.REPLACEMENT)
+
+    def test_randomized_exact_reference(self):
+        import random
+        rng=random.Random(1414)
+        for _ in range(100):
+            patterns={bytes(rng.choices(b'abc',k=rng.randint(1,25))) for _ in range(20)}
+            raw=bytes(rng.choices(b'abc',k=300));out=bytearray();pos=0
+            while pos<len(raw):
+                matches=[p for p in patterns if raw.startswith(p,pos)]
+                if matches:p=max(matches,key=len);out.extend(fw.REPLACEMENT);pos+=len(p)
+                else:out.append(raw[pos]);pos+=1
+            f=fw.Filter(patterns,cap=8192)
+            self.assertEqual(f.feed(raw,True),out)
+
+    def test_index_resource_limits_and_immutable_bank(self):
+        bank=fw.PatternBank(['public-one','public-two'])
+        with self.assertRaises((AttributeError,TypeError)):bank.patterns=()
+        with self.assertRaises((AttributeError,TypeError)):bank.index[b'new']=()
+        with patch.object(fw,'PATTERN_COUNT_CAP',1):
+            with self.assertRaises(fw.FirewallError):fw.PatternBank(['public-one','public-two'])
+        with patch.object(fw,'MAX_LEAF',4):
+            with self.assertRaises(fw.FirewallError):fw.PatternBank(['12345'])
+        with patch.object(fw,'PATTERN_CAP',7):
+            with self.assertRaises(fw.FirewallError):fw.PatternBank(['1234','5678'])
+        with patch.object(fw,'CANDIDATE_CAP',1):
+            f=fw.Filter(['a'*16+'b'],cap=128)
+            with self.assertRaises(fw.FirewallError):f.feed(b'a'*20,True)
+        with patch.object(fw,'COMPARE_CAP',1):
+            f=fw.Filter(['a'*16+'b'],cap=128)
+            with self.assertRaises(fw.FirewallError):f.feed(b'a'*16+b'b',True)
+        with patch.object(fw,'_RAW_SLOTS',threading.BoundedSemaphore(1)):
+            f=fw.Filter(['public'],cap=128);g=fw.Filter(['public'],cap=128)
+            f.feed(b'x')
+            with self.assertRaises(fw.FirewallError):g.feed(b'y')
+            f.discard()
+
+    def test_child_output_stays_empty_until_eof(self):
+        s=StreamingTests.make(self);f=fw.bind(s,['PUBLIC_SECRET'])
+        path=cw.file(s,'logs','eof.log')
+        proc=f.spawn([sys.executable,'-c','import os,time;os.write(1,b"PUBLIC_SECRET");time.sleep(.4)'],path,{})
+        deadline=time.monotonic()+3
+        while proc._rt055_firewall.input_bytes==0 and time.monotonic()<deadline:time.sleep(.01)
+        self.assertEqual(path.read_bytes(),b'')
+        proc.wait(5);f.finalize();self.assertEqual(path.read_bytes(),fw.REPLACEMENT)
+
+    def test_thread_start_failure_and_no_raw(self):
+        s=StreamingTests.make(self);f=fw.bind(s,['PUBLIC_SECRET']);path=cw.file(s,'logs','thread.log')
+        with patch.object(threading.Thread,'start',side_effect=RuntimeError('public')):
+            with self.assertRaises(fw.FirewallError):f.spawn([sys.executable,'-c','print("PUBLIC_SECRET")'],path,{})
+        stream=f.streams[path]
+        if stream.proc:stream.proc.wait(5)
+        self.assertFalse(stream.receipt()['verified']);self.assertEqual(path.read_bytes(),b'')
+
+    def test_extra_matcher_never_recompiles_full_bank(self):
+        bank=fw.MemoryBank({'text':'a'*20},['ab']);receipt=bank.receipt()
+        with patch.object(fw,'_prefix_regex',wraps=fw._prefix_regex) as compile:
+            derived=bank.extend(['a'*20,'a'*21,'abc'])
+            self.assertEqual(compile.call_count,1)
+            self.assertEqual(set(compile.call_args.args[0]),{b'a'*16,b'abc'})
+        self.assertIs(derived.matcher[0],bank.matcher[0])
+        self.assertEqual(bank.receipt(),receipt)
+        self.assertIs(derived.patterns[1],bank.patterns[0])
+        f=fw.Filter(derived,cap=256)
+        self.assertEqual(f.feed(b'a'*21+b'abc',True),fw.REPLACEMENT*2)
+        self.assertIs(bank.extend(bank.values),bank)
+
+    def test_private_bank_load_and_multiple_spaces_compile_once(self):
+        import rt055_confidentiality as privacy
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            for name in ('builder','verifier'):(root/name).mkdir()
+            for name in ('builder/private-corpus.json','verifier/private-verified.json'):
+                (root/name).write_text('{"value":"PUBLIC_COMPLETE_雪"}')
+            with patch.object(fw,'_prefix_regex',wraps=fw._prefix_regex) as compile:
+                first,_=privacy.load_private_bank(root);second,_=privacy.load_private_bank(root)
+                self.assertIs(first,second)
+                s1=StreamingTests.make(self);s2=StreamingTests.make(self)
+                self.assertIs(privacy.bind_current_logs(s1,first).bank,privacy.bind_current_logs(s2,second).bank)
+                self.assertEqual(compile.call_count,1)

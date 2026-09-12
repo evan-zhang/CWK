@@ -362,6 +362,7 @@
         "scripts/rt055_scoring_input.py",
         "scripts/rt055_scoring_input_qa.py",
         "scripts/rt055_log_firewall.py",
+        "scripts/rt055_log_firewall_qa.py",
         "scripts/rt055_build_readiness.py",
         "scripts/rt055_workload_readiness.py",
         "scripts/rt055_candidate_workspace_qa.py",
