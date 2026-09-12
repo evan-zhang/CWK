@@ -612,3 +612,42 @@ cleanup 全部保留。最新源码把未改动的公开配置复制进各 B 数
 官方 loader 的公开 SQLite schema 与 config 同属相对路径运行依赖，现均在独占数据面完整复制、
 核对。第五个 synthetic 失败不覆盖；新 [完整回归](candidate-workspace-native-assets-tests.json)
 验证配置/schema 不改、目录隔离、数据字节排除静态依赖、嵌套日志扫描与精确 cleanup。
+
+
+## Amendment 6 interrupted READY 最终验收（2026-09-12）
+
+**独立验证 PASS，停止 READY_TO_RUN。** [公开回执](candidate-workspace-ready.json)、
+[闭集 Schema](candidate-workspace-ready.schema.json)、[QA](candidate-workspace-ready-qa.json)、
+[QA Schema](candidate-workspace-ready-qa.schema.json)。部署/冻结源码 `ad7d6b6e282ed8a674f25924830c4c5df71137ed` 未修改；
+window `c66757c6-93f6-481d-aa92-be7de83b9aa1`，migration `11b62e31-ddbe-469e-baca-8f4553be0299`，冻结顺序 **A→B**。
+
+- 根因：ignored verifier `ASSERT_L017` 混淆全局旧消费 claim 与新 window 计数。34条断言/57次求值，
+  唯一真实失败；旧全局 claim1/void1 保留，新 window 各项0。null-device 诊断假阴性修正后已复核，
+  不作为 READY 缺口。原中断 FAILED 和 finalizer.claim 留存，没有重跑 finalizer。
+- 现有 receipt 独立重算：部署源码、source-bound privacy、main runtime policy、candidate-workspace
+  startup、freeze与随机顺序通过；无 Popen precheck通过。主 A3/B3/sidecar3 启动证据完整、已清理，
+  本次未重复启动。正式 query/private-read=0 指主公开 startup；旧正式 runner 确曾打开私有输入，
+  不改写为“从未发生”。
+- 公共 synthetic 既有证据：正常 A/B各1，鉴权错误400/400、embedding3/3；15日志零命中，
+  123 socket samples无外连；tracing/forbidden reads/observer errors0。
+- 新 before/freeze/verification claim各1；attempt/arm/exposure/query/score/result/after0。
+  全局 exposure/score/result0；旧 window A1/B0/after闭合、全历史窗口/claim/void清单及字节不变。
+  builder/verifier1/1，三库42@T3/31@T3/42@T2，deferred为空。
+- 归档以实际清单计数：96材料/188101752字节；1222前次归档/577143325字节；
+  2570本次归档/1156141883字节。三者逐文件重算一致。5次失败 predecessor源码与终态
+  沿链绑定、集合完整、每次cleanup0；主和合成候选/controller/临时数据面/runtime残留0，Gateway3×200。
+
+### 三格核验
+
+- **工程判据**：完整 RT055 回归、py_compile、闭集 Schema正例和缺字段/私有字段/计数与状态漂移反例；
+  ignored verifier的计数表达式用合成输入复现旧claim1/新window0，并证明新attempt/score/result非0会拒绝。
+  隐私/secret/links、历史文档前缀、部署scripts不变、AODW/governance/diff均复核，实际计数见QA。
+  11项候选运行目录行为破坏结果复用 `ad7d6b6` 的既有公开源码验收，不冒称本次重跑 OPS 或破坏实验。
+- **AI审查**：接管主Agent独立检查“claim的作用域是否与其它计数一致”“是否删除历史来凑全零”
+  “是否把真实freeze失败放宽为PASS”。确认只修本地验证逻辑、保留全局硬门和失败历史；
+  不冒称外部 reviewer 或实验 builder/verifier 再次运行。
+- **读真实产出**：只读OPS既有receipt的闭集投影，交叉核对真实顺序、源码、启动数、归档计数/字节、
+  零暴露与旧窗口不变性。私有题面/路径/hash不出OPS；公开证据不是正式aggregate或质量裁决。
+
+下一断点仍为等待正式 A/B 的新明确授权；本次无该授权、不执行、不切流。RT保持in_progress。
+完整NAS/index不变性UNKNOWN和历史服务漂移保留；不声称全仓CI。只本地提交公开证据/文档/必要tests。

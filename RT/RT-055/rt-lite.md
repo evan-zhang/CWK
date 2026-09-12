@@ -302,3 +302,21 @@ window/candidate/attempt 独占运行租约，账本仍不可读写；补最终�
 及 [本地验收](evidence/acceptance.md#amendment-6--runtime-workspace-修复验收本地阶段)。
 当前为执行器开发验收，不代表新 OPS READY。旧执行曾打开私有 runner 输入，不能称为未发生；
 global exposure/query/result0 是新窗口授权规则的依据，不得改题池或重复 builder/verifier。
+
+
+## 最新断点 — Amendment 6 interrupted READY 已独立收口
+
+本节取代前文“OPS尚未READY”的当前判断，历史原件不覆盖。部署/冻结源码 `ad7d6b6e282ed8a674f25924830c4c5df71137ed`；
+window `c66757c6-93f6-481d-aa92-be7de83b9aa1`，migration `11b62e31-ddbe-469e-baca-8f4553be0299`，真实冻结顺序 **A→B**。
+source-bound privacy、main policy、完整A3/B3/sidecar3公开startup、before/freeze和无Popen独立重算PASS。
+唯一中断是验证器把全局旧claim1当成新window计数，已只修ignored verifier并重新只读验证；
+原FAILED/finalizer.claim留存，没有重跑实验动作、控制器或正式A/B。
+
+新attempt/arm/exposure/query/score/result/after0；global exposure/score/result0。旧window永久INVALID，
+A1/B0/after及全局claim1/void1原样保留；builder/verifier1/1。96材料、1222前归档、2570本次归档
+清单/字节一致；5个失败synthetic链完整且每个cleanup0。Gateway3×200，无活跃候选/controller/runtime。
+[公开READY](evidence/candidate-workspace-ready.json) / [QA](evidence/candidate-workspace-ready-qa.json) /
+[三格验收](evidence/acceptance.md#amendment-6-interrupted-ready-最终验收2026-09-12)。
+
+停止 **READY_TO_RUN**；评测与选型尚未完成，RT仍in_progress、切流暂停、NAS/index强不变性UNKNOWN。
+只本地提交公开证据/docs/必要tests，不push、不合并、不清worktree。下一步必须另获正式A/B授权。

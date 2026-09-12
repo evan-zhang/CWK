@@ -318,3 +318,33 @@ HTTP 初始化失败及清理回执保留；把这份**公开应用 schema 文�
 spawn 前核对并纳入 freeze。它不是执行器/曝光控制账本，后者的隔离不变。
 资源采集仍统计数据库、WAL、对象文件与缓存；仅排除新复制的、字节核对过的公开 config/schema
 静态依赖，避免把程序支持文件误计为索引数据。候选检索、scorer 和质量门不变。
+
+
+### Amendment 6 interrupted READY 独立收口（2026-09-12）
+
+当前断点 **READY_TO_RUN**，不是正式评测完成。部署/冻结源码仍为 `ad7d6b6e282ed8a674f25924830c4c5df71137ed`，
+新 migration `11b62e31-ddbe-469e-baca-8f4553be0299`，window `c66757c6-93f6-481d-aa92-be7de83b9aa1`。顺序 **A→B** 来自既有真实 freeze receipt，
+未重新抽签，未重复 OPS worker、privacy、main startup、before、freeze 或正式 coordinator。
+
+中断根因是本地 verifier 的 `ASSERT_L017`：`_counts` 的 `claims` 按全局 consumption 计数，
+其余 attempts/scores/results 按传入 window 计数；旧合法保留且已 void 的 claim=1 被混入
+“新窗口全部为0”的断言。逐项只读审计覆盖34条断言、57次求值，唯一真实失败为该断言。
+初版只读诊断保护误拦向 null device 丢弃 stderr，制造了一个 freeze 诊断假阴性；
+仅允许 null device 后全项复核，privacy/freeze 均 PASS，未放开工件写入。
+
+只修 ignored 独立 verifier：新窗口 attempts/arms/exposure/query/score/result/after 与新窗口
+legacy claim 都为0；全局旧 claim1/void1 必须合法且字节保留，不得为了“全零”删除。
+计数从真实 receipt 和文件清单重算：本次归档 2570 份/1156141883 字节，
+前次归档 1222 份/577143325 字节，96材料/188101752 字节。
+五个失败 synthetic predecessor 按实际链遍历、与 migration 集合比对，每个源码/终态绑定及 cleanup0
+均通过；不再把固定链长或归档数当通用断言。全历史正式 score/result 实测仍为0，未缩小范围掩盖结果。
+
+现有 source-bound privacy、main policy、main-root A三库/B三库/3 sidecars startup、before/freeze
+和无 Popen precheck 均重新独立读取/重算通过。新 before/freeze/freeze-verification claim 各1，after0；
+旧窗口 `835c5188-0f29-4f41-8fe6-119b61917e2d` 永久 INVALID，A attempt1/B0、原 after/claim/void
+及所有历史窗口文件集合和字节保持。builder/verifier仍1/1，42@T3、31@T3、42@T2不变。
+Gateway3×200；候选/controller/临时数据面/candidate-runtime残留0。独立读取不写任何 OPS 工件。
+
+[公开 READY](evidence/candidate-workspace-ready.json) · [闭集 Schema](evidence/candidate-workspace-ready.schema.json) ·
+[QA](evidence/candidate-workspace-ready-qa.json)。未执行正式 A/B，未产生质量成绩，不关闭 RT，不切流；
+完整 NAS/index 不变性仍 UNKNOWN，历史漂移不抵销。只本地公开证据提交，不 push、不合并、不清 worktree。

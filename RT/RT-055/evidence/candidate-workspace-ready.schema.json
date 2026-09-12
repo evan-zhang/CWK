@@ -1,0 +1,1040 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "archived_original_files",
+    "builder_runs",
+    "candidate_processes",
+    "candidate_workspace_readiness",
+    "cleanup_failures",
+    "data_class",
+    "deferred_libraries",
+    "diagnostic_scope",
+    "executioner_migration_id",
+    "external_egress_denied",
+    "failed_synthetic_history_retained",
+    "formal_after_claims",
+    "formal_evaluation_complete",
+    "formal_query_calls",
+    "formal_results",
+    "freeze_binds_readiness",
+    "freeze_claims",
+    "freeze_verified",
+    "freeze_verifier_claims",
+    "fresh_before_claims",
+    "fresh_before_verified",
+    "full_nas_index_invariance",
+    "gateway_http_200_count",
+    "generation_chronology_proven",
+    "global_exposure",
+    "historical_bytes_equal",
+    "historical_drift_cleared",
+    "independent_verification",
+    "initial_recovery_source_commit",
+    "loopback_allowed",
+    "main_startup_a_instances",
+    "main_startup_b_instances",
+    "main_startup_cleanup_failures",
+    "main_startup_formal_queries",
+    "main_startup_private_reads",
+    "main_startup_remaining_runtime",
+    "main_startup_sidecars",
+    "native_upstream_verified",
+    "network_gate_recomputed",
+    "new_arms",
+    "new_candidate_attempts",
+    "new_window_id",
+    "old_a_attempts",
+    "old_after_closed",
+    "old_arms",
+    "old_b_attempts",
+    "old_claims_retained",
+    "old_exposure",
+    "old_policy_and_network_receipt_bytes_equal",
+    "old_process_records",
+    "old_query_calls",
+    "old_results",
+    "old_runner_private_input_was_opened",
+    "old_scores",
+    "old_void_valid",
+    "old_window_id",
+    "old_window_status",
+    "policy_text_recomputed",
+    "pool",
+    "predecessor_migration_id",
+    "preserved_synthetic_failures",
+    "previous_archive_bytes_equal",
+    "previous_archived_original_files",
+    "privacy_observations",
+    "privacy_readiness",
+    "private_holdout_opened_for_diagnosis",
+    "production_cutover_allowed",
+    "protected_scope_count",
+    "random_order_newly_sampled",
+    "readiness_before_baseline_start",
+    "readiness_claims",
+    "reason",
+    "retained_bytes_equal",
+    "retained_files",
+    "run_id",
+    "run_order",
+    "runtime_policy_files",
+    "runtime_policy_readiness",
+    "runtime_policy_version_matches_window",
+    "schema",
+    "search_outbound_denied",
+    "source_binding_recomputed",
+    "source_commit",
+    "spawn_precheck_without_popen",
+    "status",
+    "synthetic_data_planes",
+    "synthetic_processes",
+    "temporary_data_planes",
+    "verifier_reconciliation",
+    "verifier_runs",
+    "workspace_archive_id",
+    "workspace_probe"
+  ],
+  "properties": {
+    "archived_original_files": {
+      "const": 2570
+    },
+    "builder_runs": {
+      "const": 1
+    },
+    "candidate_processes": {
+      "const": 0
+    },
+    "candidate_workspace_readiness": {
+      "const": "PASS"
+    },
+    "cleanup_failures": {
+      "const": 0
+    },
+    "data_class": {
+      "const": "OPS_PUBLIC_READINESS_NO_FORMAL_EVALUATION"
+    },
+    "deferred_libraries": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 0,
+      "items": false
+    },
+    "diagnostic_scope": {
+      "const": "PUBLIC_SYNTHETIC_AND_CLOSED_WINDOW_CLASSIFICATION_ONLY"
+    },
+    "executioner_migration_id": {
+      "const": "11b62e31-ddbe-469e-baca-8f4553be0299"
+    },
+    "external_egress_denied": {
+      "const": true
+    },
+    "failed_synthetic_history_retained": {
+      "const": true
+    },
+    "formal_after_claims": {
+      "const": 0
+    },
+    "formal_evaluation_complete": {
+      "const": false
+    },
+    "formal_query_calls": {
+      "const": 0
+    },
+    "formal_results": {
+      "const": 0
+    },
+    "freeze_binds_readiness": {
+      "const": true
+    },
+    "freeze_claims": {
+      "const": 1
+    },
+    "freeze_verified": {
+      "const": true
+    },
+    "freeze_verifier_claims": {
+      "const": 1
+    },
+    "fresh_before_claims": {
+      "const": 1
+    },
+    "fresh_before_verified": {
+      "const": true
+    },
+    "full_nas_index_invariance": {
+      "const": null
+    },
+    "gateway_http_200_count": {
+      "const": 3
+    },
+    "generation_chronology_proven": {
+      "const": false
+    },
+    "global_exposure": {
+      "const": 0
+    },
+    "historical_bytes_equal": {
+      "const": true
+    },
+    "historical_drift_cleared": {
+      "const": false
+    },
+    "independent_verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "all_formal_arms",
+        "all_predecessor_cleanup_zero",
+        "archive_inventory_equal",
+        "before_claims",
+        "builder_runs",
+        "candidate_processes",
+        "candidate_runtime_residuals",
+        "controller_processes",
+        "failed_synthetic_predecessors",
+        "freeze_claims",
+        "freeze_recomputed",
+        "freeze_verification_claims",
+        "gateway_http_200_count",
+        "global_exposure",
+        "global_legacy_claims",
+        "global_results",
+        "global_scores",
+        "global_voids",
+        "historical_window_inventory_equal",
+        "legacy_claim_scope",
+        "legacy_claim_void_inventory_equal",
+        "main_policy_recomputed",
+        "main_startup_claims",
+        "new_after",
+        "new_archive_bytes",
+        "new_archive_bytes_equal",
+        "new_archived_files",
+        "new_arms",
+        "new_attempts",
+        "new_exposure",
+        "new_legacy_claims",
+        "new_queries",
+        "new_results",
+        "new_scores",
+        "no_formal_coordinator_executed",
+        "no_popen_precheck",
+        "old_a_attempts",
+        "old_after_closed",
+        "old_b_attempts",
+        "predecessor_chain_complete",
+        "previous_archive_bytes",
+        "previous_archive_bytes_equal",
+        "previous_archive_inventory_equal",
+        "previous_archived_files",
+        "private_data_or_hashes_exported",
+        "readonly_ops_writes",
+        "retained_bytes",
+        "retained_bytes_equal",
+        "retained_materials",
+        "source_bound_privacy_recomputed",
+        "source_matches_local_commit",
+        "startup_binding_recomputed",
+        "status",
+        "temporary_data_planes",
+        "verifier_runs"
+      ],
+      "properties": {
+        "all_formal_arms": {
+          "const": 0
+        },
+        "all_predecessor_cleanup_zero": {
+          "const": true
+        },
+        "archive_inventory_equal": {
+          "const": true
+        },
+        "before_claims": {
+          "const": 1
+        },
+        "builder_runs": {
+          "const": 1
+        },
+        "candidate_processes": {
+          "const": 0
+        },
+        "candidate_runtime_residuals": {
+          "const": 0
+        },
+        "controller_processes": {
+          "const": 0
+        },
+        "failed_synthetic_predecessors": {
+          "const": 5
+        },
+        "freeze_claims": {
+          "const": 1
+        },
+        "freeze_recomputed": {
+          "const": true
+        },
+        "freeze_verification_claims": {
+          "const": 1
+        },
+        "gateway_http_200_count": {
+          "const": 3
+        },
+        "global_exposure": {
+          "const": 0
+        },
+        "global_legacy_claims": {
+          "const": 1
+        },
+        "global_results": {
+          "const": 0
+        },
+        "global_scores": {
+          "const": 0
+        },
+        "global_voids": {
+          "const": 1
+        },
+        "historical_window_inventory_equal": {
+          "const": true
+        },
+        "legacy_claim_scope": {
+          "const": "GLOBAL_RETAINED_NOT_NEW_WINDOW"
+        },
+        "legacy_claim_void_inventory_equal": {
+          "const": true
+        },
+        "main_policy_recomputed": {
+          "const": true
+        },
+        "main_startup_claims": {
+          "const": 1
+        },
+        "new_after": {
+          "const": 0
+        },
+        "new_archive_bytes": {
+          "const": 1156141883
+        },
+        "new_archive_bytes_equal": {
+          "const": true
+        },
+        "new_archived_files": {
+          "const": 2570
+        },
+        "new_arms": {
+          "const": 0
+        },
+        "new_attempts": {
+          "const": 0
+        },
+        "new_exposure": {
+          "const": 0
+        },
+        "new_legacy_claims": {
+          "const": 0
+        },
+        "new_queries": {
+          "const": 0
+        },
+        "new_results": {
+          "const": 0
+        },
+        "new_scores": {
+          "const": 0
+        },
+        "no_formal_coordinator_executed": {
+          "const": true
+        },
+        "no_popen_precheck": {
+          "const": "PASS"
+        },
+        "old_a_attempts": {
+          "const": 1
+        },
+        "old_after_closed": {
+          "const": true
+        },
+        "old_b_attempts": {
+          "const": 0
+        },
+        "predecessor_chain_complete": {
+          "const": true
+        },
+        "previous_archive_bytes": {
+          "const": 577143325
+        },
+        "previous_archive_bytes_equal": {
+          "const": true
+        },
+        "previous_archive_inventory_equal": {
+          "const": true
+        },
+        "previous_archived_files": {
+          "const": 1222
+        },
+        "private_data_or_hashes_exported": {
+          "const": false
+        },
+        "readonly_ops_writes": {
+          "const": 0
+        },
+        "retained_bytes": {
+          "const": 188101752
+        },
+        "retained_bytes_equal": {
+          "const": true
+        },
+        "retained_materials": {
+          "const": 96
+        },
+        "source_bound_privacy_recomputed": {
+          "const": true
+        },
+        "source_matches_local_commit": {
+          "const": true
+        },
+        "startup_binding_recomputed": {
+          "const": true
+        },
+        "status": {
+          "const": "PASS"
+        },
+        "temporary_data_planes": {
+          "const": 0
+        },
+        "verifier_runs": {
+          "const": 1
+        }
+      }
+    },
+    "initial_recovery_source_commit": {
+      "const": "106823dff3d33e110f7b47e78760f07c45dd230f"
+    },
+    "loopback_allowed": {
+      "const": true
+    },
+    "main_startup_a_instances": {
+      "const": 3
+    },
+    "main_startup_b_instances": {
+      "const": 3
+    },
+    "main_startup_cleanup_failures": {
+      "const": 0
+    },
+    "main_startup_formal_queries": {
+      "const": 0
+    },
+    "main_startup_private_reads": {
+      "const": 0
+    },
+    "main_startup_remaining_runtime": {
+      "const": 0
+    },
+    "main_startup_sidecars": {
+      "const": 3
+    },
+    "native_upstream_verified": {
+      "const": true
+    },
+    "network_gate_recomputed": {
+      "const": true
+    },
+    "new_arms": {
+      "const": 0
+    },
+    "new_candidate_attempts": {
+      "const": 0
+    },
+    "new_window_id": {
+      "const": "c66757c6-93f6-481d-aa92-be7de83b9aa1"
+    },
+    "old_a_attempts": {
+      "const": 1
+    },
+    "old_after_closed": {
+      "const": true
+    },
+    "old_arms": {
+      "const": 0
+    },
+    "old_b_attempts": {
+      "const": 0
+    },
+    "old_claims_retained": {
+      "const": 1
+    },
+    "old_exposure": {
+      "const": 0
+    },
+    "old_policy_and_network_receipt_bytes_equal": {
+      "const": true
+    },
+    "old_process_records": {
+      "const": 1
+    },
+    "old_query_calls": {
+      "const": 0
+    },
+    "old_results": {
+      "const": 0
+    },
+    "old_runner_private_input_was_opened": {
+      "const": true
+    },
+    "old_scores": {
+      "const": 0
+    },
+    "old_void_valid": {
+      "const": true
+    },
+    "old_window_id": {
+      "const": "835c5188-0f29-4f41-8fe6-119b61917e2d"
+    },
+    "old_window_status": {
+      "const": "INVALID"
+    },
+    "policy_text_recomputed": {
+      "const": true
+    },
+    "pool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cwork-3m",
+        "docdb-touqian",
+        "spbp-2027"
+      ],
+      "properties": {
+        "cwork-3m": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "tier",
+            "total_count"
+          ],
+          "properties": {
+            "tier": {
+              "const": "T3"
+            },
+            "total_count": {
+              "const": 42
+            }
+          }
+        },
+        "docdb-touqian": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "tier",
+            "total_count"
+          ],
+          "properties": {
+            "tier": {
+              "const": "T3"
+            },
+            "total_count": {
+              "const": 31
+            }
+          }
+        },
+        "spbp-2027": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "tier",
+            "total_count"
+          ],
+          "properties": {
+            "tier": {
+              "const": "T2"
+            },
+            "total_count": {
+              "const": 42
+            }
+          }
+        }
+      }
+    },
+    "predecessor_migration_id": {
+      "const": "ba01e431-1963-4e89-8761-014f9bb210e4"
+    },
+    "preserved_synthetic_failures": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": false,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cleanup_zero",
+            "migration_id",
+            "source_commit",
+            "status"
+          ],
+          "properties": {
+            "cleanup_zero": {
+              "const": true
+            },
+            "migration_id": {
+              "const": "ba01e431-1963-4e89-8761-014f9bb210e4"
+            },
+            "source_commit": {
+              "const": "cb051dd05ba8b72ae3162faf24fe922332503954"
+            },
+            "status": {
+              "const": "FAILED_PUBLIC_SYNTHETIC_RETAINED"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cleanup_zero",
+            "migration_id",
+            "source_commit",
+            "status"
+          ],
+          "properties": {
+            "cleanup_zero": {
+              "const": true
+            },
+            "migration_id": {
+              "const": "b24c8d73-cf14-4380-98a5-443b881129d3"
+            },
+            "source_commit": {
+              "const": "c91e8bd45557bee2a67d8eff0f04d02551fb7213"
+            },
+            "status": {
+              "const": "FAILED_PUBLIC_SYNTHETIC_RETAINED"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cleanup_zero",
+            "migration_id",
+            "source_commit",
+            "status"
+          ],
+          "properties": {
+            "cleanup_zero": {
+              "const": true
+            },
+            "migration_id": {
+              "const": "079371be-0d52-471a-90dd-7833043fd727"
+            },
+            "source_commit": {
+              "const": "55a1b3d56af8f45baeb506b7ba6981c5a92377e3"
+            },
+            "status": {
+              "const": "FAILED_PUBLIC_SYNTHETIC_RETAINED"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cleanup_zero",
+            "migration_id",
+            "source_commit",
+            "status"
+          ],
+          "properties": {
+            "cleanup_zero": {
+              "const": true
+            },
+            "migration_id": {
+              "const": "b5fcff17-ee02-40b6-9226-f049f66fe6a1"
+            },
+            "source_commit": {
+              "const": "e8cc52337c46c0bc7ef8e48223101d6c3a97cdba"
+            },
+            "status": {
+              "const": "FAILED_PUBLIC_SYNTHETIC_RETAINED"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cleanup_zero",
+            "migration_id",
+            "source_commit",
+            "status"
+          ],
+          "properties": {
+            "cleanup_zero": {
+              "const": true
+            },
+            "migration_id": {
+              "const": "73968398-253e-429c-bb24-c2a183baadc6"
+            },
+            "source_commit": {
+              "const": "106823dff3d33e110f7b47e78760f07c45dd230f"
+            },
+            "status": {
+              "const": "FAILED_PUBLIC_SYNTHETIC_RETAINED"
+            }
+          }
+        }
+      ]
+    },
+    "previous_archive_bytes_equal": {
+      "const": true
+    },
+    "previous_archived_original_files": {
+      "const": 1222
+    },
+    "privacy_observations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authenticated_query_error_code",
+        "authenticated_title_error_code",
+        "candidate_workspace_candidates",
+        "candidate_workspace_cleanup_zero",
+        "embedding_calls",
+        "embedding_successes",
+        "external_socket_observations",
+        "forbidden_reads",
+        "log_canary_hits",
+        "log_files_scanned",
+        "native_normal_calls",
+        "native_trace_response_headers",
+        "observer_errors",
+        "search_normal_calls",
+        "socket_samples",
+        "trace_header_observations"
+      ],
+      "properties": {
+        "authenticated_query_error_code": {
+          "const": 400
+        },
+        "authenticated_title_error_code": {
+          "const": 400
+        },
+        "candidate_workspace_candidates": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": false,
+          "prefixItems": [
+            {
+              "const": "a"
+            },
+            {
+              "const": "b"
+            }
+          ]
+        },
+        "candidate_workspace_cleanup_zero": {
+          "const": true
+        },
+        "embedding_calls": {
+          "const": 3
+        },
+        "embedding_successes": {
+          "const": 3
+        },
+        "external_socket_observations": {
+          "const": 0
+        },
+        "forbidden_reads": {
+          "const": 0
+        },
+        "log_canary_hits": {
+          "const": 0
+        },
+        "log_files_scanned": {
+          "const": 15
+        },
+        "native_normal_calls": {
+          "const": 1
+        },
+        "native_trace_response_headers": {
+          "const": 0
+        },
+        "observer_errors": {
+          "const": 0
+        },
+        "search_normal_calls": {
+          "const": 1
+        },
+        "socket_samples": {
+          "const": 123
+        },
+        "trace_header_observations": {
+          "const": 0
+        }
+      }
+    },
+    "privacy_readiness": {
+      "const": "PASS"
+    },
+    "private_holdout_opened_for_diagnosis": {
+      "const": false
+    },
+    "production_cutover_allowed": {
+      "const": false
+    },
+    "protected_scope_count": {
+      "const": 8
+    },
+    "random_order_newly_sampled": {
+      "const": true
+    },
+    "readiness_before_baseline_start": {
+      "const": true
+    },
+    "readiness_claims": {
+      "const": 1
+    },
+    "reason": {
+      "const": "CANDIDATE_LOG_WORKSPACE_STARTUP_FAILURE_RECOVERED"
+    },
+    "retained_bytes_equal": {
+      "const": true
+    },
+    "retained_files": {
+      "const": 96
+    },
+    "run_id": {
+      "const": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af"
+    },
+    "run_order": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": false,
+      "prefixItems": [
+        {
+          "const": "a"
+        },
+        {
+          "const": "b"
+        }
+      ]
+    },
+    "runtime_policy_files": {
+      "const": 2
+    },
+    "runtime_policy_readiness": {
+      "const": "PASS"
+    },
+    "runtime_policy_version_matches_window": {
+      "const": true
+    },
+    "schema": {
+      "const": "cwk.rt055.candidate-workspace-ready.v1"
+    },
+    "search_outbound_denied": {
+      "const": true
+    },
+    "source_binding_recomputed": {
+      "const": true
+    },
+    "source_commit": {
+      "const": "ad7d6b6e282ed8a674f25924830c4c5df71137ed"
+    },
+    "spawn_precheck_without_popen": {
+      "const": "PASS"
+    },
+    "status": {
+      "const": "READY_TO_RUN"
+    },
+    "synthetic_data_planes": {
+      "const": 0
+    },
+    "synthetic_processes": {
+      "const": 0
+    },
+    "temporary_data_planes": {
+      "const": 0
+    },
+    "verifier_reconciliation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "archive_count_derived_from_receipts",
+        "failed_assertions",
+        "interrupted_finalizer_replayed",
+        "new_window_claims",
+        "ops_artifacts_changed",
+        "original_assertion_evaluations",
+        "original_assertion_labels",
+        "original_failed_assertions",
+        "predecessor_count_derived_from_receipts",
+        "retained_global_claims",
+        "root_cause",
+        "status"
+      ],
+      "properties": {
+        "archive_count_derived_from_receipts": {
+          "const": true
+        },
+        "failed_assertions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": false,
+          "prefixItems": [
+            {
+              "const": "ASSERT_L017"
+            }
+          ]
+        },
+        "interrupted_finalizer_replayed": {
+          "const": false
+        },
+        "new_window_claims": {
+          "const": 0
+        },
+        "ops_artifacts_changed": {
+          "const": false
+        },
+        "original_assertion_evaluations": {
+          "const": 57
+        },
+        "original_assertion_labels": {
+          "const": 34
+        },
+        "original_failed_assertions": {
+          "const": 1
+        },
+        "predecessor_count_derived_from_receipts": {
+          "const": true
+        },
+        "retained_global_claims": {
+          "const": 1
+        },
+        "root_cause": {
+          "const": "GLOBAL_LEGACY_CONSUMPTION_CLAIM_COUNTED_AS_NEW_WINDOW"
+        },
+        "status": {
+          "const": "STALE_VERIFIER_SCOPE_CORRECTED"
+        }
+      }
+    },
+    "verifier_runs": {
+      "const": 1
+    },
+    "workspace_archive_id": {
+      "const": "0b1ffc7b-57eb-42c0-a098-141cc61abc39"
+    },
+    "workspace_probe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cleanup_preserves_siblings_and_audit",
+        "formal_queries",
+        "identity_negative_rejections",
+        "log_leak_rejected",
+        "log_no_hit_passed",
+        "policies",
+        "private_holdout_reads",
+        "remaining_runtime",
+        "status"
+      ],
+      "properties": {
+        "cleanup_preserves_siblings_and_audit": {
+          "const": true
+        },
+        "formal_queries": {
+          "const": 0
+        },
+        "identity_negative_rejections": {
+          "const": 5
+        },
+        "log_leak_rejected": {
+          "const": true
+        },
+        "log_no_hit_passed": {
+          "const": true
+        },
+        "policies": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": false,
+          "prefixItems": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "cross_candidate_read_write_denied",
+                "owned_write_allowed",
+                "policy",
+                "protected_reads_denied",
+                "protected_writes_denied"
+              ],
+              "properties": {
+                "cross_candidate_read_write_denied": {
+                  "const": true
+                },
+                "owned_write_allowed": {
+                  "const": true
+                },
+                "policy": {
+                  "const": "loopback"
+                },
+                "protected_reads_denied": {
+                  "const": 8
+                },
+                "protected_writes_denied": {
+                  "const": 8
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "cross_candidate_read_write_denied",
+                "owned_write_allowed",
+                "policy",
+                "protected_reads_denied",
+                "protected_writes_denied"
+              ],
+              "properties": {
+                "cross_candidate_read_write_denied": {
+                  "const": true
+                },
+                "owned_write_allowed": {
+                  "const": true
+                },
+                "policy": {
+                  "const": "inbound-only"
+                },
+                "protected_reads_denied": {
+                  "const": 8
+                },
+                "protected_writes_denied": {
+                  "const": 8
+                }
+              }
+            }
+          ]
+        },
+        "private_holdout_reads": {
+          "const": 0
+        },
+        "remaining_runtime": {
+          "const": 0
+        },
+        "status": {
+          "const": "PASS"
+        }
+      }
+    }
+  }
+}
