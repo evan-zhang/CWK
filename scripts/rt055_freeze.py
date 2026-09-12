@@ -56,6 +56,7 @@ def dependencies(root,key):
         dictionaries=[root/'jieba'/name for name in runtime.JIEBA_FILES]
         if not all(p.is_file() for p in dictionaries):raise RuntimeError('native_dictionary_assets_missing')
         files+=dictionaries
+        files += [p for p in (root/'weknora/config').rglob('*') if p.is_file()]
     return sorted(files)
 
 def create(root,window_id,privacy_migration_id):

@@ -300,3 +300,13 @@ heap 或其它选项。每次 spawn 重算该副本，config 原始字节进入 
 只向本租约已知的三个父目录授予 literal `file-read-metadata`，不授予目录枚举、文件内容或
 其它候选访问；formal-windows 与其它账本仍完全拒读写。两种策略下 realpath 成功、父目录
 listing 与 sibling 内容读取仍拒绝，另有断开 metadata 接线的行为破坏测试。
+
+### Amendment 6 补充 — native config 与兜底日志
+
+第四次公开 synthetic 已证实 A 启动/检索成功、B sidecar 启动成功；B native 因工作目录改变而
+找不到公开 `config/config.yaml`。按官方 loader 的相对路径规则，将原始公开 config 逐字节复制到
+每个 B 数据目录，native cwd 也落在该目录；原 WeKnora core/config 不改，配置字节进入 freeze。
+新配置副本在 spawn 前重算，新增/篡改/escape 均拒绝。数据库、对象数据和相对缓存不再落回源码树。
+
+日志扫描与留存同时覆盖租约内所有 `logs/` 子目录及 `.log` 文件，防止 native 兜底日志躲在数据
+目录；数据库与文档内容不是日志，不参与该扫描，也不归档成日志。该接线有真实命中拒绝测试。

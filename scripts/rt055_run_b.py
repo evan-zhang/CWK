@@ -205,6 +205,7 @@ def launch_server(port: int, data_dir: Path, log_path: Path, *, window_id=None, 
     workspace_api.require_path(workspace,data_dir,"data")
     workspace_api.require_path(workspace,log_path,"logs")
     data_dir.mkdir(mode=0o700,parents=True, exist_ok=False)
+    workspace_api.native_config(ROOT,workspace,data_dir,create=True)
     env = runtime.clean_env(workspace.base)
     env.update({
         "DB_DRIVER": "sqlite", "DB_PATH": str(data_dir / "app.db"),
@@ -221,7 +222,7 @@ def launch_server(port: int, data_dir: Path, log_path: Path, *, window_id=None, 
     with log_path.open("xb") as log:
         proc = runtime.spawn(ROOT,[str(ROOT / "bin" / "weknora-server")],
                                 stdout=log, stderr=subprocess.STDOUT,
-                                env=env, cwd=str(workspace.base), window_id=window_id, workspace=workspace)
+                                env=env, cwd=str(data_dir), window_id=window_id, workspace=workspace)
 
     try:
         ops.wait_for_http(f"http://127.0.0.1:{port}{BASE}/knowledge-bases", timeout=180,

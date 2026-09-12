@@ -279,7 +279,8 @@ def run(root,protected_root=None):
         o.update(observer.finish());o['denial_probes']=denial_probes
         count=hits=0
         for space in spaces:
-            n,h=scan_logs(space.base/'logs',NEEDLES);count+=n;hits+=h
+            paths=cw.log_files(space);count+=len(paths)
+            hits+=sum(any(n in p.read_text(errors='replace') for n in NEEDLES) for p in paths)
             try:cw.scan(space,NEEDLES)
             except Exception:o['cleanup_error']=True
             try:cw.cleanup(space)

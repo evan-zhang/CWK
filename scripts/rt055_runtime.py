@@ -128,6 +128,11 @@ def spawn(root, argv, network_policy='loopback', window_id=None, workspace=None,
                 or kwargs['env'].get('OPENSEARCH_JAVA_OPTS') != '-Djava.net.preferIPv4Stack=true'
                 or kwargs['env'].get('OPENSEARCH_PATH_CONF') != str(search_config(root,workspace,Path(paths[0]).name))):
             raise ValueError('search_execution_boundary_invalid')
+    if any(str(a).endswith('/weknora-server') for a in argv):
+        from rt055_candidate_workspace import native_config
+        if workspace is None or workspace.candidate!='b':raise ValueError('native_workspace_invalid')
+        data_dir=Path(kwargs['cwd']);native_config(root,workspace,data_dir)
+        if kwargs['env'].get('DB_PATH')!=str(data_dir/'app.db'):raise ValueError('native_data_path_invalid')
     from rt055_candidate_workspace import validate, policy
     if window_id is not None and workspace is None:raise RuntimeError('candidate_workspace_required')
     if workspace is not None:

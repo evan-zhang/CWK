@@ -111,6 +111,26 @@ print(json.dumps(out))
             p=subprocess.run(['/usr/bin/sandbox-exec','-p',cw.policy(s,rt.sandbox_text(self.root,kind)),sys.executable,'-c',program,json.dumps(probes)],capture_output=True,text=True)
             self.assertEqual(p.returncode,0);self.assertEqual(json.loads(p.stdout),['ALLOWED','DENIED','DENIED'])
 
+    def test_native_config_is_copied_without_changes_and_drift_is_rejected(self):
+        s=self.make('b');source=self.root/'weknora/config';source.mkdir(parents=True)
+        (source/'config.yaml').write_text('PUBLIC CONFIG')
+        data=cw.file(s,'data','b-public');data.mkdir(mode=0o700)
+        target=cw.native_config(self.root,s,data,create=True)
+        self.assertEqual((target/'config.yaml').read_text(),'PUBLIC CONFIG')
+        self.assertEqual((source/'config.yaml').read_text(),'PUBLIC CONFIG')
+        (target/'config.yaml').write_text('DRIFT')
+        with self.assertRaises(RuntimeError):cw.native_config(self.root,s,data)
+        with self.assertRaises(RuntimeError):cw.native_config(self.root,s,self.root/'outside',create=True)
+
+    def test_native_fallback_log_is_scanned_and_archived_not_database_content(self):
+        s=self.make('b');data=cw.file(s,'data','b-public');data.mkdir()
+        (data/'logs').mkdir();(data/'logs/fallback.log').write_text('PUBLIC LEAK CANARY')
+        (data/'app.db').write_text('DATABASE DOCUMENT CONTENT')
+        with self.assertRaises(RuntimeError):cw.scan(s,['PUBLIC LEAK CANARY'])
+        self.assertEqual(len(cw.log_files(s)),1);cw.cleanup(s)
+        self.assertEqual((s.archive/'data/b-public/logs/fallback.log').read_text(),'PUBLIC LEAK CANARY')
+        self.assertFalse(list(s.archive.rglob('app.db')))
+
     def test_formal_without_claim_rejected(self):
         with self.assertRaises((RuntimeError,OSError)):cw.create(self.root,self.wid,'a',self.aid)
         self.assertFalse((self.root/'candidate-runtime').exists())

@@ -78,6 +78,7 @@ class ExecutionerTests(unittest.TestCase):
     def test_native_dictionary_configuration_is_required_and_used(self):
         with tempfile.TemporaryDirectory() as td:
             root=Path(td);(root/'runtime-logs').mkdir();space=public_workspace(root,'b')
+            (root/'weknora/config').mkdir(parents=True);(root/'weknora/config/config.yaml').write_text('public: true')
             with patch.object(native,'ROOT',root),patch.object(runtime,'spawn') as spawn:
                 with self.assertRaisesRegex(RuntimeError,'native_dictionary_assets_missing'):
                     native.launch_server(41101,cw.file(space,'data','native'),cw.file(space,'logs','native.log'),workspace=space)

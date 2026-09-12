@@ -600,3 +600,9 @@ here-string 临时写入被拒，而 owned stdin 在同一严格策略下成功�
 第三个 synthetic 失败（keystore canonical path）及零残留清理均保留。修复只允许本租约
 祖先 metadata，不开放目录列表、其它 runtime 或账本。见
 [最新完整回归与破坏测试](candidate-workspace-traversal-tests.json)。OPS 未通过前不创建新正式 before。
+
+### Amendment 6 native config 补丁（本地）
+
+A 真实公开启动/检索已成功，B sidecar 已成功；第四个 synthetic 的 native config 缺失失败及
+cleanup 全部保留。最新源码把未改动的公开配置复制进各 B 数据目录，并扫描/归档嵌套兜底日志。
+见 [最新完整回归](candidate-workspace-native-config-tests.json)。仍不以 synthetic 代替正式指标。

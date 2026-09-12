@@ -116,6 +116,28 @@ def file(s,area,name):
     return p
 
 
+def native_config(root,s,data_dir,*,create=False):
+    require_path(s,data_dir,'data')
+    source=checked(root,root/'weknora/config');dest=checked(s.root,data_dir/'config')
+    if not (source/'config.yaml').is_file():raise RuntimeError('candidate_native_config_missing')
+    if create:dest.mkdir(mode=0o700,exist_ok=False)
+    expected=set()
+    for p in sorted(source.rglob('*')):
+        checked(root,p);target=checked(s.root,dest/p.relative_to(source))
+        if p.is_dir():
+            if create:target.mkdir(mode=0o700,exist_ok=False)
+        elif p.is_file():
+            data=p.read_bytes()
+            if create:
+                with target.open('xb') as f:f.write(data)
+                target.chmod(0o600)
+            if target.read_bytes()!=data:raise RuntimeError('candidate_native_config_drift')
+            expected.add(target)
+        else:raise RuntimeError('candidate_native_config_special_file')
+    if set(p for p in dest.rglob('*') if p.is_file())!=expected:raise RuntimeError('candidate_native_config_extra_file')
+    return dest
+
+
 def search_launcher(root,s,component,*,create=False):
     original=checked(root,root/'opensearch/bin/opensearch')
     text=original.read_text()
@@ -222,11 +244,14 @@ def needles(corpus,cases):
     return sorted(values|encoded)
 
 
+def log_files(s):
+    validate(s)
+    return sorted(p for p in s.base.rglob('*') if p.is_file()
+                  and ('logs' in p.relative_to(s.base).parts[:-1] or p.suffix=='.log'))
+
+
 def scan(s,values):
-    validate(s);paths=[]
-    for p in (s.base/'logs').rglob('*'):
-        checked(s.root,p)
-        if p.is_file():paths.append(p)
+    paths=log_files(s)
     hits=sum(any(n in p.read_text(errors='replace') for n in values if n) for p in paths)
     row={'schema':'cwk.rt055.candidate-log-scan.v1','passed':bool(paths) and bool(values) and hits==0,
          'log_files':len(paths),'hit_files':hits,'needles_present':bool(values),'content_exported':False}
@@ -245,13 +270,12 @@ def cleanup(s):
     # Retain private logs, then remove exactly the inode-bound lease. Never
     # delete data-run/data-smoke or traverse another window's runtime tree.
     s.archive.mkdir(mode=0o700,exist_ok=False)
-    for p in sorted((s.base/'logs').rglob('*')):
-        checked(s.root,p);dest=s.archive/p.relative_to(s.base/'logs')
-        if p.is_dir():dest.mkdir(mode=0o700)
-        elif p.is_file():
-            with dest.open('xb') as f:f.write(p.read_bytes())
-            dest.chmod(0o600)
-            if ops.sha_file(dest)!=ops.sha_file(p):raise RuntimeError('candidate_log_archive_mismatch')
+    for p in log_files(s):
+        checked(s.root,p);dest=s.archive/p.relative_to(s.base)
+        dest.parent.mkdir(mode=0o700,parents=True,exist_ok=True)
+        with dest.open('xb') as f:f.write(p.read_bytes())
+        dest.chmod(0o600)
+        if ops.sha_file(dest)!=ops.sha_file(p):raise RuntimeError('candidate_log_archive_mismatch')
     validate(s);shutil.rmtree(s.base)
     for p in (s.base.parent,s.base.parent.parent,s.root/'candidate-runtime'):
         try:p.rmdir()
