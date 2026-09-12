@@ -387,3 +387,11 @@ SQL失败探针（锁确保不能落文档，预期HTTP500），释放锁后才�
 read chunk64KiB、最长leaf8MiB、A/B每库build7200秒均不变。不丢pattern、不用hash替代。
 正式input readiness新增读取现有private-corpus并构造完整Filter容量验证，source和corpus
 均进入freeze绑定；无Popen、无query、不重做builder/verifier。新migration重跑公开验证。
+
+### Amendment 8 注入时序修正
+
+第二个migration仍为公开readiness失败：正常B首个导入0.084秒请求失败；仅检查这轮公开
+净化日志，观测到一次SQLite busy与一次missing table。防火墙完整EOF/关闭和post-scan
+均通过，不能把故障注入影响冒称B正常build结论，也不能外推旧私有failure子型。
+将刻意SQL失败探针移至每库正常build及公开search完成之后，以免干扰native惰性初始化；
+候选build、文档大小/42/31/42分母、7200秒timeout和core均不改。原失败证据和cleanup0保留。

@@ -114,10 +114,19 @@ def run(root,mid,source_commit):
                 status('BUILD_'+key.upper());adapter=services[kb];started=time.monotonic()
                 if key=='a':adapter.build(docs[kb],timeout=build.TIMEOUT)
                 else:
+                    build.build_b(adapter,docs[kb],transport,kb,space.ledger.parent/'build-status.json',firewall)
+                elapsed=time.monotonic()-started
+                current['libraries'][kb]={'imported':COUNTS[kb],'completed':COUNTS[kb],'pending':0,'failed':0,'build_seconds':round(elapsed,3)}
+                status('SEARCH_'+key.upper());firewall.health()
+                # At least one real public native search per library; no scorer.
+                hits=adapter.search('Public synthetic solar panels electricity',kb,timeout=30)
+                if not hits:raise RuntimeError('public_search_empty')
+                current['searches']+=1
+                if key=='b':
                     # A controlled GORM INSERT error writes SQL through the
                     # real native stdout logger. An owned SQLite write lock
                     # guarantees this EXTRA probe cannot persist a document.
-                    # Release it BEFORE the one-shot 42/31/42 workload import.
+                    # Run ONLY AFTER normal build/search, never before lazy native initialization.
                     db=sqlite3.connect(str(transport.servers[kb]['data_dir']/'app.db'))
                     db.execute('BEGIN IMMEDIATE');rejected=False
                     try:
@@ -129,14 +138,6 @@ def run(root,mid,source_commit):
                     finally:db.rollback();db.close()
                     if not rejected:raise RuntimeError('public_sql_probe_not_rejected')
                     row['native_sql_errorpath_injected']=True
-                    build.build_b(adapter,docs[kb],transport,kb,space.ledger.parent/'build-status.json',firewall)
-                elapsed=time.monotonic()-started
-                current['libraries'][kb]={'imported':COUNTS[kb],'completed':COUNTS[kb],'pending':0,'failed':0,'build_seconds':round(elapsed,3)}
-                status('SEARCH_'+key.upper());firewall.health()
-                # At least one real public native search per library; no scorer.
-                hits=adapter.search('Public synthetic solar panels electricity',kb,timeout=30)
-                if not hits:raise RuntimeError('public_search_empty')
-                current['searches']+=1
             for adapter in adapters:adapter.close()
             adapters=[]
             for proc in reversed(processes):ops.stop_process(proc)
