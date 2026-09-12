@@ -1,0 +1,210 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "canary_causal_attribution",
+    "candidate_processes_zero",
+    "external_data_transfer_proven",
+    "external_event_phase_binding_available",
+    "external_event_pid_binding_available",
+    "external_event_state_binding_available",
+    "external_event_target_binding_available",
+    "external_event_transfer_measurement_available",
+    "external_probes_denied",
+    "external_socket_observations",
+    "failure_code",
+    "global_exposure",
+    "hard_gate_passed",
+    "java_bind_and_egress_probe",
+    "log_checks",
+    "network_policy_verified",
+    "network_probe_passed",
+    "observer_errors",
+    "observer_persists_per_pid_rows",
+    "old_migration_id",
+    "old_observation_waived",
+    "old_terminal",
+    "old_window_id",
+    "other_external_connection_excluded",
+    "private_values_or_digests_exported",
+    "process_receipts",
+    "readonly_guard_active",
+    "retained_synthetic_json_receipts",
+    "schema",
+    "sidecar_denied_errno",
+    "socket_samples",
+    "status",
+    "structured_socket_evidence_keys_found"
+  ],
+  "properties": {
+    "canary_causal_attribution": {
+      "const": "UNKNOWN"
+    },
+    "candidate_processes_zero": {
+      "const": true
+    },
+    "external_data_transfer_proven": {
+      "const": null
+    },
+    "external_event_phase_binding_available": {
+      "const": false
+    },
+    "external_event_pid_binding_available": {
+      "const": false
+    },
+    "external_event_state_binding_available": {
+      "const": false
+    },
+    "external_event_target_binding_available": {
+      "const": false
+    },
+    "external_event_transfer_measurement_available": {
+      "const": false
+    },
+    "external_probes_denied": {
+      "const": true
+    },
+    "external_socket_observations": {
+      "const": 1
+    },
+    "failure_code": {
+      "const": "HISTORICAL_SOCKET_ATTRIBUTION_UNKNOWN"
+    },
+    "global_exposure": {
+      "const": 0
+    },
+    "hard_gate_passed": {
+      "const": false
+    },
+    "java_bind_and_egress_probe": {
+      "const": true
+    },
+    "log_checks": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "all_streams_verified",
+            "firewall_verified",
+            "independent_hit_files",
+            "postscan_hit_files",
+            "postscan_passed",
+            "streams"
+          ],
+          "properties": {
+            "all_streams_verified": {
+              "const": true
+            },
+            "firewall_verified": {
+              "const": true
+            },
+            "independent_hit_files": {
+              "const": 0
+            },
+            "postscan_hit_files": {
+              "const": 0
+            },
+            "postscan_passed": {
+              "const": true
+            },
+            "streams": {
+              "const": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "all_streams_verified",
+            "firewall_verified",
+            "independent_hit_files",
+            "postscan_hit_files",
+            "postscan_passed",
+            "streams"
+          ],
+          "properties": {
+            "all_streams_verified": {
+              "const": true
+            },
+            "firewall_verified": {
+              "const": true
+            },
+            "independent_hit_files": {
+              "const": 0
+            },
+            "postscan_hit_files": {
+              "const": 0
+            },
+            "postscan_passed": {
+              "const": true
+            },
+            "streams": {
+              "const": 2
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "network_policy_verified": {
+      "const": true
+    },
+    "network_probe_passed": {
+      "const": true
+    },
+    "observer_errors": {
+      "const": 0
+    },
+    "observer_persists_per_pid_rows": {
+      "const": false
+    },
+    "old_migration_id": {
+      "const": "aee2e2eb-4cd7-4f97-a864-5ce6c3782529"
+    },
+    "old_observation_waived": {
+      "const": false
+    },
+    "old_terminal": {
+      "const": "INVALID_CLOSED"
+    },
+    "old_window_id": {
+      "const": "3330a46e-bfdd-4639-bb0c-ea5c1b3df622"
+    },
+    "other_external_connection_excluded": {
+      "const": false
+    },
+    "private_values_or_digests_exported": {
+      "const": false
+    },
+    "process_receipts": {
+      "const": 3
+    },
+    "readonly_guard_active": {
+      "const": true
+    },
+    "retained_synthetic_json_receipts": {
+      "const": 17
+    },
+    "schema": {
+      "const": "cwk.rt055.amendment12-diagnostic.v1"
+    },
+    "sidecar_denied_errno": {
+      "const": 1
+    },
+    "socket_samples": {
+      "const": 108
+    },
+    "status": {
+      "const": "READONLY_DIAGNOSIS_COMPLETE"
+    },
+    "structured_socket_evidence_keys_found": {
+      "const": 0
+    }
+  }
+}

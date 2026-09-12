@@ -162,7 +162,10 @@ script=sys.argv[1];sys.argv=sys.argv[1:];runpy.run_path(script,run_name='__main_
                 with urllib.request.urlopen(req,timeout=10) as resp:self.assertEqual(resp.status,200)
                 with urllib.request.urlopen(base+'/health',timeout=10) as resp:stats=json.load(resp)
                 self.assertEqual(stats['embedding_calls'],1);self.assertEqual(stats['embedding_successes'],1);self.assertEqual(stats['trace_headers'],1)
-                with urllib.request.urlopen(base+'/privacy-probe',timeout=10) as resp:self.assertTrue(json.load(resp)['denied'])
+                # Even the deprecated flag must not authorize candidate egress.
+                with self.assertRaises(urllib.error.HTTPError) as error:
+                    urllib.request.urlopen(base+'/privacy-probe',timeout=10)
+                self.assertEqual(error.exception.code,404);error.exception.close()
             finally:native.ops.stop_process(p)
             self.assertNotIn('PUBLIC_SIDECAR_NORMAL',(root/'sidecar.log').read_text())
 
@@ -179,9 +182,9 @@ class ObserverTests(unittest.TestCase):
             self.assertEqual(o.rows,{})
             env={**runtime.clean_env(root),'OPENSEARCH_JAVA_OPTS':''}
             cmd=f'{root}/jdk/java -Djava.net.preferIPv4Stack=true org.opensearch.bootstrap.OpenSearch'
-            with patch.object(gate.subprocess,'run',side_effect=[row(cmd),row('n127.0.0.1:41101')]),patch.object(gate.ops,'process_environment',return_value=env):o.sample()
+            with patch.object(gate.subprocess,'run',side_effect=[row(cmd),row('p123\nf7\nPTCP\nn127.0.0.1:41101\nTST=LISTEN\n')]),patch.object(gate.ops,'process_environment',return_value=env):o.sample()
             self.assertTrue(o.rows[123]['env_valid']);self.assertEqual(o.rows[123]['listeners'],1)
-            with patch.object(gate.subprocess,'run',side_effect=[row(cmd.replace('-Djava.net.preferIPv4Stack=true','')),row('n127.0.0.1:41101')]),patch.object(gate.ops,'process_environment',return_value=env):o.sample()
+            with patch.object(gate.subprocess,'run',side_effect=[row(cmd.replace('-Djava.net.preferIPv4Stack=true','')),row('p123\nf7\nPTCP\nn127.0.0.1:41101\nTST=LISTEN\n')]),patch.object(gate.ops,'process_environment',return_value=env):o.sample()
             self.assertFalse(o.rows[123]['env_valid'])
 
 
@@ -197,6 +200,7 @@ class GateTests(unittest.TestCase):
                 'loopback_listener_kinds': ['search','native','sidecar'],
                 'socket_samples': 3, 'external_socket_observations': 0, 'observer_errors': 0,
                 'external_probes_denied': True, 'network_policy_verified': True,'nonloopback_model_rejected':True,
+                'measurement_contract':'ISOLATED_DENY_V2','isolated_deny_probe_verified':True,
                 'log_files_scanned': 3, 'log_canary_hits': 0, 'forbidden_reads': 0,
                 'search_started': True, 'native_started': True, 'sidecar_started': True,
                 'model_endpoint_verified': True, 'native_trace_response_headers': 0}
@@ -252,3 +256,64 @@ class GateTests(unittest.TestCase):
 
 
 if __name__ == '__main__':unittest.main()
+
+class Amendment12Tests(unittest.TestCase):
+    def probe(self):
+        return {'role':'DENY_CANARY','phase':'DENY_CANARY','pid':123,
+                'target':'1.1.1.1:443','connect_attempts':1,'denied':True,'errno':1,
+                'peer_connected':False,'payload_io_calls':0,'application_payload_bytes':0,
+                'socket_sampled':True,'sockets':[{'scope':'UNBOUND','state':'CLOSED','owned_fd':True,'protocol':'TCP'}]}
+
+    def test_probe_requires_exact_pid_target_phase_deny_zero_payload_and_closed_socket(self):
+        self.assertTrue(gate.probe_passed(self.probe(),123))
+        for key,value in [('pid',124),('target','8.8.8.8:443'),('phase','NORMAL'),('denied',False),('errno',110),('peer_connected',True),('payload_io_calls',1),('application_payload_bytes',1),('connect_attempts',0),('socket_sampled',False)]:
+            bad=self.probe();bad[key]=value
+            with self.subTest(key=key):self.assertFalse(gate.probe_passed(bad,123))
+        for state in ('SYN_SENT','ESTABLISHED','UNKNOWN'):
+            bad=self.probe();bad['sockets'][0]['state']=state
+            self.assertFalse(gate.probe_passed(bad,123))
+        for key,value in [('scope','EXTERNAL_OTHER'),('owned_fd',False),('protocol','UDP')]:
+            bad=self.probe();bad['sockets'][0][key]=value
+            self.assertFalse(gate.probe_passed(bad,123))
+        bad=self.probe();bad['sockets']=[];self.assertFalse(gate.probe_passed(bad,123))
+        bad=self.probe();bad['private_value']='NOT_ALLOWED';self.assertFalse(gate.probe_passed(bad,123))
+
+    def test_lsof_fields_keep_state_without_exporting_other_endpoint(self):
+        rows=gate.socket_rows('p123\nf7\nPTCP\nn127.0.0.1:123->1.1.1.1:443\nTST=SYN_SENT\nf8\nPTCP\nn127.0.0.1:456\nTST=LISTEN\nf9\nPTCP\nn10.55.66.77:123->8.8.8.8:443\nTST=ESTABLISHED\n',123)
+        self.assertEqual([(r['scope'],r['state']) for r in rows],[('CANARY','SYN_SENT'),('LOOPBACK','LISTEN'),('EXTERNAL_OTHER','ESTABLISHED')])
+        self.assertNotIn('10.55.66.77',json.dumps(rows))
+        with self.assertRaises(RuntimeError):gate.socket_rows('p124\nf7\nn127.0.0.1:123\nTST=LISTEN\n',123)
+        with self.assertRaises(RuntimeError):gate.socket_rows('n127.0.0.1:123\n',123)
+
+    def test_unknown_state_closed_enum_and_unbound_are_not_normal_loopback(self):
+        rows=gate.socket_rows('p123\nf7\nPTCP\nn*:*\nTST=CLOSED\nf8\nPTCP\nn127.0.0.1:123\nTST=PRIVATE_STATE\n',123)
+        self.assertEqual(rows[0]['scope'],'UNBOUND');self.assertEqual(rows[1]['state'],'UNKNOWN')
+        self.assertNotIn('PRIVATE_STATE',json.dumps(rows))
+
+    def test_candidate_canary_target_still_fails_for_every_tcp_state(self):
+        for state in ('CLOSED','SYN_SENT','ESTABLISHED'):
+            with tempfile.TemporaryDirectory(prefix='rt055-') as td:
+                root=Path(td);(root/'resources').mkdir()
+                (root/'resources/process-123.json').write_text(json.dumps({'pid':123,'argv':[str(root/'rt055_embed_sidecar.py')]}))
+                obs=gate.Observer(root);obs.phase='DENY_CANARY'
+                cmd=f'python {root}/rt055_embed_sidecar.py'
+                data=f'p123\nf7\nPTCP\nn127.0.0.1:123->1.1.1.1:443\nTST={state}\n'
+                with patch.object(gate.subprocess,'run',side_effect=[subprocess.CompletedProcess([],0,stdout=cmd),subprocess.CompletedProcess([],0,stdout=data)]),patch.object(gate.ops,'process_environment',return_value=runtime.clean_env(root)):
+                    obs.sample()
+                self.assertEqual(obs.rows[123]['external'],1)
+                self.assertEqual(obs.rows[123]['events'][0]['state'],state)
+                self.assertEqual(obs.rows[123]['events'][0]['phase'],'DENY_CANARY')
+
+    def test_old_success_totals_do_not_satisfy_new_measurement_contract(self):
+        old=GateTests().fixture();old.pop('measurement_contract',None);old.pop('isolated_deny_probe_verified',None)
+        self.assertFalse(gate.evaluate(old)['passed'])
+
+    @unittest.skipUnless(sys.platform=='darwin' and Path('/usr/bin/sandbox-exec').exists(), 'macOS integration')
+    def test_real_isolated_probe_denied_no_payload_and_pid_bound(self):
+        with tempfile.TemporaryDirectory(prefix='rt055-') as td:
+            root=Path(td);(root/'audit').mkdir();runtime.network_probe(root)
+            value=gate.isolated_deny_probe(root)
+            self.assertTrue(value['verified']);self.assertTrue(value['pid_bound'])
+            self.assertTrue(value['receipt']['denied']);self.assertEqual(value['receipt']['application_payload_bytes'],0)
+            self.assertTrue(all(r['state']=='CLOSED' for r in value['receipt']['sockets']))
+            with self.assertRaises(FileExistsError):gate.isolated_deny_probe(root)

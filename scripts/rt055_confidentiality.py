@@ -31,6 +31,10 @@ ERROR_QUERY = 'RT055_PUBLIC_ERROR_QUERY_98217'
 ERROR_TITLE = 'RT055 PUBLIC ERROR TITLE 39217'
 NEEDLES = (NORMAL_QUERY, NORMAL_TITLE, ERROR_QUERY, ERROR_TITLE)
 KINDS = {'search', 'native', 'sidecar'}
+SOCKET_STATES = {'CLOSED','LISTEN','SYN_SENT','SYN_RCVD','ESTABLISHED',
+                 'CLOSE_WAIT','FIN_WAIT_1','CLOSING','LAST_ACK','FIN_WAIT_2','TIME_WAIT','UNKNOWN'}
+PHASES = {'NETWORK','SEARCH_START','SIDECAR_START','NATIVE_START','NATIVE_NORMAL_CANARY',
+          'AUTHENTICATED_ERROR_CANARIES','DENY_CANARY','RUNTIME_OBSERVATION','STOPPING_SYNTHETIC'}
 ENV_NAMES = ('LANGFUSE_ENABLED','LANGFUSE_HOST','LANGFUSE_PUBLIC_KEY','LANGFUSE_SECRET_KEY',
              'LANGFUSE_BASE_URL','OTEL_SDK_DISABLED','OTEL_EXPORTER_OTLP_ENDPOINT',
              'OTEL_EXPORTER_OTLP_TRACES_ENDPOINT','SERVER_HOST','LOG_LEVEL','LOG_PATH',
@@ -52,6 +56,101 @@ def scan_logs(root, needles):
     return len(paths), sum(any(n in p.read_text(errors='replace') for n in needles) for p in paths)
 
 
+def socket_rows(text, pid):
+    """Parse lsof field records; discard endpoint values at the observation boundary."""
+    rows=[];current=None;bound=False
+    def finish():
+        if current is None:return
+        if not bound or 'name' not in current:raise RuntimeError('socket_fields_incomplete')
+        name=current['name'];ends=name.split('->')
+        local=lambda part:bool(re.fullmatch(r'(?:127\.0\.0\.1|\[::1\]):\d+',part))
+        scope=('LOOPBACK' if all(local(x) for x in ends) else
+               'CANARY' if len(ends)==2 and (local(ends[0]) or ends[0]=='*:*') and ends[1]=='1.1.1.1:443' else
+               'UNBOUND' if name in ('*:*','*:0','[::]:0') else 'EXTERNAL_OTHER')
+        rows.append({'fd':current['fd'],'scope':scope,'state':current.get('state','UNKNOWN'),
+                     'protocol':current.get('protocol','UNKNOWN')})
+    for line in text.splitlines():
+        if line.startswith('p'):
+            finish();current=None
+            bound=line[1:]==str(pid)
+            if not bound:raise RuntimeError('socket_pid_mismatch')
+        elif line.startswith('f'):
+            finish()
+            if not bound or not line[1:].isdigit():raise RuntimeError('socket_fd_invalid')
+            current={'fd':int(line[1:])}
+        elif line.startswith(('n','P','TST=')):
+            if current is None:raise RuntimeError('socket_fields_incomplete')
+            if line.startswith('n'):current['name']=line[1:]
+            elif line.startswith('P'):current['protocol']=line[1:] if line[1:] in ('TCP','UDP') else 'UNKNOWN'
+            else:current['state']=line[4:] if line[4:] in SOCKET_STATES else 'UNKNOWN'
+    finish();return rows
+
+
+def read_sockets(pid):
+    p=subprocess.run(['/usr/sbin/lsof','-nP','-a','-p',str(pid),'-i','-FpfPnT','-Ts'],
+                     capture_output=True,text=True,timeout=15)
+    if p.returncode not in (0,1) or (p.returncode==1 and p.stdout):raise RuntimeError('socket_observer_failed')
+    return socket_rows(p.stdout,pid)
+
+
+def deny_probe_child():
+    """Public connect-only canary. No application send/recv, model, or input data."""
+    import errno
+    pid=os.getpid()
+    with socket.socket() as sock:
+        sock.settimeout(5);code=0
+        try:sock.connect(('1.1.1.1',443))
+        except OSError as exc:code=exc.errno
+        peer=True
+        try:sock.getpeername()
+        except OSError as exc:
+            if exc.errno==errno.ENOTCONN:peer=False
+        rows=read_sockets(pid)
+        receipt={'role':'DENY_CANARY','phase':'DENY_CANARY','pid':pid,'target':'1.1.1.1:443',
+                 'connect_attempts':1,'denied':code in (errno.EPERM,errno.EACCES),
+                 'errno':code if code in (0,errno.EPERM,errno.EACCES) else None,'peer_connected':peer,
+                 'payload_io_calls':0,'application_payload_bytes':0,'socket_sampled':True,
+                 'sockets':[{**{k:r[k] for k in ('scope','state','protocol')},'owned_fd':r['fd']==sock.fileno()} for r in rows]}
+    print(json.dumps(receipt),flush=True)
+
+
+def probe_passed(v,pid):
+    keys={'role','phase','pid','target','connect_attempts','denied','errno','peer_connected',
+          'payload_io_calls','application_payload_bytes','socket_sampled','sockets'}
+    return (isinstance(v,dict) and set(v)==keys and type(v['pid']) is int and v['pid']==pid
+            and v['role']==v['phase']=='DENY_CANARY' and v['target']=='1.1.1.1:443'
+            and type(v['connect_attempts']) is int and v['connect_attempts']==1
+            and v['denied'] is True and type(v['errno']) is int and v['errno'] in (1,13)
+            and v['peer_connected'] is False and v['socket_sampled'] is True
+            and all(type(v[k]) is int and v[k]==0 for k in ('payload_io_calls','application_payload_bytes'))
+            and isinstance(v['sockets'],list) and len(v['sockets'])==1
+            and all(isinstance(r,dict) and set(r)=={'scope','state','protocol','owned_fd'}
+                    and r['scope'] in ('CANARY','UNBOUND') and r['state']=='CLOSED'
+                    and r['protocol']=='TCP' and r['owned_fd'] is True for r in v['sockets']))
+
+
+def isolated_deny_probe(root):
+    """Separate PID; never exempt candidate sockets, even during this phase."""
+    claim=root/'audit/isolated-deny-probe.claim'
+    fd=os.open(claim,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600);os.close(fd)
+    policy=root/'runtime-policy/network.sb'
+    if policy.read_text()!=runtime.sandbox_text(root,'loopback'):raise RuntimeError('network_profile_drift')
+    proc=subprocess.Popen(['/usr/bin/sandbox-exec','-f',str(policy),sys.executable,
+                           str(Path(__file__).resolve()),'--deny-probe-child'],
+                          env=runtime.clean_env(root),stdin=subprocess.DEVNULL,
+                          stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+    try:
+        out,err=proc.communicate(timeout=30)
+        if proc.returncode or err or len(out)>4096:raise RuntimeError('isolated_probe_failed')
+        value=json.loads(out)
+        result={'verified':probe_passed(value,proc.pid),'pid_bound':value.get('pid')==proc.pid,
+                'expected_pid':proc.pid,'receipt':value}
+        # PID is retained only in OPS; public export uses pid_bound/counts.
+        ops.write_private_json(root/'audit/isolated-deny-probe.json',result)
+        return result
+    finally:ops.stop_process(proc)
+
+
 def evaluate(o):
     """Derive gates from observed events; zero unexecuted logs cannot pass."""
     startup=all(o.get(k) is True for k in ('search_started','native_started','sidecar_started'))
@@ -69,7 +168,9 @@ def evaluate(o):
              and o.get('socket_samples',0)>0 and o.get('external_socket_observations')==0
              and o.get('observer_errors')==0)
     network=(o.get('external_probes_denied') is True and o.get('network_policy_verified') is True
-             and o.get('nonloopback_model_rejected') is True)
+             and o.get('nonloopback_model_rejected') is True
+             and o.get('measurement_contract')=='ISOLATED_DENY_V2'
+             and o.get('isolated_deny_probe_verified') is True)
     logs=normal and error and o.get('log_files_scanned',0)>0 and o.get('log_canary_hits')==0
     result={'normal_native_canary':normal,'authenticated_error_canaries':error,
             'native_log_canary_absent':logs,'langfuse_runtime_disabled':telemetry,
@@ -81,7 +182,7 @@ def evaluate(o):
 
 class Observer:
     def __init__(self,root):
-        self.root=root;self.rows={};self.errors=0;self.stop=threading.Event()
+        self.root=root;self.rows={};self.errors=0;self.stop=threading.Event();self.phase='NETWORK'
         self.thread=threading.Thread(target=self.run,daemon=True)
 
     def sample(self):
@@ -94,7 +195,7 @@ class Observer:
             if not ps.stdout.strip() or str(self.root) not in ps.stdout:continue
             if kind=='search' and 'org.opensearch.bootstrap.OpenSearch' not in ps.stdout:continue
             row=self.rows.setdefault(pid,{'kind':kind,'samples':0,'env_observed':False,
-                                         'env_valid':True,'listeners':0,'external':0})
+                                         'env_valid':True,'listeners':0,'external':0,'events':[]})
             try:
                 env=ops.process_environment(pid,ENV_NAMES)
                 if 'LANGFUSE_ENABLED' in env and 'OTEL_SDK_DISABLED' in env:
@@ -108,14 +209,18 @@ class Observer:
                     if kind=='sidecar':valid &= env.get('HF_HUB_OFFLINE')=='1' and env.get('TRANSFORMERS_OFFLINE')=='1'
                     if kind=='search':valid &= '-Djava.net.preferIPv4Stack=true' in ps.stdout.split()
                     row['env_observed']=True;row['env_valid'] &= valid
-                p=subprocess.run(['/usr/sbin/lsof','-nP','-a','-p',str(pid),'-i','-Fn'],capture_output=True,text=True,timeout=15)
-                if p.returncode not in (0,1):raise RuntimeError('socket_observer_failed')
-                for line in p.stdout.splitlines():
-                    if not line.startswith('n'):continue
-                    ends=line[1:].split('->')
-                    local=all(re.fullmatch(r'(?:127\.0\.0\.1|\[::1\]):\d+(?: \(\w+\))?',part) for part in ends)
+                phase=self.phase if self.phase in PHASES else 'UNKNOWN'
+                events=read_sockets(pid)
+                if self.phase!=phase:phase='TRANSITION'
+                for event in events:
+                    local=event['scope']=='LOOPBACK'
                     if not local:row['external']+=1
-                    elif len(ends)==1:row['listeners']+=1
+                    elif event['state']=='LISTEN':row['listeners']+=1
+                    if event['state']=='UNKNOWN' or event['protocol']!='TCP':self.errors+=1
+                    projected={k:event[k] for k in ('scope','state','protocol')}
+                    existing=next((x for x in row['events'] if all(x[k]==v for k,v in projected.items()) and x['phase']==phase),None)
+                    if existing:existing['count']+=1
+                    else:row['events'].append({**projected,'phase':phase,'count':1})
                 row['samples']+=1
             except subprocess.CalledProcessError:
                 # A process exiting between ps and ps eww is not missing live evidence.
@@ -136,6 +241,7 @@ class Observer:
                 'runtime_environment_verified':bool(rows) and all(r['env_observed'] and r['env_valid'] for r in rows),
                 'socket_samples':sum(r['samples'] for r in rows),
                 'external_socket_observations':sum(r['external'] for r in rows),
+                'socket_observation_rows':[{'pid':pid,'kind':r['kind'],'events':r['events']} for pid,r in self.rows.items()],
                 'observer_errors':self.errors+int(self.thread.is_alive())}
 
 
@@ -190,7 +296,9 @@ def run(root,protected_root=None):
     except PermissionError:pass
     probing=False
     state={'status':'RUNNING','phase':'NETWORK','pid':os.getpid()}
-    def phase(value):state['phase']=value;ops.write_private_json(root/'status/confidentiality.json',state)
+    def phase(value):
+        state['phase']=value;observer.phase=value
+        ops.write_private_json(root/'status/confidentiality.json',state)
     processes=[];spaces=[];search_adapter=None;observer=Observer(root);observer.thread.start()
     search.ROOT=native.ROOT=root;search.HERE=native.HERE=root/'impl'
     try:
@@ -215,7 +323,7 @@ def run(root,protected_root=None):
         phase('SIDECAR_START');side_port=free_port()
         bspace=cw.create(root,synthetic_window,'b',str(uuid.uuid4()),synthetic=True);spaces.append(bspace)
         firewall.bind(bspace,NEEDLES)
-        side=native.launch_sidecar(side_port,root/'sidecar/hf',cw.file(bspace,'logs','sidecar.log'),privacy_probe=True,workspace=bspace)
+        side=native.launch_sidecar(side_port,root/'sidecar/hf',cw.file(bspace,'logs','sidecar.log'),workspace=bspace)
         processes.append(side);o['sidecar_started']=side.poll() is None
         phase('NATIVE_START')
         server=native.setup_instance('privacy',free_port(),side_port,cw.file(bspace,'data','privacy-native'),cw.file(bspace,'logs','native.log'),random.Random(),workspace=bspace)
@@ -267,9 +375,10 @@ def run(root,protected_root=None):
             resp.read();o['native_trace_response_headers']=sum(bool(resp.headers.get(k)) for k in ('traceparent','x-langfuse-trace-id','x-trace-id'))
         with opener.open(f'http://127.0.0.1:{side_port}/health',timeout=10) as resp:stats=json.load(resp)
         o.update(embedding_calls=stats['embedding_calls'],embedding_successes=stats['embedding_successes'],trace_header_observations=stats['trace_headers'])
-        with opener.open(f'http://127.0.0.1:{side_port}/privacy-probe',timeout=10) as resp:probe=json.load(resp)
-        o['sidecar_external_errno']=probe['errno']
-        o['external_probes_denied']=net['external_denied'] and o['java_bind_and_egress_probe'] and probe['denied'] is True
+        phase('DENY_CANARY');probe=isolated_deny_probe(root)
+        o['measurement_contract']='ISOLATED_DENY_V2'
+        o['isolated_deny_probe_verified']=probe['verified']
+        o['external_probes_denied']=net['external_denied'] and o['java_bind_and_egress_probe'] and probe['verified']
         phase('RUNTIME_OBSERVATION');time.sleep(5)
     except Exception as exc:
         o['execution_error_kind']=type(exc).__name__
@@ -306,7 +415,10 @@ def run(root,protected_root=None):
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--root',type=Path)
     parser.add_argument('--protected-root',type=Path)
+    parser.add_argument('--deny-probe-child',action='store_true')
     args=parser.parse_args()
+    if args.deny_probe_child:
+        deny_probe_child();return 0
     root=args.root or Path(__file__).resolve().parent.parent
     return run(root,args.protected_root)
 

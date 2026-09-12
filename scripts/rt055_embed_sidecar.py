@@ -23,7 +23,7 @@ def main() -> int:
     parser.add_argument("--port", type=int, required=True)
     parser.add_argument("--model", default="BAAI/bge-m3")
     parser.add_argument("--hf-home", required=True)
-    parser.add_argument("--privacy-probe", action="store_true", help="public synthetic egress probe only")
+    parser.add_argument("--privacy-probe", action="store_true", help="deprecated; no candidate egress probe")
     args = parser.parse_args()
 
     hf_home = Path(args.hf_home).resolve()
@@ -56,15 +56,6 @@ def main() -> int:
         def do_GET(self) -> None:  # noqa: N802
             if self.path == "/health":
                 self._send(200, {"ok": True, "model": args.model, "dimension": dim, **counters})
-            elif self.path == "/privacy-probe" and args.privacy_probe:
-                import socket
-                with socket.socket() as sock:
-                    sock.settimeout(5)
-                    try:
-                        sock.connect(("1.1.1.1", 443))
-                        self._send(200, {"denied": False, "errno": 0})
-                    except OSError as exc:
-                        self._send(200, {"denied": exc.errno in (1, 13), "errno": exc.errno})
             else:
                 self._send(404, {"error": "not_found"})
 

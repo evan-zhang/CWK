@@ -526,3 +526,14 @@ Source `43207eefbe30557b53d556055fa5438c8afe47ee`；本窗 `be3ab168-0568-4d39-a
 预留新window `3330a46e-bfdd-4639-bb0c-ea5c1b3df622` 仅作终态收口：cleanup PASS→原after实现唯一1次FAIL（fresh before未创建、RuntimeError、0库、无快照/比较，不借旧窗基线不重试）→abort/唯一INVALID decision；formal INVALID为追加abort状态，非正式coordinator执行。120正式指标和24 Gateway能力均null，机械向量A1/6/4、B2/7/3只为未变runbook计数。新public3流firewall/scan通过，旧B6流PASS、旧coordinator false/CHILD_NONZERO保留。独立核验390079历史文件/96材料字节不变，builder/verifier1/1，42/31/42不变、残留0、Gateway3×200/ok/read_only=true。本窗comparison不可测；完整NAS/index UNKNOWN、历史services/config drift不清除。
 
 RT055回归265项与源码红绿/行为破坏通过；最终Schema negatives、隐私/凭据、QA/治理详见[Amendment11完整证据](evidence/amendment11-summary.md)。本修订已收口，无后台任务；RT-055选型未完成，不切流、不自动重试，仅本地提交，不push/merge/清worktree。
+
+
+## Amendment 12 — isolated deny measurement and historical fail-closed gate
+
+Amendment11 的一次 external observation 不可归因：OPS 保留17份合成回执，但没有逐socket PID/phase/state/target或传输测量。EPERM=1与该观察没有事件绑定；UNKNOWN不豁免、不以新PASS抵销，旧窗永久INVALID。Amendment12按历史归因硬门失败停止新的privacy/workload/readiness/before/freeze/A-B；public privacy上限1次不是必须消费的配额，本次0次。
+
+前向最小修复：候选main sidecar不再发主动外连，旧/privacy-probe即使启用deprecated参数也返回404。独立connect-only探针在同一精确sandbox policy的专用PID里访问固定公开1.1.1.1:443；仅接受父进程绑定PID、一次connect、EPERM/EACCES、无peer、专属FD、TCP CLOSED、无应用payload调用/字节的闭集回执。仅专用探针的CANARY/UNBOUND CLOSED可作为拒绝证据；SYN_SENT/ESTABLISHED/UNKNOWN、其他目标、额外FD或非TCP均失败。未声称测量网卡包计数，也不反推旧传输=0。migration binding重算并绑定这份回执。
+
+候选search/native/sidecar观察全程保留；所有非loopback（含预期canary目标、UNBOUND及SYN_SENT）仍累计external并要求总数0，未知状态/协议硬失败。lsof使用PID/FD/协议/状态字段；原始非公开端点立即丢弃，OPS仅保留PID职责和phase/state/scope/count，phase跨采样变化记TRANSITION；公开投影只导出闭集与计数/布尔，不导出PID或私有值。LISTEN必须实测LISTEN，不能用单端点字符串冒充。
+
+本地红绿与行为破坏实验见[源码QA](evidence/amendment12-source-qa.json)，旧观察边界见[只读诊断](evidence/amendment12-diagnostic.json)。未修改候选算法、quality、seed/tier/floor/题池/42-31-42、7200或A/B对称timeout；未改WeKnora core及production/NAS/index/alias/config。

@@ -74,6 +74,8 @@ class WindowTests(unittest.TestCase):
         window.write_once(attempt/'audit/confidentiality-observations.json',obs)
         window.write_once(attempt/'status/confidentiality.json',{'status':'PASS','phase':'COMPLETE'})
         window.write_once(attempt/'audit/synthetic-cleanup.json',{'complete':True,'failures':0,'remaining_processes':0,'remaining_data_planes':0})
+        window.write_once(attempt/'audit/isolated-deny-probe.json',{'verified':True,'pid_bound':True,
+                          'expected_pid':123,'receipt':privacy_tests.Amendment12Tests().probe()})
         manifest={n:runtime.ops.sha_file(self.root/'impl'/n) for n in runtime.MIGRATION_SOURCE_FILES}
         window.write_once(self.root/'executioner-migrations'/self.mid/'deployment.json',{'schema':'cwk.rt055.executioner-deployment.v1','run_id':self.root.name.removeprefix('rt055-'),'migration_id':self.mid,'code_commit':'1'*40,'source_files':manifest})
         runtime.bind_privacy_migration(self.root,self.mid,1)
@@ -189,6 +191,25 @@ class WindowTests(unittest.TestCase):
         receipt=m/'privacy-receipt.json';row=json.loads(receipt.read_text());row['observations_sha256']=runtime.ops.sha_file(p);receipt.write_text(json.dumps(row))
         self.assertFalse(runtime.privacy_passed(self.root,self.mid))
         with self.assertRaises(RuntimeError):freeze.create(self.root,self.wid,self.mid)
+
+    def test_probe_receipt_cannot_be_approved_by_only_rehashing_binding(self):
+        attempt=self.migration();m=attempt.parent
+        p=attempt/'audit/isolated-deny-probe.json';original=p.read_bytes()
+        binding=m/'privacy-receipt.json';initial=binding.read_bytes()
+        for change in ('pid','state','extra','missing'):
+            with self.subTest(change=change):
+                value=json.loads(original)
+                if change=='pid':value['receipt']['pid']=124
+                elif change=='state':value['receipt']['sockets'][0]['state']='SYN_SENT'
+                elif change=='extra':value['receipt']['private_value']='PUBLIC_NEGATIVE'
+                if change=='missing':p.unlink()
+                else:
+                    p.write_text(json.dumps(value))
+                    row=json.loads(initial);row['isolated_deny_probe_sha256']=runtime.ops.sha_file(p)
+                    binding.write_text(json.dumps(row))
+                self.assertFalse(runtime.privacy_passed(self.root,self.mid))
+                p.write_bytes(original);binding.write_bytes(initial)
+        self.assertTrue(runtime.privacy_passed(self.root,self.mid))
 
     def test_frozen_private_input_drift_rejected_without_export(self):
         self.freeze_fixture();freeze.create(self.root,self.wid,self.mid)

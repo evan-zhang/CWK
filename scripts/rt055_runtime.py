@@ -211,7 +211,7 @@ def migration_directory(root,migration_id):
 
 
 def migration_evidence(root,migration_id,attempt):
-    from rt055_confidentiality import evaluate
+    from rt055_confidentiality import evaluate, probe_passed
     import re
     if type(attempt) is not int or not 1<=attempt<=999:raise ValueError('synthetic_attempt_invalid')
     m=migration_directory(root,migration_id);t=m/('rt055-synthetic-%03d'%attempt)
@@ -228,6 +228,11 @@ def migration_evidence(root,migration_id,attempt):
     status=ops.read_json(t/'status/confidentiality.json')
     obs=ops.read_json(t/'audit/confidentiality-observations.json')
     clean=ops.read_json(t/'audit/synthetic-cleanup.json')
+    probe=ops.read_json(t/'audit/isolated-deny-probe.json')
+    if (set(probe)!={'verified','pid_bound','expected_pid','receipt'}
+            or probe.get('verified') is not True or probe.get('pid_bound') is not True
+            or not probe_passed(probe.get('receipt'),probe.get('expected_pid'))):
+        raise RuntimeError('isolated_deny_probe_unproven')
     if (status.get('status')!='PASS' or status.get('phase')!='COMPLETE'
             or not evaluate(obs)['passed'] or obs.get('cleanup_error') or 'execution_error_kind' in obs
             or obs.get('candidate_workspace_cleanup_zero') is not True
@@ -241,6 +246,7 @@ def migration_evidence(root,migration_id,attempt):
             'observations_sha256':ops.sha_file(t/'audit/confidentiality-observations.json'),
             'status_sha256':ops.sha_file(t/'status/confidentiality.json'),
             'cleanup_sha256':ops.sha_file(t/'audit/synthetic-cleanup.json'),
+            'isolated_deny_probe_sha256':ops.sha_file(t/'audit/isolated-deny-probe.json'),
             'historical_recovery_sha256':ops.sha_file(root/'audit/confidentiality-recovery.json')}
 
 
