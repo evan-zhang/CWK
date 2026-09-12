@@ -169,6 +169,54 @@ for _name in tuple(dir(fixtures.WindowTests)):
         setattr(LedgerTests,_name,None)
 
 
+class InProcessProofTests(unittest.TestCase):
+    def test_actual_frozen_public_source_no_popen_no_socket_no_private_reads(self):
+        import rt055_zero_exposure as zero
+        import socket, subprocess, builtins, io
+        archive=Path(__file__).parent/'fixtures/rt055-legacy-proof'
+        opened=[]; original=io.open
+        def checked(file,*args,**kwargs):
+            if isinstance(file,(str,Path)):
+                self.assertTrue(Path(file).resolve().is_relative_to(archive.resolve()))
+                opened.append(Path(file).name)
+            return original(file,*args,**kwargs)
+        with patch.object(subprocess,'Popen',side_effect=AssertionError('NO_POPEN')),patch.object(socket.socket,'connect',side_effect=AssertionError('NO_QUERY')),patch.object(io,'open',side_effect=checked),patch.object(builtins,'open',side_effect=AssertionError('NO_BUILTIN_OPEN')):
+            self.assertEqual(zero._proof(archive),{'rows':[{'calls':0,'failure':'CandidateError'}]*3,'forbidden_reads':0})
+        self.assertIn('kb_retrieval_candidates.py',opened)
+
+    def test_source_tamper_is_rejected_before_execution(self):
+        import tempfile,shutil
+        import rt055_zero_exposure as zero
+        with tempfile.TemporaryDirectory() as folder:
+            archive=Path(folder); (archive/'impl').mkdir()
+            for p in (Path(__file__).parent/'fixtures/rt055-legacy-proof/impl').glob('*.py'):shutil.copyfile(p,archive/'impl'/p.name)
+            p=archive/'impl/kb_retrieval_candidates.py';p.write_text(p.read_text()+'\nraise RuntimeError("tampered")\n')
+            with self.assertRaisesRegex(RuntimeError,'zero_exposure_evidence_invalid_no_replay'):zero._proof(archive)
+
+
+    def test_changed_dependency_literals_fail_closed(self):
+        import tempfile,shutil
+        import rt055_zero_exposure as zero
+        with tempfile.TemporaryDirectory() as folder:
+            archive=Path(folder);shutil.copytree(Path(__file__).parent/'fixtures/rt055-legacy-proof/impl',archive/'impl')
+            p=archive/'impl/kb_retrieval_decision.py';p.write_text(p.read_text().replace('"spbp-2027")','"forged")'))
+            with self.assertRaises(RuntimeError):zero._proof(archive)
+
+    def test_removed_original_category_gate_cannot_produce_proof(self):
+        import tempfile,shutil,hashlib,ast
+        import rt055_zero_exposure as zero
+        with tempfile.TemporaryDirectory() as folder:
+            archive=Path(folder);shutil.copytree(Path(__file__).parent/'fixtures/rt055-legacy-proof/impl',archive/'impl')
+            p=archive/'impl/kb_retrieval_candidates.py';tree=ast.parse(p.read_text())
+            scorer=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='score_cases')
+            scorer.body=[n for n in scorer.body if not (isinstance(n,ast.If) and 'missing scoring category' in ast.unparse(n))]
+            p.write_text(ast.unparse(tree))
+            # Mutation bypasses ONLY public source authentication to exercise
+            # behavioral verification: a changed scorer cannot forge zero calls.
+            with patch.dict(zero.LEGACY_PUBLIC_SOURCES,{p.name:hashlib.sha256(p.read_bytes()).hexdigest()}):
+                with self.assertRaises((RuntimeError,NameError)):zero._proof(archive)
+
+
 class VoidTests(LedgerTests):
     def legacy_fixture(self):
         import rt055_zero_exposure as zero
@@ -196,9 +244,11 @@ def score_cases(candidate,cases,timeout=30):
         (hf/'blobs/public-model').write_text('public model bytes')
         (hf/'snapshots/public-model').symlink_to('../blobs/public-model')
         (self.root/'impl/kb_retrieval_candidates.py').write_text(old)
+        (self.root/'impl/kb_retrieval_decision.py').write_bytes((Path(__file__).parent/'fixtures/rt055-legacy-proof/impl/kb_retrieval_decision.py').read_bytes())
         pm=runtime.migration_directory(self.root,self.mid);t=pm/'rt055-synthetic-001'
         (t/'impl/kb_retrieval_candidates.py').write_text(old)
-        dep=runtime.ops.read_json(pm/'deployment.json');dep['source_files']['kb_retrieval_candidates.py']=runtime.ops.sha_file(self.root/'impl/kb_retrieval_candidates.py')
+        (t/'impl/kb_retrieval_decision.py').write_bytes((self.root/'impl/kb_retrieval_decision.py').read_bytes())
+        dep=runtime.ops.read_json(pm/'deployment.json');dep['source_files']['kb_retrieval_decision.py']=runtime.ops.sha_file(self.root/'impl/kb_retrieval_decision.py');dep['source_files']['kb_retrieval_candidates.py']=runtime.ops.sha_file(self.root/'impl/kb_retrieval_candidates.py')
         (pm/'deployment.json').write_text(json.dumps(dep))
         (pm/'privacy-receipt.json').write_text(json.dumps(runtime.migration_evidence(self.root,self.mid,1)))
         self.prepare_policy();scoring.prepare(self.root,self.wid,self.mid);self.collect()
@@ -242,8 +292,11 @@ def score_cases(candidate,cases,timeout=30):
 
     def test_strict_zero_void_allows_new_window_without_deleting_claim(self):
         zero,w,kb=self.legacy_fixture();m=zero.capture(self.root,self.wid,self.archive_id)
-        zero.append_void(self.root,m);zero.validate_void(self.root,'a',kb)
-        self.assertTrue(window.holdout_unexposed(self.root))
+        zero.append_void(self.root,m)
+        import subprocess,socket
+        with patch.object(subprocess,'Popen',side_effect=AssertionError('NO_POPEN')),patch.object(socket.socket,'connect',side_effect=AssertionError('NO_QUERY')):
+            zero.validate_void(self.root,'a',kb)
+            self.assertTrue(window.holdout_unexposed(self.root))
         self.assertTrue(all((self.root/p).read_bytes()==b for p,b in self.original.items()))
         self.wid=str(uuid.uuid4());self.prepare_policy();scoring.prepare(self.root,self.wid,self.mid);self.collect()
         freeze.create(self.root,self.wid,self.mid);freeze.verify_once(self.root,self.wid)

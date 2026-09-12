@@ -487,3 +487,14 @@ B CWork42份56.203秒完成；投前31份导入后1 failed/30 pending，立即�
 最终no-Popen coordinator precheck因旧claim/void验证的`_proof()`调用子进程而被guard拒绝。独立只读复核确认，未放宽guard或删历史。已freeze的原件不能删除或写成未freeze；仅一次cleanup/after尝试，cleanup PASS，after因NAS `TransientStorageError` 为FAIL（已测1库），after快照与comparison未生成。保留失败after claim/status，不重试。window INVALID/after-failed、READY receipt未创建。新attempt/arm/exposure/query/score/result及global formal exposure/query/result全0；after claim=1、after FAIL是失败收口记录，不冒充完整after验证或READY要求的after=0。
 
 96材料、5938/97376/194848归档及历史集合/字节保持；builder/verifier1/1，cleanup0、无运行残留。Gateway before 与独立最终均 3×HTTP200、ok=true、read_only 字段存在且 true；完整NAS/index仍UNKNOWN。只本地公开证据提交，不push、不改source scripts、不执行正式coordinator。根因、全部门、QA和后续授权边界见[Amendment9最终证据](evidence/amendment9-summary.md)。
+
+
+## Amendment 10 — 进程内 legacy 证明与授权正式接续（2026-09-12）
+
+授权从 aa440f6 接续同一 OPS run，不重启任务。Am9 window `7652dbee-3679-4886-a391-ffcf871e712c` 永久 INVALID/after-failed，旧 after 不重试，所有旧 claim/void/freeze/window 只读保留。
+
+最小源码修复只替换 legacy `_proof()`：固定公开全文 SHA 认证后，AST 选取原评分定义，在当前进程受限命名空间执行公开两题；literal 依赖核对，不导入归档模块，不读取私有题目，不提供 open/import/subprocess/socket，三库必须仍于首次 search 前以原 missing-category 拒绝。原历史字节校验、零暴露与 no-Popen/no-query 硬门不削弱。
+
+变更产生独立新 source commit、新 append-only migration、新 archive 与全新 window；新窗 runtime/workspace/scoring-input/privacy、before、freeze、零暴露逐项重验。源码绑定合同 `rt055_workload_readiness.verify` 要求 workload 的 source_commit/migration_id 与当前 deployment 完全一致，不能把 Am9 回执复制改绑；本轮不扩改合同，预先登记 **Am10 公开 workload 仅运行1次**（Am9 原证据保持，额外运行原因仅 SOURCE_BINDING_REQUIRES_NEW_WORKLOAD）。不再诊断旧 PageError，不重跑 builder/verifier，不改题池/seed/42-31-42/7200/A-B 对称门。
+
+新窗 before/after 各一次；NAS 错误保留 claim/status，若失败不覆盖不重试该窗，cleanup 后 INVALID 追加收口。READY 后按本轮用户授权直接继续唯一正式 coordinator：随机顺序只冻结一次；每 arm/library 暴露只消费一次，任何 exposure 后不得重放。成功则聚合、唯一裁决；失败则同窗 cleanup→after→abort/decision。私有值与 digest 不出 OPS，正式命中日志禁止读出；完整 NAS/index 仍按测量边界 UNKNOWN。只本地公开证据提交，不 push/merge/清 worktree，不改生产或 NAS。

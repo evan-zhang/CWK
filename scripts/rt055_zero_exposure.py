@@ -108,36 +108,75 @@ def _reconciliation(value):
 
 
 def _proof(archive):
-    # Reproduce only public cases in a separate interpreter. No holdout can open.
-    program='''import sys,json
-from pathlib import Path
-root=Path(sys.argv[1]);sys.path.insert(0,str(root/'impl'))
-import kb_retrieval_candidates as c
-forbidden=0
-def audit(event,args):
- global forbidden
- if event=='open' and isinstance(args[0],(str,bytes)):
-  p=Path(args[0]).resolve()
-  if any(p.is_relative_to(root/n) for n in ('builder','verifier','consumption')):
-   forbidden+=1;raise PermissionError('private_read_denied')
-sys.addaudithook(audit)
-rows=[]
-for kb in c.decision.LIBRARIES:
- class Candidate:
-  calls=0
-  def search(self,*a,**kw):self.calls+=1;raise RuntimeError('unreachable')
- candidate=Candidate();failure=None
- try:c.score_cases(candidate,[c.Case(kb,'public exact',frozenset({'public-doc'}),True),c.Case(kb,'public no answer',frozenset())])
- except Exception as e:failure=type(e).__name__
- rows.append({'calls':candidate.calls,'failure':failure})
-print(json.dumps({'rows':rows,'forbidden_reads':forbidden}))
-'''
-    env={'PATH':os.environ['PATH'],'PYTHONDONTWRITEBYTECODE':'1','LANG':'C','LC_ALL':'C'}
-    p=subprocess.run([sys.executable,'-c',program,str(archive)],env=env,capture_output=True,text=True,timeout=30)
-    _need(p.returncode==0)
-    value=json.loads(p.stdout)
-    _need(value=={'rows':[{'calls':0,'failure':'CandidateError'}]*3,'forbidden_reads':0})
-    return value
+    """Execute only the hash-pinned public scoring closure, in this interpreter.
+
+    No archived module import, sys.path mutation, subprocess or private input.
+    Literal dependencies are checked, not executed. The closure has no I/O
+    builtins; every synthetic trial must reject for the original category gate.
+    Historical evidence/void bytes and the outer no-Popen guard stay unchanged.
+    """
+    import ast
+    import __future__
+    import builtins
+    import math
+    from types import SimpleNamespace
+    source = _path(archive, 'impl/kb_retrieval_candidates.py')
+    source_bytes = source.read_bytes()
+    _need(ops.sha_bytes(source_bytes) == LEGACY_PUBLIC_SOURCES[source.name])
+    tree = ast.parse(source_bytes.decode('utf-8'))
+    dependency = ast.parse(_path(archive, 'impl/kb_retrieval_decision.py').read_text())
+    literals = {}
+    for node in dependency.body:
+        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            if node.targets[0].id in ('LIBRARIES', 'COUNT_FIELDS'):
+                _need(node.targets[0].id not in literals)
+                literals[node.targets[0].id] = ast.literal_eval(node.value)
+    _need(literals.get('LIBRARIES') == ops.LIBRARIES)
+    _need(literals.get('COUNT_FIELDS') == {
+        'total_count', 'answerable_count', 'recall_hits_at_10', 'exact_count',
+        'exact_hits', 'no_answer_count', 'no_answer_correct', 'system_error_count',
+        'answerable_system_error_count', 'exact_system_error_count',
+        'no_answer_system_error_count', 'timeout_count', 'leak_count'})
+    names = {'CandidateError', 'CandidateTimeout', 'CandidateLeak', 'Deadline',
+             '_query_scope', 'score_cases'}
+    nodes = [n for n in tree.body if isinstance(n, (ast.ClassDef, ast.FunctionDef)) and n.name in names]
+    _need(len({n.name for n in nodes}) == len(nodes) and {'CandidateError', 'score_cases'} <= {n.name for n in nodes})
+    # Full source digest above authenticates these exact definitions. Exclude
+    # module imports/initializers and deny I/O capabilities even in the closure.
+    safe_names = ('__build_class__', 'object', 'RuntimeError', 'Exception',
+                  'TimeoutError', 'isinstance', 'type', 'bool', 'int', 'float',
+                  'str', 'frozenset', 'set', 'dict', 'list', 'all', 'any',
+                  'min', 'max', 'len', 'round', 'sorted')
+    namespace = {'__builtins__': {n: getattr(builtins, n) for n in safe_names},
+                 '__name__': 'rt055_legacy_public_proof',
+                 'decision': SimpleNamespace(**literals),
+                 'math': SimpleNamespace(isfinite=math.isfinite),
+                 'time': SimpleNamespace(monotonic=time.monotonic),
+                 'MAX_QUERY_CHARS': 4096, 'TOP_K': 10}
+    code = compile(ast.Module(body=nodes, type_ignores=[]), '<rt055-public-proof>',
+                   'exec', flags=__future__.annotations.compiler_flag, dont_inherit=True)
+    exec(code, namespace)
+    rows = []
+    for kb in ops.LIBRARIES:
+        class Candidate:
+            calls = 0
+            def search(self, *args, **kwargs):
+                self.calls += 1
+                raise RuntimeError('unreachable')
+        candidate = Candidate()
+        cases = [SimpleNamespace(kb_id=kb, query='public exact', expected=frozenset({'public-doc'}), exact=True),
+                 SimpleNamespace(kb_id=kb, query='public no answer', expected=frozenset(), exact=False)]
+        failure = None
+        try:
+            namespace['score_cases'](candidate, cases)
+        except namespace['CandidateError'] as exc:
+            _need(str(exc) == 'missing scoring category')
+            failure = 'CandidateError'
+        except Exception:
+            raise RuntimeError('zero_exposure_evidence_invalid_no_replay') from None
+        _need(candidate.calls == 0 and failure == 'CandidateError')
+        rows.append({'calls': candidate.calls, 'failure': failure})
+    return {'rows': rows, 'forbidden_reads': 0}
 
 
 def capture(root,wid,migration_id):
