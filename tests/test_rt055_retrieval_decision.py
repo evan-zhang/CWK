@@ -319,5 +319,232 @@ class RepositoryEvidenceTests(unittest.TestCase):
         self.assertEqual(evidence["decision"]["stage_b"], "NO-GO")
 
 
+def simplified_report():
+    report = valid_report()
+    report['PRIVACY_MODE'] = 'SIMPLIFIED'
+    report['privacy_check'] = 'SIMPLIFIED_SPOT_PASS'
+    report['caveats'] = list(decision.SIMPLIFIED_CAVEATS)
+    for candidate in report['candidates'].values():
+        receipt = candidate['freeze_receipt']
+        for field in decision.DIGEST_FIELDS:
+            del receipt[field]
+        receipt.update(artifact_digests_verified_on_ops=True, candidate_artifacts_distinct_on_ops=True)
+    report['formal_window'] = {
+        'window_id': '12345678-1234-4234-8234-123456789abc',
+        'canonical_freeze_window_id': '87654321-4321-4321-8321-cba987654321',
+        'run_order': ['a', 'b'], 'same_frozen_paper': True, 'five_digests_verified': True,
+        'reconciled_a_trial_count': 126, 'new_a_trial_count': 0, 'new_b_trial_count': 126}
+    report['verifier_attestations'] = {k: True for k in ('rt054_pool_excluded',
+        'input_disjoint_verified', 'category_coverage_verified', 'aggregate_only_verified', 'no_private_digest_exported')}
+    return report
+
+
+class SimplifiedExamTests(unittest.TestCase):
+    def test_no_historical_role_or_firewall_gate(self):
+        report = simplified_report()
+        self.assertEqual(decision.decide(report)['decision'], 'A')
+
+    def test_reconciled_a_missing_resources_are_caveated_not_zero_or_invalid(self):
+        report = simplified_report()
+        report['candidates'][decision.CANDIDATE_A]['libraries']['cwork-3m']['peak_rss_bytes'] = None
+        result = decision.decide(report)
+        self.assertEqual(result['decision'], 'A')
+        self.assertEqual(result['caveats'], report['caveats'])
+        self.assertEqual(result['measurement_gaps'], ['A:cwork-3m:peak_rss_bytes'])
+        self.assertIsNone(report['candidates'][decision.CANDIDATE_A]['libraries']['cwork-3m']['peak_rss_bytes'])
+
+    def test_schema_accepts_truthful_nulls(self):
+        import jsonschema
+        report = simplified_report()
+        report['candidates'][decision.CANDIDATE_A]['libraries']['cwork-3m']['build_seconds'] = None
+        schema = json.loads((PROJECT / 'RT/RT-055/contracts/simplified-aggregate-v3.schema.json').read_text())
+        jsonschema.Draft202012Validator.check_schema(schema)
+        jsonschema.validate(report, schema)
+        bad = copy.deepcopy(report)
+        bad['candidates'][decision.CANDIDATE_A]['libraries']['cwork-3m']['query'] = 'secret'
+        with self.assertRaises(jsonschema.ValidationError): jsonschema.validate(bad, schema)
+
+    def test_private_data_rejected(self):
+        for key, value in (('query', 'secret'), ('query_hash', 'a'*64), ('locator', '/private/file')):
+            report = simplified_report(); report[key] = value
+            with self.assertRaises(decision.ReportError): decision.decide(report)
+
+    def test_replayed_or_wrong_order_trials_rejected(self):
+        for changes in ({'new_a_trial_count': 1}, {'run_order': ['b', 'a']}, {'new_b_trial_count': 125}):
+            report = simplified_report(); report['formal_window'].update(changes)
+            with self.assertRaises(decision.ReportError): decision.decide(report)
+
+    def test_wrong_paper_or_freeze_rejected(self):
+        for key in ('same_frozen_paper', 'five_digests_verified'):
+            report = simplified_report(); report['formal_window'][key] = False
+            with self.assertRaises(decision.ReportError): decision.decide(report)
+        report = simplified_report()
+        report['formal_window']['canonical_freeze_window_id'] = report['formal_window']['window_id']
+        with self.assertRaises(decision.ReportError): decision.decide(report)
+
+    def test_measured_drift_is_not_attributed_or_silently_cleared(self):
+        report = simplified_report()
+        report['production_invariants'].update(nas_unchanged=None, production_config_unchanged=False)
+        self.assertEqual(decision.decide(report)['decision'], 'A')
+        self.assertIsNone(report['production_invariants']['nas_unchanged'])
+        self.assertFalse(report['production_invariants']['production_config_unchanged'])
+
+    def test_privacy_failure_and_unknown_not_pass(self):
+        report = simplified_report(); report['privacy_check'] = 'FAIL'
+        self.assertEqual(decision.decide(report)['decision'], 'NO-GO')
+        report['privacy_check'] = 'UNVERIFIED'
+        self.assertEqual(decision.decide(report)['decision'], 'NO-GO')
+
+    def test_cleanup_failure_prevents_selection(self):
+        report = simplified_report(); report['cleanup']['temporary_services_zero'] = False
+        self.assertEqual(decision.decide(report)['decision'], 'NO-GO')
+
+    def test_quality_and_denominators_unchanged(self):
+        report = simplified_report()
+        for candidate in report['candidates'].values():
+            m = candidate['libraries']['cwork-3m']; m['no_answer_correct'] = 0; m['no_answer'] = 0
+        self.assertEqual(decision.decide(report)['decision'], 'NO-GO')
+        report = simplified_report()
+        report['candidates'][decision.CANDIDATE_B]['libraries']['cwork-3m']['total_count'] -= 1
+        with self.assertRaises(decision.ReportError): decision.decide(report)
+
+    def test_digest_export_is_rejected_by_schema_and_harness(self):
+        import jsonschema
+        import re
+        report = simplified_report()
+        self.assertIsNone(re.search(r'[0-9a-fA-F]{64}', json.dumps(report)))
+        schema = json.loads((PROJECT / 'RT/RT-055/contracts/simplified-aggregate-v3.schema.json').read_text())
+        for field in decision.DIGEST_FIELDS:
+            bad = copy.deepcopy(report)
+            bad['candidates'][decision.CANDIDATE_A]['freeze_receipt'][field] = DIGEST_A
+            with self.assertRaises(decision.ReportError): decision.decide(bad)
+            with self.assertRaises(jsonschema.ValidationError): jsonschema.validate(bad, schema)
+
+    def test_simplified_schema_structural_negatives(self):
+        import jsonschema
+        schema = json.loads((PROJECT / 'RT/RT-055/contracts/simplified-aggregate-v3.schema.json').read_text())
+        mutations = [
+            (('privacy_check',), 'PASS'),
+            (('PRIVACY_MODE',), 'FULL'),
+            (('run_id',), '/private/example'),
+            (('query',), 'private fixture'),
+            (('formal_window', 'new_b_trial_count'), -1),
+            (('formal_window', 'new_a_trial_count'), True),
+            (('formal_window', 'same_frozen_paper'), False),
+            (('holdout_contract', 'rt054_final_holdout_reused'), True),
+            (('environment', 'top_k'), 11),
+            (('verifier_attestations', 'no_private_digest_exported'), False),
+            (('cleanup', 'cleanup_failures'), -1),
+            (('cleanup', 'temporary_services_zero'), 'true'),
+            (('production_invariants', 'nas_unchanged'), 0),
+            (('candidates', decision.CANDIDATE_B, 'identity', 'core_modified'), True),
+            (('candidates', decision.CANDIDATE_A, 'gateway_readiness', 'https_query_api'), 1),
+            (('candidates', decision.CANDIDATE_A, 'libraries', 'cwork-3m', 'peak_rss_bytes'), 0),
+        ]
+        for path, value in mutations:
+            with self.subTest(path=path):
+                report = simplified_report()
+                parent = report
+                for key in path[:-1]: parent = parent[key]
+                parent[path[-1]] = value
+                with self.assertRaises(jsonschema.ValidationError): jsonschema.validate(report, schema)
+                with self.assertRaises(decision.ReportError): decision.decide(report)
+
+    def test_ops_only_artifact_proof_is_required(self):
+        report = simplified_report()
+        for field in ('artifact_digests_verified_on_ops', 'candidate_artifacts_distinct_on_ops'):
+            bad = copy.deepcopy(report)
+            bad['candidates'][decision.CANDIDATE_B]['freeze_receipt'][field] = False
+            with self.assertRaises(decision.ReportError): decision.decide(bad)
+
+    def test_privacy_fail_cannot_be_hidden_by_missing_measurements(self):
+        report = simplified_report()
+        report['privacy_check'] = 'FAIL'
+        report['candidates'][decision.CANDIDATE_A]['libraries']['cwork-3m']['build_seconds'] = None
+        result = decision.decide(report)
+        self.assertEqual(result['decision'], 'NO-GO')
+        self.assertEqual(result['privacy_check'], 'FAIL')
+        self.assertEqual(result['reason'], 'SIMPLIFIED_PRIVACY_SPOT_FAIL')
+
+    def test_unknown_gateway_prevents_selection_not_contract_validity(self):
+        report = simplified_report()
+        report['candidates'][decision.CANDIDATE_A]['gateway_readiness']['https_query_api'] = None
+        self.assertEqual(decision.decide(report)['decision'], 'NO-GO')
+
+    def test_all_reconciled_a_resource_nulls_preserved_with_b_hard_fail(self):
+        report = simplified_report()
+        for kb in decision.LIBRARIES:
+            for key in ('index_bytes', 'build_seconds', 'peak_rss_bytes'):
+                report['candidates'][decision.CANDIDATE_A]['libraries'][kb][key] = None
+            b = report['candidates'][decision.CANDIDATE_B]['libraries'][kb]
+            b.update(no_answer_correct=0, no_answer=0)
+        original = copy.deepcopy(report)
+        result = decision.decide(report)
+        self.assertEqual(result['decision'], 'A')
+        self.assertEqual(len(result['measurement_gaps']), 9)
+        self.assertEqual(result['PRIVACY_MODE'], 'SIMPLIFIED')
+        self.assertEqual(result['caveats'], report['caveats'])
+        self.assertFalse(result['candidate_gates'][decision.CANDIDATE_B]['pass'])
+        self.assertEqual(report, original)
+
+    def test_missing_resources_cannot_prove_b_displacement(self):
+        report = simplified_report()
+        a, b = (report['candidates'][cid] for cid in (decision.CANDIDATE_A, decision.CANDIDATE_B))
+        b['operations'] = dict(a['operations'])
+        for kb in decision.LIBRARIES:
+            for key in decision.RESOURCE_FIELDS:
+                b['libraries'][kb][key] *= .5
+        self.assertEqual(decision.decide(report)['decision'], 'B')
+        a['libraries']['cwork-3m']['build_seconds'] = None
+        self.assertEqual(decision.decide(report)['decision'], 'A')
+
+    def test_required_missing_measurements_are_no_go(self):
+        for cid, key in ((decision.CANDIDATE_A, 'p95_ms'), (decision.CANDIDATE_B, 'build_seconds')):
+            report = simplified_report()
+            report['candidates'][cid]['libraries']['cwork-3m'][key] = None
+            result = decision.decide(report)
+            self.assertEqual(result['decision'], 'NO-GO')
+            self.assertEqual(result['reason'], 'INCOMPLETE_REQUIRED_MEASUREMENTS')
+            self.assertEqual(result['caveats'], report['caveats'])
+        report = simplified_report()
+        report['formal_window'].update(reconciled_a_trial_count=0, new_a_trial_count=126)
+        report['candidates'][decision.CANDIDATE_A]['libraries']['cwork-3m']['build_seconds'] = None
+        self.assertEqual(decision.decide(report)['decision'], 'NO-GO')
+
+    def test_required_caveats_schema_and_harness_negatives(self):
+        import jsonschema
+        schema = json.loads((PROJECT / 'RT/RT-055/contracts/simplified-aggregate-v3.schema.json').read_text())
+        mutations = [list(decision.SIMPLIFIED_CAVEATS[:i] + decision.SIMPLIFIED_CAVEATS[i+1:]) for i in range(5)]
+        mutations += [list(decision.SIMPLIFIED_CAVEATS) + [decision.SIMPLIFIED_CAVEATS[0]],
+                      list(decision.SIMPLIFIED_CAVEATS) + ['UNKNOWN_CAVEAT'], None]
+        for caveats in mutations:
+            report = simplified_report(); report['caveats'] = caveats
+            with self.assertRaises(decision.ReportError): decision.decide(report)
+            with self.assertRaises(jsonschema.ValidationError): jsonschema.validate(report, schema)
+        report = simplified_report(); del report['caveats']
+        with self.assertRaises(decision.ReportError): decision.decide(report)
+        with self.assertRaises(jsonschema.ValidationError): jsonschema.validate(report, schema)
+
+    def test_cli_preserves_simplified_caveats_for_a_b_and_no_go(self):
+        import contextlib
+        import io
+        import tempfile
+        for desired in ('A', 'B', 'NO-GO'):
+            report = simplified_report()
+            if desired != 'A':
+                a = report['candidates'][decision.CANDIDATE_A]['libraries']['cwork-3m']
+                a.update(no_answer_correct=0, no_answer=0)
+            if desired == 'NO-GO': report['privacy_check'] = 'FAIL'
+            with tempfile.TemporaryDirectory() as tmp:
+                p = Path(tmp) / 'aggregate.json'; p.write_text(json.dumps(report))
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out): rc = decision.main([str(p)])
+            result = json.loads(out.getvalue())
+            self.assertEqual(result['decision'], desired)
+            self.assertEqual(rc, 3 if desired == 'NO-GO' else 0)
+            self.assertEqual(result['PRIVACY_MODE'], 'SIMPLIFIED')
+            self.assertEqual(result['caveats'], report['caveats'])
+
+
 if __name__ == "__main__":
     unittest.main()

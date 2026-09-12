@@ -58,6 +58,17 @@ DIGEST_FIELDS = {
     "code_digest", "image_digest", "config_digest", "mapping_digest",
     "query_plan_digest", "dependency_digest",
 }
+SIMPLIFIED_CAVEATS = (
+    "A_ALREADY_CONSUMED_RECONCILED_NO_REPLAY",
+    "A_RESOURCE_MEASUREMENTS_MISSING",
+    "B_ONLY_FRESH_RESOURCES",
+    "NO_ANSWER_TO_CONFLICT_DEFAULT_PRESERVES_SINGLE_USE",
+    "SIMPLIFIED_REPLACES_AMENDMENT_CONTROLS",
+)
+SIMPLIFIED_OPTIONAL_CAVEATS = (
+    "FULL_NAS_AND_EXISTING_INDEX_INVARIANTS_UNMEASURED",
+    "PER_TRIAL_RESPONSES_NOT_RETAINED_IDENTITY_AND_COUNTER_RECONCILIATION_ONLY",
+)
 
 
 class ReportError(ValueError):
@@ -141,15 +152,19 @@ def _validate_uuid(value: Any) -> None:
         raise ReportError("run_id must be a canonical lowercase UUID")
 
 
-def _validate_freeze(candidate_id: str, receipt: Any, *, weknora: bool) -> None:
-    common = DIGEST_FIELDS | {"window_id", "receipt_id", "candidate_id", "frozen_before_run", "ops_artifacts_verified"}
+def _validate_freeze(candidate_id: str, receipt: Any, *, weknora: bool, simplified=False) -> None:
+    evidence = {'artifact_digests_verified_on_ops', 'candidate_artifacts_distinct_on_ops'} if simplified else DIGEST_FIELDS
+    common = evidence | {"window_id", "receipt_id", "candidate_id", "frozen_before_run", "ops_artifacts_verified"}
     fields = common | ({"head_matches_commit", "tree_clean", "native_config", "upstream_receipt"} if weknora else set())
     receipt = _require_keys(receipt, fields, f"{candidate_id}.freeze_receipt")
     _constant(receipt["candidate_id"], candidate_id, f"{candidate_id}.freeze_receipt.candidate_id")
     expected_receipt = FREEZE_RECEIPT_B if weknora else FREEZE_RECEIPT_A
     _constant(receipt["receipt_id"], expected_receipt, f"{candidate_id}.freeze_receipt.receipt_id")
-    for field in DIGEST_FIELDS:
-        _digest(receipt[field], f"{candidate_id}.freeze_receipt.{field}")
+    if simplified:
+        _true_flags(receipt, tuple(evidence), f"{candidate_id}.freeze_receipt")
+    else:
+        for field in DIGEST_FIELDS:
+            _digest(receipt[field], f"{candidate_id}.freeze_receipt.{field}")
     _true_flags(receipt, ("frozen_before_run", "ops_artifacts_verified"), f"{candidate_id}.freeze_receipt")
     if weknora:
         _true_flags(receipt, ("head_matches_commit", "tree_clean", "native_config"), f"{candidate_id}.freeze_receipt")
@@ -185,6 +200,9 @@ def validate_formal_window(report):
 
 
 def validate_report(report: Mapping[str, Any]) -> None:
+    if isinstance(report, Mapping) and report.get('PRIVACY_MODE') == 'SIMPLIFIED':
+        validate_simplified_report(report)
+        return
     if not isinstance(report, Mapping):
         raise ReportError("report must be an object")
     if report.get("schema") == "cwk.rt055.retrieval-decision.aggregate.v2":
@@ -295,19 +313,19 @@ def validate_report(report: Mapping[str, Any]) -> None:
     _true_flags(invariants, tuple(invariants), "production_invariants")
 
 
-def _validate_candidate(candidate_id: str, candidate: Any, participating=LIBRARIES) -> None:
+def _validate_candidate(candidate_id: str, candidate: Any, participating=LIBRARIES, *, allow_unmeasured=False, simplified=False) -> None:
     candidate = _require_keys(candidate, {"identity", "freeze_receipt", "libraries", "operations", "gateway_readiness"}, f"candidates.{candidate_id}")
     identity = candidate["identity"]
     if candidate_id == CANDIDATE_A:
         expected = {"kind": "opensearch_dual_channel", "exact_resolver": "deterministic_v1", "lexical_analyzer": "analysis_icu", "doc_collapse": True, "parent_expand": True, "rerank_in_primary": False}
         if (identity != expected or any(type(identity[k]) is not type(v) for k, v in expected.items())):
             raise ReportError("candidate A identity drifted from the frozen mechanism")
-        _validate_freeze(candidate_id, candidate["freeze_receipt"], weknora=False)
+        _validate_freeze(candidate_id, candidate["freeze_receipt"], weknora=False, simplified=simplified)
     else:
         expected = {"kind": "weknora", "commit": WEKNORA_COMMIT, "native_pipeline": True, "core_modified": False}
         if (identity != expected or any(type(identity[k]) is not type(v) for k, v in expected.items())):
             raise ReportError("candidate B must be unmodified native WeKnora at the frozen commit")
-        _validate_freeze(candidate_id, candidate["freeze_receipt"], weknora=True)
+        _validate_freeze(candidate_id, candidate["freeze_receipt"], weknora=True, simplified=simplified)
 
     libraries = candidate["libraries"]
     if not isinstance(libraries, Mapping) or set(libraries) != set(LIBRARIES):
@@ -351,6 +369,8 @@ def _validate_candidate(candidate_id: str, candidate: Any, participating=LIBRARI
             if rate > 1 or not math.isclose(rate, expected, rel_tol=0, abs_tol=1e-12):
                 raise ReportError(f"{candidate_id}.{kb}.{field} must equal its fixed count ratio")
         for field in RESOURCE_FIELDS:
+            if allow_unmeasured and metrics[field] is None:
+                continue
             where = f"{candidate_id}.{kb}.{field}"
             if field in {"index_bytes", "peak_rss_bytes"}:
                 if _integer(metrics[field], where, minimum=1) < 1:
@@ -363,8 +383,91 @@ def _validate_candidate(candidate_id: str, candidate: Any, participating=LIBRARI
         if _integer(value, f"{candidate_id}.operations.{field}", minimum=1) < 1:
             raise ReportError(f"{candidate_id}.operations.{field} must be >= 1")
     gateway = _require_keys(candidate["gateway_readiness"], {"https_query_api", "per_gateway_identity", "kb_grants_server_side", "no_direct_nas_or_search_credentials"}, f"candidates.{candidate_id}.gateway_readiness")
-    if not all(isinstance(value, bool) for value in gateway.values()):
+    if not all(isinstance(value, bool) or (allow_unmeasured and value is None) for value in gateway.values()):
         raise ReportError(f"candidate {candidate_id} gateway readiness values must be booleans")
+
+
+def validate_simplified_report(report):
+    """Explicit simplified evidence, without historical role/firewall gates.
+
+    Reconciled A resource gaps stay null, not an INVALID or a resource win.
+    Drift is recorded, not attributed; privacy spot checks are not full proof.
+    """
+    _scan_safe(report)
+    _require_keys(report, (ALLOWED_TOP - {'rerank_ablation'}) | {'PRIVACY_MODE', 'privacy_check', 'caveats'}, 'simplified_report')
+    caveats = report['caveats']
+    allowed_caveats = set(SIMPLIFIED_CAVEATS + SIMPLIFIED_OPTIONAL_CAVEATS)
+    if (not isinstance(caveats, list) or any(not isinstance(v, str) for v in caveats)
+            or len(caveats) != len(set(caveats)) or not set(SIMPLIFIED_CAVEATS) <= set(caveats)
+            or not set(caveats) <= allowed_caveats):
+        raise ReportError('simplified_caveats_invalid')
+    _constant(report['schema'], SCHEMA, 'schema')
+    _constant(report['PRIVACY_MODE'], 'SIMPLIFIED', 'PRIVACY_MODE')
+    _validate_uuid(report['run_id'])
+    if report['privacy_check'] not in ('SIMPLIFIED_SPOT_PASS', 'FAIL', 'UNVERIFIED'):
+        raise ReportError('simplified_privacy_status_invalid')
+    w = _require_keys(report['formal_window'], {'window_id', 'canonical_freeze_window_id', 'run_order',
+        'same_frozen_paper', 'five_digests_verified', 'reconciled_a_trial_count',
+        'new_a_trial_count', 'new_b_trial_count'}, 'formal_window')
+    for key in ('window_id', 'canonical_freeze_window_id'): _validate_uuid(w[key])
+    if w['window_id'] == w['canonical_freeze_window_id']:
+        raise ReportError('simplified_requires_new_window')
+    if w['run_order'] not in (['a', 'b'], ['b', 'a']): raise ReportError('formal_order_invalid')
+    _true_flags(w, ('same_frozen_paper', 'five_digests_verified'), 'formal_window')
+    hold = _require_keys(report['holdout_contract'], {'version', 'created_after_rt054',
+        'rt054_final_holdout_reused', 'libraries', 'private_artifacts_retained_on_ops',
+        'aggregate_only_export', 'single_use_frozen_before_candidate_runs'}, 'holdout_contract')
+    _constant(hold['version'], HOLDOUT_VERSION, 'holdout_contract.version')
+    if hold['libraries'] != list(LIBRARIES) or hold['rt054_final_holdout_reused'] is not False:
+        raise ReportError('simplified_holdout_invalid')
+    _true_flags(hold, ('created_after_rt054', 'private_artifacts_retained_on_ops',
+        'aggregate_only_export', 'single_use_frozen_before_candidate_runs'), 'holdout_contract')
+    env = _require_keys(report['environment'], {'hardware_class', 'corpus_snapshot_version', 'same_corpus',
+        'same_hardware_class', 'same_timeout_budget', 'same_top_k', 'top_k', 'run_order_randomized'}, 'environment')
+    _constant(env['hardware_class'], HARDWARE_CLASS, 'environment.hardware_class')
+    _constant(env['corpus_snapshot_version'], CORPUS_SNAPSHOT_VERSION, 'environment.corpus_snapshot_version')
+    _true_flags(env, ('same_corpus', 'same_hardware_class', 'same_timeout_budget', 'same_top_k', 'run_order_randomized'), 'environment')
+    if type(env['top_k']) is not int or env['top_k'] != 10: raise ReportError('top_k_invalid')
+    attest = _require_keys(report['verifier_attestations'], {'rt054_pool_excluded', 'input_disjoint_verified',
+        'category_coverage_verified', 'aggregate_only_verified', 'no_private_digest_exported'}, 'verifier_attestations')
+    _true_flags(attest, tuple(attest), 'verifier_attestations')
+    participating, deferred = report['participating_libraries'], report['deferred_libraries']
+    for group in (participating, deferred):
+        if not isinstance(group, list) or group != [kb for kb in LIBRARIES if kb in group]:
+            raise ReportError('library_partition_invalid')
+    if not participating or set(participating) & set(deferred) or set(participating + deferred) != set(LIBRARIES):
+        raise ReportError('library_partition_invalid')
+    validity = _require_keys(report['library_validity'], set(LIBRARIES), 'library_validity')
+    candidates = _require_keys(report['candidates'], {CANDIDATE_A, CANDIDATE_B}, 'candidates')
+    for cid, candidate in candidates.items():
+        _validate_candidate(cid, candidate, participating, allow_unmeasured=True, simplified=True)
+        if candidate['freeze_receipt']['window_id'] != w['canonical_freeze_window_id']:
+            raise ReportError('canonical_receipt_binding_invalid')
+    for kb, v in validity.items():
+        try: tiers.validate_selection(v)
+        except (ValueError, TypeError, KeyError) as exc: raise ReportError('tier_selection_invalid') from exc
+        if (v['status'] == 'PARTICIPATING') != (kb in participating): raise ReportError('library_status_mismatch')
+        if kb not in participating: continue
+        expected = {'total_count': v['total_count'], 'answerable_count': v['total_count'] - v['category_counts']['no_answer_mutation'],
+            'exact_count': v['category_counts']['exact_identifier_date'], 'no_answer_count': v['category_counts']['no_answer_mutation']}
+        for candidate in candidates.values():
+            if any(candidate['libraries'][kb][k] != n for k, n in expected.items()):
+                raise ReportError('candidate_denominators_differ_from_frozen_pool')
+    total = sum(validity[kb]['total_count'] for kb in participating)
+    for key in ('reconciled_a_trial_count', 'new_a_trial_count', 'new_b_trial_count'): _integer(w[key], key)
+    if w['reconciled_a_trial_count'] + w['new_a_trial_count'] != total or w['new_b_trial_count'] != total:
+        raise ReportError('single_use_trial_accounting_invalid')
+    if w['reconciled_a_trial_count'] and (w['new_a_trial_count'] or w['run_order'] != ['a', 'b']):
+        raise ReportError('consumed_trials_replayed_or_order_invalid')
+    cleanup = _require_keys(report['cleanup'], {'private_holdout_retained_on_ops', 'temporary_indices_zero',
+        'temporary_services_zero', 'temporary_containers_zero', 'cleanup_failures'}, 'cleanup')
+    for key in set(cleanup) - {'cleanup_failures'}:
+        if not isinstance(cleanup[key], bool): raise ReportError('cleanup_measurement_invalid')
+    _integer(cleanup['cleanup_failures'], 'cleanup_failures')
+    invariants = _require_keys(report['production_invariants'], {'nas_unchanged', 'gateway_unchanged',
+        'existing_indices_unchanged', 'production_config_unchanged'}, 'production_invariants')
+    if any(v is not None and not isinstance(v, bool) for v in invariants.values()):
+        raise ReportError('invariant_measurement_invalid')
 
 
 def candidate_gate(candidate: Mapping[str, Any], participating=LIBRARIES) -> tuple[bool, list[str]]:
@@ -386,6 +489,10 @@ def candidate_gate(candidate: Mapping[str, Any], participating=LIBRARIES) -> tup
 
 def _materially_better_b(a: Mapping[str, Any], b: Mapping[str, Any], participating=LIBRARIES) -> bool:
     """Apply the precommitted incumbency utility after unbiased hard gates."""
+    # Unknown resources cannot establish a displacement advantage for B.
+    if any(candidate['libraries'][kb][field] is None
+           for candidate in (a, b) for kb in participating for field in RESOURCE_FIELDS):
+        return False
     # Mechanical complexity vector: no subjective score and no component may grow.
     op_fields = ("components_count", "upgrade_steps_count", "backup_restore_steps_count")
     if any(b["operations"][field] > a["operations"][field] for field in op_fields):
@@ -411,6 +518,40 @@ def _materially_better_b(a: Mapping[str, Any], b: Mapping[str, Any], participati
 def decide(report: Mapping[str, Any]) -> dict[str, Any]:
     validate_report(report)
     a, b = report["candidates"][CANDIDATE_A], report["candidates"][CANDIDATE_B]
+    simplified = {}
+    if report.get('PRIVACY_MODE') == 'SIMPLIFIED':
+        missing, blocking = [], []
+        for label, candidate in (('A', a), ('B', b)):
+            for kb in report['participating_libraries']:
+                for key in sorted(RESOURCE_FIELDS):
+                    if candidate['libraries'][kb][key] is not None:
+                        continue
+                    gap = f'{label}:{kb}:{key}'
+                    missing.append(gap)
+                    # The single-use A reconciliation explicitly lacks these three
+                    # resources. No replay, imputation or quality-gate relaxation.
+                    if not (label == 'A' and key != 'p95_ms'
+                            and report['formal_window']['reconciled_a_trial_count'] > 0):
+                        blocking.append(gap)
+            for key, val in candidate['gateway_readiness'].items():
+                if val is None:
+                    gap = f'{label}:gateway:{key}'
+                    missing.append(gap)
+                    blocking.append(gap)
+        simplified = {'PRIVACY_MODE': 'SIMPLIFIED', 'privacy_check': report['privacy_check'],
+            'caveats': list(report['caveats']), 'measurement_gaps': missing,
+            'production_invariants': dict(report['production_invariants'])}
+        clean = report['cleanup']
+        cleanup_ok = clean['cleanup_failures'] == 0 and all(clean[k] is True for k in clean if k != 'cleanup_failures')
+        reason = ('SIMPLIFIED_PRIVACY_SPOT_FAIL' if report['privacy_check'] == 'FAIL' else
+                  'UNVERIFIED_CLEANUP_OR_PRIVACY' if not cleanup_ok or report['privacy_check'] == 'UNVERIFIED' else
+                  'INCOMPLETE_REQUIRED_MEASUREMENTS' if blocking else None)
+        if reason:
+            return {'schema': RESULT_SCHEMA, **simplified, 'run_id': report['run_id'],
+                'window_id': report['formal_window']['window_id'], 'decision': 'NO-GO', 'status': 'NO-GO',
+                'selected': None, 'reason': reason,
+                'participating_libraries': report['participating_libraries'], 'deferred_libraries': report['deferred_libraries'],
+                'production_candidate_libraries': []}
     a_ok, a_failures = candidate_gate(a, report["participating_libraries"])
     b_ok, b_failures = candidate_gate(b, report["participating_libraries"])
     if a_ok and (not b_ok or not _materially_better_b(a, b, report["participating_libraries"])):
@@ -421,6 +562,7 @@ def decide(report: Mapping[str, Any]) -> dict[str, Any]:
         selected, reason = None, "neither_candidate_passes_hard_gates"
     return {
         "schema": RESULT_SCHEMA, "run_id": report["run_id"], "window_id":report["formal_window"]["window_id"],
+        **simplified,
         "decision": 'A' if selected==CANDIDATE_A else 'B' if selected==CANDIDATE_B else 'NO-GO',
         "participating_libraries": report['participating_libraries'], "deferred_libraries": report['deferred_libraries'],
         "production_candidate_libraries": report['participating_libraries'] if selected else [],
@@ -448,7 +590,7 @@ def main(argv: list[str] | None = None) -> int:
                           "deferred_libraries":[kb for kb in LIBRARIES if isinstance(report,dict) and isinstance(report.get('deferred_libraries'),list) and kb in report['deferred_libraries']]}, ensure_ascii=False))
         return 2
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
-    return 0 if result["status"] == "PASS" else 3
+    return 0 if result["status"] == "PASS" else 2 if result['status'] == 'INVALID' else 3
 
 
 if __name__ == "__main__":

@@ -1,0 +1,93 @@
+{
+  "PRIVACY_MODE": "SIMPLIFIED",
+  "active_candidate_processes": 0,
+  "baseline_comparison_recomputed": {
+    "all_items_measured": false,
+    "containers_unchanged": true,
+    "existing_indices_unchanged": null,
+    "existing_indices_unchanged_measured_projection": true,
+    "gateway_health_content_unchanged": true,
+    "gateway_unchanged": true,
+    "nas_unchanged": null,
+    "nas_unchanged_measured_projection": true,
+    "production_config_unchanged": false,
+    "production_config_unchanged_measured_projection": true,
+    "services_unchanged": false,
+    "three_gateways_healthy": true,
+    "volumes_unchanged": true
+  },
+  "caveats": [
+    "PER_TRIAL_RESPONSES_NOT_RETAINED_IDENTITY_AND_COUNTER_RECONCILIATION_ONLY"
+  ],
+  "cleanup": {
+    "after_present": true,
+    "before_present": true,
+    "cleanup_present": true,
+    "listed_processes_alive": 0,
+    "owned_data_directories_remaining": 0
+  },
+  "cleanup_actions_this_closeout": 0,
+  "fresh_local_matches_before": {
+    "configuration": true,
+    "containers": true,
+    "existing_search_indices": true,
+    "gateways": true,
+    "services": false,
+    "volumes": true
+  },
+  "fresh_nas_full_invariant_verified": null,
+  "gateway_http": {
+    "8787": 200,
+    "8788": 200,
+    "8789": 200
+  },
+  "history_and_private_evidence_retained": true,
+  "observed_at": 1789255765.62531,
+  "owned_containers_remaining": 0,
+  "owned_resources_remaining": {
+    "launch_services": 0,
+    "native_search_processes": 0,
+    "networks": 0,
+    "search_indices": 0,
+    "volumes": 0
+  },
+  "privacy": {
+    "PRIVACY_MODE": "SIMPLIFIED",
+    "all_values_retained_on_ops": true,
+    "log_file_count": 12,
+    "matching_log_count": 0,
+    "original_privacy_check": "SIMPLIFIED_SPOT_PASS",
+    "privacy_check": "SIMPLIFIED_SPOT_PASS",
+    "same_controller_samples": true,
+    "sample_count": 10,
+    "scope": "all-retained-A-B-and-controller-logs"
+  },
+  "summary_cleanup": {
+    "PRIVACY_MODE": "SIMPLIFIED",
+    "cleanup_failures": 0,
+    "private_holdout_retained_on_ops": true,
+    "temporary_containers_zero": true,
+    "temporary_indices_zero": true,
+    "temporary_services_zero": true
+  },
+  "terminal_phase": "MEASUREMENTS_COMPLETE",
+  "terminal_status": "DONE",
+  "trial_reconciliation": {
+    "a_new": 0,
+    "a_reconciled": 115,
+    "a_score_exposure_binding_verified": true,
+    "a_unique_score_files": 3,
+    "b_counter_score_binding_verified": true,
+    "b_new": 115,
+    "b_unique_score_files": 3,
+    "frozen_counts_by_library": {
+      "cwork-3m": 42,
+      "docdb-touqian": 31,
+      "spbp-2027": 42
+    },
+    "no_candidate_replayed": true,
+    "per_trial_response_ledger_retained": false,
+    "unique_frozen_trial_ids": 115
+  },
+  "window_id": "54d87603-feb4-473a-a741-adfc85fb77af"
+}

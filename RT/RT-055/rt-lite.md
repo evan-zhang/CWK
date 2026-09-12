@@ -1,7 +1,7 @@
 # RT-Lite: RT-055 - 双通道 OpenSearch 与原版 WeKnora 检索决策实验
 
 > profile: Spec-Lite | execution_mode: collaborative
-> 当前状态（2026-09-12）：Amendment 3 第四轮已按新增授权执行，在原生隐私门未建立时 INVALID 收口；三库均参与、无延期，未 freeze、未消费正式 holdout。清理及 after 完成，无遗留 OPS 后台任务；生产切流暂停，RT 选型目标仍未完成。以文末第四轮收口节为准，历史不改写。
+> 当前状态（2026-09-13）：简化版考试及收口完成，唯一裁决 A（PRIVACY_MODE=SIMPLIFIED），三库参与，无延期。A已消费115题仅对账、无重跑；B新增115题。隐私10样本/12日志/0命中；资源清零、三Gateway HTTP 200。A资源缺测null、完整NAS/index不变性null、历史drift/FAIL/UNKNOWN保留；不切流、不push。最新依据见文末简化版收口及 evidence/simplified-acceptance.md，不改写历史结论。
 
 ## 方案（给人看）
 
@@ -513,3 +513,17 @@ RT055回归265项与源码红绿/行为破坏通过；最终Schema negatives、�
 本增量依据用户 19:14 授权：共享完整 bank，固定短 prefix 索引候选位置后完整匹配；每流 64MiB raw 仅在 controller 内存收集，EOF 后清洗再落盘。512MiB bank/64MiB leaf 固定上限，保留全部 leaf、escaped 变体与 leftmost/longest；12 raw slots、1M 候选/8GiB 比较工作上限均 fail-closed。完整 bank 不按 workspace/stream 重编译或复制；派生新增 matcher 复用原完整索引。独立全 bank postscan 不复用清洗算法。
 
 公开 6481-needle/六个 48MiB leaf 基准、跨 chunk/Unicode/escaped/overlap/无换行、raw 不落盘、共享、cap/线程/EOF/child nonzero 和行为破坏验证见 [设计](evidence/amendment14-design.md)。旧 Am11 UNKNOWN、Am12 FAIL、Am13 CAPACITY/INVALID_CLOSED 与旧 after 全部保持；本段不宣称当前新门 PASS。源码提交后创建新 migration，当前隐私门只跑一次，PASS 才按原算法/题池/7200/对称性继续 readiness→fresh before→新随机 freeze→正式 A/B，否则唯一 cleanup→after→abort/decision，120+24 正式项 null。禁止 production/WeKnora core/NAS/index/alias/config 变更、push/merge/清 worktree。
+
+## 简化版考试最终收口（2026-09-13）— A
+
+依据 Evan 2026-09-12 21:18「直接开考」、2026-09-13 07:19问结果即收尾授权及本轮明确指令，接续 DONE / MEASUREMENTS_COMPLETE，未重跑 A/B。冻结42/31/42题，A对账115/新增0，B新增115；唯一CLI裁决A。A三库过硬门，B三库均失败；PRIVACY_MODE=SIMPLIFIED，不倒推 Amendment 完整控制已通过，不代表生产上线。
+
+真实成绩顺序 Recall@10 / Exact / NoAnswer / P95(ms)：cwork A=.918919/1/1/9.251，B=.621622/0/0/105.633；docdb A=1/1/1/8.548，B=.846154/1/0/63.319；spbp A=1/1/1/6.593，B=.783784/.875/0/94.663。两候选system_error/timeout/leak全部0。A三项资源逐库null；B资源完整实测见聚合，不能据缺测声称A资源更省。
+
+五项 caveat 原样保留：A_ALREADY_CONSUMED_RECONCILED_NO_REPLAY、A_RESOURCE_MEASUREMENTS_MISSING、B_ONLY_FRESH_RESOURCES、NO_ANSWER_TO_CONFLICT_DEFAULT_PRESERVES_SINGLE_USE、SIMPLIFIED_REPLACES_AMENDMENT_CONTROLS。另保留逐题响应未留存与完整NAS/index不变性缺测两项边界。
+
+OPS内部原冻结query/title十样本重新绑定，全部12份A/B/controller日志grep零命中，privacy_check=SIMPLIFIED_SPOT_PASS；不是完整隐私证明。before/after重算一致，最新本机资源核验0，无本次进程或数据面残留，无需再次删除；三Gateway HTTP 200。services drift及production_config_unchanged=false保留，不归因；完整NAS/index仍null。
+
+判据：decision/candidate/scoring/import及全部相关RT-055回归、schema反例、行为破坏、隐私/secret/path扫描、diff和任务提交范围检查，详见[QA](evidence/simplified-qa.json)，不冒称全仓CI。AI复核：主执行者独立检查评分分支、缺测与caveat传播，没有独立reviewer Agent。读产出：逐库OPS数值、冻结/单次绑定、唯一裁决和隐私/基线/清理实际证据。
+
+[简短验收与授权](evidence/simplified-acceptance.md) · [aggregate v3](evidence/simplified-aggregate-v3.json) · [唯一decision](evidence/simplified-decision.json) · [独立终审](evidence/simplified-final-audit.json)。只做本地任务提交，保留分支与worktree，不push/merge；历史失败不撤销。
