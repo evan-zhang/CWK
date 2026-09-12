@@ -1,0 +1,724 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "after",
+    "before",
+    "build_status",
+    "candidate_attempts",
+    "candidate_failures",
+    "candidate_log_checks",
+    "candidate_results",
+    "closeout",
+    "closeout_status",
+    "controller_claims",
+    "controller_log_checks",
+    "controller_terminals",
+    "executioner_migration_id",
+    "formal",
+    "global_exposure",
+    "ledger",
+    "new_window_id",
+    "observed_pids",
+    "owned_runtime",
+    "run_id",
+    "schema",
+    "task_process_count"
+  ],
+  "properties": {
+    "after": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "error_kind",
+        "libraries_measured",
+        "phase",
+        "status"
+      ],
+      "properties": {
+        "error_kind": {
+          "const": null
+        },
+        "libraries_measured": {
+          "const": 3
+        },
+        "phase": {
+          "const": "COMPLETE"
+        },
+        "status": {
+          "const": "PASS"
+        }
+      }
+    },
+    "before": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "error_kind",
+        "libraries_measured",
+        "phase",
+        "status"
+      ],
+      "properties": {
+        "error_kind": {
+          "const": null
+        },
+        "libraries_measured": {
+          "const": 3
+        },
+        "phase": {
+          "const": "COMPLETE"
+        },
+        "status": {
+          "const": "PASS"
+        }
+      }
+    },
+    "build_status": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "candidate",
+            "deadline_phase",
+            "error",
+            "libraries",
+            "library"
+          ],
+          "properties": {
+            "candidate": {
+              "const": "b"
+            },
+            "deadline_phase": {
+              "const": "IMPORT"
+            },
+            "error": {
+              "const": "REQUEST_FAILED"
+            },
+            "libraries": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "cwork-3m",
+                "docdb-touqian",
+                "spbp-2027"
+              ],
+              "properties": {
+                "cwork-3m": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "completed",
+                    "failed",
+                    "imported",
+                    "pending"
+                  ],
+                  "properties": {
+                    "completed": {
+                      "const": 29
+                    },
+                    "failed": {
+                      "const": 0
+                    },
+                    "imported": {
+                      "const": 30
+                    },
+                    "pending": {
+                      "const": 1
+                    }
+                  }
+                },
+                "docdb-touqian": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "completed",
+                    "failed",
+                    "imported",
+                    "pending"
+                  ],
+                  "properties": {
+                    "completed": {
+                      "const": 0
+                    },
+                    "failed": {
+                      "const": 0
+                    },
+                    "imported": {
+                      "const": 0
+                    },
+                    "pending": {
+                      "const": 0
+                    }
+                  }
+                },
+                "spbp-2027": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "completed",
+                    "failed",
+                    "imported",
+                    "pending"
+                  ],
+                  "properties": {
+                    "completed": {
+                      "const": 0
+                    },
+                    "failed": {
+                      "const": 0
+                    },
+                    "imported": {
+                      "const": 0
+                    },
+                    "pending": {
+                      "const": 0
+                    }
+                  }
+                }
+              }
+            },
+            "library": {
+              "const": "cwork-3m"
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "candidate_attempts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "a",
+        "b"
+      ],
+      "properties": {
+        "a": {
+          "const": 0
+        },
+        "b": {
+          "const": 1
+        }
+      }
+    },
+    "candidate_failures": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "build_error",
+            "candidate",
+            "error"
+          ],
+          "properties": {
+            "build_error": {
+              "const": "REQUEST_FAILED"
+            },
+            "candidate": {
+              "const": "b"
+            },
+            "error": {
+              "const": "CandidateError"
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "candidate_log_checks": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "all_streams_verified",
+            "archive_inventory_matches_firewall",
+            "archived_log_files",
+            "candidate",
+            "firewall_streams",
+            "firewall_verified",
+            "hit_files",
+            "independent_post_scan_hit_files",
+            "log_files",
+            "logs_retained",
+            "redaction_count",
+            "remaining_owned_runtime",
+            "scan_passed",
+            "workspace_cleanup_complete"
+          ],
+          "properties": {
+            "all_streams_verified": {
+              "const": true
+            },
+            "archive_inventory_matches_firewall": {
+              "const": true
+            },
+            "archived_log_files": {
+              "const": 6
+            },
+            "candidate": {
+              "const": "b"
+            },
+            "firewall_streams": {
+              "const": 6
+            },
+            "firewall_verified": {
+              "const": true
+            },
+            "hit_files": {
+              "const": 0
+            },
+            "independent_post_scan_hit_files": {
+              "const": 0
+            },
+            "log_files": {
+              "const": 6
+            },
+            "logs_retained": {
+              "const": true
+            },
+            "redaction_count": {
+              "const": 9
+            },
+            "remaining_owned_runtime": {
+              "const": 0
+            },
+            "scan_passed": {
+              "const": true
+            },
+            "workspace_cleanup_complete": {
+              "const": true
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "candidate_results": {
+      "const": 0
+    },
+    "closeout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "abort",
+        "after_claim",
+        "claim",
+        "cleanup",
+        "decision",
+        "helper_script",
+        "launch",
+        "terminal"
+      ],
+      "properties": {
+        "abort": {
+          "const": true
+        },
+        "after_claim": {
+          "const": true
+        },
+        "claim": {
+          "const": true
+        },
+        "cleanup": {
+          "const": true
+        },
+        "decision": {
+          "const": true
+        },
+        "helper_script": {
+          "const": true
+        },
+        "launch": {
+          "const": true
+        },
+        "terminal": {
+          "const": true
+        }
+      }
+    },
+    "closeout_status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "error_kind",
+        "phase",
+        "status"
+      ],
+      "properties": {
+        "error_kind": {
+          "const": null
+        },
+        "phase": {
+          "const": "COMPLETE"
+        },
+        "status": {
+          "const": "INVALID_CLOSED"
+        }
+      }
+    },
+    "controller_claims": {
+      "const": 1
+    },
+    "controller_log_checks": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "closed",
+            "eof",
+            "error",
+            "independent_post_scan_hits",
+            "post_scan_hits",
+            "redaction_count",
+            "verified"
+          ],
+          "properties": {
+            "closed": {
+              "const": true
+            },
+            "eof": {
+              "const": true
+            },
+            "error": {
+              "const": "CHILD_NONZERO"
+            },
+            "independent_post_scan_hits": {
+              "const": 0
+            },
+            "post_scan_hits": {
+              "const": 0
+            },
+            "redaction_count": {
+              "const": 0
+            },
+            "verified": {
+              "const": false
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "controller_terminals": {
+      "const": 1
+    },
+    "executioner_migration_id": {
+      "const": "ead5992d-fea7-4efb-b4c5-cedb1d7e8d12"
+    },
+    "formal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "completed",
+        "exit_code",
+        "failed_phase",
+        "phase",
+        "status"
+      ],
+      "properties": {
+        "completed": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 0,
+          "items": false
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "failed_phase": {
+          "const": "RUN_B"
+        },
+        "phase": {
+          "const": "EXECUTION_ATTEMPT_FAILED"
+        },
+        "status": {
+          "const": "WAITING_RECONCILIATION"
+        }
+      }
+    },
+    "global_exposure": {
+      "const": 0
+    },
+    "ledger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "a",
+        "b"
+      ],
+      "properties": {
+        "a": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cwork-3m",
+            "docdb-touqian",
+            "spbp-2027"
+          ],
+          "properties": {
+            "cwork-3m": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "arm",
+                "complete",
+                "exposure",
+                "query_count",
+                "result",
+                "score"
+              ],
+              "properties": {
+                "arm": {
+                  "const": 0
+                },
+                "complete": {
+                  "const": 0
+                },
+                "exposure": {
+                  "const": 0
+                },
+                "query_count": {
+                  "const": 0
+                },
+                "result": {
+                  "const": 0
+                },
+                "score": {
+                  "const": 0
+                }
+              }
+            },
+            "docdb-touqian": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "arm",
+                "complete",
+                "exposure",
+                "query_count",
+                "result",
+                "score"
+              ],
+              "properties": {
+                "arm": {
+                  "const": 0
+                },
+                "complete": {
+                  "const": 0
+                },
+                "exposure": {
+                  "const": 0
+                },
+                "query_count": {
+                  "const": 0
+                },
+                "result": {
+                  "const": 0
+                },
+                "score": {
+                  "const": 0
+                }
+              }
+            },
+            "spbp-2027": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "arm",
+                "complete",
+                "exposure",
+                "query_count",
+                "result",
+                "score"
+              ],
+              "properties": {
+                "arm": {
+                  "const": 0
+                },
+                "complete": {
+                  "const": 0
+                },
+                "exposure": {
+                  "const": 0
+                },
+                "query_count": {
+                  "const": 0
+                },
+                "result": {
+                  "const": 0
+                },
+                "score": {
+                  "const": 0
+                }
+              }
+            }
+          }
+        },
+        "b": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cwork-3m",
+            "docdb-touqian",
+            "spbp-2027"
+          ],
+          "properties": {
+            "cwork-3m": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "arm",
+                "complete",
+                "exposure",
+                "query_count",
+                "result",
+                "score"
+              ],
+              "properties": {
+                "arm": {
+                  "const": 0
+                },
+                "complete": {
+                  "const": 0
+                },
+                "exposure": {
+                  "const": 0
+                },
+                "query_count": {
+                  "const": 0
+                },
+                "result": {
+                  "const": 0
+                },
+                "score": {
+                  "const": 0
+                }
+              }
+            },
+            "docdb-touqian": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "arm",
+                "complete",
+                "exposure",
+                "query_count",
+                "result",
+                "score"
+              ],
+              "properties": {
+                "arm": {
+                  "const": 0
+                },
+                "complete": {
+                  "const": 0
+                },
+                "exposure": {
+                  "const": 0
+                },
+                "query_count": {
+                  "const": 0
+                },
+                "result": {
+                  "const": 0
+                },
+                "score": {
+                  "const": 0
+                }
+              }
+            },
+            "spbp-2027": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "arm",
+                "complete",
+                "exposure",
+                "query_count",
+                "result",
+                "score"
+              ],
+              "properties": {
+                "arm": {
+                  "const": 0
+                },
+                "complete": {
+                  "const": 0
+                },
+                "exposure": {
+                  "const": 0
+                },
+                "query_count": {
+                  "const": 0
+                },
+                "result": {
+                  "const": 0
+                },
+                "score": {
+                  "const": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "new_window_id": {
+      "const": "be3ab168-0568-4d39-a06e-824b4cd26a58"
+    },
+    "observed_pids": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "b_runner_alive",
+        "b_runner_id",
+        "coordinator_alive",
+        "coordinator_id"
+      ],
+      "properties": {
+        "b_runner_alive": {
+          "const": false
+        },
+        "b_runner_id": {
+          "const": 77425
+        },
+        "coordinator_alive": {
+          "const": false
+        },
+        "coordinator_id": {
+          "const": 75780
+        }
+      }
+    },
+    "owned_runtime": {
+      "const": 0
+    },
+    "run_id": {
+      "const": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af"
+    },
+    "schema": {
+      "const": "cwk.rt055.amendment10-observation.v1"
+    },
+    "task_process_count": {
+      "const": 0
+    }
+  }
+}

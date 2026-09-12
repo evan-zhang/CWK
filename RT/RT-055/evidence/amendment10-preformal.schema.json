@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "status",
+    "source_commit",
+    "run_order",
+    "read_only",
+    "coordinator_no_popen_no_query",
+    "all_readiness",
+    "freeze",
+    "global_exposure",
+    "formal_attempts",
+    "formal_coordinator_invocations",
+    "after_claims"
+  ],
+  "properties": {
+    "status": {
+      "const": "PASS"
+    },
+    "source_commit": {
+      "const": "43207eefbe30557b53d556055fa5438c8afe47ee"
+    },
+    "run_order": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        {
+          "const": "b"
+        },
+        {
+          "const": "a"
+        }
+      ],
+      "items": false
+    },
+    "read_only": {
+      "const": "PASS"
+    },
+    "coordinator_no_popen_no_query": {
+      "const": "PASS"
+    },
+    "all_readiness": {
+      "const": "PASS"
+    },
+    "freeze": {
+      "const": "PASS"
+    },
+    "global_exposure": {
+      "const": 0
+    },
+    "formal_attempts": {
+      "const": 0
+    },
+    "formal_coordinator_invocations": {
+      "const": 0
+    },
+    "after_claims": {
+      "const": 0
+    }
+  }
+}

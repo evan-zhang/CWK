@@ -1,0 +1,1090 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "archived_original_files",
+    "builder_runs",
+    "candidate_processes",
+    "candidate_workspace_readiness",
+    "cleanup_failures",
+    "coordinator_precheck_only",
+    "coordinator_precheck_without_popen",
+    "data_class",
+    "deferred_libraries",
+    "executioner_migration_id",
+    "formal_after_claims",
+    "formal_coordinator_invocations",
+    "formal_evaluation_complete",
+    "formal_query_calls",
+    "formal_results",
+    "formal_scores",
+    "freeze_binds_scoring_readiness",
+    "freeze_claims",
+    "freeze_verified",
+    "freeze_verifier_claims",
+    "fresh_before_claims",
+    "full_nas_index_invariance",
+    "gateway_before_observations",
+    "gateway_http_200_count",
+    "gateway_tls_files",
+    "global_exposure",
+    "historical_bytes_equal",
+    "historical_drift_cleared",
+    "historical_files_verified",
+    "log_firewall_input_readiness",
+    "log_firewall_source_bound",
+    "main_startup_a_instances",
+    "main_startup_b_instances",
+    "main_startup_cleanup_failures",
+    "main_startup_formal_queries",
+    "main_startup_private_reads",
+    "main_startup_remaining_runtime",
+    "main_startup_sidecars",
+    "native_upstream_verified",
+    "new_arms",
+    "new_candidate_attempts",
+    "new_controller_attempts",
+    "new_temporary_files",
+    "new_window_id",
+    "old_a_attempts",
+    "old_after_closed",
+    "old_after_retried",
+    "old_after_status",
+    "old_arms",
+    "old_b_attempts",
+    "old_claim_void_retained",
+    "old_exposure",
+    "old_log_gate",
+    "old_policy_and_network_receipt_bytes_equal",
+    "old_query_calls",
+    "old_results",
+    "old_scores",
+    "old_window_id",
+    "old_window_status",
+    "pool",
+    "previous_archive_bytes_equal",
+    "previous_archived_files",
+    "privacy_readiness",
+    "private_rows_read_only_on_ops",
+    "private_values_or_digests_exported",
+    "production_cutover_allowed",
+    "pure_private_input_preflight",
+    "random_order_newly_sampled",
+    "readiness_before_before",
+    "reason",
+    "remaining_runtime",
+    "retained_bytes_equal",
+    "retained_files",
+    "run_id",
+    "run_order",
+    "runtime_policy_readiness",
+    "schema",
+    "scoring_archive_id",
+    "scoring_input_claims",
+    "scoring_input_readiness",
+    "scoring_inputs",
+    "source_binding_recomputed",
+    "source_commit",
+    "spawn_precheck_without_popen",
+    "status",
+    "synthetic_data_planes",
+    "synthetic_processes",
+    "temporary_data_planes",
+    "verifier_runs",
+    "workload",
+    "workload_readiness"
+  ],
+  "properties": {
+    "archived_original_files": {
+      "const": 27
+    },
+    "builder_runs": {
+      "const": 1
+    },
+    "candidate_processes": {
+      "const": 0
+    },
+    "candidate_workspace_readiness": {
+      "const": "PASS"
+    },
+    "cleanup_failures": {
+      "const": 0
+    },
+    "coordinator_precheck_only": {
+      "const": "PASS"
+    },
+    "coordinator_precheck_without_popen": {
+      "const": "PASS"
+    },
+    "data_class": {
+      "const": "OPS_PUBLIC_READINESS_NO_FORMAL_EVALUATION"
+    },
+    "deferred_libraries": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 0,
+      "items": false
+    },
+    "executioner_migration_id": {
+      "const": "ead5992d-fea7-4efb-b4c5-cedb1d7e8d12"
+    },
+    "formal_after_claims": {
+      "const": 0
+    },
+    "formal_coordinator_invocations": {
+      "const": 0
+    },
+    "formal_evaluation_complete": {
+      "const": false
+    },
+    "formal_query_calls": {
+      "const": 0
+    },
+    "formal_results": {
+      "const": 0
+    },
+    "formal_scores": {
+      "const": 0
+    },
+    "freeze_binds_scoring_readiness": {
+      "const": true
+    },
+    "freeze_claims": {
+      "const": 1
+    },
+    "freeze_verified": {
+      "const": true
+    },
+    "freeze_verifier_claims": {
+      "const": 1
+    },
+    "fresh_before_claims": {
+      "const": 1
+    },
+    "full_nas_index_invariance": {
+      "const": null
+    },
+    "gateway_before_observations": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "http_status",
+            "ok",
+            "read_only_asserted",
+            "read_only_field_present"
+          ],
+          "properties": {
+            "http_status": {
+              "const": 200
+            },
+            "ok": {
+              "const": true
+            },
+            "read_only_asserted": {
+              "const": true
+            },
+            "read_only_field_present": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "http_status",
+            "ok",
+            "read_only_asserted",
+            "read_only_field_present"
+          ],
+          "properties": {
+            "http_status": {
+              "const": 200
+            },
+            "ok": {
+              "const": true
+            },
+            "read_only_asserted": {
+              "const": true
+            },
+            "read_only_field_present": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "http_status",
+            "ok",
+            "read_only_asserted",
+            "read_only_field_present"
+          ],
+          "properties": {
+            "http_status": {
+              "const": 200
+            },
+            "ok": {
+              "const": true
+            },
+            "read_only_asserted": {
+              "const": true
+            },
+            "read_only_field_present": {
+              "const": true
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "gateway_http_200_count": {
+      "const": 3
+    },
+    "gateway_tls_files": {
+      "const": 0
+    },
+    "global_exposure": {
+      "const": 0
+    },
+    "historical_bytes_equal": {
+      "const": true
+    },
+    "historical_drift_cleared": {
+      "const": false
+    },
+    "historical_files_verified": {
+      "const": 389835
+    },
+    "log_firewall_input_readiness": {
+      "const": "PASS"
+    },
+    "log_firewall_source_bound": {
+      "const": true
+    },
+    "main_startup_a_instances": {
+      "const": 3
+    },
+    "main_startup_b_instances": {
+      "const": 3
+    },
+    "main_startup_cleanup_failures": {
+      "const": 0
+    },
+    "main_startup_formal_queries": {
+      "const": 0
+    },
+    "main_startup_private_reads": {
+      "const": 0
+    },
+    "main_startup_remaining_runtime": {
+      "const": 0
+    },
+    "main_startup_sidecars": {
+      "const": 3
+    },
+    "native_upstream_verified": {
+      "const": true
+    },
+    "new_arms": {
+      "const": 0
+    },
+    "new_candidate_attempts": {
+      "const": 0
+    },
+    "new_controller_attempts": {
+      "const": 0
+    },
+    "new_temporary_files": {
+      "const": 0
+    },
+    "new_window_id": {
+      "const": "be3ab168-0568-4d39-a06e-824b4cd26a58"
+    },
+    "old_a_attempts": {
+      "const": 0
+    },
+    "old_after_closed": {
+      "const": true
+    },
+    "old_after_retried": {
+      "const": false
+    },
+    "old_after_status": {
+      "const": "FAIL"
+    },
+    "old_arms": {
+      "const": 0
+    },
+    "old_b_attempts": {
+      "const": 0
+    },
+    "old_claim_void_retained": {
+      "const": true
+    },
+    "old_exposure": {
+      "const": 0
+    },
+    "old_log_gate": {
+      "const": "NOT_RUN"
+    },
+    "old_policy_and_network_receipt_bytes_equal": {
+      "const": true
+    },
+    "old_query_calls": {
+      "const": 0
+    },
+    "old_results": {
+      "const": 0
+    },
+    "old_scores": {
+      "const": 0
+    },
+    "old_window_id": {
+      "const": "7652dbee-3679-4886-a391-ffcf871e712c"
+    },
+    "old_window_status": {
+      "const": "INVALID"
+    },
+    "pool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cwork-3m",
+        "docdb-touqian",
+        "spbp-2027"
+      ],
+      "properties": {
+        "cwork-3m": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "tier",
+            "total_count"
+          ],
+          "properties": {
+            "tier": {
+              "const": "T3"
+            },
+            "total_count": {
+              "const": 42
+            }
+          }
+        },
+        "docdb-touqian": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "tier",
+            "total_count"
+          ],
+          "properties": {
+            "tier": {
+              "const": "T3"
+            },
+            "total_count": {
+              "const": 31
+            }
+          }
+        },
+        "spbp-2027": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "tier",
+            "total_count"
+          ],
+          "properties": {
+            "tier": {
+              "const": "T2"
+            },
+            "total_count": {
+              "const": 42
+            }
+          }
+        }
+      }
+    },
+    "previous_archive_bytes_equal": {
+      "const": true
+    },
+    "previous_archived_files": {
+      "const": 194848
+    },
+    "privacy_readiness": {
+      "const": "PASS"
+    },
+    "private_rows_read_only_on_ops": {
+      "const": true
+    },
+    "private_values_or_digests_exported": {
+      "const": false
+    },
+    "production_cutover_allowed": {
+      "const": false
+    },
+    "pure_private_input_preflight": {
+      "const": "PASS"
+    },
+    "random_order_newly_sampled": {
+      "const": true
+    },
+    "readiness_before_before": {
+      "const": true
+    },
+    "reason": {
+      "const": "SERIALIZED_IMPORT_AND_ALL_READINESS_VERIFIED"
+    },
+    "remaining_runtime": {
+      "const": 0
+    },
+    "retained_bytes_equal": {
+      "const": true
+    },
+    "retained_files": {
+      "const": 96
+    },
+    "run_id": {
+      "const": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af"
+    },
+    "run_order": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        {
+          "const": "b"
+        },
+        {
+          "const": "a"
+        }
+      ],
+      "items": false
+    },
+    "runtime_policy_readiness": {
+      "const": "PASS"
+    },
+    "schema": {
+      "const": "cwk.rt055.amendment10-ready.v1"
+    },
+    "scoring_archive_id": {
+      "const": "690807fc-1d9e-46c8-be86-2d05b92d6d85"
+    },
+    "scoring_input_claims": {
+      "const": 1
+    },
+    "scoring_input_readiness": {
+      "const": "PASS"
+    },
+    "scoring_inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cwork-3m",
+        "docdb-touqian",
+        "spbp-2027"
+      ],
+      "properties": {
+        "cwork-3m": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "duplicate_extra_rows",
+            "duplicate_groups",
+            "ordinal_unique",
+            "positive_category_denominators",
+            "semantics_consistent",
+            "total_count"
+          ],
+          "properties": {
+            "duplicate_extra_rows": {
+              "const": 4
+            },
+            "duplicate_groups": {
+              "const": 4
+            },
+            "ordinal_unique": {
+              "const": true
+            },
+            "positive_category_denominators": {
+              "const": true
+            },
+            "semantics_consistent": {
+              "const": true
+            },
+            "total_count": {
+              "const": 42
+            }
+          }
+        },
+        "docdb-touqian": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "duplicate_extra_rows",
+            "duplicate_groups",
+            "ordinal_unique",
+            "positive_category_denominators",
+            "semantics_consistent",
+            "total_count"
+          ],
+          "properties": {
+            "duplicate_extra_rows": {
+              "const": 4
+            },
+            "duplicate_groups": {
+              "const": 4
+            },
+            "ordinal_unique": {
+              "const": true
+            },
+            "positive_category_denominators": {
+              "const": true
+            },
+            "semantics_consistent": {
+              "const": true
+            },
+            "total_count": {
+              "const": 31
+            }
+          }
+        },
+        "spbp-2027": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "duplicate_extra_rows",
+            "duplicate_groups",
+            "ordinal_unique",
+            "positive_category_denominators",
+            "semantics_consistent",
+            "total_count"
+          ],
+          "properties": {
+            "duplicate_extra_rows": {
+              "const": 5
+            },
+            "duplicate_groups": {
+              "const": 5
+            },
+            "ordinal_unique": {
+              "const": true
+            },
+            "positive_category_denominators": {
+              "const": true
+            },
+            "semantics_consistent": {
+              "const": true
+            },
+            "total_count": {
+              "const": 42
+            }
+          }
+        }
+      }
+    },
+    "source_binding_recomputed": {
+      "const": true
+    },
+    "source_commit": {
+      "const": "43207eefbe30557b53d556055fa5438c8afe47ee"
+    },
+    "spawn_precheck_without_popen": {
+      "const": "PASS"
+    },
+    "status": {
+      "const": "READY_TO_RUN"
+    },
+    "synthetic_data_planes": {
+      "const": 0
+    },
+    "synthetic_processes": {
+      "const": 0
+    },
+    "temporary_data_planes": {
+      "const": 0
+    },
+    "verifier_runs": {
+      "const": 1
+    },
+    "workload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidates",
+        "cleanup_failures",
+        "counts",
+        "data_class",
+        "document_byte_upper_bound",
+        "finished_at",
+        "formal_attempts",
+        "formal_queries",
+        "migration_id",
+        "native_sql_errorpath_injected",
+        "ordinary_document_bytes",
+        "phase",
+        "private_reads",
+        "remaining_runtime",
+        "schema",
+        "source_commit",
+        "started_at",
+        "status",
+        "timeout_seconds",
+        "trial_counts"
+      ],
+      "properties": {
+        "candidates": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "a",
+            "b"
+          ],
+          "properties": {
+            "a": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "caps_pass",
+                "closed_all",
+                "eof_all",
+                "firewall_errors",
+                "firewall_streams",
+                "firewall_verified",
+                "input_bytes",
+                "libraries",
+                "output_bytes",
+                "post_scan_hits",
+                "redactions",
+                "searches"
+              ],
+              "properties": {
+                "caps_pass": {
+                  "const": true
+                },
+                "closed_all": {
+                  "const": true
+                },
+                "eof_all": {
+                  "const": true
+                },
+                "firewall_errors": {
+                  "const": 0
+                },
+                "firewall_streams": {
+                  "const": 3
+                },
+                "firewall_verified": {
+                  "const": true
+                },
+                "input_bytes": {
+                  "const": 339505
+                },
+                "libraries": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "cwork-3m",
+                    "docdb-touqian",
+                    "spbp-2027"
+                  ],
+                  "properties": {
+                    "cwork-3m": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "build_seconds",
+                        "completed",
+                        "failed",
+                        "imported",
+                        "pending"
+                      ],
+                      "properties": {
+                        "build_seconds": {
+                          "const": 1.939
+                        },
+                        "completed": {
+                          "const": 42
+                        },
+                        "failed": {
+                          "const": 0
+                        },
+                        "imported": {
+                          "const": 42
+                        },
+                        "pending": {
+                          "const": 0
+                        }
+                      }
+                    },
+                    "docdb-touqian": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "build_seconds",
+                        "completed",
+                        "failed",
+                        "imported",
+                        "pending"
+                      ],
+                      "properties": {
+                        "build_seconds": {
+                          "const": 1.705
+                        },
+                        "completed": {
+                          "const": 31
+                        },
+                        "failed": {
+                          "const": 0
+                        },
+                        "imported": {
+                          "const": 31
+                        },
+                        "pending": {
+                          "const": 0
+                        }
+                      }
+                    },
+                    "spbp-2027": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "build_seconds",
+                        "completed",
+                        "failed",
+                        "imported",
+                        "pending"
+                      ],
+                      "properties": {
+                        "build_seconds": {
+                          "const": 2.07
+                        },
+                        "completed": {
+                          "const": 42
+                        },
+                        "failed": {
+                          "const": 0
+                        },
+                        "imported": {
+                          "const": 42
+                        },
+                        "pending": {
+                          "const": 0
+                        }
+                      }
+                    }
+                  }
+                },
+                "output_bytes": {
+                  "const": 339613
+                },
+                "post_scan_hits": {
+                  "const": 0
+                },
+                "redactions": {
+                  "const": 18
+                },
+                "searches": {
+                  "const": 3
+                }
+              }
+            },
+            "b": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "caps_pass",
+                "closed_all",
+                "eof_all",
+                "firewall_errors",
+                "firewall_streams",
+                "firewall_verified",
+                "input_bytes",
+                "libraries",
+                "native_sql_sanitized_observed",
+                "output_bytes",
+                "post_scan_hits",
+                "redactions",
+                "searches",
+                "sql_canary_redactions"
+              ],
+              "properties": {
+                "caps_pass": {
+                  "const": true
+                },
+                "closed_all": {
+                  "const": true
+                },
+                "eof_all": {
+                  "const": true
+                },
+                "firewall_errors": {
+                  "const": 0
+                },
+                "firewall_streams": {
+                  "const": 6
+                },
+                "firewall_verified": {
+                  "const": true
+                },
+                "input_bytes": {
+                  "const": 18237
+                },
+                "libraries": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "cwork-3m",
+                    "docdb-touqian",
+                    "spbp-2027"
+                  ],
+                  "properties": {
+                    "cwork-3m": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "build_seconds",
+                        "completed",
+                        "completed_before_next_post",
+                        "failed",
+                        "imported",
+                        "max_inflight",
+                        "pending",
+                        "post_count"
+                      ],
+                      "properties": {
+                        "build_seconds": {
+                          "const": 63.173
+                        },
+                        "completed": {
+                          "const": 42
+                        },
+                        "completed_before_next_post": {
+                          "const": 41
+                        },
+                        "failed": {
+                          "const": 0
+                        },
+                        "imported": {
+                          "const": 42
+                        },
+                        "max_inflight": {
+                          "const": 1
+                        },
+                        "pending": {
+                          "const": 0
+                        },
+                        "post_count": {
+                          "const": 42
+                        }
+                      }
+                    },
+                    "docdb-touqian": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "build_seconds",
+                        "completed",
+                        "completed_before_next_post",
+                        "failed",
+                        "imported",
+                        "max_inflight",
+                        "pending",
+                        "post_count"
+                      ],
+                      "properties": {
+                        "build_seconds": {
+                          "const": 54.577
+                        },
+                        "completed": {
+                          "const": 31
+                        },
+                        "completed_before_next_post": {
+                          "const": 30
+                        },
+                        "failed": {
+                          "const": 0
+                        },
+                        "imported": {
+                          "const": 31
+                        },
+                        "max_inflight": {
+                          "const": 1
+                        },
+                        "pending": {
+                          "const": 0
+                        },
+                        "post_count": {
+                          "const": 31
+                        }
+                      }
+                    },
+                    "spbp-2027": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "build_seconds",
+                        "completed",
+                        "completed_before_next_post",
+                        "failed",
+                        "imported",
+                        "max_inflight",
+                        "pending",
+                        "post_count"
+                      ],
+                      "properties": {
+                        "build_seconds": {
+                          "const": 63.073
+                        },
+                        "completed": {
+                          "const": 42
+                        },
+                        "completed_before_next_post": {
+                          "const": 41
+                        },
+                        "failed": {
+                          "const": 0
+                        },
+                        "imported": {
+                          "const": 42
+                        },
+                        "max_inflight": {
+                          "const": 1
+                        },
+                        "pending": {
+                          "const": 0
+                        },
+                        "post_count": {
+                          "const": 42
+                        }
+                      }
+                    }
+                  }
+                },
+                "native_sql_sanitized_observed": {
+                  "const": true
+                },
+                "output_bytes": {
+                  "const": 18048
+                },
+                "post_scan_hits": {
+                  "const": 0
+                },
+                "redactions": {
+                  "const": 18
+                },
+                "searches": {
+                  "const": 3
+                },
+                "sql_canary_redactions": {
+                  "const": 18
+                }
+              }
+            }
+          }
+        },
+        "cleanup_failures": {
+          "const": 0
+        },
+        "counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cwork-3m",
+            "docdb-touqian",
+            "spbp-2027"
+          ],
+          "properties": {
+            "cwork-3m": {
+              "const": 42
+            },
+            "docdb-touqian": {
+              "const": 31
+            },
+            "spbp-2027": {
+              "const": 42
+            }
+          }
+        },
+        "data_class": {
+          "const": "PUBLIC_SYNTHETIC_ONLY_NOT_FORMAL_SCORES"
+        },
+        "document_byte_upper_bound": {
+          "const": 524288
+        },
+        "finished_at": {
+          "const": 1789200237.1550238
+        },
+        "formal_attempts": {
+          "const": 0
+        },
+        "formal_queries": {
+          "const": 0
+        },
+        "migration_id": {
+          "const": "ead5992d-fea7-4efb-b4c5-cedb1d7e8d12"
+        },
+        "native_sql_errorpath_injected": {
+          "const": true
+        },
+        "ordinary_document_bytes": {
+          "const": 8192
+        },
+        "phase": {
+          "const": "COMPLETE"
+        },
+        "private_reads": {
+          "const": 0
+        },
+        "remaining_runtime": {
+          "const": 0
+        },
+        "schema": {
+          "const": "cwk.rt055.public-workload.v2"
+        },
+        "source_commit": {
+          "const": "43207eefbe30557b53d556055fa5438c8afe47ee"
+        },
+        "started_at": {
+          "const": 1789199977.5202692
+        },
+        "status": {
+          "const": "PASS"
+        },
+        "timeout_seconds": {
+          "const": 7200
+        },
+        "trial_counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cwork-3m",
+            "docdb-touqian",
+            "spbp-2027"
+          ],
+          "properties": {
+            "cwork-3m": {
+              "const": 42
+            },
+            "docdb-touqian": {
+              "const": 31
+            },
+            "spbp-2027": {
+              "const": 42
+            }
+          }
+        }
+      }
+    },
+    "workload_readiness": {
+      "const": "PASS"
+    }
+  }
+}

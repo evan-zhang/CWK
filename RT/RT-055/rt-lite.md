@@ -451,3 +451,8 @@ B失败总回执未回填firewall_verified，单独最终drain回执6流全部PA
 变更产生独立新 source commit、新 append-only migration、新 archive 与全新 window；新窗 runtime/workspace/scoring-input/privacy、before、freeze、零暴露逐项重验。源码绑定合同 `rt055_workload_readiness.verify` 要求 workload 的 source_commit/migration_id 与当前 deployment 完全一致，不能把 Am9 回执复制改绑；本轮不扩改合同，预先登记 **Am10 公开 workload 仅运行1次**（Am9 原证据保持，额外运行原因仅 SOURCE_BINDING_REQUIRES_NEW_WORKLOAD）。不再诊断旧 PageError，不重跑 builder/verifier，不改题池/seed/42-31-42/7200/A-B 对称门。
 
 新窗 before/after 各一次；NAS 错误保留 claim/status，若失败不覆盖不重试该窗，cleanup 后 INVALID 追加收口。READY 后按本轮用户授权直接继续唯一正式 coordinator：随机顺序只冻结一次；每 arm/library 暴露只消费一次，任何 exposure 后不得重放。成功则聚合、唯一裁决；失败则同窗 cleanup→after→abort/decision。私有值与 digest 不出 OPS，正式命中日志禁止读出；完整 NAS/index 仍按测量边界 UNKNOWN。只本地公开证据提交，不 push/merge/清 worktree，不改生产或 NAS。
+
+
+## Amendment 10 唯一正式执行收口 — INVALID
+
+Source `43207eefbe30557b53d556055fa5438c8afe47ee`；本窗 `be3ab168-0568-4d39-a06e-824b4cd26a58`；顺序 B → A，原 coordinator 1次，A/B attempts=0/1。B 首库IMPORT阶段 REQUEST_FAILED；arm/exposure/query/score/complete/result逐库全0，不重放、不启动A。原formal `WAITING_RECONCILIATION / EXECUTION_ATTEMPT_FAILED / RUN_B` 保留，独立失败helper1次完成 cleanup→after→abort/唯一INVALID decision；before PASS，after PASS（claim1不重试），cleanup0，无任务/临时数据面残留。候选6流firewall/scan通过；coordinator firewall false/CHILD_NONZERO、后置scan0，失败值如实保留。正式20指标及Gateway四能力缺测全部null；机械向量A=1/6/4，B=2/7/3来自冻结runbook。96材料、42/31/42、builder/verifier1/1及历史字节保持；旧Am9 after FAIL不重试。完整NAS/index UNKNOWN及历史drift不清除，未改生产，不切流，不以INVALID关闭选型RT。详见[完整证据、逐库指标及QA](evidence/amendment10-summary.md)。仅本地提交，不push/merge/清worktree。

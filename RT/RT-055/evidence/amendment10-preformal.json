@@ -1,0 +1,16 @@
+{
+  "status": "PASS",
+  "source_commit": "43207eefbe30557b53d556055fa5438c8afe47ee",
+  "run_order": [
+    "b",
+    "a"
+  ],
+  "read_only": "PASS",
+  "coordinator_no_popen_no_query": "PASS",
+  "all_readiness": "PASS",
+  "freeze": "PASS",
+  "global_exposure": 0,
+  "formal_attempts": 0,
+  "formal_coordinator_invocations": 0,
+  "after_claims": 0
+}

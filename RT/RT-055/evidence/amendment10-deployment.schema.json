@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "archived_source_files",
+    "builder_runs",
+    "executioner_migration_id",
+    "global_exposure",
+    "historical_bytes_equal",
+    "history_files_verified",
+    "new_window_id",
+    "old_after_retried",
+    "old_after_status",
+    "old_window_id",
+    "previous_archive_bytes_equal",
+    "previous_archived_files",
+    "retained_bytes_equal",
+    "retained_files",
+    "run_id",
+    "scoring_archive_id",
+    "source_commit",
+    "source_files_changed",
+    "status",
+    "verifier_runs",
+    "workload_authorized_runs",
+    "workload_reason"
+  ],
+  "properties": {
+    "archived_source_files": {
+      "const": 27
+    },
+    "builder_runs": {
+      "const": 1
+    },
+    "executioner_migration_id": {
+      "const": "ead5992d-fea7-4efb-b4c5-cedb1d7e8d12"
+    },
+    "global_exposure": {
+      "const": 0
+    },
+    "historical_bytes_equal": {
+      "const": true
+    },
+    "history_files_verified": {
+      "const": 389835
+    },
+    "new_window_id": {
+      "const": "be3ab168-0568-4d39-a06e-824b4cd26a58"
+    },
+    "old_after_retried": {
+      "const": false
+    },
+    "old_after_status": {
+      "const": "FAIL"
+    },
+    "old_window_id": {
+      "const": "7652dbee-3679-4886-a391-ffcf871e712c"
+    },
+    "previous_archive_bytes_equal": {
+      "const": true
+    },
+    "previous_archived_files": {
+      "const": 194848
+    },
+    "retained_bytes_equal": {
+      "const": true
+    },
+    "retained_files": {
+      "const": 96
+    },
+    "run_id": {
+      "const": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af"
+    },
+    "scoring_archive_id": {
+      "const": "690807fc-1d9e-46c8-be86-2d05b92d6d85"
+    },
+    "source_commit": {
+      "const": "43207eefbe30557b53d556055fa5438c8afe47ee"
+    },
+    "source_files_changed": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "prefixItems": [
+        {
+          "const": "rt055_zero_exposure.py"
+        }
+      ],
+      "items": false
+    },
+    "status": {
+      "const": "ARCHIVED_AND_DEPLOYED"
+    },
+    "verifier_runs": {
+      "const": 1
+    },
+    "workload_authorized_runs": {
+      "const": 1
+    },
+    "workload_reason": {
+      "const": "SOURCE_BINDING_REQUIRES_NEW_WORKLOAD"
+    }
+  }
+}

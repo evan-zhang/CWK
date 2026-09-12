@@ -1,0 +1,390 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "source_commit",
+    "data_class",
+    "formal_decision",
+    "full_repository_ci_claimed",
+    "regression",
+    "compiled_files",
+    "production_credentials_supplied_to_tests",
+    "source_bound_prior_behavior_checks",
+    "formal_source_tests_contracts_changed_during_takeover",
+    "formal_coordinator_restarted",
+    "formal_candidates_replayed",
+    "old_after_retried",
+    "pool_rebuilt",
+    "initial_public_preparation_files_preserved",
+    "formal_status",
+    "formal_phase",
+    "formal_failed_phase",
+    "candidate_attempts",
+    "formal_coordinator_invocations",
+    "closeout_helper_invocations",
+    "benchmark_metric_cells",
+    "benchmark_null_cells",
+    "gateway_capability_null_cells",
+    "mechanical_vector_recounted_from_frozen_runbook",
+    "candidate_firewall_verified",
+    "controller_firewall_verified",
+    "controller_firewall_error",
+    "independent_post_scan_hits",
+    "after",
+    "after_claims",
+    "after_retried",
+    "after_comparison_present",
+    "cleanup_failures",
+    "remaining_task_processes",
+    "remaining_runtime",
+    "independent_audit_process_exited",
+    "retained_materials",
+    "builder_runs",
+    "verifier_runs",
+    "history_files_verified",
+    "history_bytes_equal",
+    "full_nas_index_invariance",
+    "historical_drift_cleared",
+    "production_changes_performed",
+    "mechanical",
+    "method_gates",
+    "publication_scope",
+    "private_runs_committed",
+    "push_performed",
+    "merge_performed",
+    "worktree_removed"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.amendment10-qa.v1"
+    },
+    "status": {
+      "const": "PUBLIC_CLOSED_INVALID_VERIFIED"
+    },
+    "source_commit": {
+      "const": "43207eefbe30557b53d556055fa5438c8afe47ee"
+    },
+    "data_class": {
+      "const": "PUBLIC_COUNTS_AND_CLOSED_ENUMS_ONLY"
+    },
+    "formal_decision": {
+      "const": "INVALID"
+    },
+    "full_repository_ci_claimed": {
+      "const": false
+    },
+    "regression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tests",
+        "failures",
+        "errors",
+        "skipped",
+        "exit_code"
+      ],
+      "properties": {
+        "tests": {
+          "const": 258
+        },
+        "failures": {
+          "const": 0
+        },
+        "errors": {
+          "const": 0
+        },
+        "skipped": {
+          "const": 0
+        },
+        "exit_code": {
+          "const": 0
+        }
+      }
+    },
+    "compiled_files": {
+      "const": 142
+    },
+    "production_credentials_supplied_to_tests": {
+      "const": false
+    },
+    "source_bound_prior_behavior_checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_tamper_rejected",
+        "dependency_tamper_rejected",
+        "removed_prequery_gate_rejected",
+        "real_legacy_void_no_popen_tested"
+      ],
+      "properties": {
+        "source_tamper_rejected": {
+          "const": true
+        },
+        "dependency_tamper_rejected": {
+          "const": true
+        },
+        "removed_prequery_gate_rejected": {
+          "const": true
+        },
+        "real_legacy_void_no_popen_tested": {
+          "const": true
+        }
+      }
+    },
+    "formal_source_tests_contracts_changed_during_takeover": {
+      "const": false
+    },
+    "formal_coordinator_restarted": {
+      "const": false
+    },
+    "formal_candidates_replayed": {
+      "const": false
+    },
+    "old_after_retried": {
+      "const": false
+    },
+    "pool_rebuilt": {
+      "const": false
+    },
+    "initial_public_preparation_files_preserved": {
+      "const": 12
+    },
+    "formal_status": {
+      "const": "WAITING_RECONCILIATION"
+    },
+    "formal_phase": {
+      "const": "EXECUTION_ATTEMPT_FAILED"
+    },
+    "formal_failed_phase": {
+      "const": "RUN_B"
+    },
+    "candidate_attempts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "a",
+        "b"
+      ],
+      "properties": {
+        "a": {
+          "const": 0
+        },
+        "b": {
+          "const": 1
+        }
+      }
+    },
+    "formal_coordinator_invocations": {
+      "const": 1
+    },
+    "closeout_helper_invocations": {
+      "const": 1
+    },
+    "benchmark_metric_cells": {
+      "const": 120
+    },
+    "benchmark_null_cells": {
+      "const": 120
+    },
+    "gateway_capability_null_cells": {
+      "const": 24
+    },
+    "mechanical_vector_recounted_from_frozen_runbook": {
+      "const": true
+    },
+    "candidate_firewall_verified": {
+      "const": true
+    },
+    "controller_firewall_verified": {
+      "const": false
+    },
+    "controller_firewall_error": {
+      "const": "CHILD_NONZERO"
+    },
+    "independent_post_scan_hits": {
+      "const": 0
+    },
+    "after": {
+      "const": "PASS"
+    },
+    "after_claims": {
+      "const": 1
+    },
+    "after_retried": {
+      "const": false
+    },
+    "after_comparison_present": {
+      "const": true
+    },
+    "cleanup_failures": {
+      "const": 0
+    },
+    "remaining_task_processes": {
+      "const": 0
+    },
+    "remaining_runtime": {
+      "const": 0
+    },
+    "independent_audit_process_exited": {
+      "const": true
+    },
+    "retained_materials": {
+      "const": 96
+    },
+    "builder_runs": {
+      "const": 1
+    },
+    "verifier_runs": {
+      "const": 1
+    },
+    "history_files_verified": {
+      "const": 389835
+    },
+    "history_bytes_equal": {
+      "const": true
+    },
+    "full_nas_index_invariance": {
+      "const": null
+    },
+    "historical_drift_cleared": {
+      "const": false
+    },
+    "production_changes_performed": {
+      "const": false
+    },
+    "mechanical": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "source_commit",
+        "schemas",
+        "schema_negative_rejections",
+        "private_field_or_digest_hits",
+        "credential_value_hits",
+        "historical_public_files_unchanged",
+        "historical_document_prefixes",
+        "links",
+        "anchors",
+        "compiled_files",
+        "changed_source_files",
+        "frozen_source_tests_contracts_unchanged",
+        "full_repository_ci_claimed",
+        "metric_cells_checked",
+        "gateway_null_cells_checked",
+        "initial_preparation_files_preserved",
+        "cross_evidence_checks_passed"
+      ],
+      "properties": {
+        "status": {
+          "const": "PASS"
+        },
+        "source_commit": {
+          "const": "43207eefbe30557b53d556055fa5438c8afe47ee"
+        },
+        "schemas": {
+          "const": 11
+        },
+        "schema_negative_rejections": {
+          "const": 1584
+        },
+        "private_field_or_digest_hits": {
+          "const": 0
+        },
+        "credential_value_hits": {
+          "const": 0
+        },
+        "historical_public_files_unchanged": {
+          "const": 122
+        },
+        "historical_document_prefixes": {
+          "const": 3
+        },
+        "links": {
+          "const": 207
+        },
+        "anchors": {
+          "const": 31
+        },
+        "compiled_files": {
+          "const": 142
+        },
+        "changed_source_files": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "prefixItems": [
+            {
+              "const": "scripts/rt055_zero_exposure.py"
+            }
+          ],
+          "items": false
+        },
+        "frozen_source_tests_contracts_unchanged": {
+          "const": true
+        },
+        "full_repository_ci_claimed": {
+          "const": false
+        },
+        "metric_cells_checked": {
+          "const": 120
+        },
+        "gateway_null_cells_checked": {
+          "const": 24
+        },
+        "initial_preparation_files_preserved": {
+          "const": 12
+        },
+        "cross_evidence_checks_passed": {
+          "const": true
+        }
+      }
+    },
+    "method_gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "aodw_exit_code",
+        "governance_exit_code",
+        "aodw_warning_count",
+        "aodw_warning_kind",
+        "governance_tracked_files"
+      ],
+      "properties": {
+        "aodw_exit_code": {
+          "const": 0
+        },
+        "governance_exit_code": {
+          "const": 0
+        },
+        "aodw_warning_count": {
+          "const": 1
+        },
+        "aodw_warning_kind": {
+          "const": "EXISTING_HOST_HANDOVER_PACK_NOT_INSTALLED"
+        },
+        "governance_tracked_files": {
+          "const": 981
+        }
+      }
+    },
+    "publication_scope": {
+      "const": "PUBLIC_RT055_EVIDENCE_AND_APPEND_ONLY_DOCUMENTS"
+    },
+    "private_runs_committed": {
+      "const": false
+    },
+    "push_performed": {
+      "const": false
+    },
+    "merge_performed": {
+      "const": false
+    },
+    "worktree_removed": {
+      "const": false
+    }
+  }
+}

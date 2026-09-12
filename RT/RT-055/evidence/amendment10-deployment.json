@@ -1,0 +1,26 @@
+{
+  "archived_source_files": 27,
+  "builder_runs": 1,
+  "executioner_migration_id": "ead5992d-fea7-4efb-b4c5-cedb1d7e8d12",
+  "global_exposure": 0,
+  "historical_bytes_equal": true,
+  "history_files_verified": 389835,
+  "new_window_id": "be3ab168-0568-4d39-a06e-824b4cd26a58",
+  "old_after_retried": false,
+  "old_after_status": "FAIL",
+  "old_window_id": "7652dbee-3679-4886-a391-ffcf871e712c",
+  "previous_archive_bytes_equal": true,
+  "previous_archived_files": 194848,
+  "retained_bytes_equal": true,
+  "retained_files": 96,
+  "run_id": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af",
+  "scoring_archive_id": "690807fc-1d9e-46c8-be86-2d05b92d6d85",
+  "source_commit": "43207eefbe30557b53d556055fa5438c8afe47ee",
+  "source_files_changed": [
+    "rt055_zero_exposure.py"
+  ],
+  "status": "ARCHIVED_AND_DEPLOYED",
+  "verifier_runs": 1,
+  "workload_authorized_runs": 1,
+  "workload_reason": "SOURCE_BINDING_REQUIRES_NEW_WORKLOAD"
+}

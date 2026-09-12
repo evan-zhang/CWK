@@ -1,0 +1,266 @@
+{
+  "archived_original_files": 27,
+  "builder_runs": 1,
+  "candidate_processes": 0,
+  "candidate_workspace_readiness": "PASS",
+  "cleanup_failures": 0,
+  "coordinator_precheck_only": "PASS",
+  "coordinator_precheck_without_popen": "PASS",
+  "data_class": "OPS_PUBLIC_READINESS_NO_FORMAL_EVALUATION",
+  "deferred_libraries": [],
+  "executioner_migration_id": "ead5992d-fea7-4efb-b4c5-cedb1d7e8d12",
+  "formal_after_claims": 0,
+  "formal_coordinator_invocations": 0,
+  "formal_evaluation_complete": false,
+  "formal_query_calls": 0,
+  "formal_results": 0,
+  "formal_scores": 0,
+  "freeze_binds_scoring_readiness": true,
+  "freeze_claims": 1,
+  "freeze_verified": true,
+  "freeze_verifier_claims": 1,
+  "fresh_before_claims": 1,
+  "full_nas_index_invariance": null,
+  "gateway_before_observations": [
+    {
+      "http_status": 200,
+      "ok": true,
+      "read_only_asserted": true,
+      "read_only_field_present": true
+    },
+    {
+      "http_status": 200,
+      "ok": true,
+      "read_only_asserted": true,
+      "read_only_field_present": true
+    },
+    {
+      "http_status": 200,
+      "ok": true,
+      "read_only_asserted": true,
+      "read_only_field_present": true
+    }
+  ],
+  "gateway_http_200_count": 3,
+  "gateway_tls_files": 0,
+  "global_exposure": 0,
+  "historical_bytes_equal": true,
+  "historical_drift_cleared": false,
+  "historical_files_verified": 389835,
+  "log_firewall_input_readiness": "PASS",
+  "log_firewall_source_bound": true,
+  "main_startup_a_instances": 3,
+  "main_startup_b_instances": 3,
+  "main_startup_cleanup_failures": 0,
+  "main_startup_formal_queries": 0,
+  "main_startup_private_reads": 0,
+  "main_startup_remaining_runtime": 0,
+  "main_startup_sidecars": 3,
+  "native_upstream_verified": true,
+  "new_arms": 0,
+  "new_candidate_attempts": 0,
+  "new_controller_attempts": 0,
+  "new_temporary_files": 0,
+  "new_window_id": "be3ab168-0568-4d39-a06e-824b4cd26a58",
+  "old_a_attempts": 0,
+  "old_after_closed": true,
+  "old_after_retried": false,
+  "old_after_status": "FAIL",
+  "old_arms": 0,
+  "old_b_attempts": 0,
+  "old_claim_void_retained": true,
+  "old_exposure": 0,
+  "old_log_gate": "NOT_RUN",
+  "old_policy_and_network_receipt_bytes_equal": true,
+  "old_query_calls": 0,
+  "old_results": 0,
+  "old_scores": 0,
+  "old_window_id": "7652dbee-3679-4886-a391-ffcf871e712c",
+  "old_window_status": "INVALID",
+  "pool": {
+    "cwork-3m": {
+      "tier": "T3",
+      "total_count": 42
+    },
+    "docdb-touqian": {
+      "tier": "T3",
+      "total_count": 31
+    },
+    "spbp-2027": {
+      "tier": "T2",
+      "total_count": 42
+    }
+  },
+  "previous_archive_bytes_equal": true,
+  "previous_archived_files": 194848,
+  "privacy_readiness": "PASS",
+  "private_rows_read_only_on_ops": true,
+  "private_values_or_digests_exported": false,
+  "production_cutover_allowed": false,
+  "pure_private_input_preflight": "PASS",
+  "random_order_newly_sampled": true,
+  "readiness_before_before": true,
+  "reason": "SERIALIZED_IMPORT_AND_ALL_READINESS_VERIFIED",
+  "remaining_runtime": 0,
+  "retained_bytes_equal": true,
+  "retained_files": 96,
+  "run_id": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af",
+  "run_order": [
+    "b",
+    "a"
+  ],
+  "runtime_policy_readiness": "PASS",
+  "schema": "cwk.rt055.amendment10-ready.v1",
+  "scoring_archive_id": "690807fc-1d9e-46c8-be86-2d05b92d6d85",
+  "scoring_input_claims": 1,
+  "scoring_input_readiness": "PASS",
+  "scoring_inputs": {
+    "cwork-3m": {
+      "duplicate_extra_rows": 4,
+      "duplicate_groups": 4,
+      "ordinal_unique": true,
+      "positive_category_denominators": true,
+      "semantics_consistent": true,
+      "total_count": 42
+    },
+    "docdb-touqian": {
+      "duplicate_extra_rows": 4,
+      "duplicate_groups": 4,
+      "ordinal_unique": true,
+      "positive_category_denominators": true,
+      "semantics_consistent": true,
+      "total_count": 31
+    },
+    "spbp-2027": {
+      "duplicate_extra_rows": 5,
+      "duplicate_groups": 5,
+      "ordinal_unique": true,
+      "positive_category_denominators": true,
+      "semantics_consistent": true,
+      "total_count": 42
+    }
+  },
+  "source_binding_recomputed": true,
+  "source_commit": "43207eefbe30557b53d556055fa5438c8afe47ee",
+  "spawn_precheck_without_popen": "PASS",
+  "status": "READY_TO_RUN",
+  "synthetic_data_planes": 0,
+  "synthetic_processes": 0,
+  "temporary_data_planes": 0,
+  "verifier_runs": 1,
+  "workload": {
+    "candidates": {
+      "a": {
+        "caps_pass": true,
+        "closed_all": true,
+        "eof_all": true,
+        "firewall_errors": 0,
+        "firewall_streams": 3,
+        "firewall_verified": true,
+        "input_bytes": 339505,
+        "libraries": {
+          "cwork-3m": {
+            "build_seconds": 1.939,
+            "completed": 42,
+            "failed": 0,
+            "imported": 42,
+            "pending": 0
+          },
+          "docdb-touqian": {
+            "build_seconds": 1.705,
+            "completed": 31,
+            "failed": 0,
+            "imported": 31,
+            "pending": 0
+          },
+          "spbp-2027": {
+            "build_seconds": 2.07,
+            "completed": 42,
+            "failed": 0,
+            "imported": 42,
+            "pending": 0
+          }
+        },
+        "output_bytes": 339613,
+        "post_scan_hits": 0,
+        "redactions": 18,
+        "searches": 3
+      },
+      "b": {
+        "caps_pass": true,
+        "closed_all": true,
+        "eof_all": true,
+        "firewall_errors": 0,
+        "firewall_streams": 6,
+        "firewall_verified": true,
+        "input_bytes": 18237,
+        "libraries": {
+          "cwork-3m": {
+            "build_seconds": 63.173,
+            "completed": 42,
+            "completed_before_next_post": 41,
+            "failed": 0,
+            "imported": 42,
+            "max_inflight": 1,
+            "pending": 0,
+            "post_count": 42
+          },
+          "docdb-touqian": {
+            "build_seconds": 54.577,
+            "completed": 31,
+            "completed_before_next_post": 30,
+            "failed": 0,
+            "imported": 31,
+            "max_inflight": 1,
+            "pending": 0,
+            "post_count": 31
+          },
+          "spbp-2027": {
+            "build_seconds": 63.073,
+            "completed": 42,
+            "completed_before_next_post": 41,
+            "failed": 0,
+            "imported": 42,
+            "max_inflight": 1,
+            "pending": 0,
+            "post_count": 42
+          }
+        },
+        "native_sql_sanitized_observed": true,
+        "output_bytes": 18048,
+        "post_scan_hits": 0,
+        "redactions": 18,
+        "searches": 3,
+        "sql_canary_redactions": 18
+      }
+    },
+    "cleanup_failures": 0,
+    "counts": {
+      "cwork-3m": 42,
+      "docdb-touqian": 31,
+      "spbp-2027": 42
+    },
+    "data_class": "PUBLIC_SYNTHETIC_ONLY_NOT_FORMAL_SCORES",
+    "document_byte_upper_bound": 524288,
+    "finished_at": 1789200237.1550238,
+    "formal_attempts": 0,
+    "formal_queries": 0,
+    "migration_id": "ead5992d-fea7-4efb-b4c5-cedb1d7e8d12",
+    "native_sql_errorpath_injected": true,
+    "ordinary_document_bytes": 8192,
+    "phase": "COMPLETE",
+    "private_reads": 0,
+    "remaining_runtime": 0,
+    "schema": "cwk.rt055.public-workload.v2",
+    "source_commit": "43207eefbe30557b53d556055fa5438c8afe47ee",
+    "started_at": 1789199977.5202692,
+    "status": "PASS",
+    "timeout_seconds": 7200,
+    "trial_counts": {
+      "cwork-3m": 42,
+      "docdb-touqian": 31,
+      "spbp-2027": 42
+    }
+  },
+  "workload_readiness": "PASS"
+}

@@ -1,0 +1,2266 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "abort",
+    "after_claims",
+    "after_comparison_present",
+    "after_error_kind",
+    "after_libraries_measured",
+    "after_retried",
+    "after_snapshot_present",
+    "after_status",
+    "aggregate_present",
+    "archived_source_files",
+    "before_status",
+    "builder_runs",
+    "candidate_attempts",
+    "candidate_results",
+    "cleanup",
+    "closeout_status",
+    "decision_files",
+    "executioner_migration_id",
+    "formal_completed",
+    "formal_coordinator_invocations",
+    "formal_exit_code",
+    "formal_failed_phase",
+    "formal_log_contents_exported",
+    "formal_original_preserved",
+    "formal_phase",
+    "formal_queries",
+    "formal_status",
+    "freeze_reverified",
+    "full_nas_index_invariance",
+    "gateway_capabilities",
+    "gateway_capabilities_basis",
+    "gateway_tls_files",
+    "health",
+    "historical_comparisons",
+    "historical_drift_cleared",
+    "historical_window_file_set_equal",
+    "history_bytes_equal",
+    "history_files_verified",
+    "invariance",
+    "ledger",
+    "log_scans",
+    "metrics",
+    "new_tmp_files",
+    "new_window_id",
+    "old_after_retried",
+    "old_after_status",
+    "old_window_id",
+    "old_window_status",
+    "operations",
+    "operations_basis",
+    "precloseout_files_preserved",
+    "private_values_or_digests_exported",
+    "production_cutover_allowed",
+    "query_count_basis",
+    "retained_bytes_equal",
+    "retained_files",
+    "run_id",
+    "run_order",
+    "runtime",
+    "schema",
+    "scoring_archive_id",
+    "source_commit",
+    "source_privacy",
+    "status",
+    "task_processes",
+    "terminal_decision",
+    "unique_decision",
+    "upstream_native_core_unchanged",
+    "verifier_runs",
+    "candidate_log_checks",
+    "controller_log_checks",
+    "candidate_failure",
+    "build_status",
+    "controller_firewall_all_verified",
+    "controller_nonzero_failure_preserved",
+    "independent_post_scan_passed",
+    "formal_queries_basis",
+    "closeout_launches",
+    "closeout_claims",
+    "formal_coordinator_restarted",
+    "candidate_replayed",
+    "independent_audit_process_exited",
+    "old_windows_reopened",
+    "production_changes_performed"
+  ],
+  "properties": {
+    "abort": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "after_status",
+        "cleanup_passed",
+        "failed_phase",
+        "phase",
+        "reason",
+        "status"
+      ],
+      "properties": {
+        "after_status": {
+          "const": "PASS"
+        },
+        "cleanup_passed": {
+          "const": true
+        },
+        "failed_phase": {
+          "const": "RUN_B"
+        },
+        "phase": {
+          "const": "COMPLETE"
+        },
+        "reason": {
+          "const": "HARD_GATE_FAILED_NO_REPLAY"
+        },
+        "status": {
+          "const": "INVALID"
+        }
+      }
+    },
+    "after_claims": {
+      "const": 1
+    },
+    "after_comparison_present": {
+      "const": true
+    },
+    "after_error_kind": {
+      "const": null
+    },
+    "after_libraries_measured": {
+      "const": 3
+    },
+    "after_retried": {
+      "const": false
+    },
+    "after_snapshot_present": {
+      "const": true
+    },
+    "after_status": {
+      "const": "PASS"
+    },
+    "aggregate_present": {
+      "const": false
+    },
+    "archived_source_files": {
+      "const": 27
+    },
+    "before_status": {
+      "const": "PASS"
+    },
+    "builder_runs": {
+      "const": 1
+    },
+    "candidate_attempts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "a",
+        "b"
+      ],
+      "properties": {
+        "a": {
+          "const": 0
+        },
+        "b": {
+          "const": 1
+        }
+      }
+    },
+    "candidate_results": {
+      "const": 0
+    },
+    "cleanup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cleanup_failures",
+        "private_holdout_retained_on_ops",
+        "related_processes",
+        "temporary_containers_zero",
+        "temporary_indices_zero",
+        "temporary_services_zero",
+        "uuid_container_volume_network_resources"
+      ],
+      "properties": {
+        "cleanup_failures": {
+          "const": 0
+        },
+        "private_holdout_retained_on_ops": {
+          "const": true
+        },
+        "related_processes": {
+          "const": 0
+        },
+        "temporary_containers_zero": {
+          "const": true
+        },
+        "temporary_indices_zero": {
+          "const": true
+        },
+        "temporary_services_zero": {
+          "const": true
+        },
+        "uuid_container_volume_network_resources": {
+          "const": 0
+        }
+      }
+    },
+    "closeout_status": {
+      "const": "INVALID_CLOSED"
+    },
+    "decision_files": {
+      "const": 1
+    },
+    "executioner_migration_id": {
+      "const": "ead5992d-fea7-4efb-b4c5-cedb1d7e8d12"
+    },
+    "formal_completed": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 0,
+      "items": false
+    },
+    "formal_coordinator_invocations": {
+      "const": 1
+    },
+    "formal_exit_code": {
+      "const": 2
+    },
+    "formal_failed_phase": {
+      "const": "RUN_B"
+    },
+    "formal_log_contents_exported": {
+      "const": false
+    },
+    "formal_original_preserved": {
+      "const": true
+    },
+    "formal_phase": {
+      "const": "EXECUTION_ATTEMPT_FAILED"
+    },
+    "formal_queries": {
+      "const": 0
+    },
+    "formal_status": {
+      "const": "WAITING_RECONCILIATION"
+    },
+    "freeze_reverified": {
+      "const": true
+    },
+    "full_nas_index_invariance": {
+      "const": null
+    },
+    "gateway_capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "a",
+        "b"
+      ],
+      "properties": {
+        "a": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cwork-3m",
+            "docdb-touqian",
+            "spbp-2027"
+          ],
+          "properties": {
+            "cwork-3m": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "https_query_api",
+                "kb_grants_server_side",
+                "no_direct_nas_or_search_credentials",
+                "per_gateway_identity"
+              ],
+              "properties": {
+                "https_query_api": {
+                  "const": null
+                },
+                "kb_grants_server_side": {
+                  "const": null
+                },
+                "no_direct_nas_or_search_credentials": {
+                  "const": null
+                },
+                "per_gateway_identity": {
+                  "const": null
+                }
+              }
+            },
+            "docdb-touqian": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "https_query_api",
+                "kb_grants_server_side",
+                "no_direct_nas_or_search_credentials",
+                "per_gateway_identity"
+              ],
+              "properties": {
+                "https_query_api": {
+                  "const": null
+                },
+                "kb_grants_server_side": {
+                  "const": null
+                },
+                "no_direct_nas_or_search_credentials": {
+                  "const": null
+                },
+                "per_gateway_identity": {
+                  "const": null
+                }
+              }
+            },
+            "spbp-2027": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "https_query_api",
+                "kb_grants_server_side",
+                "no_direct_nas_or_search_credentials",
+                "per_gateway_identity"
+              ],
+              "properties": {
+                "https_query_api": {
+                  "const": null
+                },
+                "kb_grants_server_side": {
+                  "const": null
+                },
+                "no_direct_nas_or_search_credentials": {
+                  "const": null
+                },
+                "per_gateway_identity": {
+                  "const": null
+                }
+              }
+            }
+          }
+        },
+        "b": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cwork-3m",
+            "docdb-touqian",
+            "spbp-2027"
+          ],
+          "properties": {
+            "cwork-3m": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "https_query_api",
+                "kb_grants_server_side",
+                "no_direct_nas_or_search_credentials",
+                "per_gateway_identity"
+              ],
+              "properties": {
+                "https_query_api": {
+                  "const": null
+                },
+                "kb_grants_server_side": {
+                  "const": null
+                },
+                "no_direct_nas_or_search_credentials": {
+                  "const": null
+                },
+                "per_gateway_identity": {
+                  "const": null
+                }
+              }
+            },
+            "docdb-touqian": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "https_query_api",
+                "kb_grants_server_side",
+                "no_direct_nas_or_search_credentials",
+                "per_gateway_identity"
+              ],
+              "properties": {
+                "https_query_api": {
+                  "const": null
+                },
+                "kb_grants_server_side": {
+                  "const": null
+                },
+                "no_direct_nas_or_search_credentials": {
+                  "const": null
+                },
+                "per_gateway_identity": {
+                  "const": null
+                }
+              }
+            },
+            "spbp-2027": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "https_query_api",
+                "kb_grants_server_side",
+                "no_direct_nas_or_search_credentials",
+                "per_gateway_identity"
+              ],
+              "properties": {
+                "https_query_api": {
+                  "const": null
+                },
+                "kb_grants_server_side": {
+                  "const": null
+                },
+                "no_direct_nas_or_search_credentials": {
+                  "const": null
+                },
+                "per_gateway_identity": {
+                  "const": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "gateway_capabilities_basis": {
+      "const": "NOT_MEASURED_NO_FORMAL_RESULT"
+    },
+    "gateway_tls_files": {
+      "const": 0
+    },
+    "health": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "http_status",
+            "ok",
+            "read_only"
+          ],
+          "properties": {
+            "http_status": {
+              "const": 200
+            },
+            "ok": {
+              "const": true
+            },
+            "read_only": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "http_status",
+            "ok",
+            "read_only"
+          ],
+          "properties": {
+            "http_status": {
+              "const": 200
+            },
+            "ok": {
+              "const": true
+            },
+            "read_only": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "http_status",
+            "ok",
+            "read_only"
+          ],
+          "properties": {
+            "http_status": {
+              "const": 200
+            },
+            "ok": {
+              "const": true
+            },
+            "read_only": {
+              "const": true
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "historical_comparisons": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "comparison",
+            "window_id"
+          ],
+          "properties": {
+            "comparison": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "all_items_measured",
+                "containers_unchanged",
+                "existing_indices_unchanged",
+                "existing_indices_unchanged_measured_projection",
+                "gateway_health_content_unchanged",
+                "gateway_unchanged",
+                "nas_unchanged",
+                "nas_unchanged_measured_projection",
+                "production_config_unchanged",
+                "production_config_unchanged_measured_projection",
+                "services_unchanged",
+                "volumes_unchanged"
+              ],
+              "properties": {
+                "all_items_measured": {
+                  "const": false
+                },
+                "containers_unchanged": {
+                  "const": true
+                },
+                "existing_indices_unchanged": {
+                  "const": null
+                },
+                "existing_indices_unchanged_measured_projection": {
+                  "const": true
+                },
+                "gateway_health_content_unchanged": {
+                  "const": true
+                },
+                "gateway_unchanged": {
+                  "const": true
+                },
+                "nas_unchanged": {
+                  "const": null
+                },
+                "nas_unchanged_measured_projection": {
+                  "const": true
+                },
+                "production_config_unchanged": {
+                  "const": false
+                },
+                "production_config_unchanged_measured_projection": {
+                  "const": true
+                },
+                "services_unchanged": {
+                  "const": false
+                },
+                "volumes_unchanged": {
+                  "const": true
+                }
+              }
+            },
+            "window_id": {
+              "const": "0155202c-b6a0-40c6-a779-48aff0ab57fe"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "comparison",
+            "window_id"
+          ],
+          "properties": {
+            "comparison": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "all_items_measured",
+                "containers_unchanged",
+                "existing_indices_unchanged",
+                "existing_indices_unchanged_measured_projection",
+                "gateway_health_content_unchanged",
+                "gateway_unchanged",
+                "nas_unchanged",
+                "nas_unchanged_measured_projection",
+                "production_config_unchanged",
+                "production_config_unchanged_measured_projection",
+                "services_unchanged",
+                "volumes_unchanged"
+              ],
+              "properties": {
+                "all_items_measured": {
+                  "const": false
+                },
+                "containers_unchanged": {
+                  "const": true
+                },
+                "existing_indices_unchanged": {
+                  "const": null
+                },
+                "existing_indices_unchanged_measured_projection": {
+                  "const": true
+                },
+                "gateway_health_content_unchanged": {
+                  "const": true
+                },
+                "gateway_unchanged": {
+                  "const": true
+                },
+                "nas_unchanged": {
+                  "const": null
+                },
+                "nas_unchanged_measured_projection": {
+                  "const": true
+                },
+                "production_config_unchanged": {
+                  "const": false
+                },
+                "production_config_unchanged_measured_projection": {
+                  "const": true
+                },
+                "services_unchanged": {
+                  "const": false
+                },
+                "volumes_unchanged": {
+                  "const": true
+                }
+              }
+            },
+            "window_id": {
+              "const": "7bed2d1c-4943-4da6-b6d2-a23aab5c195f"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "comparison",
+            "window_id"
+          ],
+          "properties": {
+            "comparison": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "all_items_measured",
+                "containers_unchanged",
+                "existing_indices_unchanged",
+                "existing_indices_unchanged_measured_projection",
+                "gateway_health_content_unchanged",
+                "gateway_unchanged",
+                "nas_unchanged",
+                "nas_unchanged_measured_projection",
+                "production_config_unchanged",
+                "production_config_unchanged_measured_projection",
+                "services_unchanged",
+                "volumes_unchanged"
+              ],
+              "properties": {
+                "all_items_measured": {
+                  "const": false
+                },
+                "containers_unchanged": {
+                  "const": true
+                },
+                "existing_indices_unchanged": {
+                  "const": null
+                },
+                "existing_indices_unchanged_measured_projection": {
+                  "const": true
+                },
+                "gateway_health_content_unchanged": {
+                  "const": true
+                },
+                "gateway_unchanged": {
+                  "const": true
+                },
+                "nas_unchanged": {
+                  "const": null
+                },
+                "nas_unchanged_measured_projection": {
+                  "const": true
+                },
+                "production_config_unchanged": {
+                  "const": false
+                },
+                "production_config_unchanged_measured_projection": {
+                  "const": true
+                },
+                "services_unchanged": {
+                  "const": false
+                },
+                "volumes_unchanged": {
+                  "const": true
+                }
+              }
+            },
+            "window_id": {
+              "const": "835c5188-0f29-4f41-8fe6-119b61917e2d"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "comparison",
+            "window_id"
+          ],
+          "properties": {
+            "comparison": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "all_items_measured",
+                "containers_unchanged",
+                "existing_indices_unchanged",
+                "existing_indices_unchanged_measured_projection",
+                "gateway_health_content_unchanged",
+                "gateway_unchanged",
+                "nas_unchanged",
+                "nas_unchanged_measured_projection",
+                "production_config_unchanged",
+                "production_config_unchanged_measured_projection",
+                "services_unchanged",
+                "volumes_unchanged"
+              ],
+              "properties": {
+                "all_items_measured": {
+                  "const": false
+                },
+                "containers_unchanged": {
+                  "const": true
+                },
+                "existing_indices_unchanged": {
+                  "const": null
+                },
+                "existing_indices_unchanged_measured_projection": {
+                  "const": true
+                },
+                "gateway_health_content_unchanged": {
+                  "const": true
+                },
+                "gateway_unchanged": {
+                  "const": true
+                },
+                "nas_unchanged": {
+                  "const": null
+                },
+                "nas_unchanged_measured_projection": {
+                  "const": true
+                },
+                "production_config_unchanged": {
+                  "const": false
+                },
+                "production_config_unchanged_measured_projection": {
+                  "const": true
+                },
+                "services_unchanged": {
+                  "const": false
+                },
+                "volumes_unchanged": {
+                  "const": true
+                }
+              }
+            },
+            "window_id": {
+              "const": "c66757c6-93f6-481d-aa92-be7de83b9aa1"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "comparison",
+            "window_id"
+          ],
+          "properties": {
+            "comparison": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "all_items_measured",
+                "containers_unchanged",
+                "existing_indices_unchanged",
+                "existing_indices_unchanged_measured_projection",
+                "gateway_health_content_unchanged",
+                "gateway_unchanged",
+                "nas_unchanged",
+                "nas_unchanged_measured_projection",
+                "production_config_unchanged",
+                "production_config_unchanged_measured_projection",
+                "services_unchanged",
+                "volumes_unchanged"
+              ],
+              "properties": {
+                "all_items_measured": {
+                  "const": false
+                },
+                "containers_unchanged": {
+                  "const": true
+                },
+                "existing_indices_unchanged": {
+                  "const": null
+                },
+                "existing_indices_unchanged_measured_projection": {
+                  "const": true
+                },
+                "gateway_health_content_unchanged": {
+                  "const": true
+                },
+                "gateway_unchanged": {
+                  "const": true
+                },
+                "nas_unchanged": {
+                  "const": null
+                },
+                "nas_unchanged_measured_projection": {
+                  "const": true
+                },
+                "production_config_unchanged": {
+                  "const": false
+                },
+                "production_config_unchanged_measured_projection": {
+                  "const": true
+                },
+                "services_unchanged": {
+                  "const": false
+                },
+                "volumes_unchanged": {
+                  "const": true
+                }
+              }
+            },
+            "window_id": {
+              "const": "d408cfab-40f7-41d3-8ccb-75fb0aaa2b65"
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "historical_drift_cleared": {
+      "const": false
+    },
+    "historical_window_file_set_equal": {
+      "const": true
+    },
+    "history_bytes_equal": {
+      "const": true
+    },
+    "history_files_verified": {
+      "const": 389835
+    },
+    "invariance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "all_items_measured",
+        "containers_unchanged",
+        "existing_indices_unchanged",
+        "existing_indices_unchanged_measured_projection",
+        "gateway_health_content_unchanged",
+        "gateway_unchanged",
+        "nas_unchanged",
+        "nas_unchanged_measured_projection",
+        "production_config_unchanged",
+        "production_config_unchanged_measured_projection",
+        "services_unchanged",
+        "volumes_unchanged"
+      ],
+      "properties": {
+        "all_items_measured": {
+          "const": false
+        },
+        "containers_unchanged": {
+          "const": true
+        },
+        "existing_indices_unchanged": {
+          "const": null
+        },
+        "existing_indices_unchanged_measured_projection": {
+          "const": true
+        },
+        "gateway_health_content_unchanged": {
+          "const": true
+        },
+        "gateway_unchanged": {
+          "const": true
+        },
+        "nas_unchanged": {
+          "const": null
+        },
+        "nas_unchanged_measured_projection": {
+          "const": true
+        },
+        "production_config_unchanged": {
+          "const": false
+        },
+        "production_config_unchanged_measured_projection": {
+          "const": true
+        },
+        "services_unchanged": {
+          "const": false
+        },
+        "volumes_unchanged": {
+          "const": true
+        }
+      }
+    },
+    "ledger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "a",
+        "b"
+      ],
+      "properties": {
+        "a": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cwork-3m",
+            "docdb-touqian",
+            "spbp-2027"
+          ],
+          "properties": {
+            "cwork-3m": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "arm",
+                "complete",
+                "exposure",
+                "query_count",
+                "result",
+                "score"
+              ],
+              "properties": {
+                "arm": {
+                  "const": 0
+                },
+                "complete": {
+                  "const": 0
+                },
+                "exposure": {
+                  "const": 0
+                },
+                "query_count": {
+                  "const": 0
+                },
+                "result": {
+                  "const": 0
+                },
+                "score": {
+                  "const": 0
+                }
+              }
+            },
+            "docdb-touqian": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "arm",
+                "complete",
+                "exposure",
+                "query_count",
+                "result",
+                "score"
+              ],
+              "properties": {
+                "arm": {
+                  "const": 0
+                },
+                "complete": {
+                  "const": 0
+                },
+                "exposure": {
+                  "const": 0
+                },
+                "query_count": {
+                  "const": 0
+                },
+                "result": {
+                  "const": 0
+                },
+                "score": {
+                  "const": 0
+                }
+              }
+            },
+            "spbp-2027": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "arm",
+                "complete",
+                "exposure",
+                "query_count",
+                "result",
+                "score"
+              ],
+              "properties": {
+                "arm": {
+                  "const": 0
+                },
+                "complete": {
+                  "const": 0
+                },
+                "exposure": {
+                  "const": 0
+                },
+                "query_count": {
+                  "const": 0
+                },
+                "result": {
+                  "const": 0
+                },
+                "score": {
+                  "const": 0
+                }
+              }
+            }
+          }
+        },
+        "b": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cwork-3m",
+            "docdb-touqian",
+            "spbp-2027"
+          ],
+          "properties": {
+            "cwork-3m": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "arm",
+                "complete",
+                "exposure",
+                "query_count",
+                "result",
+                "score"
+              ],
+              "properties": {
+                "arm": {
+                  "const": 0
+                },
+                "complete": {
+                  "const": 0
+                },
+                "exposure": {
+                  "const": 0
+                },
+                "query_count": {
+                  "const": 0
+                },
+                "result": {
+                  "const": 0
+                },
+                "score": {
+                  "const": 0
+                }
+              }
+            },
+            "docdb-touqian": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "arm",
+                "complete",
+                "exposure",
+                "query_count",
+                "result",
+                "score"
+              ],
+              "properties": {
+                "arm": {
+                  "const": 0
+                },
+                "complete": {
+                  "const": 0
+                },
+                "exposure": {
+                  "const": 0
+                },
+                "query_count": {
+                  "const": 0
+                },
+                "result": {
+                  "const": 0
+                },
+                "score": {
+                  "const": 0
+                }
+              }
+            },
+            "spbp-2027": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "arm",
+                "complete",
+                "exposure",
+                "query_count",
+                "result",
+                "score"
+              ],
+              "properties": {
+                "arm": {
+                  "const": 0
+                },
+                "complete": {
+                  "const": 0
+                },
+                "exposure": {
+                  "const": 0
+                },
+                "query_count": {
+                  "const": 0
+                },
+                "result": {
+                  "const": 0
+                },
+                "score": {
+                  "const": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "log_scans": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "firewall_verified",
+            "hit_files",
+            "log_files",
+            "passed"
+          ],
+          "properties": {
+            "firewall_verified": {
+              "const": true
+            },
+            "hit_files": {
+              "const": 0
+            },
+            "log_files": {
+              "const": 6
+            },
+            "passed": {
+              "const": true
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "a",
+        "b"
+      ],
+      "properties": {
+        "a": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cwork-3m",
+            "docdb-touqian",
+            "spbp-2027"
+          ],
+          "properties": {
+            "cwork-3m": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "answerable_count",
+                "answerable_system_error_count",
+                "build_seconds",
+                "exact",
+                "exact_count",
+                "exact_hits",
+                "exact_system_error_count",
+                "index_bytes",
+                "leak_count",
+                "no_answer",
+                "no_answer_correct",
+                "no_answer_count",
+                "no_answer_system_error_count",
+                "p95_ms",
+                "peak_rss_bytes",
+                "recall_at_10",
+                "recall_hits_at_10",
+                "status",
+                "system_error_count",
+                "timeout_count",
+                "total_count"
+              ],
+              "properties": {
+                "answerable_count": {
+                  "const": null
+                },
+                "answerable_system_error_count": {
+                  "const": null
+                },
+                "build_seconds": {
+                  "const": null
+                },
+                "exact": {
+                  "const": null
+                },
+                "exact_count": {
+                  "const": null
+                },
+                "exact_hits": {
+                  "const": null
+                },
+                "exact_system_error_count": {
+                  "const": null
+                },
+                "index_bytes": {
+                  "const": null
+                },
+                "leak_count": {
+                  "const": null
+                },
+                "no_answer": {
+                  "const": null
+                },
+                "no_answer_correct": {
+                  "const": null
+                },
+                "no_answer_count": {
+                  "const": null
+                },
+                "no_answer_system_error_count": {
+                  "const": null
+                },
+                "p95_ms": {
+                  "const": null
+                },
+                "peak_rss_bytes": {
+                  "const": null
+                },
+                "recall_at_10": {
+                  "const": null
+                },
+                "recall_hits_at_10": {
+                  "const": null
+                },
+                "status": {
+                  "const": "NOT_MEASURED"
+                },
+                "system_error_count": {
+                  "const": null
+                },
+                "timeout_count": {
+                  "const": null
+                },
+                "total_count": {
+                  "const": null
+                }
+              }
+            },
+            "docdb-touqian": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "answerable_count",
+                "answerable_system_error_count",
+                "build_seconds",
+                "exact",
+                "exact_count",
+                "exact_hits",
+                "exact_system_error_count",
+                "index_bytes",
+                "leak_count",
+                "no_answer",
+                "no_answer_correct",
+                "no_answer_count",
+                "no_answer_system_error_count",
+                "p95_ms",
+                "peak_rss_bytes",
+                "recall_at_10",
+                "recall_hits_at_10",
+                "status",
+                "system_error_count",
+                "timeout_count",
+                "total_count"
+              ],
+              "properties": {
+                "answerable_count": {
+                  "const": null
+                },
+                "answerable_system_error_count": {
+                  "const": null
+                },
+                "build_seconds": {
+                  "const": null
+                },
+                "exact": {
+                  "const": null
+                },
+                "exact_count": {
+                  "const": null
+                },
+                "exact_hits": {
+                  "const": null
+                },
+                "exact_system_error_count": {
+                  "const": null
+                },
+                "index_bytes": {
+                  "const": null
+                },
+                "leak_count": {
+                  "const": null
+                },
+                "no_answer": {
+                  "const": null
+                },
+                "no_answer_correct": {
+                  "const": null
+                },
+                "no_answer_count": {
+                  "const": null
+                },
+                "no_answer_system_error_count": {
+                  "const": null
+                },
+                "p95_ms": {
+                  "const": null
+                },
+                "peak_rss_bytes": {
+                  "const": null
+                },
+                "recall_at_10": {
+                  "const": null
+                },
+                "recall_hits_at_10": {
+                  "const": null
+                },
+                "status": {
+                  "const": "NOT_MEASURED"
+                },
+                "system_error_count": {
+                  "const": null
+                },
+                "timeout_count": {
+                  "const": null
+                },
+                "total_count": {
+                  "const": null
+                }
+              }
+            },
+            "spbp-2027": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "answerable_count",
+                "answerable_system_error_count",
+                "build_seconds",
+                "exact",
+                "exact_count",
+                "exact_hits",
+                "exact_system_error_count",
+                "index_bytes",
+                "leak_count",
+                "no_answer",
+                "no_answer_correct",
+                "no_answer_count",
+                "no_answer_system_error_count",
+                "p95_ms",
+                "peak_rss_bytes",
+                "recall_at_10",
+                "recall_hits_at_10",
+                "status",
+                "system_error_count",
+                "timeout_count",
+                "total_count"
+              ],
+              "properties": {
+                "answerable_count": {
+                  "const": null
+                },
+                "answerable_system_error_count": {
+                  "const": null
+                },
+                "build_seconds": {
+                  "const": null
+                },
+                "exact": {
+                  "const": null
+                },
+                "exact_count": {
+                  "const": null
+                },
+                "exact_hits": {
+                  "const": null
+                },
+                "exact_system_error_count": {
+                  "const": null
+                },
+                "index_bytes": {
+                  "const": null
+                },
+                "leak_count": {
+                  "const": null
+                },
+                "no_answer": {
+                  "const": null
+                },
+                "no_answer_correct": {
+                  "const": null
+                },
+                "no_answer_count": {
+                  "const": null
+                },
+                "no_answer_system_error_count": {
+                  "const": null
+                },
+                "p95_ms": {
+                  "const": null
+                },
+                "peak_rss_bytes": {
+                  "const": null
+                },
+                "recall_at_10": {
+                  "const": null
+                },
+                "recall_hits_at_10": {
+                  "const": null
+                },
+                "status": {
+                  "const": "NOT_MEASURED"
+                },
+                "system_error_count": {
+                  "const": null
+                },
+                "timeout_count": {
+                  "const": null
+                },
+                "total_count": {
+                  "const": null
+                }
+              }
+            }
+          }
+        },
+        "b": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cwork-3m",
+            "docdb-touqian",
+            "spbp-2027"
+          ],
+          "properties": {
+            "cwork-3m": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "answerable_count",
+                "answerable_system_error_count",
+                "build_seconds",
+                "exact",
+                "exact_count",
+                "exact_hits",
+                "exact_system_error_count",
+                "index_bytes",
+                "leak_count",
+                "no_answer",
+                "no_answer_correct",
+                "no_answer_count",
+                "no_answer_system_error_count",
+                "p95_ms",
+                "peak_rss_bytes",
+                "recall_at_10",
+                "recall_hits_at_10",
+                "status",
+                "system_error_count",
+                "timeout_count",
+                "total_count"
+              ],
+              "properties": {
+                "answerable_count": {
+                  "const": null
+                },
+                "answerable_system_error_count": {
+                  "const": null
+                },
+                "build_seconds": {
+                  "const": null
+                },
+                "exact": {
+                  "const": null
+                },
+                "exact_count": {
+                  "const": null
+                },
+                "exact_hits": {
+                  "const": null
+                },
+                "exact_system_error_count": {
+                  "const": null
+                },
+                "index_bytes": {
+                  "const": null
+                },
+                "leak_count": {
+                  "const": null
+                },
+                "no_answer": {
+                  "const": null
+                },
+                "no_answer_correct": {
+                  "const": null
+                },
+                "no_answer_count": {
+                  "const": null
+                },
+                "no_answer_system_error_count": {
+                  "const": null
+                },
+                "p95_ms": {
+                  "const": null
+                },
+                "peak_rss_bytes": {
+                  "const": null
+                },
+                "recall_at_10": {
+                  "const": null
+                },
+                "recall_hits_at_10": {
+                  "const": null
+                },
+                "status": {
+                  "const": "NOT_MEASURED"
+                },
+                "system_error_count": {
+                  "const": null
+                },
+                "timeout_count": {
+                  "const": null
+                },
+                "total_count": {
+                  "const": null
+                }
+              }
+            },
+            "docdb-touqian": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "answerable_count",
+                "answerable_system_error_count",
+                "build_seconds",
+                "exact",
+                "exact_count",
+                "exact_hits",
+                "exact_system_error_count",
+                "index_bytes",
+                "leak_count",
+                "no_answer",
+                "no_answer_correct",
+                "no_answer_count",
+                "no_answer_system_error_count",
+                "p95_ms",
+                "peak_rss_bytes",
+                "recall_at_10",
+                "recall_hits_at_10",
+                "status",
+                "system_error_count",
+                "timeout_count",
+                "total_count"
+              ],
+              "properties": {
+                "answerable_count": {
+                  "const": null
+                },
+                "answerable_system_error_count": {
+                  "const": null
+                },
+                "build_seconds": {
+                  "const": null
+                },
+                "exact": {
+                  "const": null
+                },
+                "exact_count": {
+                  "const": null
+                },
+                "exact_hits": {
+                  "const": null
+                },
+                "exact_system_error_count": {
+                  "const": null
+                },
+                "index_bytes": {
+                  "const": null
+                },
+                "leak_count": {
+                  "const": null
+                },
+                "no_answer": {
+                  "const": null
+                },
+                "no_answer_correct": {
+                  "const": null
+                },
+                "no_answer_count": {
+                  "const": null
+                },
+                "no_answer_system_error_count": {
+                  "const": null
+                },
+                "p95_ms": {
+                  "const": null
+                },
+                "peak_rss_bytes": {
+                  "const": null
+                },
+                "recall_at_10": {
+                  "const": null
+                },
+                "recall_hits_at_10": {
+                  "const": null
+                },
+                "status": {
+                  "const": "NOT_MEASURED"
+                },
+                "system_error_count": {
+                  "const": null
+                },
+                "timeout_count": {
+                  "const": null
+                },
+                "total_count": {
+                  "const": null
+                }
+              }
+            },
+            "spbp-2027": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "answerable_count",
+                "answerable_system_error_count",
+                "build_seconds",
+                "exact",
+                "exact_count",
+                "exact_hits",
+                "exact_system_error_count",
+                "index_bytes",
+                "leak_count",
+                "no_answer",
+                "no_answer_correct",
+                "no_answer_count",
+                "no_answer_system_error_count",
+                "p95_ms",
+                "peak_rss_bytes",
+                "recall_at_10",
+                "recall_hits_at_10",
+                "status",
+                "system_error_count",
+                "timeout_count",
+                "total_count"
+              ],
+              "properties": {
+                "answerable_count": {
+                  "const": null
+                },
+                "answerable_system_error_count": {
+                  "const": null
+                },
+                "build_seconds": {
+                  "const": null
+                },
+                "exact": {
+                  "const": null
+                },
+                "exact_count": {
+                  "const": null
+                },
+                "exact_hits": {
+                  "const": null
+                },
+                "exact_system_error_count": {
+                  "const": null
+                },
+                "index_bytes": {
+                  "const": null
+                },
+                "leak_count": {
+                  "const": null
+                },
+                "no_answer": {
+                  "const": null
+                },
+                "no_answer_correct": {
+                  "const": null
+                },
+                "no_answer_count": {
+                  "const": null
+                },
+                "no_answer_system_error_count": {
+                  "const": null
+                },
+                "p95_ms": {
+                  "const": null
+                },
+                "peak_rss_bytes": {
+                  "const": null
+                },
+                "recall_at_10": {
+                  "const": null
+                },
+                "recall_hits_at_10": {
+                  "const": null
+                },
+                "status": {
+                  "const": "NOT_MEASURED"
+                },
+                "system_error_count": {
+                  "const": null
+                },
+                "timeout_count": {
+                  "const": null
+                },
+                "total_count": {
+                  "const": null
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "new_tmp_files": {
+      "const": 0
+    },
+    "new_window_id": {
+      "const": "be3ab168-0568-4d39-a06e-824b4cd26a58"
+    },
+    "old_after_retried": {
+      "const": false
+    },
+    "old_after_status": {
+      "const": "FAIL"
+    },
+    "old_window_id": {
+      "const": "7652dbee-3679-4886-a391-ffcf871e712c"
+    },
+    "old_window_status": {
+      "const": "INVALID"
+    },
+    "operations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "a",
+        "b"
+      ],
+      "properties": {
+        "a": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "backup_restore_steps_count",
+            "components_count",
+            "upgrade_steps_count"
+          ],
+          "properties": {
+            "backup_restore_steps_count": {
+              "const": 4
+            },
+            "components_count": {
+              "const": 1
+            },
+            "upgrade_steps_count": {
+              "const": 6
+            }
+          }
+        },
+        "b": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "backup_restore_steps_count",
+            "components_count",
+            "upgrade_steps_count"
+          ],
+          "properties": {
+            "backup_restore_steps_count": {
+              "const": 3
+            },
+            "components_count": {
+              "const": 2
+            },
+            "upgrade_steps_count": {
+              "const": 7
+            }
+          }
+        }
+      }
+    },
+    "operations_basis": {
+      "const": "FROZEN_RUNBOOK_ARRAY_COUNTS_NOT_RUNTIME_BENCHMARK"
+    },
+    "precloseout_files_preserved": {
+      "const": 37
+    },
+    "private_values_or_digests_exported": {
+      "const": false
+    },
+    "production_cutover_allowed": {
+      "const": false
+    },
+    "query_count_basis": {
+      "const": "NO_EXPOSURE_FROZEN_PRESEARCH_GATE"
+    },
+    "retained_bytes_equal": {
+      "const": true
+    },
+    "retained_files": {
+      "const": 96
+    },
+    "run_id": {
+      "const": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af"
+    },
+    "run_order": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        {
+          "const": "b"
+        },
+        {
+          "const": "a"
+        }
+      ],
+      "items": false
+    },
+    "runtime": {
+      "const": 0
+    },
+    "schema": {
+      "const": "cwk.rt055.amendment10-final.v1"
+    },
+    "scoring_archive_id": {
+      "const": "690807fc-1d9e-46c8-be86-2d05b92d6d85"
+    },
+    "source_commit": {
+      "const": "43207eefbe30557b53d556055fa5438c8afe47ee"
+    },
+    "source_privacy": {
+      "const": "PASS"
+    },
+    "status": {
+      "const": "VERIFIED_CLOSED"
+    },
+    "task_processes": {
+      "const": 0
+    },
+    "terminal_decision": {
+      "const": "INVALID"
+    },
+    "unique_decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decision",
+        "deferred_libraries",
+        "error_code",
+        "participating_libraries",
+        "production_candidate_libraries",
+        "run_id",
+        "schema",
+        "selected",
+        "status",
+        "window_id"
+      ],
+      "properties": {
+        "decision": {
+          "const": "INVALID"
+        },
+        "deferred_libraries": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 0,
+          "items": false
+        },
+        "error_code": {
+          "const": "HARD_GATE_FAILED_NO_REPLAY"
+        },
+        "participating_libraries": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "prefixItems": [
+            {
+              "const": "cwork-3m"
+            },
+            {
+              "const": "docdb-touqian"
+            },
+            {
+              "const": "spbp-2027"
+            }
+          ],
+          "items": false
+        },
+        "production_candidate_libraries": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 0,
+          "items": false
+        },
+        "run_id": {
+          "const": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af"
+        },
+        "schema": {
+          "const": "cwk.rt055.retrieval-decision.result.v3"
+        },
+        "selected": {
+          "const": null
+        },
+        "status": {
+          "const": "INVALID"
+        },
+        "window_id": {
+          "const": "be3ab168-0568-4d39-a06e-824b4cd26a58"
+        }
+      }
+    },
+    "upstream_native_core_unchanged": {
+      "const": true
+    },
+    "verifier_runs": {
+      "const": 1
+    },
+    "candidate_log_checks": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "all_streams_verified",
+            "archive_inventory_matches_firewall",
+            "archived_log_files",
+            "candidate",
+            "firewall_streams",
+            "firewall_verified",
+            "hit_files",
+            "independent_post_scan_hit_files",
+            "log_files",
+            "logs_retained",
+            "redaction_count",
+            "remaining_owned_runtime",
+            "scan_passed",
+            "workspace_cleanup_complete"
+          ],
+          "properties": {
+            "all_streams_verified": {
+              "const": true
+            },
+            "archive_inventory_matches_firewall": {
+              "const": true
+            },
+            "archived_log_files": {
+              "const": 6
+            },
+            "candidate": {
+              "const": "b"
+            },
+            "firewall_streams": {
+              "const": 6
+            },
+            "firewall_verified": {
+              "const": true
+            },
+            "hit_files": {
+              "const": 0
+            },
+            "independent_post_scan_hit_files": {
+              "const": 0
+            },
+            "log_files": {
+              "const": 6
+            },
+            "logs_retained": {
+              "const": true
+            },
+            "redaction_count": {
+              "const": 9
+            },
+            "remaining_owned_runtime": {
+              "const": 0
+            },
+            "scan_passed": {
+              "const": true
+            },
+            "workspace_cleanup_complete": {
+              "const": true
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "controller_log_checks": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "closed",
+            "eof",
+            "error",
+            "independent_post_scan_hits",
+            "post_scan_hits",
+            "redaction_count",
+            "verified"
+          ],
+          "properties": {
+            "closed": {
+              "const": true
+            },
+            "eof": {
+              "const": true
+            },
+            "error": {
+              "const": "CHILD_NONZERO"
+            },
+            "independent_post_scan_hits": {
+              "const": 0
+            },
+            "post_scan_hits": {
+              "const": 0
+            },
+            "redaction_count": {
+              "const": 0
+            },
+            "verified": {
+              "const": false
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "candidate_failure": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "build_error",
+            "candidate",
+            "error"
+          ],
+          "properties": {
+            "build_error": {
+              "const": "REQUEST_FAILED"
+            },
+            "candidate": {
+              "const": "b"
+            },
+            "error": {
+              "const": "CandidateError"
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "build_status": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "candidate",
+            "deadline_phase",
+            "error",
+            "libraries",
+            "library"
+          ],
+          "properties": {
+            "candidate": {
+              "const": "b"
+            },
+            "deadline_phase": {
+              "const": "IMPORT"
+            },
+            "error": {
+              "const": "REQUEST_FAILED"
+            },
+            "libraries": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "cwork-3m",
+                "docdb-touqian",
+                "spbp-2027"
+              ],
+              "properties": {
+                "cwork-3m": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "completed",
+                    "failed",
+                    "imported",
+                    "pending"
+                  ],
+                  "properties": {
+                    "completed": {
+                      "const": 29
+                    },
+                    "failed": {
+                      "const": 0
+                    },
+                    "imported": {
+                      "const": 30
+                    },
+                    "pending": {
+                      "const": 1
+                    }
+                  }
+                },
+                "docdb-touqian": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "completed",
+                    "failed",
+                    "imported",
+                    "pending"
+                  ],
+                  "properties": {
+                    "completed": {
+                      "const": 0
+                    },
+                    "failed": {
+                      "const": 0
+                    },
+                    "imported": {
+                      "const": 0
+                    },
+                    "pending": {
+                      "const": 0
+                    }
+                  }
+                },
+                "spbp-2027": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "completed",
+                    "failed",
+                    "imported",
+                    "pending"
+                  ],
+                  "properties": {
+                    "completed": {
+                      "const": 0
+                    },
+                    "failed": {
+                      "const": 0
+                    },
+                    "imported": {
+                      "const": 0
+                    },
+                    "pending": {
+                      "const": 0
+                    }
+                  }
+                }
+              }
+            },
+            "library": {
+              "const": "cwork-3m"
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "controller_firewall_all_verified": {
+      "const": false
+    },
+    "controller_nonzero_failure_preserved": {
+      "const": true
+    },
+    "independent_post_scan_passed": {
+      "const": true
+    },
+    "formal_queries_basis": {
+      "const": "NO_ARMS_NO_EXPOSURE_BEFORE_FROZEN_FIRST_SEARCH"
+    },
+    "closeout_launches": {
+      "const": 1
+    },
+    "closeout_claims": {
+      "const": 1
+    },
+    "formal_coordinator_restarted": {
+      "const": false
+    },
+    "candidate_replayed": {
+      "const": false
+    },
+    "independent_audit_process_exited": {
+      "const": true
+    },
+    "old_windows_reopened": {
+      "const": false
+    },
+    "production_changes_performed": {
+      "const": false
+    }
+  }
+}
