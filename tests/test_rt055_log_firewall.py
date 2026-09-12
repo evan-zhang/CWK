@@ -127,3 +127,8 @@ class StreamingTests(unittest.TestCase):
         f.finalize();cw.scan(s,[CANARY]);cw.cleanup(s)
         with patch.object(fw,'PATTERN_CAP',5):
             with self.assertRaises(fw.FirewallError):fw.Filter([CANARY])
+    def test_output_expansion_cap_and_actual_byte_accounting(self):
+        s=self.make();path=cw.file(s,'logs','expansion.log');stream=fw.Stream(path,['X'],cap=100)
+        proc=subprocess.Popen([sys.executable,'-c','import os,time;os.write(1,b"X"*10);time.sleep(20)'],stdout=subprocess.PIPE,start_new_session=True)
+        stream.attach(proc);proc.wait(5);row=stream.finish()
+        self.assertTrue(row['overflow']);self.assertEqual(row['input_bytes'],10);self.assertEqual(row['output_bytes'],0);self.assertEqual(path.read_bytes(),b'')

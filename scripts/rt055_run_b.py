@@ -122,8 +122,8 @@ class RoutingTransport:
         except (TimeoutError, socket_timeout()):
             raise kbc.CandidateTimeout("request deadline exceeded") from None
         except urllib.error.HTTPError as exc:
-            exc.close()
-            raise kbc.CandidateError("native request failed") from None
+            status=exc.code;exc.close()
+            raise build_readiness.NativeHTTPError(status) from None
         except (ValueError, OSError):
             raise kbc.CandidateError("native request failed") from None
         self._instrument(method, path, payload, data, kb)

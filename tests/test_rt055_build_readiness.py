@@ -50,3 +50,18 @@ class NativeReadinessTests(unittest.TestCase):
         for kb,n in work.COUNTS.items():
             docs=work.documents(kb);self.assertEqual(len(docs),n);self.assertLessEqual(max(len(d.text.encode()) for d in docs),524288)
         self.assertFalse(work.safe_result({}));self.assertFalse(work.safe_result({'status':'PASS'}))
+    def test_sql_fault_probe_is_after_normal_build_and_search(self):
+        import inspect
+        code=inspect.getsource(work.run)
+        self.assertLess(code.index('build.build_b('),code.index("db.execute('BEGIN IMMEDIATE')"))
+        self.assertLess(code.index('hits=adapter.search('),code.index("db.execute('BEGIN IMMEDIATE')"))
+        self.assertIn("timeout=build.TIMEOUT",code)
+    def test_public_utf8_bytes_and_character_limits(self):
+        for kb in work.COUNTS:
+            for d in work.documents(kb):
+                self.assertLessEqual(len(d.text.encode()),work.UPPER_BYTES)
+                self.assertLessEqual(len(kbc.canonical_text(d)),200000)
+    def test_native_http_errors_are_closed_and_message_free(self):
+        for status in (400,422,500,999):
+            e=build.NativeHTTPError(status);self.assertIn(build.error_code(e),build.HTTP_CODES)
+            self.assertEqual(str(e),build.error_code(e))

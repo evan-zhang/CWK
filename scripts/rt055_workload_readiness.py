@@ -34,9 +34,10 @@ def documents(kb):
     result=[]
     for i in range(COUNTS[kb]):
         target=UPPER_BYTES if i==0 else 8192
-        prefix=f'Public synthetic reference-{i:03d}. '+SQL_CANARY+'\n'
-        line='Public synthetic manual: solar panels generate electricity in daylight; storage supplies power at night.\n'
-        text=prefix+(line*((target-len(prefix.encode()))//len(line)))
+        prefix=f'Public synthetic reference-{i:03d}. Public synthetic solar panels electricity. '+SQL_CANARY+'\n'
+        line='公开合成资料：白天由太阳能板发电，夜间由储能电池供电。\n'
+        text=prefix+(line*((target-len(prefix.encode()))//len(line.encode())))
+        if len(text)>199000:raise RuntimeError('public_native_character_limit')
         result.append(poc.SourceDocument(kb,f'public-workload-{i:03d}',f'{SQL_CANARY} public document {i:03d}',f'public-workload-{i:03d}.md',text,{}))
     return result
 

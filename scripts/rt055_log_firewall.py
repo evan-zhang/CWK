@@ -50,6 +50,7 @@ class Filter:
 class Stream:
     def __init__(self,path,values,cap=CAP,*,patterns=None):
         self.path=Path(path);self.filter=Filter(values,cap,patterns=patterns)
+        self.cap=cap;self.input_bytes=0;self.output_bytes=0
         self.error='NONE';self.eof=False;self.closed=False;self.finalized=False
         self.stop=threading.Event();self.proc=None;self.thread=None;self.pipe=None
         self.sink=self.path.open('xb',buffering=0);os.chmod(self.path,0o600)
@@ -78,12 +79,15 @@ class Stream:
             while not self.stop.is_set():
                 if not select.select([self.pipe],[],[],.1)[0]:continue
                 data=os.read(self.pipe.fileno(),CHUNK)
+                self.input_bytes+=len(data)
                 clean=self.filter.feed(data,eof=not data)
+                if self.output_bytes+len(clean)>self.cap:raise FirewallError('CAPACITY')
                 if clean:
                     view=memoryview(clean)
                     while view:
                         written=self.sink.write(view)
                         if not written:raise OSError("short_write")
+                        self.output_bytes+=written
                         view=view[written:]
                 if not data:self.eof=True;break
         except FirewallError as exc:self.fail(exc.code)
@@ -118,7 +122,7 @@ class Stream:
             self.finalized=True
         return self.receipt()
     def receipt(self):
-        return {'input_bytes':self.filter.input_bytes,'output_bytes':self.filter.output_bytes,
+        return {'input_bytes':self.input_bytes,'output_bytes':self.output_bytes,
                 'redaction_count':self.filter.redactions,'overflow':self.error=='CAPACITY',
                 'error':self.error,'eof':self.eof,'closed':self.closed,
                 'verified':self.finalized and self.eof and self.closed and self.error=='NONE'}

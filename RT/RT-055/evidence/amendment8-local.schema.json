@@ -52,7 +52,7 @@
       ],
       "properties": {
         "tests": {
-          "const": 237
+          "const": 241
         },
         "failures": {
           "const": 0

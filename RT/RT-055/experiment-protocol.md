@@ -441,3 +441,14 @@ read chunk64KiB、最长leaf8MiB、A/B每库build7200秒均不变。不丢patter
 均通过，不能把故障注入影响冒称B正常build结论，也不能外推旧私有failure子型。
 将刻意SQL失败探针移至每库正常build及公开search完成之后，以免干扰native惰性初始化；
 候选build、文档大小/42/31/42分母、7200秒timeout和core均不改。原失败证据和cleanup0保留。
+
+### Amendment 8 同形尺寸与精确字节计量
+
+第三轮在任何SQL故障探针之前即导入失败，未观测到SQL错误。公开upstream服务合同为
+manualContentMaxLength=200000字符；首个512KiB ASCII夹具超过该上限。OPS只读布尔
+核验确认全部冻结私有canonical documents在原生字符上限内（未导出具体长度或内容）。
+改用源码独立编写的中文公开句子，保持42/31/42、512KiB/8KiB字节上界，且正文小于
+199000字符，为canonical metadata留余量；A/B文本完全一致。不是截断或重建私有输入。
+防火墙进一步同时封顶每流实际输出64MiB；input计量在os.read后、output计量按实际
+write返回字节，溢出块也进入input计数（最多input cap+1个64KiB read），不进入日志。
+HTTP失败新增封闭状态码枚举，不保留响应消息或私有值；7200秒timeout不变。

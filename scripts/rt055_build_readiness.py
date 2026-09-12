@@ -5,8 +5,16 @@ import kb_retrieval_candidates as kbc
 import rt055_opslib as ops
 from rt055_log_firewall import FirewallError
 TIMEOUT=7200.0
-CODES=('NONE','NATIVE_PENDING','NATIVE_TERMINAL_FAILED','BUILD_DEADLINE','REQUEST_FAILED','SCOPE_INVALID','FIREWALL_FAILED','UNKNOWN_EXECUTION_FAILURE')
+HTTP_CODES=('NATIVE_HTTP_400','NATIVE_HTTP_401','NATIVE_HTTP_403','NATIVE_HTTP_404','NATIVE_HTTP_409','NATIVE_HTTP_413','NATIVE_HTTP_422','NATIVE_HTTP_429','NATIVE_HTTP_500','NATIVE_HTTP_503','NATIVE_HTTP_OTHER')
+class NativeHTTPError(kbc.CandidateError):
+    def __init__(self,status):
+        value='NATIVE_HTTP_'+str(status)
+        self.code=value if value in HTTP_CODES else 'NATIVE_HTTP_OTHER'
+        super().__init__(self.code)
+
+CODES=HTTP_CODES+('NONE','NATIVE_PENDING','NATIVE_TERMINAL_FAILED','BUILD_DEADLINE','REQUEST_FAILED','SCOPE_INVALID','FIREWALL_FAILED','UNKNOWN_EXECUTION_FAILURE')
 def error_code(exc):
+    if isinstance(exc,NativeHTTPError):return exc.code
     if isinstance(exc,FirewallError):return 'FIREWALL_FAILED'
     if isinstance(exc,kbc.CandidateBuildFailed):return 'NATIVE_TERMINAL_FAILED'
     if isinstance(exc,kbc.CandidatePending):return 'NATIVE_PENDING'
