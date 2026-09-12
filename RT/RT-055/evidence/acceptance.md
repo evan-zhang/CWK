@@ -743,3 +743,89 @@ main/synthetic 边界、无正式 attempt 副作用、历史字节不修改。�
 - 观察通道曾中断一次，仅重新连接只读 watcher；没有重启控制器或重复任何主 claim。
   当前无后台任务。完整 NAS/index 不变性仍 UNKNOWN，历史漂移不清除；未修改生产，
   READY 不是正式测评结果，也不授权生产切换或自动执行 A/B。
+
+## Amendment 7 正式窗口收口（2026-09-12）
+
+唯一裁决：**INVALID**。本轮只在既有 READY 上执行冻结 B→A 正式路径；未补跑准备、未新建窗口、未修改实现、未复活旧窗口。
+
+- run：`ac1ca0c7-6983-4f6e-91ce-8eb45e7673af`；window：`d408cfab-40f7-41d3-8ccb-75fb0aaa2b65`。
+- executioner migration：`3e5c31a2-8741-420b-b83b-095c32446d95`；source：`f94b6e1b0f60763443e56ed76c932f90d55f927b`。
+- 参与库：cwork-3m 42/T3、docdb-touqian 31/T3、spbp-2027 42/T2；deferred=[]。
+- formal evaluation complete：`false`；schema-valid v3 aggregate available：`false`。
+- 终态：`INVALID/COMPLETE`；边界：`PRE_EXPOSURE_FORMAL_RUN_FAILURE`；原因枚举：`CANDIDATE_LOG_PRIVACY_FAILED`。
+- **正式日志保密门禁 FAIL**：6 个候选日志文件中 1 个命中，命中正文/定位符/摘要均未导出。准备阶段 privacy/readiness PASS 不覆盖这次正式日志失败。底层执行失败仅有 RuntimeError 类型证据，不据耗时擅自认定具体异常子型。日志命中数不是检索 `leak_count`，后者仍为未测 null。
+- **INVALID 不是 A/B 胜负或 NO-GO 的替代命名**：完整正式证据/生产不变性合同没有通过，不能据此选型或切流；保留已测原值，未测项保持 null，旧漂移没有被清零。
+- 本次公开 closeout 属于同窗口失败/收口证据，**不是缺项填零的 v3 正式 aggregate**；OPS 与本地冻结 decision CLI 对此均输出 INVALID。
+
+### 固定分母、质量与资源
+
+固定 trials 与分类分母未改，合法跨类别同 query 不被去重。本轮没有产生正式评分：每库每候选的全部 20 个指标均为 null，保存在公开 JSON；不能用已知池规模、运行耗时或日志命中数回填未测指标，也不能把 null 当成 0。
+
+| 库 | 候选/状态 | total | Recall@10 | exact | no-answer |
+|---|---|---:|---|---|---|
+| cwork-3m | A/NOT_RUN | —（未测） | —（未测） | —（未测） | —（未测） |
+| cwork-3m | B/ATTEMPT_FAILED_BEFORE_MEASUREMENT | —（未测） | —（未测） | —（未测） | —（未测） |
+| docdb-touqian | A/NOT_RUN | —（未测） | —（未测） | —（未测） | —（未测） |
+| docdb-touqian | B/ATTEMPT_FAILED_BEFORE_MEASUREMENT | —（未测） | —（未测） | —（未测） | —（未测） |
+| spbp-2027 | A/NOT_RUN | —（未测） | —（未测） | —（未测） | —（未测） |
+| spbp-2027 | B/ATTEMPT_FAILED_BEFORE_MEASUREMENT | —（未测） | —（未测） | —（未测） | —（未测） |
+
+| 库 | 候选 | system_error | answerable_error | exact_error | no_answer_error | timeout | leak |
+|---|---|---:|---:|---:|---:|---:|---:|
+| cwork-3m | A | —（未测） | —（未测） | —（未测） | —（未测） | —（未测） | —（未测） |
+| cwork-3m | B | —（未测） | —（未测） | —（未测） | —（未测） | —（未测） | —（未测） |
+| docdb-touqian | A | —（未测） | —（未测） | —（未测） | —（未测） | —（未测） | —（未测） |
+| docdb-touqian | B | —（未测） | —（未测） | —（未测） | —（未测） | —（未测） | —（未测） |
+| spbp-2027 | A | —（未测） | —（未测） | —（未测） | —（未测） | —（未测） | —（未测） |
+| spbp-2027 | B | —（未测） | —（未测） | —（未测） | —（未测） | —（未测） | —（未测） |
+
+| 库 | 候选 | P95 ms | index bytes | build seconds | peak RSS bytes |
+|---|---|---:|---:|---:|---:|
+| cwork-3m | A | —（未测） | —（未测） | —（未测） | —（未测） |
+| cwork-3m | B | —（未测） | —（未测） | —（未测） | —（未测） |
+| docdb-touqian | A | —（未测） | —（未测） | —（未测） | —（未测） |
+| docdb-touqian | B | —（未测） | —（未测） | —（未测） | —（未测） |
+| spbp-2027 | A | —（未测） | —（未测） | —（未测） | —（未测） |
+| spbp-2027 | B | —（未测） | —（未测） | —（未测） | —（未测） |
+
+### Gateway、复杂度与证据边界
+
+本轮未到 candidate Gateway 探针阶段，四项能力均未测。本协议要求的是 candidate query 的实验室 HTTPS 授权壳测试，不等于生产三个 Gateway 已接入 A/B；生产 /health 200 也不能替代这些测试。
+- A：HTTPS query=—（未测）；per-gateway identity=—（未测）；server-side KB grants=—（未测）；no direct NAS/search credentials=—（未测）。
+  - 机械复杂度：components=1；upgrade steps=6；backup/restore steps=4。
+- B：HTTPS query=—（未测）；per-gateway identity=—（未测）；server-side KB grants=—（未测）；no direct NAS/search credentials=—（未测）。
+  - 机械复杂度：components=2；upgrade steps=7；backup/restore steps=3。
+
+- role separation：`PROCESS_LEVEL_SEPARATION_SINGLE_UID`，只宣称真实测得级别，不宣称 OS UID 隔离或外部独立审查；builder/verifier 仍各 1/1 次。
+- privacy、runtime policy、candidate workspace、scoring input readiness 及 source/freeze/upstream 绑定均在 OPS 只读复核。正文、queries、expected、定位符、私有文件名/路径、逐条结果与私有摘要不出 OPS。
+- ledger：B={"arms": 0, "attempts": 1, "completed_libraries": 0, "exposure_without_completion": 0, "exposures": 0, "query_calls": 0, "result": 0, "scores": 0}；A={"arms": 0, "attempts": 0, "completed_libraries": 0, "exposure_without_completion": 0, "exposures": 0, "query_calls": 0, "result": 0, "scores": 0}。
+- closure：formal launch=1；closeout-only launch=0；candidate restarts=0；before/freeze/verify/after claims=1/1/1/1；scoring readiness claim=1；准备阶段重复=false。
+- frozen cleanup→after 顺序核验=true。辅助库存复核发生在 after 之后（`aux_cleanup_before_after_verified=false`），确认新增 tmp/TLS 均为 0、实际删除文件为 0；不是在 after 后补做候选清理。未回写或重复 after。
+- 本轮临时候选进程/控制器/runtime/data planes/new tmp/TLS/cleanup failures=0/0/0/0/0/0/0；UUID 容器/卷/网络/镜像/service 归零；三个既有 Gateway 均 HTTP 200。
+- 历史：96 retained、5938 archive、此前2570/1222 archive、旧窗口/claim/void/失败 synthetic 历史逐字节保留；旧窗口仍 INVALID。私有 holdout 留 OPS，不做后续自由重跑。
+
+生产 before/after 原始比较（false/null 均按实保留）：
+
+- `all_items_measured` = `false`。
+- `containers_unchanged` = `true`。
+- `existing_indices_unchanged` = `null`。
+- `existing_indices_unchanged_measured_projection` = `true`。
+- `gateway_health_content_unchanged` = `true`。
+- `gateway_unchanged` = `true`。
+- `nas_unchanged` = `null`。
+- `nas_unchanged_measured_projection` = `true`。
+- `production_config_unchanged` = `false`。
+- `production_config_unchanged_measured_projection` = `true`。
+- `services_unchanged` = `false`。
+- `three_gateways_healthy` = `true`。
+- `volumes_unchanged` = `true`。
+
+不据此清除历史漂移、不把未测项补 true、不切生产流量、不将 RT 标记 CLOSED。
+
+证据：
+- [OPS 同窗口正式收口](amendment7-formal-closeout.json)。
+- [收口闭集 Schema](amendment7-formal-closeout.schema.json)。
+- [OPS 唯一裁决](amendment7-formal-decision.json)。
+- [本地 QA](amendment7-formal-qa.json)。
+
+QA：本地 RT-055 回归 219 项全部通过，136 个冻结源码/测试文件编译通过；闭集 Schema、固定分母与缺测、OPS/本地裁决、私有字段/摘要与 secret、文档链接、历史前缀、冻结源码与提交范围均核验。aodw-check/governance 以本次 QA JSON 中的实测字段为准，不声称运行完整 repository CI。

@@ -359,3 +359,11 @@ freeze/verify 与无 Popen precheck 均 PASS。完整池42/31/42不变，合法�
 无候选/控制器/runtime。219测试、11行为破坏、编译/Schema/隐私/链接/AODW/governance通过。
 仅本地源码与公开证据提交，不push；无后台任务。后续正式 A/B 仍须单独授权，完整NAS/index
 不变性未证明，不能把 READY 当作评分结果或生产切换批准。
+
+
+## Amendment 7 正式窗口收口（2026-09-12）
+
+- 同窗口 `d408cfab-40f7-41d3-8ccb-75fb0aaa2b65`，冻结 B→A 正式路径只启动一次；source `f94b6e1b0f60763443e56ed76c932f90d55f927b`。
+- 唯一裁决 **INVALID**；formal complete=false，v3 aggregate available=false，deferred=[]。不切流、不清除旧漂移、不关闭 RT。
+- [完整固定分母/质量/资源、Gateway、复杂度与收口事实](evidence/acceptance.md#amendment-7-正式窗口收口2026-09-12)。
+- [OPS 公开收口](evidence/amendment7-formal-closeout.json)、[唯一裁决](evidence/amendment7-formal-decision.json)、[QA](evidence/amendment7-formal-qa.json)。
