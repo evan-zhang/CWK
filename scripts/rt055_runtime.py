@@ -106,19 +106,31 @@ def spawn_precheck(root, network_policy='loopback', window_id=None):
     return profile
 
 
-def spawn(root, argv, network_policy='loopback', window_id=None, **kwargs):
-    profile=spawn_precheck(root,network_policy,window_id)
+def spawn(root, argv, network_policy='loopback', window_id=None, workspace=None, **kwargs):
+    if workspace is not None and workspace.migration_id:
+        from rt055_candidate_workspace import probe_profile
+        if window_id is not None:raise RuntimeError('candidate_probe_formal_window_argument')
+        profile=probe_profile(workspace,network_policy)
+    else:profile=spawn_precheck(root,network_policy,window_id)
     validate_environment(kwargs.get('env', {}))
     if any(str(a).endswith('/opensearch') for a in argv):
         if (network_policy != 'inbound-only' or 'network.host=127.0.0.1' not in argv
                 or 'transport.host=127.0.0.1' not in argv
                 or kwargs['env'].get('OPENSEARCH_JAVA_OPTS') != '-Djava.net.preferIPv4Stack=true'):
             raise ValueError('search_execution_boundary_invalid')
-    proc = subprocess.Popen(['/usr/bin/sandbox-exec','-f',str(profile),*argv],**kwargs)
+    from rt055_candidate_workspace import validate, policy
+    if window_id is not None and workspace is None:raise RuntimeError('candidate_workspace_required')
+    if workspace is not None:
+        validate(workspace,window_id=window_id)
+        if workspace.root!=root:raise RuntimeError('candidate_workspace_root_mismatch')
+        sandbox=['/usr/bin/sandbox-exec','-p',policy(workspace,profile.read_text())]
+    else:sandbox=['/usr/bin/sandbox-exec','-f',str(profile)]
+    proc = subprocess.Popen([*sandbox,*argv],**kwargs)
     folder=root/'resources';folder.mkdir(mode=0o700,exist_ok=True)
     ops.write_private_json(folder/f'process-{proc.pid}.json',
         {'pid':proc.pid,'argv':argv,'started':time.time(),
-         'cwd':str(kwargs.get('cwd',root)), 'network_policy':network_policy})
+         'cwd':str(kwargs.get('cwd',root)), 'network_policy':network_policy,
+         **({'workspace':workspace.identity()} if workspace else {})})
     return proc
 
 def data_bytes(root):
@@ -163,7 +175,7 @@ MIGRATION_SOURCE_FILES = PRIVACY_SOURCE_FILES + (
     'rt055_window.py','rt055_baseline.py','rt055_formal_coordinator.py',
     'rt055_aggregate.py','rt055_cleanup.py','rt055_tiers.py',
     'kb_retrieval_decision.py','rt055_runbooks.json','aggregate-report.schema.json',
-    'rt055_zero_exposure.py','rt055_runtime_readiness.py')
+    'rt055_zero_exposure.py','rt055_runtime_readiness.py','rt055_candidate_workspace.py','rt055_candidate_startup.py')
 
 
 def migration_directory(root,migration_id):
@@ -193,6 +205,8 @@ def migration_evidence(root,migration_id,attempt):
     clean=ops.read_json(t/'audit/synthetic-cleanup.json')
     if (status.get('status')!='PASS' or status.get('phase')!='COMPLETE'
             or not evaluate(obs)['passed'] or obs.get('cleanup_error') or 'execution_error_kind' in obs
+            or obs.get('candidate_workspace_cleanup_zero') is not True
+            or obs.get('candidate_workspace_candidates')!=['a','b']
             or clean!={'complete':True,'failures':0,'remaining_processes':0,'remaining_data_planes':0}):
         raise RuntimeError('new_synthetic_privacy_revalidation_required')
     return {'schema':'cwk.rt055.executioner-migration-binding.v1','run_id':deployment['run_id'],

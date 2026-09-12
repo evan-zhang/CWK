@@ -33,6 +33,8 @@ import kb_retrieval_candidates as kbc  # noqa: E402
 import kb_stage_b_poc as poc  # noqa: E402
 import rt055_opslib as ops
 import rt055_runtime as runtime
+import rt055_candidate_workspace as workspace_api
+import uuid
 import rt055_window as window  # noqa: E402
 
 KB_PATH_RE = re.compile(r"^/api/v1/knowledge-bases/([A-Za-z0-9_-]+)")
@@ -164,18 +166,21 @@ def api_call(base_url: str, method: str, path: str, payload: Any, token: str | N
         return json.loads(resp.read() or b"{}")
 
 
-def launch_sidecar(port: int, hf_home: Path, log_path: Path, *, privacy_probe=False, window_id=None) -> subprocess.Popen:
-    env = runtime.clean_env(ROOT)
+def launch_sidecar(port: int, hf_home: Path, log_path: Path, *, privacy_probe=False, window_id=None, workspace=None) -> subprocess.Popen:
+    if workspace is None:raise RuntimeError("candidate_workspace_required")
+    workspace_api.validate(workspace,window_id=window_id)
+    workspace_api.require_path(workspace,log_path,"logs")
+    env = runtime.clean_env(workspace.base)
     env["HF_HUB_OFFLINE"] = "1"
     env["TRANSFORMERS_OFFLINE"] = "1"
     env["HF_HOME"] = str(hf_home)
-    with log_path.open("wb") as log:
+    with log_path.open("xb") as log:
         proc = runtime.spawn(ROOT,
             [str(ROOT / "sidecar" / "venv" / "bin" / "python"),
              str(HERE / "rt055_embed_sidecar.py"),
              "--port", str(port), "--model", EMBED_REPO,
              "--hf-home", str(hf_home), *(["--privacy-probe"] if privacy_probe else [])],
-            stdout=log, stderr=subprocess.STDOUT, env=env, window_id=window_id)
+            stdout=log, stderr=subprocess.STDOUT, env=env, window_id=window_id, workspace=workspace)
 
     deadline = time.monotonic() + 1800
     while time.monotonic() < deadline:
@@ -192,12 +197,15 @@ def launch_sidecar(port: int, hf_home: Path, log_path: Path, *, privacy_probe=Fa
     raise RuntimeError("sidecar_not_ready")
 
 
-def launch_server(port: int, data_dir: Path, log_path: Path, *, window_id=None) -> subprocess.Popen:
+def launch_server(port: int, data_dir: Path, log_path: Path, *, window_id=None, workspace=None) -> subprocess.Popen:
     if not all((ROOT / "jieba" / name).is_file() for name in runtime.JIEBA_FILES):
         raise RuntimeError("native_dictionary_assets_missing")
-    data_dir.mkdir(parents=True, exist_ok=True)
-    data_dir.chmod(0o700)
-    env = runtime.clean_env(ROOT)
+    if workspace is None:raise RuntimeError("candidate_workspace_required")
+    workspace_api.validate(workspace,window_id=window_id)
+    workspace_api.require_path(workspace,data_dir,"data")
+    workspace_api.require_path(workspace,log_path,"logs")
+    data_dir.mkdir(mode=0o700,parents=True, exist_ok=False)
+    env = runtime.clean_env(workspace.base)
     env.update({
         "DB_DRIVER": "sqlite", "DB_PATH": str(data_dir / "app.db"),
         "RETRIEVE_DRIVER": "sqlite", "JIEBA_DICT_DIR": str(ROOT / "jieba"),
@@ -210,10 +218,10 @@ def launch_server(port: int, data_dir: Path, log_path: Path, *, window_id=None) 
     for name in list(env):
         if name.startswith("LANGFUSE") and name != "LANGFUSE_ENABLED":
             env.pop(name)
-    with log_path.open("wb") as log:
+    with log_path.open("xb") as log:
         proc = runtime.spawn(ROOT,[str(ROOT / "bin" / "weknora-server")],
                                 stdout=log, stderr=subprocess.STDOUT,
-                                env=env, cwd=str(ROOT / "weknora"), window_id=window_id)
+                                env=env, cwd=str(workspace.base), window_id=window_id, workspace=workspace)
 
     try:
         ops.wait_for_http(f"http://127.0.0.1:{port}{BASE}/knowledge-bases", timeout=180,
@@ -225,8 +233,8 @@ def launch_server(port: int, data_dir: Path, log_path: Path, *, window_id=None) 
 
 
 def setup_instance(kb: str, port: int, sidecar_port: int, data_dir: Path,
-                   log_path: Path, rng: random.Random, *, window_id=None) -> dict[str, Any]:
-    proc = launch_server(port, data_dir, log_path, window_id=window_id)
+                   log_path: Path, rng: random.Random, *, window_id=None, workspace=None) -> dict[str, Any]:
+    proc = launch_server(port, data_dir, log_path, window_id=window_id, workspace=workspace)
     try:
         base = f"http://127.0.0.1:{port}"
         password = "Rt055-" + secrets.token_hex(12)
@@ -305,6 +313,7 @@ def log_leak_check(log_paths: list[Path], needles: list[str]) -> bool:
 
 
 def main() -> int:
+    os.umask(0o077)
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=("smoke", "run"), required=True)
     parser.add_argument('--window-id')
@@ -312,6 +321,10 @@ def main() -> int:
     if args.mode=='run' and not args.window_id:parser.error('--window-id required for formal run')
     w=window.directory(ROOT,args.window_id) if args.mode=='run' else ROOT
     attempt=None
+    workspace=None
+    corpus=None
+    cases=[]
+    log_scanned=False
     completed={}
     log_root=ROOT/"runtime-logs"
 
@@ -333,7 +346,8 @@ def main() -> int:
         if args.mode == "run":
             runtime.verify_ready(ROOT,"b",args.window_id)
             attempt=runtime.claim_candidate(ROOT, "b",args.window_id)
-            log_root=w/"runtime-logs"/"b"/attempt
+            workspace=workspace_api.create(ROOT,args.window_id,"b",attempt)
+            log_root=workspace.base/"logs"
             runtime.verify_ready(ROOT, "b",args.window_id)
             verification = window.verification(ROOT,args.window_id)
             if not verification.get("verified"):
@@ -370,7 +384,11 @@ def main() -> int:
             cases += [kbc.Case(kb, "zznosuchtermqzxvkj0001", frozenset(), False)
                       for kb in ops.LIBRARIES]
 
-        if args.mode == "smoke": participating = list(ops.LIBRARIES)
+        if args.mode == "smoke":
+            participating = list(ops.LIBRARIES)
+            workspace=workspace_api.create(ROOT,str(uuid.uuid4()),"b",str(uuid.uuid4()),synthetic=True)
+            log_root=workspace.base/"logs"
+        data_root=workspace.base/"data"
         transport = RoutingTransport()
         per_lib_pids: dict[str, list[int]] = {}
         log_paths: list[Path] = []
@@ -380,10 +398,10 @@ def main() -> int:
             sidecar_log = log_root / f"sidecar-{kb}.log"
             server_log = log_root / f"weknora-{kb}.log"
             sidecar_log.parent.mkdir(parents=True, exist_ok=True)
-            sidecar = launch_sidecar(sidecar_port, ROOT / "sidecar" / "hf", sidecar_log, window_id=args.window_id if args.mode=="run" else None)
+            sidecar = launch_sidecar(sidecar_port, ROOT / "sidecar" / "hf", sidecar_log, window_id=args.window_id if args.mode=="run" else None, workspace=workspace)
             processes.append(sidecar)
             server = setup_instance(kb, server_port, sidecar_port,
-                                    data_root / f"b-{kb}", server_log, rng, window_id=args.window_id if args.mode=="run" else None)
+                                    data_root / f"b-{kb}", server_log, rng, window_id=args.window_id if args.mode=="run" else None, workspace=workspace)
             processes.append(server["proc"])
             transport.add_server(kb, server)
             per_lib_pids[kb] = [sidecar.pid, server["proc"].pid]
@@ -420,12 +438,14 @@ def main() -> int:
         for kb in participating:
             if index_bytes[kb] <= 0 or build_seconds[kb] <= 0:
                 raise RuntimeError("resource_measurement_incomplete")
+        for proc in processes:ops.stop_process(proc)
+        workspace_api.scan(workspace,workspace_api.needles(corpus,cases));log_scanned=True
+        if not log_leak_check(log_paths, list(ops.WARMUP_QUERIES)):
+            raise RuntimeError("log_confidentiality_gate_failed")
         if args.mode=='run':
             for kb,gate_result in zip(participating,gateway_results):
                 window.library_complete(ROOT,args.window_id,'b',kb,{'metrics':{**metrics[kb],
                     'index_bytes':index_bytes[kb],'build_seconds':build_seconds[kb],'peak_rss_bytes':peaks[kb]},'gateway_readiness':gate_result})
-        if not log_leak_check(log_paths, list(ops.WARMUP_QUERIES)):
-            raise RuntimeError("log_confidentiality_gate_failed")
         result.update({
             "status": "OK", "mode": args.mode, "gateway_readiness": gateway,
             "libraries": {kb: {**metrics[kb],
@@ -464,8 +484,11 @@ def main() -> int:
         for sampler in samplers.values():sampler.stop()
         for proc in processes:
             ops.stop_process(proc)
-        if args.mode == "smoke":
-            subprocess.run(("/bin/rm", "-rf", str(data_root)), check=False)
+        if workspace is not None:
+            try:
+                if not log_scanned and not (workspace.ledger.parent/'log-scan.json').exists():
+                    workspace_api.scan(workspace,workspace_api.needles(corpus,cases))
+            finally:workspace_api.cleanup(workspace)
 
 
 def candidate_ready_to_poll(candidate: kbc.WeKnoraCandidate) -> bool:

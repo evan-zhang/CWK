@@ -234,3 +234,40 @@ Evan 本次明确授权执行第四轮 OPS 全闭环，覆盖上文只做本地�
 先红后绿；旧/stale 策略无 main readiness、synthetic 冒充、缺账本保护、外连放宽、错 source/migration/window、receipt/策略漂移、重复 claim、after-before 乱序、有 exposure 迁移、闭窗重开均拒绝。行为破坏在公开临时源码副本进行，恢复后跑完整 RT055 回归、compile、Schema/隐私/links/AODW/governance/diff。旧公开证据字节及文档旧前缀保持。
 
 本地源码修复独立提交、不 push；OPS 在新 migration 下真实重跑公开合成隐私门并清理。之后主 readiness → 全新 before → 随机新顺序 freeze → 独立 verify → 只读 spawn precheck；不得因旧顺序或候选成绩选顺序。最终 builder/verifier=1/1、96 材料不变、旧 window/attempt/void/freeze 不变、global exposure/new arm/new attempt/formal query/result=0、Gateway 3×200、无候选/合成进程或临时数据面。公开 READY evidence/Schema/QA 单独提交，保留旧 INVALID，RT 不关闭、不切流；完整 NAS/index 不变性仍 UNKNOWN，历史服务漂移不被本次准备成功消除。
+
+## Amendment 6 — candidate runtime workspace recovery（2026-09-12）
+
+用户明确授权从 Amendment 5 的永久 INVALID 窗口恢复执行器，**不执行正式 coordinator/query**。
+旧窗口曾读取私有 runner 输入、A attempt1、进程记录1；这不是“未执行”。其 arm/exposure/query/
+score/complete/result 均0，after 已关闭，不重开、不重试、不覆盖。新窗口仍依现行 global exposure=0
+规则建立；builder/verifier、题池/tier/seed、候选算法、scorer、质量门、模型与 WeKnora core 不改。
+
+### 运行目录与控制账本分离
+
+- 代码构造 `candidate-runtime/<window>/<a|b>/<attempt>`，0700；data/logs/home/tmp 归同一租约。
+  窗口及 attempt 必须随机 UUID，父目录/租约/日志路径拒 symlink、escape、hardlink 和目录复用。
+- 所有权、分配 claim、日志扫描和清理回执在候选不可写的控制区；记录 device/inode/uid 和完整身份。
+  正式租约必须绑定真实 attempt claim；公开 startup probe 使用 migration 独立账本，不创建正式 attempt。
+- A/B 共用同一目录合同。子进程网络策略保持不变；在现有文件拒绝规则上收紧为仅自身租约可写，
+  拒读其它候选租约及正式控制账本。formal-windows 全目录继续拒读写，不为日志开洞。
+- 停止精确 ownership 匹配的进程后，扫描最终日志；私有题面/expected/title/filename/id/path/body 等
+  原文与 JSON 转义形式只在 OPS 内作为 needle。无日志、无 needle、读取/身份异常、命中均硬失败；
+  命中不写 candidate complete/result，coordinator 必须 cleanup→after 后 INVALID。回执只有计数/布尔。
+- 日志在 OPS 私有控制区归档后，按完整 window/candidate/attempt 和 inode 精确删除运行租约，验证0。
+  不按 root 前缀清理另一窗口；不删除旧 data/claim/attempt/window/审计历史。
+
+### 新断点门禁
+
+先归档旧源码及失败证据，部署独立 source commit；新 migration 重做 source-bound 公开 synthetic
+隐私验收（正常/鉴权错误日志、Langfuse/OTEL、loopback model、egress/socket），不读取私有 holdout。
+主窗口 policy readiness 后、before 前，主 root 用同一 policy 与租约代码真实启动 A 三库、B 三库
+及三个 sidecar；只用公开配置，不执行任何检索/评分。startup 的源码、策略、租约、扫描、cleanup
+回执进入 freeze 的必需绑定。新 before、新随机 freeze/verify，再独立无 Popen precheck。
+正式 attempt/arm/exposure/query/result/after 必须仍0，旧 A attempt1 不变。到 READY_TO_RUN 即停。
+
+### 验证入口
+
+- [运行目录与硬门测试](../../tests/test_rt055_candidate_workspace.py)
+- [行为破坏测试](../../scripts/rt055_candidate_workspace_qa.py)
+- [主运行策略真实 startup](../../scripts/rt055_candidate_startup.py)
+- [旧路径公开 synthetic 根因证据](evidence/candidate-workspace-root-cause.json)

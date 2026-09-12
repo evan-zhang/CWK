@@ -290,3 +290,15 @@ A attempt1，已通过 spawn precheck并创建1个进程记录，但 OpenSearch 
 [完整验收与三格核验](evidence/acceptance.md#amendment-5-正式执行收口a-启动失败后-invalid2026-09-12)、[公开abort](evidence/amendment5-formal-abort.json)、[Schema](evidence/amendment5-formal-abort.schema.json)、[唯一裁决](evidence/amendment5-formal-decision.json)、[QA](evidence/amendment5-formal-qa.json)。174回归与128编译针对未变源码通过；真实启动缺口不能被回归全绿掩盖。
 
 本轮中止收口完成，RT保持in_progress，选型未完成、切流禁止。仅本地提交公开证据和上述文档，不push/合并/清worktree。没有后台实验；任何修复或再跑均需新授权，不自动重建池、before、freeze或窗口。
+
+## Amendment 6 — 恢复运行目录隔离，目标为新 READY_TO_RUN
+
+2026-09-12 用户授权继续修复 A 启动失败，但旧窗口永久关闭，不重试、不正式查询。
+冻结 runner 将日志放进 sandbox 禁写的正式账本；公开 syscall 已复现。改为 A/B 统一的
+window/candidate/attempt 独占运行租约，账本仍不可读写；补最终日志扫描和精确清理。
+主 root 必须真实完成公开 A/B 三库 startup 后才允许新 before/freeze。
+
+见 [Amendment 6](experiment-protocol.md#amendment-6--candidate-runtime-workspace-recovery2026-09-12)
+及 [本地验收](evidence/acceptance.md#amendment-6--runtime-workspace-修复验收本地阶段)。
+当前为执行器开发验收，不代表新 OPS READY。旧执行曾打开私有 runner 输入，不能称为未发生；
+global exposure/query/result0 是新窗口授权规则的依据，不得改题池或重复 builder/verifier。

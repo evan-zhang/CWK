@@ -83,6 +83,9 @@ def main(argv=None):
                 # Completion artifacts survive SSH failures. An unmatched consumption
                 # is never replayed. Only the parent may classify a real hard gate.
                 for kb in checks['participating_libraries']:window.library_result(ROOT,args.window_id,key,kb)
+                scans=list(w.glob('run-*/attempts/*/log-scan.json'))
+                if any(ops.read_json(p).get('passed') is not True for p in scans):
+                    after_and_cleanup();state.update(status='INVALID',phase='COMPLETE',reason='CANDIDATE_LOG_PRIVACY_FAILED');return 3
                 state.update(status='WAITING_RECONCILIATION',phase='EXECUTION_ATTEMPT_FAILED')
                 return 4
         after_and_cleanup()

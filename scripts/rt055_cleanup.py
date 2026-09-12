@@ -12,6 +12,7 @@ import time
 import uuid
 import rt055_opslib as ops
 import rt055_window as window
+import rt055_candidate_workspace as cw
 
 def cleanup(root,window_id=None):
     w=window.directory(root,window_id) if window_id else root
@@ -21,10 +22,18 @@ def cleanup(root,window_id=None):
     failures=0;processes=0
     for record in sorted((root/'resources').glob('process-*.json')):
         row=ops.read_json(record);pid=row['pid']
+        if window_id:
+            identity=row.get('workspace',{})
+            if identity.get('window_id')!=window_id:continue
+            space=cw.Workspace(root,window_id,identity.get('candidate'),identity.get('attempt_id'))
+            if identity!=space.identity():failures+=1;continue
+            if not space.base.exists():continue
+            try:cw.validate(space)
+            except (OSError,RuntimeError,ValueError):failures+=1;continue
         observed=subprocess.run(['/bin/ps','-p',str(pid),'-o','command='],capture_output=True,text=True).stdout.strip()
         if not observed:continue
         # PID reuse fails closed. Never terminate by scan/substring alone.
-        if str(root) not in observed:continue  # confirmed unrelated PID reuse; never kill it
+        if str(space.base if window_id else root) not in observed:continue  # unrelated PID reuse
         try:
             os.kill(pid,signal.SIGTERM)
             for _ in range(20):
@@ -34,7 +43,12 @@ def cleanup(root,window_id=None):
         except ProcessLookupError:pass
     # Each subtree was created only in this exclusive UUID root. Never touch
     # shared parent tooling, old pools, NAS or an index outside this data plane.
-    for name in ('data-run','data-smoke'):
+    for space in cw.owned(root,window_id) if window_id else []:
+        try:cw.cleanup(space)
+        except (OSError,RuntimeError):failures+=1
+    # Legacy cleanup is available only outside a formal window. New formal
+    # cleanup must not remove unowned/historical data trees.
+    for name in (() if window_id else ('data-run','data-smoke')):
         path=root/name
         if path.is_symlink():failures+=1;continue
         if path.exists():
@@ -51,8 +65,9 @@ def cleanup(root,window_id=None):
             p=subprocess.run([docker,*args],capture_output=True,text=True)
             if p.returncode:failures+=1
             else:resources+=sum(root.name in line for line in p.stdout.splitlines())
+    owned_remaining=len(cw.owned(root,window_id)) if window_id else 0
     payload={'private_holdout_retained_on_ops':(root/'builder/private-corpus.json').is_file() and (root/'verifier/private-verified.json').is_file(),
-             'temporary_indices_zero':not (root/'data-run').exists(),'temporary_services_zero':processes==0,'temporary_containers_zero':resources==0,'cleanup_failures':failures,
+             'temporary_indices_zero':not (root/'data-run').exists() and owned_remaining==0,'temporary_services_zero':processes==0,'temporary_containers_zero':resources==0,'cleanup_failures':failures,
              'related_processes':processes,'uuid_container_volume_network_resources':resources,'private_artifacts_retained':True}
     if window_id:
         payload.update(window.envelope(root,window_id,'cleanup'))

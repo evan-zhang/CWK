@@ -17,16 +17,22 @@ import rt055_runtime as runtime
 import rt055_run_a as search
 import rt055_run_b as native
 import rt055_confidentiality as gate
+import rt055_candidate_workspace as cw
+import uuid
+
+def public_workspace(root,key):
+    root.chmod(0o700);(root/".rt055-owned").write_text("PUBLIC")
+    return cw.create(root,str(uuid.uuid4()),key,str(uuid.uuid4()),synthetic=True)
 
 
 class ExecutionerTests(unittest.TestCase):
     def test_search_launch_forces_ipv4_and_no_outbound_and_cleans_failed_start(self):
         with tempfile.TemporaryDirectory() as td:
-            root = Path(td); (root/'runtime-logs').mkdir()
+            root = Path(td); (root/'runtime-logs').mkdir();space=public_workspace(root,'a')
             p = Mock()
             with patch.object(search, 'ROOT', root), patch.object(runtime, 'spawn', return_value=p) as spawn, patch.object(search.ops, 'wait_for_http', side_effect=RuntimeError('not_ready')), patch.object(search.ops, 'stop_process') as stop:
                 with self.assertRaises(RuntimeError):
-                    search.launch_opensearch('synthetic', 39101, root/'runtime-logs/a.log', 'smoke')
+                    search.launch_opensearch('synthetic', 39101, cw.file(space,'logs','a.log'), 'smoke',workspace=space)
             self.assertIn('-Djava.net.preferIPv4Stack=true', spawn.call_args.kwargs['env'].get('OPENSEARCH_JAVA_OPTS', ''))
             self.assertEqual(spawn.call_args.kwargs.get('network_policy'), 'inbound-only')
             self.assertIn('transport.host=127.0.0.1', spawn.call_args.args[1])
@@ -69,15 +75,15 @@ class ExecutionerTests(unittest.TestCase):
 
     def test_native_dictionary_configuration_is_required_and_used(self):
         with tempfile.TemporaryDirectory() as td:
-            root=Path(td);(root/'runtime-logs').mkdir()
+            root=Path(td);(root/'runtime-logs').mkdir();space=public_workspace(root,'b')
             with patch.object(native,'ROOT',root),patch.object(runtime,'spawn') as spawn:
                 with self.assertRaisesRegex(RuntimeError,'native_dictionary_assets_missing'):
-                    native.launch_server(41101,root/'data',root/'runtime-logs/native.log')
+                    native.launch_server(41101,cw.file(space,'data','native'),cw.file(space,'logs','native.log'),workspace=space)
                 spawn.assert_not_called()
                 (root/'jieba').mkdir()
                 for name in runtime.JIEBA_FILES:(root/'jieba'/name).write_text('public synthetic')
                 with patch.object(native.ops,'wait_for_http'):
-                    native.launch_server(41101,root/'data',root/'runtime-logs/native.log')
+                    native.launch_server(41101,cw.file(space,'data','native'),cw.file(space,'logs','native.log'),workspace=space)
                 self.assertEqual(spawn.call_args.kwargs['env']['JIEBA_DICT_DIR'],str(root/'jieba'))
 
     def test_required_dictionary_bytes_enter_the_dependency_manifest(self):

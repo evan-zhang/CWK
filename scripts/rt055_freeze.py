@@ -14,7 +14,7 @@ import rt055_runtime as runtime
 import rt055_window as window
 import rt055_runtime_readiness as readiness
 PINNED='8d7298fb5d759973cb1e481cadc5ecdf16dca599'
-SHARED=('kb_retrieval_candidates.py','kb_retrieval_decision.py','kb_stage_b_poc.py','kb_stage_b_opensearch_benchmark.py','rt055_runtime.py','rt055_opslib.py','rt055_tiers.py','rt055_confidentiality.py','rt055_window.py','rt055_baseline.py','rt055_formal_coordinator.py','rt055_aggregate.py','rt055_cleanup.py','rt055_freeze.py','rt055_zero_exposure.py','rt055_runtime_readiness.py')
+SHARED=('kb_retrieval_candidates.py','kb_retrieval_decision.py','kb_stage_b_poc.py','kb_stage_b_opensearch_benchmark.py','rt055_runtime.py','rt055_opslib.py','rt055_tiers.py','rt055_confidentiality.py','rt055_window.py','rt055_baseline.py','rt055_formal_coordinator.py','rt055_aggregate.py','rt055_cleanup.py','rt055_freeze.py','rt055_zero_exposure.py','rt055_runtime_readiness.py','rt055_candidate_workspace.py','rt055_candidate_startup.py')
 
 def upstream(root):
     def git(*args):return subprocess.check_output(['git','-C',str(root/'weknora'),*args],stderr=subprocess.DEVNULL,text=True).strip()

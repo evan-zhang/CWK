@@ -28,6 +28,8 @@ import kb_retrieval_candidates as kbc  # noqa: E402
 import kb_stage_b_poc as poc  # noqa: E402
 import rt055_opslib as ops
 import rt055_runtime as runtime
+import rt055_candidate_workspace as workspace_api
+import uuid
 import rt055_window as window  # noqa: E402
 
 OS_VERSION = "3.3.2"
@@ -110,20 +112,23 @@ def ensure_icu_plugin() -> None:
                            + (result.stderr or result.stdout or b"").decode(errors="replace")[-200:])
 
 
-def launch_opensearch(kb: str, port: int, log_path: Path, mode="run", window_id=None) -> tuple[subprocess.Popen, dict[str, str]]:
-    data_dir = ROOT / ("data-" + mode) / f"a-{kb}"
-    logs_dir = log_path.parent / f"a-{kb}"
-    data_dir.mkdir(parents=True, exist_ok=False)
-    logs_dir.mkdir(parents=True, exist_ok=True)
-    env = runtime.clean_env(ROOT)
+def launch_opensearch(kb: str, port: int, log_path: Path, mode="run", window_id=None, workspace=None) -> tuple[subprocess.Popen, dict[str, str]]:
+    if workspace is None:raise RuntimeError("candidate_workspace_required")
+    workspace_api.validate(workspace,window_id=window_id)
+    workspace_api.require_path(workspace,log_path,"logs")
+    data_dir = workspace_api.file(workspace,"data",f"a-{kb}")
+    logs_dir = workspace_api.file(workspace,"logs",f"a-{kb}")
+    data_dir.mkdir(mode=0o700,parents=True, exist_ok=False)
+    logs_dir.mkdir(mode=0o700,parents=True, exist_ok=False)
+    env = runtime.clean_env(workspace.base)
     env["OPENSEARCH_JAVA_HOME"] = str(ROOT / "jdk" / "Contents" / "Home")
     env["OPENSEARCH_JAVA_OPTS"] = "-Djava.net.preferIPv4Stack=true"
-    env["OPENSEARCH_TMPDIR"] = str(ROOT / "tmp")
+    env["OPENSEARCH_TMPDIR"] = str(workspace.base / "tmp")
     env.pop("DISABLE_SECURITY_PLUGIN", None)
     env.pop("DISABLE_INSTALL_DEMO_CONFIG", None)
     transport_port = free_port(random.Random())
     while transport_port == port:transport_port = free_port(random.Random())
-    with log_path.open("wb") as log:
+    with log_path.open("xb") as log:
         proc = runtime.spawn(ROOT,
             [str(ROOT / "opensearch" / "bin" / "opensearch"),
              "-E", "network.host=127.0.0.1",
@@ -136,7 +141,7 @@ def launch_opensearch(kb: str, port: int, log_path: Path, mode="run", window_id=
              "-E", f"path.logs={logs_dir}",
              "-E", "cluster.routing.allocation.disk.threshold_enabled=false"],
             stdout=log, stderr=subprocess.STDOUT,
-            env=env, cwd=str(ROOT / "opensearch"), network_policy="inbound-only", window_id=window_id)
+            env=env, cwd=str(ROOT / "opensearch"), network_policy="inbound-only", window_id=window_id, workspace=workspace)
 
     base = f"http://127.0.0.1:{port}"
     try:
@@ -178,6 +183,7 @@ def load_cases(verified: dict) -> list[kbc.Case]:
 
 
 def main() -> int:
+    os.umask(0o077)
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=("smoke", "run"), required=True)
     parser.add_argument("--case-limit", type=int, default=0,
@@ -187,6 +193,10 @@ def main() -> int:
     if args.mode=='run' and not args.window_id:parser.error('--window-id required for formal run')
     w=window.directory(ROOT,args.window_id) if args.mode=='run' else ROOT
     attempt=None
+    workspace=None
+    corpus=None
+    cases=[]
+    log_scanned=False
     completed={}
     log_root=ROOT/"runtime-logs"
 
@@ -207,7 +217,8 @@ def main() -> int:
         if args.mode == "run":
             runtime.verify_ready(ROOT,"a",args.window_id)
             attempt=runtime.claim_candidate(ROOT, "a",args.window_id)
-            log_root=w/"runtime-logs"/"a"/attempt
+            workspace=workspace_api.create(ROOT,args.window_id,"a",attempt)
+            log_root=workspace.base/"logs"
             verification = window.verification(ROOT,args.window_id)
             if not verification.get("verified"):
                 print("RUN_A: freeze verification not passed")
@@ -243,7 +254,10 @@ def main() -> int:
                       for kb in ops.LIBRARIES]
             cases += [kbc.Case(kb, "zznosuchtermqzxvkj0001", frozenset(), False)
                       for kb in ops.LIBRARIES]
-        if args.mode == "smoke": participating = list(ops.LIBRARIES)
+        if args.mode == "smoke":
+            participating = list(ops.LIBRARIES)
+            workspace=workspace_api.create(ROOT,str(uuid.uuid4()),"a",str(uuid.uuid4()),synthetic=True)
+            log_root=workspace.base/"logs"
         if args.mode == "smoke" and args.case_limit:
             cases = cases[:args.case_limit]
 
@@ -256,7 +270,7 @@ def main() -> int:
             port = free_port(rng)
             log_path = log_root / f"opensearch-{kb}.log"
             log_path.parent.mkdir(parents=True, exist_ok=True)
-            proc, info = launch_opensearch(kb, port, log_path, args.mode, window_id=args.window_id if args.mode=="run" else None)
+            proc, info = launch_opensearch(kb, port, log_path, args.mode, window_id=args.window_id if args.mode=="run" else None, workspace=workspace)
             services.append(proc)
             pids.append(proc.pid)
             samplers[kb] = ops.RssSampler([proc.pid]); samplers[kb].start()
@@ -283,16 +297,12 @@ def main() -> int:
             if args.mode=='run':window.library_scored(ROOT,args.window_id,'a',kb,metrics[kb])
 
         store_bytes = multi.index_bytes()
-        index_bytes = {kb: runtime.data_bytes(ROOT / ("data-" + args.mode) / f"a-{kb}")
+        index_bytes = {kb: runtime.data_bytes(workspace_api.file(workspace,"data",f"a-{kb}"))
                        for kb in participating}
         for kb in participating:
             if index_bytes[kb] <= 0 or store_bytes[kb] <= 0:
                 raise RuntimeError("index_bytes_unmeasured")
         peak_rss = {kb:sampler.stop() for kb,sampler in samplers.items()}
-        if args.mode=='run':
-            for kb in participating:
-                window.library_complete(ROOT,args.window_id,'a',kb,{'metrics':{**metrics[kb],
-                    'index_bytes':index_bytes[kb],'build_seconds':round(build_seconds[kb],3),'peak_rss_bytes':peak_rss[kb]},'gateway_readiness':gateway})
         multi.close()
         leftovers_total = 0
         for kb, url in multi.stats_urls.items():
@@ -301,6 +311,12 @@ def main() -> int:
                 leftovers_total += len(json.loads(resp.read()))
         if leftovers_total:
             raise RuntimeError("temporary_indices_not_zero")
+        for proc in services:ops.stop_process(proc)
+        workspace_api.scan(workspace,workspace_api.needles(corpus,cases));log_scanned=True
+        if args.mode=='run':
+            for kb in participating:
+                window.library_complete(ROOT,args.window_id,'a',kb,{'metrics':{**metrics[kb],
+                    'index_bytes':index_bytes[kb],'build_seconds':round(build_seconds[kb],3),'peak_rss_bytes':peak_rss[kb]},'gateway_readiness':gateway})
         result.update({
             "status": "OK", "mode": args.mode, "gateway_readiness": gateway,
             "libraries": {kb: {**metrics[kb],
@@ -340,10 +356,11 @@ def main() -> int:
         except Exception: pass
         for proc in services:
             ops.stop_process(proc)
-        if args.mode == "smoke":
-            for pattern in ("data-smoke/a-*",):
-                subprocess.run(("/bin/rm", "-rf") + tuple(str(p) for p in ROOT.glob(pattern)),
-                               check=False)
+        if workspace is not None:
+            try:
+                if not log_scanned and not (workspace.ledger.parent/'log-scan.json').exists():
+                    workspace_api.scan(workspace,workspace_api.needles(corpus,cases))
+            finally:workspace_api.cleanup(workspace)
 
 
 if __name__ == "__main__":

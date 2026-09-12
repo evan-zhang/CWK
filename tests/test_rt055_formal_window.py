@@ -67,6 +67,7 @@ class WindowTests(unittest.TestCase):
         (attempt/'.rt055-owned').write_text(self.root.name.removeprefix('rt055-'))
         for name in runtime.MIGRATION_SOURCE_FILES:(attempt/'impl'/name).write_bytes((self.root/'impl'/name).read_bytes())
         obs=privacy_tests.GateTests().fixture()
+        obs.update(candidate_workspace_cleanup_zero=True,candidate_workspace_candidates=['a','b'])
         window.write_once(attempt/'audit/confidentiality-observations.json',obs)
         window.write_once(attempt/'status/confidentiality.json',{'status':'PASS','phase':'COMPLETE'})
         window.write_once(attempt/'audit/synthetic-cleanup.json',{'complete':True,'failures':0,'remaining_processes':0,'remaining_data_planes':0})
@@ -85,6 +86,30 @@ class WindowTests(unittest.TestCase):
             return SimpleNamespace(returncode=0,stdout=json.dumps(readiness.NETWORK['policy_observations'][kind]))
         with patch.object(runtime.subprocess,'run',side_effect=probe):
             readiness.prepare(self.root,wid or self.wid,self.mid)
+        self.workspace_fixture(wid or self.wid)
+
+    def workspace_fixture(self,wid):
+        # Unit fixture only. OPS evidence is produced by the real startup CLI.
+        import time
+        import rt055_candidate_workspace as cw
+        import rt055_candidate_startup as startup
+        import rt055_runtime_readiness as readiness
+        import rt055_window as window
+        r=readiness.verify(self.root,wid,self.mid);base=readiness.directory(self.root,wid)
+        row={'schema':startup.SCHEMA,**window.envelope(self.root,wid,'candidate-startup-readiness'),
+             'migration_id':self.mid,'source_commit':r['source_commit'],'source_files':r['source_files'],
+             'policy_files':r['files'],'policy_receipt_sha256':runtime.ops.sha_file(base/'receipt.json'),
+             'status':'PASS','a_started':3,'b_started':3,'sidecars_started':3,'private_reads':0,'formal_attempts':0,
+             'formal_queries':0,'cleanup_failures':0,'remaining_runtime':0,'started_at':time.time(),'leases':[]}
+        for key in ('a','b'):
+            space=cw.create(self.root,wid,key,str(uuid.uuid4()),synthetic=True,migration_id=self.mid)
+            cw.file(space,'logs','public.log').write_text('service ready')
+            cw.scan(space,['PUBLIC CANARY']);cw.cleanup(space)
+            row['leases'].append({'candidate':key,'attempt_id':space.attempt_id,
+                  'owner_sha256':runtime.ops.sha_file(space.ledger),'scan_sha256':runtime.ops.sha_file(space.ledger.parent/'log-scan.json'),
+                  'cleanup_sha256':runtime.ops.sha_file(space.ledger.parent/'workspace-cleanup.json')})
+        row['finished_at']=time.time();window.write_once(base/'workspace-readiness.json',row)
+
 
     def freeze_fixture(self,policy=True):
         self.migration()
@@ -246,7 +271,7 @@ class WindowTests(unittest.TestCase):
         value['libraries'][runtime.ops.LIBRARIES[0]]['recall_at_10']=0;p.write_text(json.dumps(value))
         with self.assertRaises(RuntimeError):window.validate_run(self.root,self.wid,'a',list(runtime.ops.LIBRARIES))
 
-    def runner_entrypoint(self,key):
+    def runner_entrypoint(self,key,leak=False):
         import importlib
         import time
         from types import SimpleNamespace
@@ -272,13 +297,18 @@ class WindowTests(unittest.TestCase):
                     calls.append(kb)
                 return []
             def close(self):pass
-        def server(kb,port,side,data,log,rng,*,window_id=None):
+        def server(kb,port,side,data,log,rng,*,window_id=None,workspace=None):
             outer.assertEqual(window_id,outer.wid)
-            log.write_text('public service started')
+            outer.assertIn('candidate-runtime',str(log))
+            log.write_text(cases[0].query if leak else 'public service started')
             return {'kb_id':kb,'proc':Mock(pid=123),'data_dir':data,'base_url':'http://127.0.0.1:41101'}
-        def sidecar(port,hf,log,*,window_id=None):
+        def sidecar(port,hf,log,*,window_id=None,workspace=None):
             outer.assertEqual(window_id,outer.wid)
             log.write_text('public sidecar started');return Mock(pid=124)
+        def search_start(kb,port,log,mode,*,window_id=None,workspace=None):
+            outer.assertEqual(window_id,outer.wid)
+            outer.assertIn('candidate-runtime',str(log));log.write_text(cases[0].query if leak else 'service started')
+            return Mock(pid=123),{'base_url':'http://127.0.0.1:41101'}
         class Response:
             def __init__(self,url):self.url=url
             def __enter__(self):return self
@@ -294,7 +324,7 @@ class WindowTests(unittest.TestCase):
             stack.enter_context(patch.object(runner.ops,'RssSampler',return_value=Mock(stop=Mock(return_value=10000))))
             stack.enter_context(patch.object(runner.ops,'stop_process'))
             if key=='a':
-                stack.enter_context(patch.object(runner,'launch_opensearch',return_value=(Mock(pid=123),{'base_url':'http://127.0.0.1:41101'})))
+                stack.enter_context(patch.object(runner,'launch_opensearch',side_effect=search_start))
                 stack.enter_context(patch.object(runner,'verify_icu'))
                 stack.enter_context(patch.object(runner.kbc,'OpenSearchCandidate',Candidate))
                 stack.enter_context(patch.object(runner.urllib.request,'urlopen',side_effect=lambda url,**kw:Response(url)))
@@ -302,6 +332,14 @@ class WindowTests(unittest.TestCase):
                 stack.enter_context(patch.object(runner,'launch_sidecar',side_effect=sidecar))
                 stack.enter_context(patch.object(runner,'setup_instance',side_effect=server))
                 stack.enter_context(patch.object(runner.kbc,'WeKnoraCandidate',Candidate))
+            if leak:
+                self.assertEqual(runner.main(),2)
+                self.assertFalse((w/('run-'+key)/'result.json').exists())
+                self.assertFalse(list(w.glob('run-'+key+'/complete/*.json')))
+                self.assertFalse((root/'candidate-runtime').exists())
+                scans=list(w.glob('run-'+key+'/attempts/*/log-scan.json'))
+                self.assertEqual(len(scans),1);self.assertFalse(runtime.ops.read_json(scans[0])['passed'])
+                return
             self.assertEqual(runner.main(),0)
             self.assertEqual(calls,[kb for kb in runtime.ops.LIBRARIES for _ in range(2)])
             actual=window.validate_run(self.root,self.wid,key,list(runtime.ops.LIBRARIES))
@@ -313,6 +351,8 @@ class WindowTests(unittest.TestCase):
 
     def test_a_actual_runner_claims_before_score_and_never_replays(self):self.runner_entrypoint('a')
     def test_b_actual_runner_claims_before_score_and_never_replays(self):self.runner_entrypoint('b')
+    def test_a_private_log_leak_blocks_result_and_completion(self):self.runner_entrypoint('a',leak=True)
+    def test_b_private_log_leak_blocks_result_and_completion(self):self.runner_entrypoint('b',leak=True)
 
     def test_real_aggregate_uses_only_same_window_after_and_current_privacy(self):
         import rt055_aggregate as aggregate

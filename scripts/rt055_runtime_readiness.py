@@ -85,7 +85,11 @@ def verify(root,wid,mid=None):
 def freeze_files(root,wid,mid,before_started):
     row=verify(root,wid,mid)
     need(row['ready_at']<before_started)
-    return tuple(sorted((*row['files'],str((directory(root,wid)/'receipt.json').relative_to(root)))))
+    from rt055_candidate_startup import verify as verify_workspace
+    workspace=verify_workspace(root,wid,mid)
+    need(workspace['finished_at']<before_started)
+    return tuple(sorted((*row['files'],str((directory(root,wid)/'receipt.json').relative_to(root)),
+                         str((directory(root,wid)/'workspace-readiness.json').relative_to(root)))))
 
 
 def prepare(root,wid,mid):

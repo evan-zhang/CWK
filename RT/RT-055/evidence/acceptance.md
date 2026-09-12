@@ -567,3 +567,17 @@ setup、builder、verifier、before、隐私预检与 cleanup/after 均以原进
 最终 QA 包含隐私/secret 扫描、链接/锚点、历史文件及文档前缀、AODW/governance 与 git diff/check；既有宿主 Skill 告警保留，不修改宿主配置，不冒称全仓 CI。交付仅本地提交两份本 RT 文档和四份公开证据，不 push/合并/删除 worktree，不提交 runs 或交接目录。
 
 本轮失败收口完成，RT 仍 in_progress，选型仍未完成；无后台实验或控制器。恢复需要新的明确授权及独立协议轮，不能因 query=0 或旧 readiness PASS 自动重开本窗口。
+
+## Amendment 6 — runtime workspace 修复验收（本地阶段）
+
+旧日志路径与 sandbox 保护范围冲突已由只读 OPS 分类和两种策略的公开 syscall 重现；
+旧 window 未重开、未重试，私有 holdout 未用于诊断。见
+[根因证据](candidate-workspace-root-cause.json) 与 [Amendment 6](../experiment-protocol.md#amendment-6--candidate-runtime-workspace-recovery2026-09-12)。
+
+本地交付：A/B 独占0700 runtime 租约、路径/ownership校验、收紧子进程写权限、最终日志
+needle 硬门、私有日志留存、精确 cleanup、main-root 公开完整 startup 源码绑定。
+本地 PASS 不能替代 OPS runtime/privacy/startup、新 before/freeze 与最终 READY evidence。
+
+判据：完整 RT055 回归和行为破坏；AI 评审：主工程师逐段检查租约/进程/扫描/完成顺序，
+未使用已退役固定 reviewer；读产出：真实 syscall 的拒绝/允许分类与 OPS 公开计数。
+不冒称全仓 CI；RT 仍 in_progress，正式查询及生产切流没有授权。

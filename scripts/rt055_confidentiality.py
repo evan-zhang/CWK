@@ -21,6 +21,8 @@ import urllib.error
 import urllib.request
 import rt055_opslib as ops
 import rt055_runtime as runtime
+import rt055_candidate_workspace as cw
+import uuid
 
 NORMAL_QUERY = 'rt055publicnormalqueryz9'
 NORMAL_TITLE = 'RT055 PUBLIC NORMAL TITLE 78213'
@@ -188,7 +190,7 @@ def run(root,protected_root=None):
     probing=False
     state={'status':'RUNNING','phase':'NETWORK','pid':os.getpid()}
     def phase(value):state['phase']=value;ops.write_private_json(root/'status/confidentiality.json',state)
-    processes=[];search_adapter=None;observer=Observer(root);observer.thread.start()
+    processes=[];spaces=[];search_adapter=None;observer=Observer(root);observer.thread.start()
     search.ROOT=native.ROOT=root;search.HERE=native.HERE=root/'impl'
     try:
         phase('NETWORK');net=runtime.network_probe(root)
@@ -196,7 +198,9 @@ def run(root,protected_root=None):
         o['java_bind_and_egress_probe']=java_probe(root)
         if not o['java_bind_and_egress_probe']:raise RuntimeError('java_network_policy_unproven')
         phase('SEARCH_START');search.ensure_icu_plugin()
-        proc,info=search.launch_opensearch('privacy',free_port(),root/'runtime-logs/search.log','smoke')
+        synthetic_window=str(uuid.uuid4())
+        a=cw.create(root,synthetic_window,'a',str(uuid.uuid4()),synthetic=True);spaces.append(a)
+        proc,info=search.launch_opensearch('privacy',free_port(),cw.file(a,'logs','search.log'),'smoke',workspace=a)
         processes.append(proc);o['search_started']=proc.poll() is None
         search.verify_icu(info['base_url'])
         kb='cwork-3m'
@@ -207,10 +211,11 @@ def run(root,protected_root=None):
         hits=search_adapter.search(NORMAL_QUERY,kb,timeout=30)
         o['search_normal_calls']=int(any(h.doc_id==doc.doc_id for h in hits))
         phase('SIDECAR_START');side_port=free_port()
-        side=native.launch_sidecar(side_port,root/'sidecar/hf',root/'runtime-logs/sidecar.log',privacy_probe=True)
+        bspace=cw.create(root,synthetic_window,'b',str(uuid.uuid4()),synthetic=True);spaces.append(bspace)
+        side=native.launch_sidecar(side_port,root/'sidecar/hf',cw.file(bspace,'logs','sidecar.log'),privacy_probe=True,workspace=bspace)
         processes.append(side);o['sidecar_started']=side.poll() is None
         phase('NATIVE_START')
-        server=native.setup_instance('privacy',free_port(),side_port,root/'data-smoke/privacy-native',root/'runtime-logs/native.log',random.Random())
+        server=native.setup_instance('privacy',free_port(),side_port,cw.file(bspace,'data','privacy-native'),cw.file(bspace,'logs','native.log'),random.Random(),workspace=bspace)
         processes.append(server['proc']);o['native_started']=server['proc'].poll() is None
         auth=native.api_call(server['base_url'],'GET','/api/v1/knowledge-bases',None,server['token'])
         o['authenticated_session_verified']=auth.get('success') is True
@@ -272,7 +277,15 @@ def run(root,protected_root=None):
             except Exception:o['cleanup_error']=True
         for proc in reversed(processes):ops.stop_process(proc)
         o.update(observer.finish());o['denial_probes']=denial_probes
-        count,hits=scan_logs(root/'runtime-logs',NEEDLES)
+        count=hits=0
+        for space in spaces:
+            n,h=scan_logs(space.base/'logs',NEEDLES);count+=n;hits+=h
+            try:cw.scan(space,NEEDLES)
+            except Exception:o['cleanup_error']=True
+            try:cw.cleanup(space)
+            except Exception:o['cleanup_error']=True
+        o['candidate_workspace_cleanup_zero']=not (root/'candidate-runtime').exists()
+        o['candidate_workspace_candidates']=sorted(s.candidate for s in spaces)
         other_count,other_hits=scan_logs(root/'weknora/logs',NEEDLES)
         o['log_files_scanned']=count+other_count;o['log_canary_hits']=hits+other_hits
         result=evaluate(o)
