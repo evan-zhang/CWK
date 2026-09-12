@@ -192,3 +192,16 @@ def run_command(argv,path,values,**kwargs):
         window.write_once(Path(str(path)+'.firewall.json'),row)
     if not row['verified'] or row['post_scan_hits']:return code or 3
     return code
+
+
+class MemoryBank:
+    """Opaque controller object; string leaves never enter process arguments/receipts."""
+    def __init__(self, private_json, public_values):
+        from rt055_candidate_workspace import needles
+        self.values=tuple(needles(private_json,[])+needles(list(public_values),[]))
+        self.patterns=Filter(self.values).patterns
+    def receipt(self):
+        return {'needle_count':len(self.patterns),'pattern_bytes':sum(map(len,self.patterns)),
+                'maximum_needle_bytes':max(map(len,self.patterns)),
+                'all_string_leaves':True,'json_escaped_variants':True,
+                'controller_memory_only':True,'values_serialized':False}

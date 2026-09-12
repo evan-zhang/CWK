@@ -269,6 +269,93 @@ def free_port():
         sock.bind(('127.0.0.1',0));return sock.getsockname()[1]
 
 
+def private_bank_paths(root):
+    paths=[]
+    for scope in ('builder','verifier'):
+        base=root/scope
+        if base.is_symlink() or not base.is_dir():raise RuntimeError('private_bank_inputs_missing')
+        for p in base.rglob('*'):
+            if p.is_symlink():raise RuntimeError('private_bank_input_symlink')
+            if p.is_file() and p.suffix=='.json':paths.append(p)
+    if not all(root/n in paths for n in ('builder/private-corpus.json','verifier/private-verified.json')):
+        raise RuntimeError('private_bank_inputs_missing')
+    return sorted(paths)
+
+
+def load_private_bank(root):
+    """Controller only, before audit-hook installation; never passed to any child."""
+    paths=private_bank_paths(root)
+    manifest={str(p.relative_to(root)):ops.sha_file(p) for p in paths}
+    bank=firewall.MemoryBank([ops.read_json(p) for p in paths],NEEDLES+tuple(ops.WARMUP_QUERIES))
+    verify_private_bank_inputs(root,manifest)
+    return bank,manifest
+
+
+def verify_private_bank_inputs(root,manifest):
+    actual={str(p.relative_to(root)):ops.sha_file(p) for p in private_bank_paths(root)}
+    if actual!=manifest:raise RuntimeError('private_bank_input_drift')
+
+
+def bind_current_logs(space,bank):
+    if not isinstance(bank,firewall.MemoryBank):raise RuntimeError('full_private_bank_required')
+    return firewall.bind(space,bank.values)
+
+
+def independent_scan(paths,values):
+    paths=list(paths);patterns=tuple({v.encode('utf-8') for v in values if v})
+    if not patterns:raise RuntimeError('independent_scan_bank_empty')
+    hits=0
+    for p in paths:
+        if p.is_symlink() or not p.is_file():raise RuntimeError('independent_scan_path_invalid')
+        body=p.read_bytes();hits+=int(any(n in body for n in patterns))
+    return len(paths),hits
+
+
+def current_log_observations(files,private_hits,public_hits,verified,loaded):
+    return {'current_log_contract':'FULL_PRIVATE_BANK_V1','full_bank_loaded':loaded,
+            'independent_scanned_files':files,'full_private_postscan_hit_files':private_hits,
+            'original_public_postscan_hit_files':public_hits,'log_firewall_verified':verified}
+
+
+def evaluate_current(o):
+    """Current-source admission only. Historical UNKNOWN/FAIL is never regraded."""
+    result=evaluate(o)
+    result['full_private_log_boundary']=(o.get('current_log_contract')=='FULL_PRIVATE_BANK_V1'
+        and o.get('full_bank_loaded') is True and o.get('log_firewall_verified') is True
+        and type(o.get('independent_scanned_files')) is int and o['independent_scanned_files']>=3
+        and o.get('full_private_postscan_hit_files')==0 and o.get('original_public_postscan_hit_files')==0)
+    result['passed']=all(result.values())
+    return result
+
+
+def current_log_evidence(root,t):
+    """Recompute binding, closed streams, inventory and independent all-private scan."""
+    manifest=ops.read_json(t/'audit/private-bank-input-binding.json')
+    verify_private_bank_inputs(root,manifest)
+    bank,_=load_private_bank(root)
+    if ops.read_json(t/'audit/full-private-bank.json')!=bank.receipt():raise RuntimeError('private_bank_receipt_drift')
+    inventory=ops.read_json(t/'audit/privacy-log-inventory.json')
+    if len(inventory)!=2 or len(set(inventory))!=2:raise RuntimeError('privacy_log_inventory_invalid')
+    paths=[];owners=0
+    for relative in inventory:
+        p=t/relative
+        if not p.resolve().is_relative_to(t.resolve()) or p.is_symlink():raise RuntimeError('privacy_log_inventory_invalid')
+        d=p.parent;f=ops.read_json(p);sc=ops.read_json(d/'log-scan.json');arc=d/'runtime-log-archive'
+        found={x for x in arc.rglob('*') if x.is_file()}
+        expected={arc/x['log_identity'] for x in f['logs']}
+        if (not f['verified'] or not f['logs'] or found!=expected
+            or not all(x['verified'] and x['eof'] and x['closed'] and x['error']=='NONE'
+                       and not x['overflow'] for x in f['logs'])
+            or sc.get('passed') is not True or sc.get('hit_files')!=0
+            or sc.get('firewall_verified') is not True):raise RuntimeError('current_log_firewall_failed')
+        paths.extend(found);owners+=1
+    n,hits=independent_scan(paths,bank.values);_,public_hits=independent_scan(paths,NEEDLES)
+    if owners!=2 or n!=3 or hits or public_hits:raise RuntimeError('current_log_independent_scan_failed')
+    return {'full_private_bank_sha256':ops.sha_file(t/'audit/full-private-bank.json'),
+            'private_bank_input_binding_sha256':ops.sha_file(t/'audit/private-bank-input-binding.json'),
+            'privacy_log_inventory_sha256':ops.sha_file(t/'audit/privacy-log-inventory.json'),
+            'independent_scanned_files':n,'independent_postscan_hits':hits}
+
 def run(root,protected_root=None):
     import rt055_run_a as search
     import rt055_run_b as native
@@ -278,6 +365,10 @@ def run(root,protected_root=None):
     for name in ('audit','status','resources','runtime-logs'):(root/name).mkdir(mode=0o700,exist_ok=True)
     claim=root/'status/confidentiality.claim'
     fd=os.open(claim,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600);os.close(fd)
+    if protected_root is None:raise RuntimeError('full_private_bank_protected_root_required')
+    bank,input_manifest=load_private_bank(protected_root)
+    ops.write_private_json(root/'audit/full-private-bank.json',bank.receipt())
+    ops.write_private_json(root/'audit/private-bank-input-binding.json',input_manifest)
     if protected_root:
         ops.write_private_json(root/'audit/protected-root.json',{'root':str(protected_root.resolve())})
     protected=[root]+([protected_root.resolve()] if protected_root else [])
@@ -309,7 +400,7 @@ def run(root,protected_root=None):
         phase('SEARCH_START');search.ensure_icu_plugin()
         synthetic_window=str(uuid.uuid4())
         a=cw.create(root,synthetic_window,'a',str(uuid.uuid4()),synthetic=True);spaces.append(a)
-        firewall.bind(a,NEEDLES)
+        bind_current_logs(a,bank)
         proc,info=search.launch_opensearch('privacy',free_port(),cw.file(a,'logs','search.log'),'smoke',workspace=a)
         processes.append(proc);o['search_started']=proc.poll() is None
         search.verify_icu(info['base_url'])
@@ -322,7 +413,7 @@ def run(root,protected_root=None):
         o['search_normal_calls']=int(any(h.doc_id==doc.doc_id for h in hits))
         phase('SIDECAR_START');side_port=free_port()
         bspace=cw.create(root,synthetic_window,'b',str(uuid.uuid4()),synthetic=True);spaces.append(bspace)
-        firewall.bind(bspace,NEEDLES)
+        bind_current_logs(bspace,bank)
         side=native.launch_sidecar(side_port,root/'sidecar/hf',cw.file(bspace,'logs','sidecar.log'),workspace=bspace)
         processes.append(side);o['sidecar_started']=side.poll() is None
         phase('NATIVE_START')
@@ -389,21 +480,27 @@ def run(root,protected_root=None):
             except Exception:o['cleanup_error']=True
         for proc in reversed(processes):ops.stop_process(proc)
         o.update(observer.finish());o['denial_probes']=denial_probes
-        count=hits=0
+        count=hits=private_hits=0;firewall_verified=bool(spaces)
         for space in spaces:
             try:firewall.finalize(space)
-            except Exception:o['cleanup_error']=True
+            except Exception:o['cleanup_error']=True;firewall_verified=False
             paths=cw.log_files(space);count+=len(paths)
+            _,wide_hits=independent_scan(paths,bank.values);private_hits+=wide_hits
             hits+=sum(any(n in p.read_text(errors='replace') for n in NEEDLES) for p in paths)
-            try:cw.scan(space,NEEDLES)
+            try:cw.scan(space,bank.values)
             except Exception:o['cleanup_error']=True
             try:cw.cleanup(space)
             except Exception:o['cleanup_error']=True
         o['candidate_workspace_cleanup_zero']=not (root/'candidate-runtime').exists()
         o['candidate_workspace_candidates']=sorted(s.candidate for s in spaces)
+        ops.write_private_json(root/'audit/privacy-log-inventory.json',
+            [str((s.ledger.parent/'log-firewall.json').relative_to(root)) for s in spaces])
         other_count,other_hits=scan_logs(root/'weknora/logs',NEEDLES)
+        other_paths=[p for p in (root/'weknora/logs').rglob('*') if p.is_file()]
+        _,other_private_hits=independent_scan(other_paths,bank.values);private_hits+=other_private_hits
         o['log_files_scanned']=count+other_count;o['log_canary_hits']=hits+other_hits
-        result=evaluate(o)
+        o.update(current_log_observations(count,private_hits,hits+other_hits,firewall_verified,True))
+        result=evaluate_current(o)
         if o.get('cleanup_error') or 'execution_error_kind' in o:result['passed']=False
         ops.write_private_json(root/'audit/confidentiality-observations.json',o)
         ops.write_private_json(root/'audit/confidentiality-gate.json',result)

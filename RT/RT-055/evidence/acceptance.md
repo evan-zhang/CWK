@@ -924,3 +924,17 @@ RT055回归265项与源码红绿/行为破坏通过；最终Schema negatives、�
 判据：红绿/真实sandbox probe/3项行为破坏；AI检查：主执行者针对未知归因、PID例外边界、空日志与null语义交叉复核（未设独立Agent）；读产出：OPS只读闭集、独立最终审计、唯一decision和公开摘要。首次终审额外全集字符串扫描1文件/1串命中（同为公开源码常量），因果UNKNOWN，扩展扫描FAIL原样保留；补充终审仅完成采集，未重跑实验。不是正式隐私PASS或质量NO-GO，RT-055选型目标仍未完成。
 
 详见[Amendment12完整收口](amendment12-summary.md)、[终审](amendment12-final.json)、[QA](amendment12-qa.json)。
+
+
+## Amendment 13 — 历史保留与当前 source 独立放行（2026-09-12）
+
+本节只追加，不撤销 Amendment 11/12 的 INVALID、UNKNOWN、FAIL 或首次审计失败。用户已授权新隔离 migration 单次当前隐私门，以及通过之后的新 window 正式 A/B；不是授权重开旧窗或把旧失败变 PASS。
+
+- **historical_invalid_preserved**：Am11 的 108 samples / 1 external observation 缺事件级 PID/phase/state/target，传输 UNKNOWN；Am12 的扩展旧 synthetic 日志 1 个私有字符串命中且同为公开源码精确常量，因果 UNKNOWN、扩展 scan FAIL、first audit failure 原样保留。旧日志只属于旧 source/旧 run；保存并校验其原字节，不要求它事后通过新的测试。Am12 current privacy=0、旧 after 无 fresh before 的唯一 FAIL 均不重试。
+- **current_source_privacy_gate**：仅绑定新 source、新 migration、synthetic attempt=1。所有当前执行硬门仍必须通过；旧 UNKNOWN/FAIL 既不替代当前证据，也不构成必须改写旧原件的前置条件。当前 source 的一次调用失败即关闭，不跑 workload/readiness/freeze/A/B。
+- controller 在安装禁止读取私有题池的 audit hook **之前**，只在 OPS 内存读取 builder/verifier 全部 JSON 的所有非空 string leaf，并生成原始 UTF-8 与两种 JSON-escaped 变体；含公开 canary 与 warmups。候选不读取私有输入，不接收 bank；bank 值不进入 argv/env/file/log/receipt，不输出 needle hash。输入文件库存/字节绑定单独留 OPS；bank 回执只有 count/bool/bytes。容量超限硬失败，无截断和子集降级。
+- search/native/sidecar 的新 synthetic 日志通过 controller-only byte firewall，在任何写盘前使用完整 bank；公开 canary 扫描与独立全私有 byte scan 均须 0，闭合 EOF/FD、无溢出、无错误，归档库存严格核对。源码绑定验证重新检查 bank 输入、三流原件与独立扫描，不能仅改 receipt hash 通过。随后 public workload 日志也使用同一完整私有 bank 加其公开合成 needles；不改 workload 文档、题数或算法。
+- socket 合同沿用 6c524bc 的独立 probe PID。候选三类 external 必须为 0，SYN_SENT/UNBOUND/未知归因不豁免；observer 不停。仅专用 PID/公开固定目标/拒绝结果/无 peer/闭合专属 TCP socket/零应用 payload 的主动 canary 可通过；不反推历史传输为 0。
+- 先公开红绿/行为破坏/隐私凭据检查并提交 source，再 detached 部署。当前门通过后才进入必要 public workload → main readiness → fresh before → 新随机 freeze/verify → no-Popen/no-query precheck → 新 window 正式 A/B（各最多一次）。任何 exposure>0 不重放；7200、42/31/42、seed/tier/floor、A/B 对称门、builder/verifier 1/1 均不变。
+- 成功发布 120 正式指标、24 Gateway 能力、源码机械复杂度、聚合和唯一裁决；未测指标为 null。失败按同窗唯一 cleanup → after → abort/decision 收口。完整 NAS/index 不变性仍 UNKNOWN，历史 services/config false 不清除；无 production/core/NAS/index/alias/config 变更，不 push/merge/清 worktree。
+- 最后另起只读终态审计：历史原字节与 96 材料、当前与历史日志分层、ledger/唯一性、无运行残留、Gateway 3×health、before/after、builder/verifier。测试绿不冒称完整 OPS gate 或全仓 CI；实际结果另追加。

@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "regression_tests",
+    "failures",
+    "errors",
+    "skipped",
+    "initial_red_errors",
+    "behavior_mutations",
+    "restored_green",
+    "compiled_python_files",
+    "credential_hits",
+    "private_values_received_locally",
+    "source_files_changed",
+    "historical_socket_source_unchanged",
+    "candidate_algorithms_unchanged",
+    "pool_tiers_floors_timeouts_unchanged",
+    "weknora_core_patched",
+    "ops_current_privacy_executed_by_unit_tests"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.amendment13-source-qa.v1"
+    },
+    "status": {
+      "const": "PASS"
+    },
+    "regression_tests": {
+      "const": 278
+    },
+    "failures": {
+      "const": 0
+    },
+    "errors": {
+      "const": 0
+    },
+    "skipped": {
+      "const": 0
+    },
+    "initial_red_errors": {
+      "const": 5
+    },
+    "behavior_mutations": {
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 7,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "CANDIDATE_SYN_SENT_BYPASS"
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "PROBE_PID_BINDING_BYPASS"
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "CANDIDATE_PROBE_REINTRODUCED"
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "FULL_BANK_BIND_DISCONNECTED"
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "INDEPENDENT_SCAN_DISABLED"
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "PRIVATE_BANK_JSON_ESCAPING_DISABLED"
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "CURRENT_FULL_SCAN_GATE_WAIVED"
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        }
+      ]
+    },
+    "restored_green": {
+      "const": true
+    },
+    "compiled_python_files": {
+      "const": 142
+    },
+    "credential_hits": {
+      "const": 0
+    },
+    "private_values_received_locally": {
+      "const": false
+    },
+    "source_files_changed": {
+      "const": 5
+    },
+    "historical_socket_source_unchanged": {
+      "const": true
+    },
+    "candidate_algorithms_unchanged": {
+      "const": true
+    },
+    "pool_tiers_floors_timeouts_unchanged": {
+      "const": true
+    },
+    "weknora_core_patched": {
+      "const": false
+    },
+    "ops_current_privacy_executed_by_unit_tests": {
+      "const": false
+    }
+  }
+}

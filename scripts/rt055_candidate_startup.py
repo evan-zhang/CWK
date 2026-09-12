@@ -50,7 +50,7 @@ def verify(root,wid,mid):
 def run(root,wid,mid):
     import rt055_run_a as a
     import rt055_run_b as b
-    from rt055_confidentiality import free_port
+    from rt055_confidentiality import free_port,load_private_bank
     os.umask(0o077);policy=ready.verify(root,wid,mid)
     if window.directory(root,wid).exists():raise RuntimeError('candidate_startup_after_before')
     base=ready.directory(root,wid)
@@ -61,6 +61,8 @@ def run(root,wid,mid):
            'status':'RUNNING','a_started':0,'b_started':0,'sidecars_started':0,'private_reads':0,
            'formal_attempts':0,'formal_queries':0,'cleanup_failures':0,'remaining_runtime':0,
            'started_at':time.time(),'leases':[]}
+    bank,_=load_private_bank(root)
+    values=list(bank.values)+['RT055_PUBLIC_STARTUP_NEEDLE_NOT_IN_LOG']
     def deny_private(event,args):
         if event=='open' and isinstance(args[0],(str,bytes,os.PathLike)):
             p=Path(os.path.realpath(os.fsdecode(args[0])))
@@ -73,7 +75,7 @@ def run(root,wid,mid):
     try:
         for key in ('a','b'):
             s=cw.create(root,wid,key,str(uuid.uuid4()),synthetic=True,migration_id=mid);spaces.append(s)
-            firewall.bind(s,['RT055_PUBLIC_STARTUP_NEEDLE_NOT_IN_LOG'])
+            firewall.bind(s,values)
             for kb in ops.LIBRARIES:
                 if key=='a':
                     proc,info=a.launch_opensearch(kb,free_port(),cw.file(s,'logs','opensearch-'+kb+'.log'),'smoke',workspace=s)
@@ -89,7 +91,7 @@ def run(root,wid,mid):
     finally:
         for proc in reversed(processes):ops.stop_process(proc)
         for s in spaces:
-            try:firewall.finalize(s);cw.scan(s,['RT055_PUBLIC_STARTUP_NEEDLE_NOT_IN_LOG'])
+            try:firewall.finalize(s);cw.scan(s,values)
             except Exception:state['cleanup_failures']+=1
             try:cw.cleanup(s)
             except Exception:state['cleanup_failures']+=1

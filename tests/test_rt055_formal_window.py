@@ -60,6 +60,7 @@ class WindowTests(unittest.TestCase):
         self.assertNotEqual(self.collect('after'),0)
 
     def migration(self):
+        if not (self.root/'builder/private-corpus.json').exists():self.input_fixture()
         import rt055_window as window
         for name in runtime.MIGRATION_SOURCE_FILES:
             p=self.root/'impl'/name
@@ -71,6 +72,22 @@ class WindowTests(unittest.TestCase):
         for name in runtime.MIGRATION_SOURCE_FILES:(attempt/'impl'/name).write_bytes((self.root/'impl'/name).read_bytes())
         obs=privacy_tests.GateTests().fixture()
         obs.update(candidate_workspace_cleanup_zero=True,candidate_workspace_candidates=['a','b'])
+        obs.update(privacy_tests.gate.current_log_observations(3,0,0,True,True))
+        bank,inputs=privacy_tests.gate.load_private_bank(self.root)
+        window.write_once(attempt/'audit/full-private-bank.json',bank.receipt())
+        window.write_once(attempt/'audit/private-bank-input-binding.json',inputs)
+        # Public synthetic unit receipts; three actual archived public log files.
+        inventory=[]
+        for key,names in [('a',['search.log']),('b',['native.log','sidecar.log'])]:
+            d=attempt/'audit/candidate-workspaces'/str(uuid.uuid4())/key/str(uuid.uuid4())
+            rows=[]
+            for name in names:
+                q=d/'runtime-log-archive/logs'/name;q.parent.mkdir(parents=True,exist_ok=True);q.write_text('unit fixture ready')
+                rows.append({'log_identity':'logs/'+name,'verified':True,'eof':True,'closed':True,'error':'NONE','overflow':False})
+            inventory.append(str((d/'log-firewall.json').relative_to(attempt)))
+            window.write_once(d/'log-firewall.json',{'verified':True,'logs':rows})
+            window.write_once(d/'log-scan.json',{'passed':True,'hit_files':0,'firewall_verified':True})
+        window.write_once(attempt/'audit/privacy-log-inventory.json',inventory)
         window.write_once(attempt/'audit/confidentiality-observations.json',obs)
         window.write_once(attempt/'status/confidentiality.json',{'status':'PASS','phase':'COMPLETE'})
         window.write_once(attempt/'audit/synthetic-cleanup.json',{'complete':True,'failures':0,'remaining_processes':0,'remaining_data_planes':0})
@@ -136,7 +153,7 @@ class WindowTests(unittest.TestCase):
 
     def freeze_fixture(self,policy=True):
         import rt055_scoring_input as scoring
-        self.migration();self.input_fixture()
+        self.migration()
         if policy:
             self.prepare_policy();scoring.prepare(self.root,self.wid,self.mid);self.collect()
         for name in ('downloads/opensearch.tar.gz','bin/weknora-server','jdk/public','sidecar/requirements-freeze.txt'):(self.root/name).write_text('public')
@@ -210,6 +227,19 @@ class WindowTests(unittest.TestCase):
                 self.assertFalse(runtime.privacy_passed(self.root,self.mid))
                 p.write_bytes(original);binding.write_bytes(initial)
         self.assertTrue(runtime.privacy_passed(self.root,self.mid))
+
+    def test_current_bank_and_independent_logs_cannot_be_blessed_by_rehash(self):
+        attempt=self.migration();binding=attempt.parent/'privacy-receipt.json';initial=binding.read_bytes()
+        log=next(attempt.glob('audit/candidate-workspaces/*/*/*/runtime-log-archive/logs/*.log'))
+        original=log.read_bytes();log.write_text(privacy_tests.gate.NEEDLES[0])
+        self.assertFalse(runtime.privacy_passed(self.root,self.mid));log.write_bytes(original)
+        private=self.root/'builder/private-corpus.json';old=private.read_bytes();private.write_text('{"new":"PUBLIC_NEW_NEEDLE"}')
+        self.assertFalse(runtime.privacy_passed(self.root,self.mid));private.write_bytes(old)
+        bank=attempt/'audit/full-private-bank.json';old=bank.read_bytes();v=json.loads(old);v['all_string_leaves']=False;bank.write_text(json.dumps(v))
+        v=json.loads(initial);v['full_private_bank_sha256']=runtime.ops.sha_file(bank);binding.write_text(json.dumps(v))
+        self.assertFalse(runtime.privacy_passed(self.root,self.mid));bank.write_bytes(old);binding.write_bytes(initial)
+        self.assertTrue(runtime.privacy_passed(self.root,self.mid))
+        with self.assertRaises(ValueError):runtime.migration_evidence(self.root,self.mid,2)
 
     def test_frozen_private_input_drift_rejected_without_export(self):
         self.freeze_fixture();freeze.create(self.root,self.wid,self.mid)
@@ -413,7 +443,7 @@ class WindowTests(unittest.TestCase):
         import rt055_window as window
         import test_rt055_retrieval_decision as fixture
         import subprocess
-        w=self.freeze_fixture(policy=False);public=fixture.valid_report()
+        self.input_fixture();public=fixture.valid_report()
         checks=runtime.ops.read_json(self.root/'verifier/case-verification.json')
         checks.update(library_validity=public['library_validity'])
         for k in ('selection_verified','single_build_seed_verified','at_least_one_participating','category_coverage_verified','rt054_pool_excluded','input_disjoint_verified','denominators_nonzero_all_categories'):checks[k]=True
@@ -425,6 +455,7 @@ class WindowTests(unittest.TestCase):
             for ordinal in range(3,checks['library_validity'][kb]['total_count']):
                 lib['cases'].append({**lib['cases'][0],'ordinal':ordinal,'query':'PUBLIC extra '+str(ordinal)})
         runtime.ops.write_private_json(self.root/'verifier/private-verified.json',verified)
+        w=self.freeze_fixture(policy=False)
         self.prepare_policy();scoring.prepare(self.root,self.wid,self.mid);self.collect()
         freeze.create(self.root,self.wid,self.mid);freeze.verify_once(self.root,self.wid)
         for key,cid in (('a',aggregate.CANDIDATE_A),('b',aggregate.CANDIDATE_B)):

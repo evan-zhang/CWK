@@ -222,6 +222,8 @@ class VoidTests(LedgerTests):
         import rt055_zero_exposure as zero
         import hashlib
         import time
+        (self.root/'builder/single-build-claim.json').write_text('{}')
+        (self.root/'verifier/single-verify-claim').write_text('{}')
         w=self.freeze_fixture(policy=False)
         # Public synthetic control-flow model; actual OPS requires the three
         # fixed full-source digests, tested independently against the baseline.

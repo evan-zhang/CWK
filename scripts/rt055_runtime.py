@@ -211,9 +211,9 @@ def migration_directory(root,migration_id):
 
 
 def migration_evidence(root,migration_id,attempt):
-    from rt055_confidentiality import evaluate, probe_passed
+    from rt055_confidentiality import evaluate_current, probe_passed, current_log_evidence
     import re
-    if type(attempt) is not int or not 1<=attempt<=999:raise ValueError('synthetic_attempt_invalid')
+    if type(attempt) is not int or attempt!=1:raise ValueError('synthetic_attempt_invalid')
     m=migration_directory(root,migration_id);t=m/('rt055-synthetic-%03d'%attempt)
     deployment=ops.read_json(m/'deployment.json')
     if (deployment.get('schema')!='cwk.rt055.executioner-deployment.v1'
@@ -234,12 +234,13 @@ def migration_evidence(root,migration_id,attempt):
             or not probe_passed(probe.get('receipt'),probe.get('expected_pid'))):
         raise RuntimeError('isolated_deny_probe_unproven')
     if (status.get('status')!='PASS' or status.get('phase')!='COMPLETE'
-            or not evaluate(obs)['passed'] or obs.get('cleanup_error') or 'execution_error_kind' in obs
+            or not evaluate_current(obs)['passed'] or obs.get('cleanup_error') or 'execution_error_kind' in obs
             or obs.get('candidate_workspace_cleanup_zero') is not True
             or obs.get('candidate_workspace_candidates')!=['a','b']
             or clean!={'complete':True,'failures':0,'remaining_processes':0,'remaining_data_planes':0}):
         raise RuntimeError('new_synthetic_privacy_revalidation_required')
-    return {'schema':'cwk.rt055.executioner-migration-binding.v1','run_id':deployment['run_id'],
+    logs=current_log_evidence(root,t)
+    return {**logs,'schema':'cwk.rt055.executioner-migration-binding.v1','run_id':deployment['run_id'],
             'migration_id':migration_id,'code_commit':deployment['code_commit'],'attempt':attempt,
             'source_files':deployment['source_files'],'status':'READY_TO_FREEZE',
             'deployment_sha256':ops.sha_file(m/'deployment.json'),
@@ -264,7 +265,7 @@ def migration_privacy_passed(root,migration_id):
 
 
 def privacy_passed(root, migration_id=None):
-    """An append-only recovery supersedes, but never rewrites, a failed gate."""
+    """Migration admission is current-source-only; history remains invalid evidence."""
     if migration_id is not None:return migration_privacy_passed(root,migration_id)
     from rt055_confidentiality import evaluate
     receipt = root/'audit/confidentiality-recovery.json'

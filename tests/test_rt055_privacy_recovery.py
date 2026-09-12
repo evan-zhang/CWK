@@ -317,3 +317,59 @@ class Amendment12Tests(unittest.TestCase):
             self.assertTrue(value['receipt']['denied']);self.assertEqual(value['receipt']['application_payload_bytes'],0)
             self.assertTrue(all(r['state']=='CLOSED' for r in value['receipt']['sockets']))
             with self.assertRaises(FileExistsError):gate.isolated_deny_probe(root)
+
+
+class Amendment13Tests(unittest.TestCase):
+    def test_full_bank_all_leaves_escaped_and_no_keys(self):
+        import rt055_log_firewall as fw
+        values=['PUBLIC_COLLISION', '雪\n"quoted"', 'x', '']
+        bank=fw.MemoryBank({'PUBLIC_KEY_ONLY':values}, gate.NEEDLES)
+        for value in values[:-1]:
+            for v in (value,json.dumps(value,ensure_ascii=True)[1:-1],json.dumps(value,ensure_ascii=False)[1:-1]):
+                self.assertIn(v,bank.values)
+                f=fw.Filter(bank.values)
+                b=v.encode();out=f.feed(b[:2])+f.feed(b[2:])+f.feed(b'',True)
+                self.assertNotIn(b,out)
+        self.assertNotIn('PUBLIC_KEY_ONLY',bank.values)
+        self.assertNotIn('PUBLIC_COLLISION',repr(bank))
+        self.assertTrue(all(type(v) in (int,bool) for v in bank.receipt().values()))
+        self.assertTrue(set(gate.NEEDLES)<=set(bank.values))
+
+    def test_current_gate_never_uses_historical_pass(self):
+        good=GateTests().fixture();good.update(gate.current_log_observations(3,0,0,True,True))
+        self.assertTrue(gate.evaluate_current(good)['passed'])
+        for key,value in [('full_private_postscan_hit_files',1),('log_canary_hits',1),('full_bank_loaded',False),('log_firewall_verified',False),('independent_scanned_files',0),('external_socket_observations',1),('isolated_deny_probe_verified',False)]:
+            bad={**good,key:value};self.assertFalse(gate.evaluate_current(bad)['passed'],key)
+        # Old failures remain raw evidence and cannot enter the current predicate.
+        self.assertTrue(gate.evaluate_current({**good,'historical_status':'FAIL'})['passed'])
+        self.assertFalse(gate.evaluate_current(GateTests().fixture())['passed'])
+
+    def test_controller_input_snapshot_has_complete_inventory_and_detects_drift(self):
+        with tempfile.TemporaryDirectory() as td:
+            root=Path(td)
+            for name in ('builder','verifier'):(root/name).mkdir()
+            for rel in ('builder/private-corpus.json','verifier/private-verified.json','builder/private-extra.json'):
+                (root/rel).write_text('{"value":"PUBLIC_COLLISION"}')
+            bank,manifest=gate.load_private_bank(root)
+            self.assertEqual(len(manifest),3);self.assertIn('PUBLIC_COLLISION',bank.values)
+            gate.verify_private_bank_inputs(root,manifest)
+            (root/'builder/private-added.json').write_text('{}')
+            with self.assertRaises(RuntimeError):gate.verify_private_bank_inputs(root,manifest)
+
+    def test_full_bank_is_used_before_candidate_logs_hit_disk(self):
+        import rt055_log_firewall as fw
+        with tempfile.TemporaryDirectory(prefix='rt055-') as td:
+            root=Path(td);space=public_workspace(root,'a')
+            bank=fw.MemoryBank({'collision':'PUBLIC_COLLISION'},gate.NEEDLES)
+            f=gate.bind_current_logs(space,bank)
+            path=cw.file(space,'logs','public.log')
+            proc=f.spawn([sys.executable,'-c','print("PUBLIC_COLLISION")'],path,{})
+            proc.wait(10);f.finalize()
+            self.assertNotIn(b'PUBLIC_COLLISION',path.read_bytes())
+            self.assertEqual(gate.independent_scan([path],bank.values),(1,0))
+            cw.scan(space,bank.values);cw.cleanup(space)
+
+    def test_independent_scan_catches_firewall_bypass_even_public_constant(self):
+        with tempfile.TemporaryDirectory() as td:
+            p=Path(td)/'public.log';p.write_text('PUBLIC_COLLISION')
+            self.assertEqual(gate.independent_scan([p],['PUBLIC_COLLISION']),(1,1))

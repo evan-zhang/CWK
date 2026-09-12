@@ -1,0 +1,49 @@
+{
+  "schema": "cwk.rt055.amendment13-source-qa.v1",
+  "status": "PASS",
+  "regression_tests": 278,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "initial_red_errors": 5,
+  "behavior_mutations": [
+    {
+      "mutation": "CANDIDATE_SYN_SENT_BYPASS",
+      "detected": true
+    },
+    {
+      "mutation": "PROBE_PID_BINDING_BYPASS",
+      "detected": true
+    },
+    {
+      "mutation": "CANDIDATE_PROBE_REINTRODUCED",
+      "detected": true
+    },
+    {
+      "mutation": "FULL_BANK_BIND_DISCONNECTED",
+      "detected": true
+    },
+    {
+      "mutation": "INDEPENDENT_SCAN_DISABLED",
+      "detected": true
+    },
+    {
+      "mutation": "PRIVATE_BANK_JSON_ESCAPING_DISABLED",
+      "detected": true
+    },
+    {
+      "mutation": "CURRENT_FULL_SCAN_GATE_WAIVED",
+      "detected": true
+    }
+  ],
+  "restored_green": true,
+  "compiled_python_files": 142,
+  "credential_hits": 0,
+  "private_values_received_locally": false,
+  "source_files_changed": 5,
+  "historical_socket_source_unchanged": true,
+  "candidate_algorithms_unchanged": true,
+  "pool_tiers_floors_timeouts_unchanged": true,
+  "weknora_core_patched": false,
+  "ops_current_privacy_executed_by_unit_tests": false
+}
