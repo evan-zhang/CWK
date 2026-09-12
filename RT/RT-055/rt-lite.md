@@ -344,3 +344,18 @@ attempt 前复核。无题池/候选算法/生产变更，三库保持 42/31/42�
 详见 [协议](experiment-protocol.md#amendment-7--scoring-input-readiness2026-09-12) 与
 [本地验收](evidence/acceptance.md#amendment-7-本地修复--pre-exposure-scorer-输入合同)。
 本地实现完成不代表 OPS READY；正式运行仍需单独授权。
+
+## 最新断点 — Amendment 7 READY_TO_RUN，正式 A/B 未执行
+
+[公开 READY](evidence/scoring-input-ready.json) 与 [QA](evidence/scoring-input-ready-qa.json)
+经主会话独立 OPS 只读重算。部署源码 `f94b6e1b0f60763443e56ed76c932f90d55f927b`；
+migration `3e5c31a2-8741-420b-b83b-095c32446d95`；window
+`d408cfab-40f7-41d3-8ccb-75fb0aaa2b65`；随机顺序 **B→A**。
+
+主 scoring-input receipt 严格早于 before，runtime/privacy/workspace/startup/input/
+freeze/verify 与无 Popen precheck 均 PASS。完整池42/31/42不变，合法同题4/4/5个二元组
+均保留为独立trial；新 attempt/arm/exposure/query/score/result/after 全0，旧 INVALID/after
+及其 A attempt/arm 1/1保留。builder/verifier1/1，96材料与历史归档字节不变；Gateway3×200；
+无候选/控制器/runtime。219测试、11行为破坏、编译/Schema/隐私/链接/AODW/governance通过。
+仅本地源码与公开证据提交，不push；无后台任务。后续正式 A/B 仍须单独授权，完整NAS/index
+不变性未证明，不能把 READY 当作评分结果或生产切换批准。

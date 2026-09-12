@@ -709,3 +709,37 @@ window `c66757c6-93f6-481d-aa92-be7de83b9aa1`，migration `11b62e31-ddbe-469e-ba
 人工式源码自查聚焦：不放宽 legacy、no_evidence 原始语义、私有 identity 不进 repr、
 main/synthetic 边界、无正式 attempt 副作用、历史字节不修改。未调用独立 reviewer Agent；
 主会话读实际 fixture 输出、diff 和 OPS 闭合投影，不以 worker 自报代替核验。
+
+## Amendment 7 OPS 收口 — READY_TO_RUN（不执行正式 A/B）
+
+权威 [READY 回执](scoring-input-ready.json)、[Schema](scoring-input-ready.schema.json)、
+[QA](scoring-input-ready-qa.json)、[根因分类](scoring-input-root-cause.json) 与
+[公开合成红绿/破坏证据](scoring-input-tests.json)。
+
+- 源码 commit：`f94b6e1b0f60763443e56ed76c932f90d55f927b`，本地独立提交后部署，未 push。
+- run `ac1ca0c7-6983-4f6e-91ce-8eb45e7673af`；新 executioner migration
+  `3e5c31a2-8741-420b-b83b-095c32446d95`；新 window
+  `d408cfab-40f7-41d3-8ccb-75fb0aaa2b65`；全新随机顺序 **B→A**。
+- 主 runtime readiness、A/B/sidecar 各 3 个公开 startup、主 scoring-input readiness、
+  新 before/freeze/verify 均 PASS；独立重算核实时间顺序和 source/window/freeze 绑定。
+  主 input receipt 严格早于 before；无 Popen spawn precheck、禁止连接的纯私有 input
+  preflight PASS；A/B loader 均保留全部 ordinal。formal coordinator **未调用**。
+- 完整池 42@T3 / 31@T3 / 42@T2；重复额外行/二元组均为 4/4/5；同库同题语义一致，
+  ordinal 唯一，三类分母均正；builder/verifier 仍 1/1。无题池/tier/seed/质量门/
+  候选算法/WeKnora core 变更，无删题、合并、换 query。
+- 新 controller attempt/candidate attempt/arm/exposure/query/score/result/after 全 0。
+  旧 `c66757c6-93f6-481d-aa92-be7de83b9aa1` 保留 INVALID/after，A attempt1/arm1、B0，
+  exposure/query/score/result0；旧 claim/void 有效且未改。
+- 新归档 5,938 个历史工件；此前 2,570/1,222 文件归档和 96 份材料字节均一致。
+  独立核验旧 window 文件清单及所有历史文件字节，未删旧账本。
+- 公开 synthetic 隐私门：正常 search/native 各1、鉴权错误400/400、embedding3/3；
+  15 个日志、112 个 socket 样本；canary/外连/tracing/forbidden read/observer error 全0。
+  synthetic 和 main startup 均完成清理；候选/控制器进程、runtime、新 tmp、TLS、
+  UUID 容器/卷/网络/服务/镜像标签均0；Gateway **3×200**。
+- 本地完整 RT-055 回归 **219 tests / 0 failures / 0 errors / 0 skips**，11 项行为破坏
+  全检出，136 个 Python 文件编译通过；Schema（含嵌套私有字段与叶子损坏反例）、
+  隐私/secret、链接、AODW、governance、diff 均通过。仅保留既有宿主 Skill 缺失告警，
+  不冒称全仓 CI 或外部独立 reviewer。主会话独立读取、重算 OPS 实物后才收口。
+- 观察通道曾中断一次，仅重新连接只读 watcher；没有重启控制器或重复任何主 claim。
+  当前无后台任务。完整 NAS/index 不变性仍 UNKNOWN，历史漂移不清除；未修改生产，
+  READY 不是正式测评结果，也不授权生产切换或自动执行 A/B。

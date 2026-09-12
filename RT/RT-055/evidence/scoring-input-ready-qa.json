@@ -1,0 +1,85 @@
+{
+  "schema": "cwk.rt055.scoring-input-ready-qa.v1",
+  "status": "PASS",
+  "source_commit": "f94b6e1b0f60763443e56ed76c932f90d55f927b",
+  "run_id": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af",
+  "window_id": "d408cfab-40f7-41d3-8ccb-75fb0aaa2b65",
+  "executioner_migration_id": "3e5c31a2-8741-420b-b83b-095c32446d95",
+  "regression": {
+    "tests": 219,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exit_code": 0
+  },
+  "behavior_mutations_detected": 11,
+  "mechanical": {
+    "status": "PASS",
+    "compiled": 136,
+    "schemas": 4,
+    "schema_negative_rejections": 487,
+    "private_field_or_digest_hits": 0,
+    "secret_hits": 0,
+    "links": 169,
+    "anchors": 27,
+    "historical_public_files_unchanged": 70,
+    "document_prefixes_unchanged": 3,
+    "pool_tier_seed_quality_algorithm_exposure_unchanged": true,
+    "full_repository_ci_claimed": false
+  },
+  "privacy": {
+    "status": "READY_TO_FREEZE",
+    "phase": "COMPLETE",
+    "terminal": true,
+    "privacy_binding_passed": true,
+    "observations": {
+      "search_normal_calls": 1,
+      "native_normal_calls": 1,
+      "authenticated_query_error_code": 400,
+      "authenticated_title_error_code": 400,
+      "embedding_calls": 3,
+      "embedding_successes": 3,
+      "log_files_scanned": 15,
+      "log_canary_hits": 0,
+      "trace_header_observations": 0,
+      "native_trace_response_headers": 0,
+      "socket_samples": 112,
+      "external_socket_observations": 0,
+      "forbidden_reads": 0,
+      "observer_errors": 0,
+      "candidate_workspace_cleanup_zero": true,
+      "candidate_workspace_candidates": [
+        "a",
+        "b"
+      ]
+    },
+    "cleanup": {
+      "complete": true,
+      "failures": 0,
+      "remaining_data_planes": 0,
+      "remaining_processes": 0
+    }
+  },
+  "independent_readonly_recheck": {
+    "both_loaders_ordinals_retained": true,
+    "controller_processes": 0,
+    "history_inventory_unchanged": true,
+    "independent_recomputed": true,
+    "status": "PASS",
+    "uuid_resources": {
+      "containers": 0,
+      "image_tags": 0,
+      "networks": 0,
+      "services": 0,
+      "volumes": 0
+    }
+  },
+  "aodw": "PASS_WITH_EXISTING_HOST_SKILL_WARNING",
+  "governance": "PASS",
+  "formal_coordinator_invocations": 0,
+  "formal_queries": 0,
+  "formal_results": 0,
+  "ready_is_not_formal_aggregate": true,
+  "full_repository_ci_claimed": false,
+  "external_independent_reviewer_claimed": false
+}
