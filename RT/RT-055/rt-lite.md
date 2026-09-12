@@ -376,3 +376,14 @@ freeze/verify 与无 Popen precheck 均 PASS。完整池42/31/42不变，合法�
 新源提交后部署独立migration，只有全门通过才新建window/freeze。保留所有历史、96材料和
 builder/verifier1/1；不改生产/NAS/index/alias/config、WeKnora core或sandbox/egress。
 当前本地源码修复在验证中，未建立新READY，未push。
+
+### Amendment 8 公开夹具与容量修正
+
+首个 migration 的公开 A 三库 build/search 与隐私门通过；B 在注入锁下首次请求立即失败，
+正常导入0，不是 build timeout。保留该失败与cleanup0，不freeze。将注入改为独立公开
+SQL失败探针（锁确保不能落文档，预期HTTP500），释放锁后才运行一次完整build。
+私有全集needle的安全容量分类显示总字节大于64MiB、不超过128MiB，最长leaf不超过8MiB。
+仅pattern bank改为128MiB、各drain共享同一父进程不可变bytes集合；每流日志输入64MiB、
+read chunk64KiB、最长leaf8MiB、A/B每库build7200秒均不变。不丢pattern、不用hash替代。
+正式input readiness新增读取现有private-corpus并构造完整Filter容量验证，source和corpus
+均进入freeze绑定；无Popen、无query、不重做builder/verifier。新migration重跑公开验证。

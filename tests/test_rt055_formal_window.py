@@ -81,7 +81,7 @@ class WindowTests(unittest.TestCase):
         # Explicit public UNIT fixture, not OPS/native evidence.
         row={'schema':work.SCHEMA,'status':'PASS','counts':work.COUNTS,'timeout_seconds':7200,
              'document_byte_upper_bound':work.UPPER_BYTES,'private_reads':0,'formal_queries':0,'formal_attempts':0,
-             'cleanup_failures':0,'remaining_runtime':0,'native_sql_slowpath_injected':True,'source_commit':'1'*40,
+             'cleanup_failures':0,'remaining_runtime':0,'native_sql_errorpath_injected':True,'source_commit':'1'*40,
              'migration_id':self.mid,'finished_at':time.time(),
              'candidates':{k:{'libraries':{kb:{'imported':n,'completed':n,'pending':0,'failed':0,'build_seconds':1} for kb,n in work.COUNTS.items()},
                  'firewall_verified':True,'post_scan_hits':0,'searches':3,'sql_canary_redactions':1} for k in ('a','b')}}

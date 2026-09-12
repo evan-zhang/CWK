@@ -1,0 +1,88 @@
+{
+  "schema": "cwk.rt055.amendment8-migration1.v1",
+  "data_class": "PUBLIC_SYNTHETIC_FAILED_READINESS",
+  "status": "BLOCKED",
+  "source_commit": "3b48e46c4ad1e959ca7c15f3d166f2026b00be0d",
+  "migration_id": "1a63f8b1-9ade-4eb2-a870-3b746d61f7d6",
+  "window_created": false,
+  "formal_queries": 0,
+  "formal_exposure": 0,
+  "root_causes": [
+    "PUBLIC_LOCK_PROBE_COUPLED_TO_NORMAL_IMPORT",
+    "PARENT_PATTERN_CAPACITY_TOO_SMALL"
+  ],
+  "cleanup": {
+    "complete": true,
+    "failures": 0,
+    "remaining_data_planes": 0,
+    "remaining_processes": 0
+  },
+  "workload": {
+    "schema": "cwk.rt055.public-workload.v1",
+    "data_class": "PUBLIC_SYNTHETIC_ONLY_NOT_FORMAL_SCORES",
+    "status": "BLOCKED",
+    "migration_id": "1a63f8b1-9ade-4eb2-a870-3b746d61f7d6",
+    "source_commit": "3b48e46c4ad1e959ca7c15f3d166f2026b00be0d",
+    "counts": {
+      "cwork-3m": 42,
+      "docdb-touqian": 31,
+      "spbp-2027": 42
+    },
+    "trial_counts": {
+      "cwork-3m": 42,
+      "docdb-touqian": 31,
+      "spbp-2027": 42
+    },
+    "timeout_seconds": 7200,
+    "document_byte_upper_bound": 524288,
+    "ordinary_document_bytes": 8192,
+    "private_reads": 0,
+    "formal_queries": 0,
+    "formal_attempts": 0,
+    "cleanup_failures": 0,
+    "remaining_runtime": 0,
+    "native_sql_slowpath_injected": false,
+    "candidates": {
+      "a": {
+        "firewall_verified": true,
+        "libraries": {
+          "cwork-3m": {
+            "build_seconds": 1.994,
+            "completed": 42,
+            "failed": 0,
+            "imported": 42,
+            "pending": 0
+          },
+          "docdb-touqian": {
+            "build_seconds": 1.473,
+            "completed": 31,
+            "failed": 0,
+            "imported": 31,
+            "pending": 0
+          },
+          "spbp-2027": {
+            "build_seconds": 1.777,
+            "completed": 42,
+            "failed": 0,
+            "imported": 42,
+            "pending": 0
+          }
+        },
+        "post_scan_hits": 0,
+        "redactions": 18,
+        "searches": 3
+      },
+      "b": {
+        "firewall_verified": false,
+        "libraries": {},
+        "post_scan_hits": 0,
+        "searches": 0
+      }
+    },
+    "started_at": 1789190988.75607,
+    "finished_at": 1789191050.470976,
+    "phase": "COMPLETE",
+    "error": "REQUEST_FAILED",
+    "error_kind": "CandidateError"
+  }
+}

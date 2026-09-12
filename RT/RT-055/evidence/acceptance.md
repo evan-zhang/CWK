@@ -839,3 +839,14 @@ Unicode/JSON转义、无换行、64MiB cap、drain异常、缺EOF、child nonzer
 净化占位符和post-scan0；故意断线/残余拒绝。B terminal failed不能轮询至timeout。
 完整 RT055 回归、pycompile、Schema反例、隐私字段/链接/AODW/governance/diff均为独立门。
 OPS workload/native/privacy/main readiness尚未通过时，本地GREEN不得称为READY。
+
+### Amendment 8 公开夹具与容量修正
+
+首个 migration 的公开 A 三库 build/search 与隐私门通过；B 在注入锁下首次请求立即失败，
+正常导入0，不是 build timeout。保留该失败与cleanup0，不freeze。将注入改为独立公开
+SQL失败探针（锁确保不能落文档，预期HTTP500），释放锁后才运行一次完整build。
+私有全集needle的安全容量分类显示总字节大于64MiB、不超过128MiB，最长leaf不超过8MiB。
+仅pattern bank改为128MiB、各drain共享同一父进程不可变bytes集合；每流日志输入64MiB、
+read chunk64KiB、最长leaf8MiB、A/B每库build7200秒均不变。不丢pattern、不用hash替代。
+正式input readiness新增读取现有private-corpus并构造完整Filter容量验证，source和corpus
+均进入freeze绑定；无Popen、无query、不重做builder/verifier。新migration重跑公开验证。

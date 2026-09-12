@@ -9,8 +9,8 @@
   "hit_log_files": 1,
   "total_log_files": 6,
   "hit_fields": {
-    "case_query": 2,
-    "filename": 6
+    "case_query_fields": 2,
+    "filename_fields": 6
   },
   "hit_lines": 20,
   "sidecar_hit_files": 0,

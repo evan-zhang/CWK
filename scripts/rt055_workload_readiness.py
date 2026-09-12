@@ -15,6 +15,7 @@ import sys
 import threading
 import time
 import uuid
+import urllib.error
 import rt055_opslib as ops
 import rt055_runtime as runtime
 import rt055_window as window
@@ -50,7 +51,7 @@ def safe_result(row):
             and all(x.get('imported')==x.get('completed')==COUNTS[k] and x.get('pending')==x.get('failed')==0
                 and 0<x.get('build_seconds',0)<=7200 for k,x in v['libraries'].items()) for v in row['candidates'].values())
         and row['candidates']['b'].get('sql_canary_redactions',0)>0
-        and row.get('native_sql_slowpath_injected') is True)
+        and row.get('native_sql_errorpath_injected') is True)
 
 def verify(root,mid):
     m=runtime.migration_directory(root,mid);dep=ops.read_json(m/'deployment.json')
@@ -73,7 +74,7 @@ def run(root,mid,source_commit):
          'migration_id':mid,'source_commit':source_commit,'counts':COUNTS,'trial_counts':COUNTS,
          'timeout_seconds':7200,'document_byte_upper_bound':UPPER_BYTES,'ordinary_document_bytes':8192,
          'private_reads':0,'formal_queries':0,'formal_attempts':0,'cleanup_failures':0,'remaining_runtime':0,
-         'native_sql_slowpath_injected':False,'candidates':{},'started_at':time.time()}
+         'native_sql_errorpath_injected':False,'candidates':{},'started_at':time.time()}
     protected=[root]
     binding=root/'audit/protected-root.json'
     if binding.exists():protected.append(Path(ops.read_json(binding)['root']))
@@ -113,17 +114,22 @@ def run(root,mid,source_commit):
                 status('BUILD_'+key.upper());adapter=services[kb];started=time.monotonic()
                 if key=='a':adapter.build(docs[kb],timeout=build.TIMEOUT)
                 else:
-                    # Force a real GORM slow INSERT without modifying core/logger.
-                    # Controller locks ONLY this public disposable DB for 1 second.
-                    db=sqlite3.connect(str(transport.servers[kb]['data_dir']/'app.db'),check_same_thread=False)
-                    db.execute('BEGIN IMMEDIATE')
-                    def unlock():
-                        try:db.rollback()
-                        finally:db.close()
-                    timer=threading.Timer(1.0,unlock);timer.start()
-                    try:build.build_b(adapter,docs[kb],transport,kb,space.ledger.parent/'build-status.json',firewall)
-                    finally:timer.join(5)
-                    row['native_sql_slowpath_injected']=True
+                    # A controlled GORM INSERT error writes SQL through the
+                    # real native stdout logger. An owned SQLite write lock
+                    # guarantees this EXTRA probe cannot persist a document.
+                    # Release it BEFORE the one-shot 42/31/42 workload import.
+                    db=sqlite3.connect(str(transport.servers[kb]['data_dir']/'app.db'))
+                    db.execute('BEGIN IMMEDIATE');rejected=False
+                    try:
+                        info=transport.servers[kb]
+                        try:b.api_call(info['base_url'],'POST','/api/v1/knowledge-bases/'+info['kb_id']+'/knowledge/manual',
+                            {'title':SQL_CANARY,'content':SQL_CANARY,'status':'publish'},info['token'],timeout=30)
+                        except urllib.error.HTTPError as exc:
+                            rejected=exc.code==500;exc.close()
+                    finally:db.rollback();db.close()
+                    if not rejected:raise RuntimeError('public_sql_probe_not_rejected')
+                    row['native_sql_errorpath_injected']=True
+                    build.build_b(adapter,docs[kb],transport,kb,space.ledger.parent/'build-status.json',firewall)
                 elapsed=time.monotonic()-started
                 current['libraries'][kb]={'imported':COUNTS[kb],'completed':COUNTS[kb],'pending':0,'failed':0,'build_seconds':round(elapsed,3)}
                 status('SEARCH_'+key.upper());firewall.health()

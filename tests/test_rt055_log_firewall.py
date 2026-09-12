@@ -118,3 +118,12 @@ class StreamingTests(unittest.TestCase):
             proc=f.spawn([sys.executable,'-c','print("ready")'],path,{});proc.wait(5);proc._rt055_firewall.thread.join(5)
         with self.assertRaises(fw.FirewallError):f.finalize()
         stream=proc._rt055_firewall;self.assertEqual(stream.error,'CLOSE_ERROR');self.assertTrue(stream.pipe.closed and stream.sink.closed)
+    def test_parent_pattern_bank_is_shared_and_bounded(self):
+        s=self.make();f=fw.bind(s,[CANARY]);p1=cw.file(s,'logs','one.log');p2=cw.file(s,'logs','two.log')
+        procs=[f.spawn([sys.executable,'-c','print("ready")'],p,{}) for p in (p1,p2)]
+        for p in procs:p.wait(5)
+        self.assertIs(procs[0]._rt055_firewall.filter.patterns,procs[1]._rt055_firewall.filter.patterns)
+        self.assertEqual(fw.PATTERN_CAP,128*1024*1024);self.assertEqual(fw.CAP,64*1024*1024)
+        f.finalize();cw.scan(s,[CANARY]);cw.cleanup(s)
+        with patch.object(fw,'PATTERN_CAP',5):
+            with self.assertRaises(fw.FirewallError):fw.Filter([CANARY])

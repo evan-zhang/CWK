@@ -146,11 +146,15 @@ def spawn(root, argv, network_policy='loopback', window_id=None, workspace=None,
         if log_path is None:raise RuntimeError('candidate_log_firewall_required')
         proc=get(workspace).spawn([*sandbox,*argv],log_path,kwargs)
     else:proc = subprocess.Popen([*sandbox,*argv],**kwargs)
-    folder=root/'resources';folder.mkdir(mode=0o700,exist_ok=True)
-    window.write_once(folder/f'process-{proc.pid}-{uuid.uuid4()}.json',
-        {'pid':proc.pid,'argv':argv,'started':time.time(),
-         'cwd':str(kwargs.get('cwd',root)), 'network_policy':network_policy,
-         **({'workspace':workspace.identity()} if workspace else {})})
+    try:
+        folder=root/'resources';folder.mkdir(mode=0o700,exist_ok=True)
+        window.write_once(folder/f'process-{proc.pid}-{uuid.uuid4()}.json',
+            {'pid':proc.pid,'argv':argv,'started':time.time(),
+             'cwd':str(kwargs.get('cwd',root)), 'network_policy':network_policy,
+             **({'workspace':workspace.identity()} if workspace else {})})
+    except BaseException:
+        ops.stop_process(proc)
+        raise
     return proc
 
 def data_bytes(root, *, exclude=()):

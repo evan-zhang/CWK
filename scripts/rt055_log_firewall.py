@@ -1,6 +1,6 @@
 """Controller-only byte firewall. No patterns, digests or raw output receipts.
 
-64 MiB total input per stream, 64 MiB aggregate patterns, 8 MiB longest leaf.
+64 MiB total input per stream, 128 MiB shared pattern bank, 8 MiB longest leaf.
 Leftmost, longest-at-that-position replacement; retain an undecidable suffix.
 No line decoder, disk spool, queue, or subprocess receives the needle set.
 """
@@ -15,6 +15,7 @@ import time
 import rt055_window as window
 
 CAP=64*1024*1024
+PATTERN_CAP=128*1024*1024
 MAX_LEAF=8*1024*1024
 CHUNK=65536
 REPLACEMENT=b'[RT055_REDACTED]'
@@ -25,9 +26,9 @@ class FirewallError(RuntimeError):
         super().__init__('log_firewall_'+self.code.lower())
 
 class Filter:
-    def __init__(self,values,cap=CAP):
-        patterns=tuple(sorted({v.encode('utf-8') for v in values if v},key=lambda b:(-len(b),b)))
-        if not patterns or sum(map(len,patterns))>CAP or len(patterns[0])>MAX_LEAF:
+    def __init__(self,values,cap=CAP,*,patterns=None):
+        if patterns is None:patterns=tuple(sorted({v.encode('utf-8') for v in values if v},key=lambda b:(-len(b),b)))
+        if not patterns or sum(map(len,patterns))>PATTERN_CAP or len(patterns[0])>MAX_LEAF:
             raise FirewallError('CAPACITY')
         if not 0<cap<=CAP:raise FirewallError('CAPACITY')
         self.patterns=patterns;self.maximum=len(patterns[0]);self.cap=cap
@@ -47,8 +48,8 @@ class Filter:
         self.buffer=self.buffer[pos:];result=b''.join(out);self.output_bytes+=len(result);return result
 
 class Stream:
-    def __init__(self,path,values,cap=CAP):
-        self.path=Path(path);self.filter=Filter(values,cap)
+    def __init__(self,path,values,cap=CAP,*,patterns=None):
+        self.path=Path(path);self.filter=Filter(values,cap,patterns=patterns)
         self.error='NONE';self.eof=False;self.closed=False;self.finalized=False
         self.stop=threading.Event();self.proc=None;self.thread=None;self.pipe=None
         self.sink=self.path.open('xb',buffering=0);os.chmod(self.path,0o600)
@@ -126,14 +127,14 @@ class Stream:
 _CONTEXTS={}
 class Firewall:
     def __init__(self,space,values):
-        self.space=space;self.values=tuple(values);Filter(self.values)
+        self.space=space;self.values=tuple(values);self.patterns=Filter(self.values).patterns
         self.streams={};self.finalized=False
     def spawn(self,argv,path,kwargs):
         from rt055_candidate_workspace import require_path
         require_path(self.space,path,'logs')
         if self.finalized or path in self.streams:raise FirewallError('UNVERIFIED')
         if any(k in kwargs for k in ('stdout','stderr','text','encoding','errors')):raise FirewallError('UNVERIFIED')
-        stream=Stream(path,self.values);self.streams[path]=stream
+        stream=Stream(path,self.values,patterns=self.patterns);self.streams[path]=stream
         try:
             proc=subprocess.Popen(argv,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,start_new_session=True,**kwargs)
             proc._rt055_firewall=stream;stream.attach(proc);return proc

@@ -53,14 +53,14 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "case_query",
-        "filename"
+        "case_query_fields",
+        "filename_fields"
       ],
       "properties": {
-        "case_query": {
+        "case_query_fields": {
           "const": 2
         },
-        "filename": {
+        "filename_fields": {
           "const": 6
         }
       }

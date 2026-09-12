@@ -16,7 +16,7 @@ import rt055_window as window
 import rt055_runtime_readiness as runtime_ready
 
 SCHEMA = 'cwk.rt055.scoring-input-readiness.v1'
-INPUTS = ('verifier/private-verified.json', 'verifier/case-verification.json')
+INPUTS = ('verifier/private-verified.json', 'verifier/case-verification.json', 'builder/private-corpus.json')
 
 
 def need(value):
@@ -51,6 +51,10 @@ def inspect_inputs(root):
     need(checks.get('verified') is True and set(verified.get('libraries', {})) == set(ops.LIBRARIES))
     need(checks.get('participating_libraries') == list(ops.LIBRARIES) and checks.get('deferred_libraries') == [])
     cases = load_cases(verified)
+    from rt055_candidate_workspace import needles
+    from rt055_log_firewall import Filter
+    corpus=ops.read_json(root/'builder/private-corpus.json')
+    Filter(needles(corpus,cases)+needles(verified,[])+list(ops.WARMUP_QUERIES))
     metrics = kbc.validate_cases(cases, require_trial_identity=True)
     summary = {}
     for kb in ops.LIBRARIES:

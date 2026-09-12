@@ -7,7 +7,7 @@
     "raw_canary_on_disk": true
   },
   "green": {
-    "tests": 236,
+    "tests": 237,
     "failures": 0,
     "errors": 0,
     "skipped": 0,
