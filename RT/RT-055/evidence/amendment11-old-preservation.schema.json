@@ -1,0 +1,499 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "source_commit",
+    "old_source_commit",
+    "old_window_id",
+    "old_migration_id",
+    "old_formal",
+    "old_candidate_attempts",
+    "old_ledger",
+    "old_candidate_log_checks",
+    "old_controller_log_checks",
+    "old_after",
+    "old_closeout_status",
+    "old_after_retried",
+    "all_historical_bytes_verified",
+    "history_bytes_equal",
+    "retained_materials",
+    "retained_bytes_equal",
+    "old_windows_reopened",
+    "old_candidates_replayed",
+    "private_values_or_digests_exported"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.amendment11-old-preservation.v1"
+    },
+    "source_commit": {
+      "const": "fdfcfb6dfef57862cf5efd478e88820419e7c322"
+    },
+    "old_source_commit": {
+      "const": "43207eefbe30557b53d556055fa5438c8afe47ee"
+    },
+    "old_window_id": {
+      "const": "be3ab168-0568-4d39-a06e-824b4cd26a58"
+    },
+    "old_migration_id": {
+      "const": "ead5992d-fea7-4efb-b4c5-cedb1d7e8d12"
+    },
+    "old_formal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "completed",
+        "exit_code",
+        "failed_phase",
+        "phase",
+        "status"
+      ],
+      "properties": {
+        "completed": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 0,
+          "items": false
+        },
+        "exit_code": {
+          "const": 2
+        },
+        "failed_phase": {
+          "const": "RUN_B"
+        },
+        "phase": {
+          "const": "EXECUTION_ATTEMPT_FAILED"
+        },
+        "status": {
+          "const": "WAITING_RECONCILIATION"
+        }
+      }
+    },
+    "old_candidate_attempts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "a",
+        "b"
+      ],
+      "properties": {
+        "a": {
+          "const": 0
+        },
+        "b": {
+          "const": 1
+        }
+      }
+    },
+    "old_ledger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "a",
+        "b"
+      ],
+      "properties": {
+        "a": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cwork-3m",
+            "docdb-touqian",
+            "spbp-2027"
+          ],
+          "properties": {
+            "cwork-3m": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "arm",
+                "complete",
+                "exposure",
+                "query_count",
+                "result",
+                "score"
+              ],
+              "properties": {
+                "arm": {
+                  "const": 0
+                },
+                "complete": {
+                  "const": 0
+                },
+                "exposure": {
+                  "const": 0
+                },
+                "query_count": {
+                  "const": 0
+                },
+                "result": {
+                  "const": 0
+                },
+                "score": {
+                  "const": 0
+                }
+              }
+            },
+            "docdb-touqian": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "arm",
+                "complete",
+                "exposure",
+                "query_count",
+                "result",
+                "score"
+              ],
+              "properties": {
+                "arm": {
+                  "const": 0
+                },
+                "complete": {
+                  "const": 0
+                },
+                "exposure": {
+                  "const": 0
+                },
+                "query_count": {
+                  "const": 0
+                },
+                "result": {
+                  "const": 0
+                },
+                "score": {
+                  "const": 0
+                }
+              }
+            },
+            "spbp-2027": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "arm",
+                "complete",
+                "exposure",
+                "query_count",
+                "result",
+                "score"
+              ],
+              "properties": {
+                "arm": {
+                  "const": 0
+                },
+                "complete": {
+                  "const": 0
+                },
+                "exposure": {
+                  "const": 0
+                },
+                "query_count": {
+                  "const": 0
+                },
+                "result": {
+                  "const": 0
+                },
+                "score": {
+                  "const": 0
+                }
+              }
+            }
+          }
+        },
+        "b": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cwork-3m",
+            "docdb-touqian",
+            "spbp-2027"
+          ],
+          "properties": {
+            "cwork-3m": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "arm",
+                "complete",
+                "exposure",
+                "query_count",
+                "result",
+                "score"
+              ],
+              "properties": {
+                "arm": {
+                  "const": 0
+                },
+                "complete": {
+                  "const": 0
+                },
+                "exposure": {
+                  "const": 0
+                },
+                "query_count": {
+                  "const": 0
+                },
+                "result": {
+                  "const": 0
+                },
+                "score": {
+                  "const": 0
+                }
+              }
+            },
+            "docdb-touqian": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "arm",
+                "complete",
+                "exposure",
+                "query_count",
+                "result",
+                "score"
+              ],
+              "properties": {
+                "arm": {
+                  "const": 0
+                },
+                "complete": {
+                  "const": 0
+                },
+                "exposure": {
+                  "const": 0
+                },
+                "query_count": {
+                  "const": 0
+                },
+                "result": {
+                  "const": 0
+                },
+                "score": {
+                  "const": 0
+                }
+              }
+            },
+            "spbp-2027": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "arm",
+                "complete",
+                "exposure",
+                "query_count",
+                "result",
+                "score"
+              ],
+              "properties": {
+                "arm": {
+                  "const": 0
+                },
+                "complete": {
+                  "const": 0
+                },
+                "exposure": {
+                  "const": 0
+                },
+                "query_count": {
+                  "const": 0
+                },
+                "result": {
+                  "const": 0
+                },
+                "score": {
+                  "const": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "old_candidate_log_checks": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "all_streams_verified",
+            "archive_inventory_matches_firewall",
+            "archived_log_files",
+            "candidate",
+            "firewall_streams",
+            "firewall_verified",
+            "hit_files",
+            "independent_post_scan_hit_files",
+            "log_files",
+            "logs_retained",
+            "redaction_count",
+            "remaining_owned_runtime",
+            "scan_passed",
+            "workspace_cleanup_complete"
+          ],
+          "properties": {
+            "all_streams_verified": {
+              "const": true
+            },
+            "archive_inventory_matches_firewall": {
+              "const": true
+            },
+            "archived_log_files": {
+              "const": 6
+            },
+            "candidate": {
+              "const": "b"
+            },
+            "firewall_streams": {
+              "const": 6
+            },
+            "firewall_verified": {
+              "const": true
+            },
+            "hit_files": {
+              "const": 0
+            },
+            "independent_post_scan_hit_files": {
+              "const": 0
+            },
+            "log_files": {
+              "const": 6
+            },
+            "logs_retained": {
+              "const": true
+            },
+            "redaction_count": {
+              "const": 9
+            },
+            "remaining_owned_runtime": {
+              "const": 0
+            },
+            "scan_passed": {
+              "const": true
+            },
+            "workspace_cleanup_complete": {
+              "const": true
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "old_controller_log_checks": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "closed",
+            "eof",
+            "error",
+            "independent_post_scan_hits",
+            "post_scan_hits",
+            "redaction_count",
+            "verified"
+          ],
+          "properties": {
+            "closed": {
+              "const": true
+            },
+            "eof": {
+              "const": true
+            },
+            "error": {
+              "const": "CHILD_NONZERO"
+            },
+            "independent_post_scan_hits": {
+              "const": 0
+            },
+            "post_scan_hits": {
+              "const": 0
+            },
+            "redaction_count": {
+              "const": 0
+            },
+            "verified": {
+              "const": false
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "old_after": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "error_kind",
+        "libraries_measured",
+        "phase",
+        "status"
+      ],
+      "properties": {
+        "error_kind": {
+          "const": null
+        },
+        "libraries_measured": {
+          "const": 3
+        },
+        "phase": {
+          "const": "COMPLETE"
+        },
+        "status": {
+          "const": "PASS"
+        }
+      }
+    },
+    "old_closeout_status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "error_kind",
+        "phase",
+        "status"
+      ],
+      "properties": {
+        "error_kind": {
+          "const": null
+        },
+        "phase": {
+          "const": "COMPLETE"
+        },
+        "status": {
+          "const": "INVALID_CLOSED"
+        }
+      }
+    },
+    "old_after_retried": {
+      "const": false
+    },
+    "all_historical_bytes_verified": {
+      "const": 390079
+    },
+    "history_bytes_equal": {
+      "const": true
+    },
+    "retained_materials": {
+      "const": 96
+    },
+    "retained_bytes_equal": {
+      "const": true
+    },
+    "old_windows_reopened": {
+      "const": false
+    },
+    "old_candidates_replayed": {
+      "const": false
+    },
+    "private_values_or_digests_exported": {
+      "const": false
+    }
+  }
+}

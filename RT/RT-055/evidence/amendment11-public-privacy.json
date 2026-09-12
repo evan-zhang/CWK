@@ -1,0 +1,85 @@
+{
+  "schema": "cwk.rt055.amendment11-public-privacy.v1",
+  "candidate_processes_zero": true,
+  "cleanup_error_present": false,
+  "error_kind": "CalledProcessError",
+  "execution_error_present": false,
+  "global_exposure": 0,
+  "markers": {
+    "ASSERTION": 0,
+    "CONFIDENTIALITY": 1,
+    "CP": 0,
+    "GIT": 0,
+    "NETWORK": 0,
+    "NO_SPACE": 0,
+    "PERMISSION_DENIED": 0,
+    "SINGLE_USE": 0,
+    "TRACEBACK": 1,
+    "WORKLOAD": 0
+  },
+  "migration_id": "aee2e2eb-4cd7-4f97-a864-5ce6c3782529",
+  "privacy": {
+    "phase": "COMPLETE",
+    "status": "RECOVERABLE_EXECUTION_FAILURE"
+  },
+  "privacy_binding_present": false,
+  "privacy_counts": {
+    "embedding_calls": 3,
+    "embedding_successes": 3,
+    "external_socket_observations": 1,
+    "forbidden_reads": 0,
+    "log_canary_hits": 0,
+    "log_files_scanned": 3,
+    "native_normal_calls": 1,
+    "native_trace_response_headers": 0,
+    "observer_errors": 0,
+    "search_normal_calls": 1,
+    "socket_samples": 108,
+    "trace_header_observations": 0
+  },
+  "privacy_evaluation": {
+    "authenticated_error_canaries": true,
+    "external_egress_denied": true,
+    "forbidden_reads_zero": true,
+    "langfuse_runtime_disabled": true,
+    "loopback_models_only": false,
+    "native_log_canary_absent": true,
+    "normal_native_canary": true,
+    "otel_runtime_disabled": true,
+    "passed": false
+  },
+  "privacy_execution_error_kind": "OTHER",
+  "privacy_kinds": {
+    "loopback_listener_kinds": [
+      "native",
+      "search",
+      "sidecar"
+    ],
+    "observed_kinds": [
+      "native",
+      "search",
+      "sidecar"
+    ]
+  },
+  "privacy_observation_boolean_counts": {
+    "false": 0,
+    "true": 11
+  },
+  "privacy_status_present": true,
+  "status": "READONLY_PUBLIC_FAILURE_CLASSIFIED",
+  "synthetic_cleanup": {
+    "complete": true,
+    "failures": 0,
+    "remaining_data_planes": 0,
+    "remaining_processes": 0
+  },
+  "window_exists": false,
+  "workload_receipt_present": false,
+  "workload_status_present": false,
+  "workspace_cleanup_zero": true,
+  "source_commit": "fdfcfb6dfef57862cf5efd478e88820419e7c322",
+  "formal_values_exported": false,
+  "external_data_transfer_proven": null,
+  "observer_failure_root_cause": "UNKNOWN",
+  "retry_performed": false
+}

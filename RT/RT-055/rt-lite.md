@@ -456,3 +456,12 @@ B失败总回执未回填firewall_verified，单独最终drain回执6流全部PA
 ## Amendment 10 唯一正式执行收口 — INVALID
 
 Source `43207eefbe30557b53d556055fa5438c8afe47ee`；本窗 `be3ab168-0568-4d39-a06e-824b4cd26a58`；顺序 B → A，原 coordinator 1次，A/B attempts=0/1。B 首库IMPORT阶段 REQUEST_FAILED；arm/exposure/query/score/complete/result逐库全0，不重放、不启动A。原formal `WAITING_RECONCILIATION / EXECUTION_ATTEMPT_FAILED / RUN_B` 保留，独立失败helper1次完成 cleanup→after→abort/唯一INVALID decision；before PASS，after PASS（claim1不重试），cleanup0，无任务/临时数据面残留。候选6流firewall/scan通过；coordinator firewall false/CHILD_NONZERO、后置scan0，失败值如实保留。正式20指标及Gateway四能力缺测全部null；机械向量A=1/6/4，B=2/7/3来自冻结runbook。96材料、42/31/42、builder/verifier1/1及历史字节保持；旧Am9 after FAIL不重试。完整NAS/index UNKNOWN及历史drift不清除，未改生产，不切流，不以INVALID关闭选型RT。详见[完整证据、逐库指标及QA](evidence/amendment10-summary.md)。仅本地提交，不push/merge/清worktree。
+
+
+## Amendment 11 终态 — INVALID / INVALID_CLOSED（2026-09-12）
+
+源码 `fdfcfb6dfef57862cf5efd478e88820419e7c322` 修复公开可复现的native finalizing等待合同并增加封闭请求错误码；旧Am10 REQUEST_FAILED因果根因仍UNKNOWN。新migration `aee2e2eb-4cd7-4f97-a864-5ce6c3782529` 首次public privacy实测108 socket samples/1 external observation/0 observer errors，loopback_models_only硬门失败；不将其等同外部数据传输，不豁免、不重跑。public workload0，main readiness/before/freeze/随机顺序/formal coordinator均未运行；A/B attempt0/0，逐库arm/exposure/query/score/complete/result全0。
+
+预留新window `3330a46e-bfdd-4639-bb0c-ea5c1b3df622` 仅作终态收口：cleanup PASS→原after实现唯一1次FAIL（fresh before未创建、RuntimeError、0库、无快照/比较，不借旧窗基线不重试）→abort/唯一INVALID decision；formal INVALID为追加abort状态，非正式coordinator执行。120正式指标和24 Gateway能力均null，机械向量A1/6/4、B2/7/3只为未变runbook计数。新public3流firewall/scan通过，旧B6流PASS、旧coordinator false/CHILD_NONZERO保留。独立核验390079历史文件/96材料字节不变，builder/verifier1/1，42/31/42不变、残留0、Gateway3×200/ok/read_only=true。本窗comparison不可测；完整NAS/index UNKNOWN、历史services/config drift不清除。
+
+RT055回归265项与源码红绿/行为破坏通过；最终Schema negatives、隐私/凭据、QA/治理详见[Amendment11完整证据](evidence/amendment11-summary.md)。本修订已收口，无后台任务；RT-055选型未完成，不切流、不自动重试，仅本地提交，不push/merge/清worktree。

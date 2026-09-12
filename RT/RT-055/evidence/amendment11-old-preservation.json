@@ -1,0 +1,120 @@
+{
+  "schema": "cwk.rt055.amendment11-old-preservation.v1",
+  "source_commit": "fdfcfb6dfef57862cf5efd478e88820419e7c322",
+  "old_source_commit": "43207eefbe30557b53d556055fa5438c8afe47ee",
+  "old_window_id": "be3ab168-0568-4d39-a06e-824b4cd26a58",
+  "old_migration_id": "ead5992d-fea7-4efb-b4c5-cedb1d7e8d12",
+  "old_formal": {
+    "completed": [],
+    "exit_code": 2,
+    "failed_phase": "RUN_B",
+    "phase": "EXECUTION_ATTEMPT_FAILED",
+    "status": "WAITING_RECONCILIATION"
+  },
+  "old_candidate_attempts": {
+    "a": 0,
+    "b": 1
+  },
+  "old_ledger": {
+    "a": {
+      "cwork-3m": {
+        "arm": 0,
+        "complete": 0,
+        "exposure": 0,
+        "query_count": 0,
+        "result": 0,
+        "score": 0
+      },
+      "docdb-touqian": {
+        "arm": 0,
+        "complete": 0,
+        "exposure": 0,
+        "query_count": 0,
+        "result": 0,
+        "score": 0
+      },
+      "spbp-2027": {
+        "arm": 0,
+        "complete": 0,
+        "exposure": 0,
+        "query_count": 0,
+        "result": 0,
+        "score": 0
+      }
+    },
+    "b": {
+      "cwork-3m": {
+        "arm": 0,
+        "complete": 0,
+        "exposure": 0,
+        "query_count": 0,
+        "result": 0,
+        "score": 0
+      },
+      "docdb-touqian": {
+        "arm": 0,
+        "complete": 0,
+        "exposure": 0,
+        "query_count": 0,
+        "result": 0,
+        "score": 0
+      },
+      "spbp-2027": {
+        "arm": 0,
+        "complete": 0,
+        "exposure": 0,
+        "query_count": 0,
+        "result": 0,
+        "score": 0
+      }
+    }
+  },
+  "old_candidate_log_checks": [
+    {
+      "all_streams_verified": true,
+      "archive_inventory_matches_firewall": true,
+      "archived_log_files": 6,
+      "candidate": "b",
+      "firewall_streams": 6,
+      "firewall_verified": true,
+      "hit_files": 0,
+      "independent_post_scan_hit_files": 0,
+      "log_files": 6,
+      "logs_retained": true,
+      "redaction_count": 9,
+      "remaining_owned_runtime": 0,
+      "scan_passed": true,
+      "workspace_cleanup_complete": true
+    }
+  ],
+  "old_controller_log_checks": [
+    {
+      "closed": true,
+      "eof": true,
+      "error": "CHILD_NONZERO",
+      "independent_post_scan_hits": 0,
+      "post_scan_hits": 0,
+      "redaction_count": 0,
+      "verified": false
+    }
+  ],
+  "old_after": {
+    "error_kind": null,
+    "libraries_measured": 3,
+    "phase": "COMPLETE",
+    "status": "PASS"
+  },
+  "old_closeout_status": {
+    "error_kind": null,
+    "phase": "COMPLETE",
+    "status": "INVALID_CLOSED"
+  },
+  "old_after_retried": false,
+  "all_historical_bytes_verified": 390079,
+  "history_bytes_equal": true,
+  "retained_materials": 96,
+  "retained_bytes_equal": true,
+  "old_windows_reopened": false,
+  "old_candidates_replayed": false,
+  "private_values_or_digests_exported": false
+}

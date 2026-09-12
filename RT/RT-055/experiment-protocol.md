@@ -517,3 +517,12 @@ Source `43207eefbe30557b53d556055fa5438c8afe47ee`；本窗 `be3ab168-0568-4d39-a
 - 新 source commit、新 append-only migration/archive及新随机window。源码绑定要求新公开privacy与同形workload **仅运行1次**，原因 SOURCE_BINDING_REQUIRES_NEW_WORKLOAD；不为取PASS重复。独立合成finalizing红绿不是原生OPS workload，也不冒充正式成绩。
 - 全部 source/privacy/runtime/workspace/scoring/freeze/zero-exposure/no-Popen/Gateway/readiness 门通过后才按一次新随机冻结顺序正式执行；每候选最多1 attempt，任一 exposure 后绝不重放。builder/verifier保持1/1。
 - 新窗 fresh before；失败同窗 cleanup→after唯一尝试→append-only abort/唯一decision。原formal错误终态不改写；不可测正式指标与Gateway四能力null。完整NAS/index UNKNOWN和历史services/config漂移保留。最终独立核验日志/账本/无残留/3路健康/96材料和历史字节；仅本地提交，禁止push/merge/清worktree/生产改动。
+
+
+## Amendment 11 终态 — INVALID / INVALID_CLOSED（2026-09-12）
+
+源码 `fdfcfb6dfef57862cf5efd478e88820419e7c322` 修复公开可复现的native finalizing等待合同并增加封闭请求错误码；旧Am10 REQUEST_FAILED因果根因仍UNKNOWN。新migration `aee2e2eb-4cd7-4f97-a864-5ce6c3782529` 首次public privacy实测108 socket samples/1 external observation/0 observer errors，loopback_models_only硬门失败；不将其等同外部数据传输，不豁免、不重跑。public workload0，main readiness/before/freeze/随机顺序/formal coordinator均未运行；A/B attempt0/0，逐库arm/exposure/query/score/complete/result全0。
+
+预留新window `3330a46e-bfdd-4639-bb0c-ea5c1b3df622` 仅作终态收口：cleanup PASS→原after实现唯一1次FAIL（fresh before未创建、RuntimeError、0库、无快照/比较，不借旧窗基线不重试）→abort/唯一INVALID decision；formal INVALID为追加abort状态，非正式coordinator执行。120正式指标和24 Gateway能力均null，机械向量A1/6/4、B2/7/3只为未变runbook计数。新public3流firewall/scan通过，旧B6流PASS、旧coordinator false/CHILD_NONZERO保留。独立核验390079历史文件/96材料字节不变，builder/verifier1/1，42/31/42不变、残留0、Gateway3×200/ok/read_only=true。本窗comparison不可测；完整NAS/index UNKNOWN、历史services/config drift不清除。
+
+RT055回归265项与源码红绿/行为破坏通过；最终Schema negatives、隐私/凭据、QA/治理详见[Amendment11完整证据](evidence/amendment11-summary.md)。本修订已收口，无后台任务；RT-055选型未完成，不切流、不自动重试，仅本地提交，不push/merge/清worktree。

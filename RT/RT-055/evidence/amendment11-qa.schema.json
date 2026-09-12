@@ -1,0 +1,313 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "source_commit",
+    "terminal_decision",
+    "selected_candidate",
+    "old_request_failed_root_cause",
+    "public_defect_confirmed",
+    "regression",
+    "compiled_files",
+    "behavior_mutation_detected",
+    "restored_green",
+    "formal_candidates_replayed",
+    "formal_coordinator_invocations",
+    "candidate_attempts",
+    "after_claims",
+    "after_retried",
+    "after_status",
+    "after_reason",
+    "cleanup_failures",
+    "task_processes",
+    "runtime",
+    "independent_uuid_resources",
+    "independent_audit_exited",
+    "retained_materials",
+    "history_files_verified",
+    "history_bytes_equal",
+    "builder_runs",
+    "verifier_runs",
+    "pool_counts",
+    "formal_metrics_null",
+    "gateway_capabilities_null",
+    "new_privacy_log_streams_verified",
+    "old_candidate_log_streams_verified",
+    "old_controller_firewall_verified",
+    "old_controller_firewall_error",
+    "independent_log_hits",
+    "new_privacy_socket_observations",
+    "new_privacy_external_socket_observations",
+    "new_privacy_gate_passed",
+    "workload_invocations",
+    "new_readiness_established",
+    "full_nas_index_invariance",
+    "historical_drift_cleared",
+    "production_changes_performed",
+    "main_agent_independently_reviewed_artifacts",
+    "third_party_agent_review_claimed",
+    "full_repository_ci_claimed",
+    "schemas_validated",
+    "schema_negative_rejections",
+    "private_field_or_digest_hits",
+    "credential_value_hits",
+    "historical_public_files_unchanged",
+    "historical_document_prefixes_preserved",
+    "links_checked",
+    "anchors_checked",
+    "aodw_exit_code",
+    "aodw_known_host_skill_warnings",
+    "governance_exit_code",
+    "governance_tracked_files",
+    "public_only_commits",
+    "push_performed",
+    "merge_performed",
+    "worktree_removed"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.amendment11-qa.v1"
+    },
+    "status": {
+      "const": "PUBLIC_CLOSED_INVALID_VERIFIED"
+    },
+    "source_commit": {
+      "const": "fdfcfb6dfef57862cf5efd478e88820419e7c322"
+    },
+    "terminal_decision": {
+      "const": "INVALID"
+    },
+    "selected_candidate": {
+      "const": null
+    },
+    "old_request_failed_root_cause": {
+      "const": "UNKNOWN"
+    },
+    "public_defect_confirmed": {
+      "const": "NATIVE_FINALIZING_REJECTED_AS_REQUEST_FAILED"
+    },
+    "regression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tests",
+        "failures",
+        "errors",
+        "skipped",
+        "exit_code"
+      ],
+      "properties": {
+        "tests": {
+          "const": 265
+        },
+        "failures": {
+          "const": 0
+        },
+        "errors": {
+          "const": 0
+        },
+        "skipped": {
+          "const": 0
+        },
+        "exit_code": {
+          "const": 0
+        }
+      }
+    },
+    "compiled_files": {
+      "const": 142
+    },
+    "behavior_mutation_detected": {
+      "const": true
+    },
+    "restored_green": {
+      "const": true
+    },
+    "formal_candidates_replayed": {
+      "const": false
+    },
+    "formal_coordinator_invocations": {
+      "const": 0
+    },
+    "candidate_attempts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "a",
+        "b"
+      ],
+      "properties": {
+        "a": {
+          "const": 0
+        },
+        "b": {
+          "const": 0
+        }
+      }
+    },
+    "after_claims": {
+      "const": 1
+    },
+    "after_retried": {
+      "const": false
+    },
+    "after_status": {
+      "const": "FAIL"
+    },
+    "after_reason": {
+      "const": "FRESH_BEFORE_NOT_CREATED_PRIVACY_GATE_FAILED"
+    },
+    "cleanup_failures": {
+      "const": 0
+    },
+    "task_processes": {
+      "const": 0
+    },
+    "runtime": {
+      "const": 0
+    },
+    "independent_uuid_resources": {
+      "const": 0
+    },
+    "independent_audit_exited": {
+      "const": true
+    },
+    "retained_materials": {
+      "const": 96
+    },
+    "history_files_verified": {
+      "const": 390079
+    },
+    "history_bytes_equal": {
+      "const": true
+    },
+    "builder_runs": {
+      "const": 1
+    },
+    "verifier_runs": {
+      "const": 1
+    },
+    "pool_counts": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "prefixItems": [
+        {
+          "const": 42
+        },
+        {
+          "const": 31
+        },
+        {
+          "const": 42
+        }
+      ],
+      "items": false
+    },
+    "formal_metrics_null": {
+      "const": 120
+    },
+    "gateway_capabilities_null": {
+      "const": 24
+    },
+    "new_privacy_log_streams_verified": {
+      "const": 3
+    },
+    "old_candidate_log_streams_verified": {
+      "const": 6
+    },
+    "old_controller_firewall_verified": {
+      "const": false
+    },
+    "old_controller_firewall_error": {
+      "const": "CHILD_NONZERO"
+    },
+    "independent_log_hits": {
+      "const": 0
+    },
+    "new_privacy_socket_observations": {
+      "const": 108
+    },
+    "new_privacy_external_socket_observations": {
+      "const": 1
+    },
+    "new_privacy_gate_passed": {
+      "const": false
+    },
+    "workload_invocations": {
+      "const": 0
+    },
+    "new_readiness_established": {
+      "const": false
+    },
+    "full_nas_index_invariance": {
+      "const": null
+    },
+    "historical_drift_cleared": {
+      "const": false
+    },
+    "production_changes_performed": {
+      "const": false
+    },
+    "main_agent_independently_reviewed_artifacts": {
+      "const": true
+    },
+    "third_party_agent_review_claimed": {
+      "const": false
+    },
+    "full_repository_ci_claimed": {
+      "const": false
+    },
+    "schemas_validated": {
+      "const": 8
+    },
+    "schema_negative_rejections": {
+      "const": 1333
+    },
+    "private_field_or_digest_hits": {
+      "const": 0
+    },
+    "credential_value_hits": {
+      "const": 0
+    },
+    "historical_public_files_unchanged": {
+      "const": 145
+    },
+    "historical_document_prefixes_preserved": {
+      "const": 3
+    },
+    "links_checked": {
+      "const": 222
+    },
+    "anchors_checked": {
+      "const": 31
+    },
+    "aodw_exit_code": {
+      "const": 0
+    },
+    "aodw_known_host_skill_warnings": {
+      "const": 1
+    },
+    "governance_exit_code": {
+      "const": 0
+    },
+    "governance_tracked_files": {
+      "const": 998
+    },
+    "public_only_commits": {
+      "const": true
+    },
+    "push_performed": {
+      "const": false
+    },
+    "merge_performed": {
+      "const": false
+    },
+    "worktree_removed": {
+      "const": false
+    }
+  }
+}

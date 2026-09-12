@@ -1,0 +1,39 @@
+{
+  "status": "PASS",
+  "mutation_detected": true,
+  "restored_green": true,
+  "behavior_tests": 4,
+  "credential_value_hits": 0,
+  "compiled_files": 142,
+  "private_inputs_used": false,
+  "core_changed": false,
+  "source_files_changed": 3,
+  "schema": "cwk.rt055.amendment11-source-qa.v1",
+  "source_commit": "fdfcfb6dfef57862cf5efd478e88820419e7c322",
+  "regression": {
+    "tests": 265,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "red": {
+    "serial_tests": 16,
+    "serial_failures": 1,
+    "serial_errors": 3,
+    "diagnostic_tests": 12,
+    "diagnostic_failures": 3
+  },
+  "green": {
+    "serial_tests": 16,
+    "diagnostic_tests": 12,
+    "failures": 0,
+    "errors": 0
+  },
+  "aodw_exit_code": 0,
+  "governance_exit_code": 0,
+  "full_repository_ci_claimed": false,
+  "old_private_failure_root_cause": "UNKNOWN",
+  "confirmed_public_defect": "NATIVE_FINALIZING_REJECTED_AS_REQUEST_FAILED",
+  "algorithms_or_quality_gates_changed": false,
+  "automatic_retries_added": false
+}

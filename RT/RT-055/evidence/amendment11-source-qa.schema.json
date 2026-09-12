@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "status",
+    "mutation_detected",
+    "restored_green",
+    "behavior_tests",
+    "credential_value_hits",
+    "compiled_files",
+    "private_inputs_used",
+    "core_changed",
+    "source_files_changed",
+    "schema",
+    "source_commit",
+    "regression",
+    "red",
+    "green",
+    "aodw_exit_code",
+    "governance_exit_code",
+    "full_repository_ci_claimed",
+    "old_private_failure_root_cause",
+    "confirmed_public_defect",
+    "algorithms_or_quality_gates_changed",
+    "automatic_retries_added"
+  ],
+  "properties": {
+    "status": {
+      "const": "PASS"
+    },
+    "mutation_detected": {
+      "const": true
+    },
+    "restored_green": {
+      "const": true
+    },
+    "behavior_tests": {
+      "const": 4
+    },
+    "credential_value_hits": {
+      "const": 0
+    },
+    "compiled_files": {
+      "const": 142
+    },
+    "private_inputs_used": {
+      "const": false
+    },
+    "core_changed": {
+      "const": false
+    },
+    "source_files_changed": {
+      "const": 3
+    },
+    "schema": {
+      "const": "cwk.rt055.amendment11-source-qa.v1"
+    },
+    "source_commit": {
+      "const": "fdfcfb6dfef57862cf5efd478e88820419e7c322"
+    },
+    "regression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tests",
+        "failures",
+        "errors",
+        "skipped"
+      ],
+      "properties": {
+        "tests": {
+          "const": 265
+        },
+        "failures": {
+          "const": 0
+        },
+        "errors": {
+          "const": 0
+        },
+        "skipped": {
+          "const": 0
+        }
+      }
+    },
+    "red": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "serial_tests",
+        "serial_failures",
+        "serial_errors",
+        "diagnostic_tests",
+        "diagnostic_failures"
+      ],
+      "properties": {
+        "serial_tests": {
+          "const": 16
+        },
+        "serial_failures": {
+          "const": 1
+        },
+        "serial_errors": {
+          "const": 3
+        },
+        "diagnostic_tests": {
+          "const": 12
+        },
+        "diagnostic_failures": {
+          "const": 3
+        }
+      }
+    },
+    "green": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "serial_tests",
+        "diagnostic_tests",
+        "failures",
+        "errors"
+      ],
+      "properties": {
+        "serial_tests": {
+          "const": 16
+        },
+        "diagnostic_tests": {
+          "const": 12
+        },
+        "failures": {
+          "const": 0
+        },
+        "errors": {
+          "const": 0
+        }
+      }
+    },
+    "aodw_exit_code": {
+      "const": 0
+    },
+    "governance_exit_code": {
+      "const": 0
+    },
+    "full_repository_ci_claimed": {
+      "const": false
+    },
+    "old_private_failure_root_cause": {
+      "const": "UNKNOWN"
+    },
+    "confirmed_public_defect": {
+      "const": "NATIVE_FINALIZING_REJECTED_AS_REQUEST_FAILED"
+    },
+    "algorithms_or_quality_gates_changed": {
+      "const": false
+    },
+    "automatic_retries_added": {
+      "const": false
+    }
+  }
+}

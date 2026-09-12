@@ -1,0 +1,547 @@
+{
+  "abort": {
+    "after_status": "FAIL",
+    "cleanup_passed": true,
+    "failed_phase": "PUBLIC_PRIVACY",
+    "phase": "COMPLETE",
+    "reason": "PUBLIC_PRIVACY_EXTERNAL_SOCKET_OBSERVATION",
+    "status": "INVALID"
+  },
+  "after_claims": 1,
+  "after_comparison_present": false,
+  "after_error_kind": "RuntimeError",
+  "after_failure_not_retried": true,
+  "after_failure_reason": "FRESH_BEFORE_NOT_CREATED_PRIVACY_GATE_FAILED",
+  "after_libraries_measured": 0,
+  "after_retried": false,
+  "after_snapshot_present": false,
+  "after_status": "FAIL",
+  "aggregate_present": false,
+  "aggregate_recomputed": false,
+  "archived_source_files": 27,
+  "before_after_recomputed": false,
+  "before_claims": 0,
+  "before_status": "NOT_RUN",
+  "build_status": [],
+  "builder_runs": 1,
+  "candidate_attempts": {
+    "a": 0,
+    "b": 0
+  },
+  "candidate_failure": [],
+  "candidate_log_checks": [],
+  "candidate_replayed": false,
+  "candidate_results": 0,
+  "cleanup": {
+    "cleanup_failures": 0,
+    "private_holdout_retained_on_ops": true,
+    "related_processes": 0,
+    "temporary_containers_zero": true,
+    "temporary_indices_zero": true,
+    "temporary_services_zero": true,
+    "uuid_container_volume_network_resources": 0
+  },
+  "closeout_claims": 1,
+  "closeout_status": "INVALID_CLOSED",
+  "controller_firewall_all_verified": null,
+  "controller_log_checks": [],
+  "decision_files": 1,
+  "executioner_migration_id": "aee2e2eb-4cd7-4f97-a864-5ce6c3782529",
+  "formal_coordinator_invocations": 0,
+  "formal_coordinator_restarted": false,
+  "formal_failed_phase": "PUBLIC_PRIVACY",
+  "formal_log_checks_status": "NOT_RUN",
+  "formal_log_contents_exported": false,
+  "formal_original_preserved": true,
+  "formal_phase": "COMPLETE",
+  "formal_queries": 0,
+  "formal_status": "INVALID",
+  "freeze_claims": 0,
+  "freeze_reverified": false,
+  "full_nas_index_invariance": null,
+  "gateway_capabilities": {
+    "a": {
+      "cwork-3m": {
+        "https_query_api": null,
+        "kb_grants_server_side": null,
+        "no_direct_nas_or_search_credentials": null,
+        "per_gateway_identity": null
+      },
+      "docdb-touqian": {
+        "https_query_api": null,
+        "kb_grants_server_side": null,
+        "no_direct_nas_or_search_credentials": null,
+        "per_gateway_identity": null
+      },
+      "spbp-2027": {
+        "https_query_api": null,
+        "kb_grants_server_side": null,
+        "no_direct_nas_or_search_credentials": null,
+        "per_gateway_identity": null
+      }
+    },
+    "b": {
+      "cwork-3m": {
+        "https_query_api": null,
+        "kb_grants_server_side": null,
+        "no_direct_nas_or_search_credentials": null,
+        "per_gateway_identity": null
+      },
+      "docdb-touqian": {
+        "https_query_api": null,
+        "kb_grants_server_side": null,
+        "no_direct_nas_or_search_credentials": null,
+        "per_gateway_identity": null
+      },
+      "spbp-2027": {
+        "https_query_api": null,
+        "kb_grants_server_side": null,
+        "no_direct_nas_or_search_credentials": null,
+        "per_gateway_identity": null
+      }
+    }
+  },
+  "gateway_tls_files": 0,
+  "health": [
+    {
+      "http_status": 200,
+      "ok": true,
+      "read_only": true
+    },
+    {
+      "http_status": 200,
+      "ok": true,
+      "read_only": true
+    },
+    {
+      "http_status": 200,
+      "ok": true,
+      "read_only": true
+    }
+  ],
+  "historical_comparisons": [
+    {
+      "comparison": {
+        "all_items_measured": false,
+        "containers_unchanged": true,
+        "existing_indices_unchanged": null,
+        "existing_indices_unchanged_measured_projection": true,
+        "gateway_health_content_unchanged": true,
+        "gateway_unchanged": true,
+        "nas_unchanged": null,
+        "nas_unchanged_measured_projection": true,
+        "production_config_unchanged": false,
+        "production_config_unchanged_measured_projection": true,
+        "services_unchanged": false,
+        "volumes_unchanged": true
+      },
+      "window_id": "0155202c-b6a0-40c6-a779-48aff0ab57fe"
+    },
+    {
+      "comparison": {
+        "all_items_measured": false,
+        "containers_unchanged": true,
+        "existing_indices_unchanged": null,
+        "existing_indices_unchanged_measured_projection": true,
+        "gateway_health_content_unchanged": true,
+        "gateway_unchanged": true,
+        "nas_unchanged": null,
+        "nas_unchanged_measured_projection": true,
+        "production_config_unchanged": false,
+        "production_config_unchanged_measured_projection": true,
+        "services_unchanged": false,
+        "volumes_unchanged": true
+      },
+      "window_id": "7bed2d1c-4943-4da6-b6d2-a23aab5c195f"
+    },
+    {
+      "comparison": {
+        "all_items_measured": false,
+        "containers_unchanged": true,
+        "existing_indices_unchanged": null,
+        "existing_indices_unchanged_measured_projection": true,
+        "gateway_health_content_unchanged": true,
+        "gateway_unchanged": true,
+        "nas_unchanged": null,
+        "nas_unchanged_measured_projection": true,
+        "production_config_unchanged": false,
+        "production_config_unchanged_measured_projection": true,
+        "services_unchanged": false,
+        "volumes_unchanged": true
+      },
+      "window_id": "835c5188-0f29-4f41-8fe6-119b61917e2d"
+    },
+    {
+      "comparison": {
+        "all_items_measured": false,
+        "containers_unchanged": true,
+        "existing_indices_unchanged": null,
+        "existing_indices_unchanged_measured_projection": true,
+        "gateway_health_content_unchanged": true,
+        "gateway_unchanged": true,
+        "nas_unchanged": null,
+        "nas_unchanged_measured_projection": true,
+        "production_config_unchanged": false,
+        "production_config_unchanged_measured_projection": true,
+        "services_unchanged": false,
+        "volumes_unchanged": true
+      },
+      "window_id": "be3ab168-0568-4d39-a06e-824b4cd26a58"
+    },
+    {
+      "comparison": {
+        "all_items_measured": false,
+        "containers_unchanged": true,
+        "existing_indices_unchanged": null,
+        "existing_indices_unchanged_measured_projection": true,
+        "gateway_health_content_unchanged": true,
+        "gateway_unchanged": true,
+        "nas_unchanged": null,
+        "nas_unchanged_measured_projection": true,
+        "production_config_unchanged": false,
+        "production_config_unchanged_measured_projection": true,
+        "services_unchanged": false,
+        "volumes_unchanged": true
+      },
+      "window_id": "c66757c6-93f6-481d-aa92-be7de83b9aa1"
+    },
+    {
+      "comparison": {
+        "all_items_measured": false,
+        "containers_unchanged": true,
+        "existing_indices_unchanged": null,
+        "existing_indices_unchanged_measured_projection": true,
+        "gateway_health_content_unchanged": true,
+        "gateway_unchanged": true,
+        "nas_unchanged": null,
+        "nas_unchanged_measured_projection": true,
+        "production_config_unchanged": false,
+        "production_config_unchanged_measured_projection": true,
+        "services_unchanged": false,
+        "volumes_unchanged": true
+      },
+      "window_id": "d408cfab-40f7-41d3-8ccb-75fb0aaa2b65"
+    }
+  ],
+  "historical_drift_cleared": false,
+  "historical_window_file_set_equal": true,
+  "history_bytes_equal": true,
+  "history_files_verified": 390079,
+  "independent_post_scan_passed": true,
+  "independent_uuid_resources": 0,
+  "invariance": null,
+  "ledger": {
+    "a": {
+      "cwork-3m": {
+        "arm": 0,
+        "complete": 0,
+        "exposure": 0,
+        "query_count": 0,
+        "result": 0,
+        "score": 0
+      },
+      "docdb-touqian": {
+        "arm": 0,
+        "complete": 0,
+        "exposure": 0,
+        "query_count": 0,
+        "result": 0,
+        "score": 0
+      },
+      "spbp-2027": {
+        "arm": 0,
+        "complete": 0,
+        "exposure": 0,
+        "query_count": 0,
+        "result": 0,
+        "score": 0
+      }
+    },
+    "b": {
+      "cwork-3m": {
+        "arm": 0,
+        "complete": 0,
+        "exposure": 0,
+        "query_count": 0,
+        "result": 0,
+        "score": 0
+      },
+      "docdb-touqian": {
+        "arm": 0,
+        "complete": 0,
+        "exposure": 0,
+        "query_count": 0,
+        "result": 0,
+        "score": 0
+      },
+      "spbp-2027": {
+        "arm": 0,
+        "complete": 0,
+        "exposure": 0,
+        "query_count": 0,
+        "result": 0,
+        "score": 0
+      }
+    }
+  },
+  "main_readiness": "NOT_RUN",
+  "metrics": {
+    "a": {
+      "cwork-3m": {
+        "answerable_count": null,
+        "answerable_system_error_count": null,
+        "build_seconds": null,
+        "exact": null,
+        "exact_count": null,
+        "exact_hits": null,
+        "exact_system_error_count": null,
+        "index_bytes": null,
+        "leak_count": null,
+        "no_answer": null,
+        "no_answer_correct": null,
+        "no_answer_count": null,
+        "no_answer_system_error_count": null,
+        "p95_ms": null,
+        "peak_rss_bytes": null,
+        "recall_at_10": null,
+        "recall_hits_at_10": null,
+        "status": "NOT_MEASURED",
+        "system_error_count": null,
+        "timeout_count": null,
+        "total_count": null
+      },
+      "docdb-touqian": {
+        "answerable_count": null,
+        "answerable_system_error_count": null,
+        "build_seconds": null,
+        "exact": null,
+        "exact_count": null,
+        "exact_hits": null,
+        "exact_system_error_count": null,
+        "index_bytes": null,
+        "leak_count": null,
+        "no_answer": null,
+        "no_answer_correct": null,
+        "no_answer_count": null,
+        "no_answer_system_error_count": null,
+        "p95_ms": null,
+        "peak_rss_bytes": null,
+        "recall_at_10": null,
+        "recall_hits_at_10": null,
+        "status": "NOT_MEASURED",
+        "system_error_count": null,
+        "timeout_count": null,
+        "total_count": null
+      },
+      "spbp-2027": {
+        "answerable_count": null,
+        "answerable_system_error_count": null,
+        "build_seconds": null,
+        "exact": null,
+        "exact_count": null,
+        "exact_hits": null,
+        "exact_system_error_count": null,
+        "index_bytes": null,
+        "leak_count": null,
+        "no_answer": null,
+        "no_answer_correct": null,
+        "no_answer_count": null,
+        "no_answer_system_error_count": null,
+        "p95_ms": null,
+        "peak_rss_bytes": null,
+        "recall_at_10": null,
+        "recall_hits_at_10": null,
+        "status": "NOT_MEASURED",
+        "system_error_count": null,
+        "timeout_count": null,
+        "total_count": null
+      }
+    },
+    "b": {
+      "cwork-3m": {
+        "answerable_count": null,
+        "answerable_system_error_count": null,
+        "build_seconds": null,
+        "exact": null,
+        "exact_count": null,
+        "exact_hits": null,
+        "exact_system_error_count": null,
+        "index_bytes": null,
+        "leak_count": null,
+        "no_answer": null,
+        "no_answer_correct": null,
+        "no_answer_count": null,
+        "no_answer_system_error_count": null,
+        "p95_ms": null,
+        "peak_rss_bytes": null,
+        "recall_at_10": null,
+        "recall_hits_at_10": null,
+        "status": "NOT_MEASURED",
+        "system_error_count": null,
+        "timeout_count": null,
+        "total_count": null
+      },
+      "docdb-touqian": {
+        "answerable_count": null,
+        "answerable_system_error_count": null,
+        "build_seconds": null,
+        "exact": null,
+        "exact_count": null,
+        "exact_hits": null,
+        "exact_system_error_count": null,
+        "index_bytes": null,
+        "leak_count": null,
+        "no_answer": null,
+        "no_answer_correct": null,
+        "no_answer_count": null,
+        "no_answer_system_error_count": null,
+        "p95_ms": null,
+        "peak_rss_bytes": null,
+        "recall_at_10": null,
+        "recall_hits_at_10": null,
+        "status": "NOT_MEASURED",
+        "system_error_count": null,
+        "timeout_count": null,
+        "total_count": null
+      },
+      "spbp-2027": {
+        "answerable_count": null,
+        "answerable_system_error_count": null,
+        "build_seconds": null,
+        "exact": null,
+        "exact_count": null,
+        "exact_hits": null,
+        "exact_system_error_count": null,
+        "index_bytes": null,
+        "leak_count": null,
+        "no_answer": null,
+        "no_answer_correct": null,
+        "no_answer_count": null,
+        "no_answer_system_error_count": null,
+        "p95_ms": null,
+        "peak_rss_bytes": null,
+        "recall_at_10": null,
+        "recall_hits_at_10": null,
+        "status": "NOT_MEASURED",
+        "system_error_count": null,
+        "timeout_count": null,
+        "total_count": null
+      }
+    }
+  },
+  "new_tmp_files": 0,
+  "new_window_id": "3330a46e-bfdd-4639-bb0c-ea5c1b3df622",
+  "old_after_retried": false,
+  "old_after_status": "PASS",
+  "old_amendment9_after_status": "FAIL",
+  "old_formal_status": "WAITING_RECONCILIATION",
+  "old_request_failed_root_cause": "UNKNOWN",
+  "old_window_id": "be3ab168-0568-4d39-a06e-824b4cd26a58",
+  "old_window_status": "INVALID_CLOSED",
+  "old_windows_reopened": false,
+  "operations": {
+    "a": {
+      "backup_restore_steps_count": 4,
+      "components_count": 1,
+      "upgrade_steps_count": 6
+    },
+    "b": {
+      "backup_restore_steps_count": 3,
+      "components_count": 2,
+      "upgrade_steps_count": 7
+    }
+  },
+  "operations_basis": "FROZEN_RUNBOOK_ARRAY_COUNTS_NOT_RUNTIME_BENCHMARK",
+  "pool_counts": [
+    42,
+    31,
+    42
+  ],
+  "precloseout_files_preserved": 0,
+  "private_values_or_digests_exported": false,
+  "production_changes_performed": false,
+  "production_cutover_allowed": false,
+  "public_privacy_counts": {
+    "embedding_calls": 3,
+    "embedding_successes": 3,
+    "external_socket_observations": 1,
+    "forbidden_reads": 0,
+    "log_canary_hits": 0,
+    "log_files_scanned": 3,
+    "observer_errors": 0,
+    "socket_samples": 108
+  },
+  "public_privacy_evaluation": {
+    "authenticated_error_canaries": true,
+    "external_egress_denied": true,
+    "forbidden_reads_zero": true,
+    "langfuse_runtime_disabled": true,
+    "loopback_models_only": false,
+    "native_log_canary_absent": true,
+    "normal_native_canary": true,
+    "otel_runtime_disabled": true,
+    "passed": false
+  },
+  "public_privacy_invocations": 1,
+  "public_workload_invocations": 0,
+  "random_order_sampled": false,
+  "retained_bytes_equal": true,
+  "retained_files": 96,
+  "run_id": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af",
+  "run_order": null,
+  "runtime": 0,
+  "schema": "cwk.rt055.amendment11-final.v1",
+  "scoring_archive_id": "feb9590b-8322-43ef-8567-808d14e2cd21",
+  "source_commit": "fdfcfb6dfef57862cf5efd478e88820419e7c322",
+  "source_privacy": "FAIL",
+  "status": "VERIFIED_CLOSED",
+  "synthetic_log_checks": [
+    {
+      "all_streams_verified": true,
+      "archived_log_files": 1,
+      "firewall_verified": true,
+      "independent_scan_hit_files": 0,
+      "post_scan_hits": 0,
+      "post_scan_passed": true,
+      "redaction_count": 0,
+      "remaining_owned_runtime": 0,
+      "streams": 1,
+      "workspace_cleanup_complete": true
+    },
+    {
+      "all_streams_verified": true,
+      "archived_log_files": 2,
+      "firewall_verified": true,
+      "independent_scan_hit_files": 0,
+      "post_scan_hits": 0,
+      "post_scan_passed": true,
+      "redaction_count": 0,
+      "remaining_owned_runtime": 0,
+      "streams": 2,
+      "workspace_cleanup_complete": true
+    }
+  ],
+  "task_processes": 0,
+  "terminal_decision": "INVALID",
+  "terminal_only_window": true,
+  "unique_decision": {
+    "decision": "INVALID",
+    "deferred_libraries": [],
+    "error_code": "PUBLIC_PRIVACY_EXTERNAL_SOCKET_OBSERVATION",
+    "participating_libraries": [
+      "cwork-3m",
+      "docdb-touqian",
+      "spbp-2027"
+    ],
+    "production_candidate_libraries": [],
+    "run_id": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af",
+    "schema": "cwk.rt055.retrieval-decision.result.v3",
+    "selected": null,
+    "status": "INVALID",
+    "window_id": "3330a46e-bfdd-4639-bb0c-ea5c1b3df622"
+  },
+  "upstream_native_core_unchanged": true,
+  "verifier_runs": 1,
+  "workload_readiness": "NOT_RUN",
+  "independent_audit_process_exited": true
+}
