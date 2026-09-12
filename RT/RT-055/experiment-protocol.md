@@ -281,3 +281,14 @@ GC 日志目标仍指向只读发行目录。该失败与旧正式窗口的应�
 JVM 会在逐项解析 `-Xlog` 时立即打开目标，后置 override 不能撤销前一次失败。修复在租约 data 内
 独占复制原始 OpenSearch config，仅将 JVM GC/错误/heapdump 目的地改到本租约 logs/data；不改原配置、
 heap 或其它选项。每次 spawn 重算该副本，config 原始字节进入 freeze 依赖指纹。
+
+### Amendment 6 补充 — Bash here-string 与预启动清理归属
+
+第二次公开 synthetic 已越过 JVM GC 初始化，但发行版 Bash 3.2 启动器的两个 here-string
+依赖临时文件行为，被严格路径策略拒绝。本地真实 syscall 已证明：原 here-string 失败，同一策略下
+显式 owned stdin 文件成功。只在执行参数中使用源码重算的启动器文本，保留 `$0` 与原命令解析；
+把两个空 keystore 密码 here-string 替换为本租约独占、内容严格为换行的 stdin 文件。不修改发行包，
+不授权共享 `/tmp` 或无路径 fd 写入。原 launcher 字节同 config 一并绑定 freeze。
+
+预 before 的 synthetic startup 资源记录不属于正式 attempt，正式 cleanup 必须忽略其已终止的
+审计记录；进程回执增加随机后缀并独占写入，避免 PID 再用时覆盖历史。

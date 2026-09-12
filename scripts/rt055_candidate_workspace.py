@@ -116,6 +116,23 @@ def file(s,area,name):
     return p
 
 
+def search_launcher(root,s,component,*,create=False):
+    original=checked(root,root/'opensearch/bin/opensearch')
+    text=original.read_text()
+    if text.count('<<<')!=2 or text.count('<<<"$KEYSTORE_PASSWORD"')!=2:
+        raise RuntimeError('candidate_launcher_stdin_template_drift')
+    stdin=file(s,'data',component+'-keystore-stdin')
+    if create:
+        with stdin.open('xb') as f:f.write(b'\n')
+        stdin.chmod(0o600)
+    if stdin.read_bytes()!=b'\n':raise RuntimeError('candidate_launcher_stdin_drift')
+    # Same empty password + newline as the credential-free original here-string.
+    # Bash 3.2's unlinked temporary fd cannot satisfy strict path confinement.
+    # Supply an exact owned file instead of granting /tmp or orphan-fd access.
+    text=text.replace('<<<"$KEYSTORE_PASSWORD"','<"$RT055_KEYSTORE_STDIN"')
+    return ['/bin/bash','-c',text,str(original)],stdin
+
+
 def jvm_config(text,s,component):
     # JVM opens each -Xlog destination while parsing: a later override cannot
     # undo an earlier denied open. Rewrite only destinations in a private copy.

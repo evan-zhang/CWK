@@ -78,6 +78,20 @@ class WorkspaceTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):cw.search_config(self.root,s,'a-public')
         with self.assertRaises(RuntimeError):cw.jvm_config(original,s,'../../foreign')
 
+    def test_actual_bash_here_string_denied_but_owned_stdin_passes(self):
+        s=self.make();binary=self.root/'opensearch/bin/opensearch';binary.parent.mkdir(parents=True)
+        source='/bin/cat <<<"$KEYSTORE_PASSWORD"; /bin/cat <<<"$KEYSTORE_PASSWORD"'
+        binary.write_text(source);argv,stdin=cw.search_launcher(self.root,s,'a-public',create=True)
+        env=rt.clean_env(s.base);env['RT055_KEYSTORE_STDIN']=str(stdin)
+        policy=cw.policy(s,rt.sandbox_text(self.root,'inbound-only'))
+        old=subprocess.run(['/usr/bin/sandbox-exec','-p',policy,'/bin/bash','-c',source],env=env,capture_output=True)
+        self.assertNotEqual(old.returncode,0);self.assertIn(b'temp file',old.stderr)
+        new=subprocess.run(['/usr/bin/sandbox-exec','-p',policy,*argv],env=env,capture_output=True)
+        self.assertEqual(new.returncode,0);self.assertEqual(new.stdout,b'\n\n')
+        self.assertEqual(binary.read_text(),source)
+        stdin.write_text('FOREIGN')
+        with self.assertRaises(RuntimeError):cw.search_launcher(self.root,s,'a-public')
+
     def test_formal_without_claim_rejected(self):
         with self.assertRaises((RuntimeError,OSError)):cw.create(self.root,self.wid,'a',self.aid)
         self.assertFalse((self.root/'candidate-runtime').exists())

@@ -588,3 +588,9 @@ needle 硬门、私有日志留存、精确 cleanup、main-root 公开完整 sta
 只产生公开 synthetic 启动日志，cleanup/runtime 残留0，正式 query/exposure0。原回执不改。
 补丁改为每租约复制并核对 config，仅重定向 JVM 诊断路径；原配置、heap/算法保持不变。
 新的 [本地回归](candidate-workspace-jvm-tests.json) 单独保留，不能把未通过的 OPS 轮改写成 PASS。
+
+### Amendment 6 launcher 补丁（本地）
+
+第二个 synthetic 失败及清理回执保留；没有正式窗口或 query。真实 Bash 破坏/恢复测试确认
+here-string 临时写入被拒，而 owned stdin 在同一严格策略下成功。见
+[launcher 回归](candidate-workspace-launcher-tests.json)。正式候选算法/模型和原始发行配置不变。

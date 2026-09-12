@@ -13,6 +13,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+import uuid
 import rt055_opslib as ops
 import rt055_window as window
 
@@ -114,11 +115,14 @@ def spawn(root, argv, network_policy='loopback', window_id=None, workspace=None,
     else:profile=spawn_precheck(root,network_policy,window_id)
     validate_environment(kwargs.get('env', {}))
     if any(str(a).endswith('/opensearch') for a in argv):
-        from rt055_candidate_workspace import search_config, require_path
+        from rt055_candidate_workspace import search_config, search_launcher, require_path
         paths=[str(a)[len('path.logs='):] for a in argv if str(a).startswith('path.logs=')]
         if workspace is None or workspace.candidate!='a' or len(paths)!=1:
             raise ValueError('search_execution_boundary_invalid')
         require_path(workspace,Path(paths[0]),'logs')
+        launcher,stdin_file=search_launcher(root,workspace,Path(paths[0]).name)
+        if argv[:4]!=launcher or kwargs['env'].get('RT055_KEYSTORE_STDIN')!=str(stdin_file):
+            raise ValueError('search_launcher_binding_invalid')
         if (network_policy != 'inbound-only' or 'network.host=127.0.0.1' not in argv
                 or 'transport.host=127.0.0.1' not in argv
                 or kwargs['env'].get('OPENSEARCH_JAVA_OPTS') != '-Djava.net.preferIPv4Stack=true'
@@ -133,7 +137,7 @@ def spawn(root, argv, network_policy='loopback', window_id=None, workspace=None,
     else:sandbox=['/usr/bin/sandbox-exec','-f',str(profile)]
     proc = subprocess.Popen([*sandbox,*argv],**kwargs)
     folder=root/'resources';folder.mkdir(mode=0o700,exist_ok=True)
-    ops.write_private_json(folder/f'process-{proc.pid}.json',
+    window.write_once(folder/f'process-{proc.pid}-{uuid.uuid4()}.json',
         {'pid':proc.pid,'argv':argv,'started':time.time(),
          'cwd':str(kwargs.get('cwd',root)), 'network_policy':network_policy,
          **({'workspace':workspace.identity()} if workspace else {})})

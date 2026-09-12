@@ -127,11 +127,13 @@ def launch_opensearch(kb: str, port: int, log_path: Path, mode="run", window_id=
     env["OPENSEARCH_TMPDIR"] = str(workspace.base / "tmp")
     env.pop("DISABLE_SECURITY_PLUGIN", None)
     env.pop("DISABLE_INSTALL_DEMO_CONFIG", None)
+    launcher,stdin_file=workspace_api.search_launcher(ROOT,workspace,f"a-{kb}",create=True)
+    env["RT055_KEYSTORE_STDIN"]=str(stdin_file)
     transport_port = free_port(random.Random())
     while transport_port == port:transport_port = free_port(random.Random())
     with log_path.open("xb") as log:
         proc = runtime.spawn(ROOT,
-            [str(ROOT / "opensearch" / "bin" / "opensearch"),
+            [*launcher,
              "-E", "network.host=127.0.0.1",
              "-E", "transport.host=127.0.0.1",
              "-E", f"transport.port={transport_port}",

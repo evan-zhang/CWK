@@ -25,6 +25,9 @@ def cleanup(root,window_id=None):
         if window_id:
             identity=row.get('workspace',{})
             if identity.get('window_id')!=window_id:continue
+            # Public pre-before startup leases share the window policy, not
+            # formal ownership. Their immutable process audits must survive.
+            if identity.get('synthetic') is True:continue
             space=cw.Workspace(root,window_id,identity.get('candidate'),identity.get('attempt_id'))
             if identity!=space.identity():failures+=1;continue
             if not space.base.exists():continue
