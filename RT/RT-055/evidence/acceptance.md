@@ -651,3 +651,45 @@ window `c66757c6-93f6-481d-aa92-be7de83b9aa1`，migration `11b62e31-ddbe-469e-ba
 
 下一断点仍为等待正式 A/B 的新明确授权；本次无该授权、不执行、不切流。RT保持in_progress。
 完整NAS/index不变性UNKNOWN和历史服务漂移保留；不声称全仓CI。只本地提交公开证据/文档/必要tests。
+
+
+## Amendment 6 正式执行收口：评分输入硬门 INVALID（2026-09-12）
+
+**唯一裁决 INVALID，未选出 A/B，不是质量 NO-GO。** 本节是最新终态，取代前文 READY 的当前判断；历史 READY、失败、claim/void、freeze 与文档前缀保持原样。
+
+### 授权与实际执行
+
+从 `8750bbdc75cfda061fdab5818c338de81582da8a` clean 接续。启动前在 OPS 零写入重新核对完整公开 READY 投影，逐字段 exact equal；冻结/部署源 `ad7d6b6e282ed8a674f25924830c4c5df71137ed`，run `ac1ca0c7-6983-4f6e-91ce-8eb45e7673af`，migration `11b62e31-ddbe-469e-baca-8f4553be0299`，window `c66757c6-93f6-481d-aa92-be7de83b9aa1`，沿用真实冻结 **A→B**，没有创建新窗口或重新冻结。
+
+正式 coordinator 脱离式启动一次。A仅1个attempt，三实例已启动并走过构建/公开warmup及实验室Gateway探针，随后在首库评分入口留下arm1并报 `CandidateError`。全局exposure0、私有query0、score0、complete0、result0；B attempt0。冻结调用顺序证明失败在 scorer 输入校验、exposure及第一个私有search之前；具体输入子类型没有原始错误回执，不猜测是重复题、查询格式或分母。诊断没有重新打开私有holdout、运行scorer、补题或重放候选。
+
+原正式进程已退出才收口。仅调用冻结 coordinator 的 `--closeout-invalid` 分支一次，不包含候选重跑；因此控制器审计共2次（正式1、只收尾1），不能把它写成总共1次。没有重跑recovery、synthetic、main startup、before、freeze、builder或verifier；scripts/config/core/题池/seed/规则未改。
+
+### 逐库正式指标
+
+| 库 | 保留题池（不是成绩） | A | B |
+|---|---|---|---|
+| cwork-3m | 42@T3 | 20项均null，评分入口失败 | 20项均null，未启动 |
+| docdb-touqian | 31@T3 | 20项均null，前库中止后未评分 | 20项均null，未启动 |
+| spbp-2027 | 42@T2 | 20项均null，前库中止后未评分 | 20项均null，未启动 |
+
+20项完整字段为：13计数 `total_count`、`answerable_count`、`recall_hits_at_10`、`exact_count`、`exact_hits`、`no_answer_count`、`no_answer_correct`、`system_error_count`、`answerable_system_error_count`、`exact_system_error_count`、`no_answer_system_error_count`、`timeout_count`、`leak_count`；质量 `recall_at_10`、`exact`、`no_answer`；资源 `p95_ms`、`index_bytes`、`build_seconds`、`peak_rss_bytes`。全部null是未完成正式测量，不是0分、0泄漏或延期，`deferred=[]`。不从synthetic、旧结果、内存丢失值或日志时长补成绩。
+
+机械复杂度来自未改冻结runbook：A组件/升级/备份恢复 **1/6/4**，B **2/7/3**；不是正式性能分数。A的HTTPS查询、逐Gateway身份、服务端库授权、不向客户端泄露NAS/search凭据四项均有本次实验室公开warmup探针实测true；B四项null。它们不是生产Gateway已完成集成的声明，生产健康3×200另行验证。
+
+### 隐私、运行目录与清理
+
+- source-bound隐私、main runtime、workspace startup及freeze绑定只读重算PASS；builder/verifier仍1/1，角色核验PASS，`PROCESS_LEVEL_SEPARATION_SINGLE_UID`，不冒称OS UID隔离或新独立worker审批。B上游/core保持原版。
+- A本次正式日志扫描 **39文件、0命中文件、PASS**；租约日志留在OPS、workspace-cleanup回执1。评分`leak_count`仍null，不能拿日志扫描0替代它。
+- 三个新进程审计保留。按本次启动时点、精确候选目录和inode/UUID账本核对，仅删除新生成的2个TLS文件；旧tmp文件与Gateway探针回执保留。aux清理在冻结cleanup之前，冻结cleanup在after开始之前。
+- 同window cleanup1、after claim1，after三库PASS；窗口永久关闭重放。候选/控制器/runtime/临时数据面/新增tmp/TLS/UUID容器、volume、network、image、service及cleanup failures终态全0；Gateway3×200。
+- 96材料、1222前归档、2570本次归档逐文件同字节；5个失败synthetic predecessor链完整且原cleanup0。旧window `835c5188-0f29-4f41-8fe6-119b61917e2d` 保持INVALID、A1/B0/after，global legacy claim1/void1及全历史窗口清单不变。
+- 同窗不变性如实为：`nas_unchanged=null`；`existing_indices_unchanged=null`；`production_config_unchanged=false`；`services_unchanged=false`；`gateway_unchanged=true`；`all_items_measured=false`。实测漂移不抵销、不修生产、不重建baseline；完整NAS/index/config未知不能补成true。
+
+### 三格核验
+
+- **工程判据**：本轮实际201项RT055回归0失败/0错误/0跳过，133文件py_compile；闭集abort Schema正例与缺字段/注入私有字段/伪造测量值/账本漂移反例；本地冻结decision CLI与OPS结果逐字段一致，退出2。有效v3 aggregate不存在，v3 Schema必须拒绝abort；不伪造完整报告。隐私/secret/links、历史前缀、冻结scripts、AODW/governance/diff及提交范围见QA。没有重新运行OPS synthetic、行为破坏或全仓CI。
+- **AI审查**：接管主Agent检查“arm是否等于曝光”“启动与Gateway公开探针能否代替正式成绩”“是否为了取PASS重试”“独立READY是否涵盖真实scorer输入”。确认arm≠消费、READY未证明完整输入可评分；本次不修范围外缺口，不冒称外部独立reviewer。
+- **读真实产出**：只读OPS运行失败类型、arm/exposure/score/complete/result、39文件日志扫描摘要、Gateway布尔探针、cleanup/after/归档/源绑定与闭集输出；不导出私有query/原文/expected/title/filename/path/doc_id/locator/body/片段或私有hash。
+
+[公开abort](amendment6-formal-abort.json) · [闭集Schema](amendment6-formal-abort.schema.json) · [唯一裁决](amendment6-formal-decision.json) · [QA](amendment6-formal-qa.json)。OPS先同window保存公开abort再运行冻结裁决器一次；本地仅接收allowlist，裁决一致。仅本地提交公开证据/QA与两份RT文档，不push、不合并、不清worktree，不含runs/或docs/handover/。失败收口完成，正式A/B比较仍未完成，RT保持in_progress，禁止切流；无后台实验任务。

@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "window_decision",
+    "run_id",
+    "window_id",
+    "source_commit",
+    "regression",
+    "compiled",
+    "abort_schema_valid",
+    "valid_formal_v3_available",
+    "invalid_abort_rejected_by_v3_schema",
+    "ops_local_decision_equal",
+    "decision_exit_code",
+    "schema_negative_rejections",
+    "private_field_or_digest_hits",
+    "secret_hits",
+    "links",
+    "anchors",
+    "historical_public_files_unchanged",
+    "document_prefixes_unchanged",
+    "frozen_scripts_unchanged",
+    "tests_contracts_protocol_unchanged",
+    "new_metrics_synthesized",
+    "ops_synthetic_startup_builder_verifier_before_freeze_repeated",
+    "formal_coordinator_launches",
+    "invalid_closeout_only_launches",
+    "candidate_restarts",
+    "deferred_libraries",
+    "full_repository_ci_claimed",
+    "external_independent_reviewer_claimed",
+    "aodw_check",
+    "aodw_host_skill_warnings",
+    "governance_audit",
+    "governance_tracked_files",
+    "staged_public_files",
+    "diff_check",
+    "commit_scope_verified"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.amendment6-formal-qa.v1"
+    },
+    "status": {
+      "const": "PASS"
+    },
+    "window_decision": {
+      "const": "INVALID"
+    },
+    "run_id": {
+      "const": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af"
+    },
+    "window_id": {
+      "const": "c66757c6-93f6-481d-aa92-be7de83b9aa1"
+    },
+    "source_commit": {
+      "const": "ad7d6b6e282ed8a674f25924830c4c5df71137ed"
+    },
+    "regression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tests",
+        "failures",
+        "errors",
+        "skipped",
+        "exit_code"
+      ],
+      "properties": {
+        "tests": {
+          "const": 201
+        },
+        "failures": {
+          "const": 0
+        },
+        "errors": {
+          "const": 0
+        },
+        "skipped": {
+          "const": 0
+        },
+        "exit_code": {
+          "const": 0
+        }
+      }
+    },
+    "compiled": {
+      "const": 133
+    },
+    "abort_schema_valid": {
+      "const": true
+    },
+    "valid_formal_v3_available": {
+      "const": false
+    },
+    "invalid_abort_rejected_by_v3_schema": {
+      "const": true
+    },
+    "ops_local_decision_equal": {
+      "const": true
+    },
+    "decision_exit_code": {
+      "const": 2
+    },
+    "schema_negative_rejections": {
+      "const": 188
+    },
+    "private_field_or_digest_hits": {
+      "const": 0
+    },
+    "secret_hits": {
+      "const": 0
+    },
+    "links": {
+      "const": 159
+    },
+    "anchors": {
+      "const": 24
+    },
+    "historical_public_files_unchanged": {
+      "const": 66
+    },
+    "document_prefixes_unchanged": {
+      "const": 2
+    },
+    "frozen_scripts_unchanged": {
+      "const": true
+    },
+    "tests_contracts_protocol_unchanged": {
+      "const": true
+    },
+    "new_metrics_synthesized": {
+      "const": false
+    },
+    "ops_synthetic_startup_builder_verifier_before_freeze_repeated": {
+      "const": false
+    },
+    "formal_coordinator_launches": {
+      "const": 1
+    },
+    "invalid_closeout_only_launches": {
+      "const": 1
+    },
+    "candidate_restarts": {
+      "const": 0
+    },
+    "deferred_libraries": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 0,
+      "items": false
+    },
+    "full_repository_ci_claimed": {
+      "const": false
+    },
+    "external_independent_reviewer_claimed": {
+      "const": false
+    },
+    "aodw_check": {
+      "const": "PASS_WITH_EXISTING_HOST_SKILL_WARNING"
+    },
+    "aodw_host_skill_warnings": {
+      "const": 1
+    },
+    "governance_audit": {
+      "const": "PASS"
+    },
+    "governance_tracked_files": {
+      "const": 895
+    },
+    "staged_public_files": {
+      "const": 7
+    },
+    "diff_check": {
+      "const": "PASS"
+    },
+    "commit_scope_verified": {
+      "const": true
+    }
+  }
+}

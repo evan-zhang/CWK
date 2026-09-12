@@ -1,0 +1,374 @@
+{
+  "bindings": {
+    "builder_runs": 1,
+    "exact_ready_verified_before_launch": true,
+    "native_upstream_verified": true,
+    "privacy_readiness": "PASS",
+    "readiness_startup_before_freeze_order_verified": true,
+    "role_separation_level": "PROCESS_LEVEL_SEPARATION_SINGLE_UID",
+    "roles_verified": true,
+    "runtime_readiness": "PASS",
+    "source_freeze_recomputed": true,
+    "verifier_runs": 1,
+    "workspace_readiness": "PASS"
+  },
+  "cleanup": {
+    "aux_cleanup_before_after_verified": true,
+    "aux_tls_files_removed": 2,
+    "aux_tmp_files_removed": 0,
+    "candidate_processes": 0,
+    "candidate_runtime_remaining": 0,
+    "candidate_runtime_root_remaining": 0,
+    "controller_processes": 0,
+    "failures": 0,
+    "gateway_http_200_count": 3,
+    "gateway_tls_files": 0,
+    "new_resource_audit_records_retained": 3,
+    "new_temporary_files": 0,
+    "prelaunch_tmp_files_preserved": true,
+    "private_holdout_retained": true,
+    "temporary_data_planes": 0,
+    "uuid_resources": {
+      "containers": 0,
+      "image_tags": 0,
+      "networks": 0,
+      "services": 0,
+      "volumes": 0
+    }
+  },
+  "closure": {
+    "after_claims": 1,
+    "after_libraries_measured": 3,
+    "before_claims": 1,
+    "candidate_restarts": 0,
+    "cleanup_before_after_verified": true,
+    "cleanup_receipts": 1,
+    "closeout_only_launches": 1,
+    "controller_attempts": 2,
+    "formal_launches": 1,
+    "freeze_claims": 1,
+    "freeze_verification_claims": 1,
+    "terminal_phase": "COMPLETE",
+    "terminal_status": "INVALID",
+    "window_closed_to_replay": true
+  },
+  "data_class": "OPS_PUBLIC_ABORT_NOT_FORMAL_AGGREGATE",
+  "deferred_libraries": [],
+  "diagnosis_reopened_private_holdout": false,
+  "exact_input_failure_subtype_proven": false,
+  "executioner_commit": "ad7d6b6e282ed8a674f25924830c4c5df71137ed",
+  "executioner_migration_id": "11b62e31-ddbe-469e-baca-8f4553be0299",
+  "failure_boundary": "ARMED_BEFORE_EXPOSURE_AND_FIRST_PRIVATE_SEARCH",
+  "failure_types": {
+    "a": {
+      "AssertionError": 0,
+      "CandidateError": 1,
+      "CandidateTimeout": 0,
+      "FileNotFoundError": 0,
+      "HTTPError": 0,
+      "KeyError": 0,
+      "NameError": 0,
+      "OSError": 0,
+      "PermissionError": 0,
+      "RuntimeError": 0,
+      "TypeError": 0,
+      "ValueError": 0
+    },
+    "b": {
+      "AssertionError": 0,
+      "CandidateError": 0,
+      "CandidateTimeout": 0,
+      "FileNotFoundError": 0,
+      "HTTPError": 0,
+      "KeyError": 0,
+      "NameError": 0,
+      "OSError": 0,
+      "PermissionError": 0,
+      "RuntimeError": 0,
+      "TypeError": 0,
+      "ValueError": 0
+    }
+  },
+  "formal_metrics": {
+    "cwork-3m": {
+      "A": {
+        "answerable_count": null,
+        "answerable_system_error_count": null,
+        "build_seconds": null,
+        "exact": null,
+        "exact_count": null,
+        "exact_hits": null,
+        "exact_system_error_count": null,
+        "index_bytes": null,
+        "leak_count": null,
+        "no_answer": null,
+        "no_answer_correct": null,
+        "no_answer_count": null,
+        "no_answer_system_error_count": null,
+        "p95_ms": null,
+        "peak_rss_bytes": null,
+        "recall_at_10": null,
+        "recall_hits_at_10": null,
+        "status": "ATTEMPT_FAILED_BEFORE_MEASUREMENT",
+        "system_error_count": null,
+        "timeout_count": null,
+        "total_count": null
+      },
+      "B": {
+        "answerable_count": null,
+        "answerable_system_error_count": null,
+        "build_seconds": null,
+        "exact": null,
+        "exact_count": null,
+        "exact_hits": null,
+        "exact_system_error_count": null,
+        "index_bytes": null,
+        "leak_count": null,
+        "no_answer": null,
+        "no_answer_correct": null,
+        "no_answer_count": null,
+        "no_answer_system_error_count": null,
+        "p95_ms": null,
+        "peak_rss_bytes": null,
+        "recall_at_10": null,
+        "recall_hits_at_10": null,
+        "status": "NOT_RUN",
+        "system_error_count": null,
+        "timeout_count": null,
+        "total_count": null
+      }
+    },
+    "docdb-touqian": {
+      "A": {
+        "answerable_count": null,
+        "answerable_system_error_count": null,
+        "build_seconds": null,
+        "exact": null,
+        "exact_count": null,
+        "exact_hits": null,
+        "exact_system_error_count": null,
+        "index_bytes": null,
+        "leak_count": null,
+        "no_answer": null,
+        "no_answer_correct": null,
+        "no_answer_count": null,
+        "no_answer_system_error_count": null,
+        "p95_ms": null,
+        "peak_rss_bytes": null,
+        "recall_at_10": null,
+        "recall_hits_at_10": null,
+        "status": "ATTEMPT_FAILED_BEFORE_MEASUREMENT",
+        "system_error_count": null,
+        "timeout_count": null,
+        "total_count": null
+      },
+      "B": {
+        "answerable_count": null,
+        "answerable_system_error_count": null,
+        "build_seconds": null,
+        "exact": null,
+        "exact_count": null,
+        "exact_hits": null,
+        "exact_system_error_count": null,
+        "index_bytes": null,
+        "leak_count": null,
+        "no_answer": null,
+        "no_answer_correct": null,
+        "no_answer_count": null,
+        "no_answer_system_error_count": null,
+        "p95_ms": null,
+        "peak_rss_bytes": null,
+        "recall_at_10": null,
+        "recall_hits_at_10": null,
+        "status": "NOT_RUN",
+        "system_error_count": null,
+        "timeout_count": null,
+        "total_count": null
+      }
+    },
+    "spbp-2027": {
+      "A": {
+        "answerable_count": null,
+        "answerable_system_error_count": null,
+        "build_seconds": null,
+        "exact": null,
+        "exact_count": null,
+        "exact_hits": null,
+        "exact_system_error_count": null,
+        "index_bytes": null,
+        "leak_count": null,
+        "no_answer": null,
+        "no_answer_correct": null,
+        "no_answer_count": null,
+        "no_answer_system_error_count": null,
+        "p95_ms": null,
+        "peak_rss_bytes": null,
+        "recall_at_10": null,
+        "recall_hits_at_10": null,
+        "status": "ATTEMPT_FAILED_BEFORE_MEASUREMENT",
+        "system_error_count": null,
+        "timeout_count": null,
+        "total_count": null
+      },
+      "B": {
+        "answerable_count": null,
+        "answerable_system_error_count": null,
+        "build_seconds": null,
+        "exact": null,
+        "exact_count": null,
+        "exact_hits": null,
+        "exact_system_error_count": null,
+        "index_bytes": null,
+        "leak_count": null,
+        "no_answer": null,
+        "no_answer_correct": null,
+        "no_answer_count": null,
+        "no_answer_system_error_count": null,
+        "p95_ms": null,
+        "peak_rss_bytes": null,
+        "recall_at_10": null,
+        "recall_hits_at_10": null,
+        "status": "NOT_RUN",
+        "system_error_count": null,
+        "timeout_count": null,
+        "total_count": null
+      }
+    }
+  },
+  "gateway_probe_scope": "LABORATORY_PUBLIC_WARMUP_NOT_PRODUCTION_DEPLOYMENT",
+  "gateway_readiness": {
+    "A": {
+      "https_query_api": true,
+      "kb_grants_server_side": true,
+      "no_direct_nas_or_search_credentials": true,
+      "per_gateway_identity": true
+    },
+    "B": {
+      "https_query_api": null,
+      "kb_grants_server_side": null,
+      "no_direct_nas_or_search_credentials": null,
+      "per_gateway_identity": null
+    }
+  },
+  "ledger": {
+    "a": {
+      "arms": 1,
+      "attempts": 1,
+      "completed_libraries": 0,
+      "exposure_without_completion": 0,
+      "exposures": 0,
+      "query_calls": 0,
+      "result": 0,
+      "scores": 0
+    },
+    "b": {
+      "arms": 0,
+      "attempts": 0,
+      "completed_libraries": 0,
+      "exposure_without_completion": 0,
+      "exposures": 0,
+      "query_calls": 0,
+      "result": 0,
+      "scores": 0
+    }
+  },
+  "limits": {
+    "formal_evaluation_complete": false,
+    "full_production_invariance_proven": false,
+    "historical_drift_cleared": false,
+    "private_data_or_digests_exported": false,
+    "production_cutover_allowed": false,
+    "readonly_ops_writes": 0,
+    "runtime_source_or_configuration_repaired": false,
+    "schema_valid_v3_aggregate_available": false,
+    "synthetic_scores_used_as_formal": false
+  },
+  "log_scans": {
+    "a": {
+      "all_passed": true,
+      "files": 39,
+      "hit_files": 0,
+      "receipts": 1,
+      "workspace_cleanup_receipts": 1
+    },
+    "b": {
+      "all_passed": null,
+      "files": 0,
+      "hit_files": 0,
+      "receipts": 0,
+      "workspace_cleanup_receipts": 0
+    }
+  },
+  "mechanical_complexity": {
+    "A": {
+      "backup_restore_steps_count": 4,
+      "components_count": 1,
+      "upgrade_steps_count": 6
+    },
+    "B": {
+      "backup_restore_steps_count": 3,
+      "components_count": 2,
+      "upgrade_steps_count": 7
+    }
+  },
+  "participating_libraries": [
+    "cwork-3m",
+    "docdb-touqian",
+    "spbp-2027"
+  ],
+  "pool": {
+    "cwork-3m": {
+      "tier": "T3",
+      "total_count": 42
+    },
+    "docdb-touqian": {
+      "tier": "T3",
+      "total_count": 31
+    },
+    "spbp-2027": {
+      "tier": "T2",
+      "total_count": 42
+    }
+  },
+  "production_comparison": {
+    "all_items_measured": false,
+    "containers_unchanged": true,
+    "existing_indices_unchanged": null,
+    "existing_indices_unchanged_measured_projection": true,
+    "gateway_health_content_unchanged": true,
+    "gateway_unchanged": true,
+    "nas_unchanged": null,
+    "nas_unchanged_measured_projection": true,
+    "production_config_unchanged": false,
+    "production_config_unchanged_measured_projection": true,
+    "services_unchanged": false,
+    "three_gateways_healthy": true,
+    "volumes_unchanged": true
+  },
+  "reason": "SCORER_INPUT_VALIDATION_FAILED_PREEXPOSURE",
+  "retention": {
+    "archive_bytes_equal": true,
+    "archived_files": 2570,
+    "failed_synthetic_history_retained": true,
+    "failed_synthetic_predecessors": 5,
+    "global_legacy_claims": 1,
+    "global_voids": 1,
+    "historical_window_inventory_equal": true,
+    "legacy_claim_void_bytes_equal": true,
+    "old_a_attempts": 1,
+    "old_b_attempts": 0,
+    "old_window_permanently_invalid": true,
+    "previous_archive_bytes_equal": true,
+    "previous_archived_files": 1222,
+    "retained_bytes_equal": true,
+    "retained_materials": 96
+  },
+  "run_id": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af",
+  "run_order": [
+    "a",
+    "b"
+  ],
+  "schema": "cwk.rt055.amendment6-formal-abort.v1",
+  "window_decision": "INVALID",
+  "window_id": "c66757c6-93f6-481d-aa92-be7de83b9aa1"
+}

@@ -320,3 +320,16 @@ A1/B0/after及全局claim1/void1原样保留；builder/verifier1/1。96材料、
 
 停止 **READY_TO_RUN**；评测与选型尚未完成，RT仍in_progress、切流暂停、NAS/index强不变性UNKNOWN。
 只本地提交公开证据/docs/必要tests，不push、不合并、不清worktree。下一步必须另获正式A/B授权。
+
+
+## 最新终态 — Amendment 6 正式执行 INVALID（2026-09-12）
+
+本节取代READY当前断点，历史保持。启动前exact READY只读复核PASS；冻结源 `ad7d6b6e282ed8a674f25924830c4c5df71137ed`，migration `11b62e31-ddbe-469e-baca-8f4553be0299`，同window `c66757c6-93f6-481d-aa92-be7de83b9aa1`，真实顺序 **A→B**。
+
+正式coordinator1次，A attempt1/arm1，scorer输入校验报CandidateError；exposure/query/score/complete/result全0，B未启动。具体输入子类型未证明，不猜测、不重新读holdout诊断、不重试、不改冻结scripts/core/题池。只收尾coordinator另1次，共2份控制器审计，按精确自有TLS清理→冻结cleanup→after→abort→OPS decision闭合。
+
+唯一 **INVALID**，OPS/本地逐字段一致；不是A/B质量NO-GO或有效v3 aggregate。三库仍42@T3、31@T3、42@T2且deferred=[]，每库两候选20项正式指标全部null。机械复杂度A1/6/4、B2/7/3；本次A的Gateway四能力实验室公开探针true，B未测。生产Gateway3×200不等于候选能力完整验收。
+
+隐私/runtime/workspace/freeze源绑定重算PASS，builder/verifier1/1、单UID进程角色分离；A日志39文件0命中并保留OPS。96材料/1222前归档/2570本次归档、5失败synthetic和旧window/claim/void保持。终态候选/controller/runtime/临时资源/failures0，同窗after1且三库PASS，窗口禁止重放。不变性：`nas_unchanged=null`；`existing_indices_unchanged=null`；`production_config_unchanged=false`；`services_unchanged=false`；`gateway_unchanged=true`；`all_items_measured=false`；不修生产、不补baseline，历史漂移保持。
+
+[完整验收与三格核验](evidence/acceptance.md#amendment-6-正式执行收口评分输入硬门-invalid2026-09-12)、[公开abort](evidence/amendment6-formal-abort.json)、[Schema](evidence/amendment6-formal-abort.schema.json)、[唯一裁决](evidence/amendment6-formal-decision.json)、[QA](evidence/amendment6-formal-qa.json)。201回归和133编译通过不掩盖真实scorer输入门失败；未冒称全仓CI。失败收口完成、无后台任务；RT选型目标未达成，保持in_progress、禁止切流。只保留本地公开证据提交，不push/合并/清worktree。
