@@ -29,6 +29,7 @@ class ExecutionerTests(unittest.TestCase):
     def test_search_launch_forces_ipv4_and_no_outbound_and_cleans_failed_start(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td); (root/'runtime-logs').mkdir();space=public_workspace(root,'a')
+            conf=root/'opensearch/config';conf.mkdir(parents=True);(conf/'jvm.options').write_text('-Xlog:gc:file=logs/gc.log')
             p = Mock()
             with patch.object(search, 'ROOT', root), patch.object(runtime, 'spawn', return_value=p) as spawn, patch.object(search.ops, 'wait_for_http', side_effect=RuntimeError('not_ready')), patch.object(search.ops, 'stop_process') as stop:
                 with self.assertRaises(RuntimeError):

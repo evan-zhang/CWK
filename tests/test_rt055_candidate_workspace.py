@@ -65,6 +65,19 @@ class WorkspaceTests(unittest.TestCase):
         # Different scan receipt because failures are append-only.
         other=self.make(aid=str(uuid.uuid4()));cw.file(other,'logs','public.log').write_text('service ready')
         self.assertTrue(cw.scan(other,['PUBLIC CANARY'])['passed'])
+    def test_jvm_config_copy_redirects_only_diagnostics_and_rejects_drift(self):
+        s=self.make();conf=self.root/'opensearch/config';conf.mkdir(parents=True)
+        original='-Xms1g\n-Xmx1g\n-Xlog:gc*,gc+age=trace,safepoint:file=logs/gc.log:utctime,pid,tags:filecount=32,filesize=64m\n-XX:ErrorFile=logs/hs_err_pid%p.log\n-XX:HeapDumpPath=data\n'
+        (conf/'jvm.options').write_text(original);(conf/'opensearch.yml').write_text('public: true')
+        copied=cw.search_config(self.root,s,'a-public',create=True);text=(copied/'jvm.options').read_text()
+        self.assertIn('-Xms1g\n-Xmx1g',text);self.assertNotIn('file=logs/gc.log',text)
+        self.assertIn('file='+str(s.base/'logs/gc-a-public.log'),text)
+        self.assertEqual((conf/'jvm.options').read_text(),original)
+        self.assertEqual((copied/'opensearch.yml').read_text(),'public: true')
+        (copied/'jvm.options').write_text(original)
+        with self.assertRaises(RuntimeError):cw.search_config(self.root,s,'a-public')
+        with self.assertRaises(RuntimeError):cw.jvm_config(original,s,'../../foreign')
+
     def test_formal_without_claim_rejected(self):
         with self.assertRaises((RuntimeError,OSError)):cw.create(self.root,self.wid,'a',self.aid)
         self.assertFalse((self.root/'candidate-runtime').exists())

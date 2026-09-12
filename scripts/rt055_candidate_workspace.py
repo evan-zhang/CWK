@@ -116,6 +116,43 @@ def file(s,area,name):
     return p
 
 
+def jvm_config(text,s,component):
+    # JVM opens each -Xlog destination while parsing: a later override cannot
+    # undo an earlier denied open. Rewrite only destinations in a private copy.
+    gc=file(s,'logs','gc-'+component+'.log')
+    fatal=file(s,'logs','hs_err-'+component+'.log')
+    heap=file(s,'data','heapdump-'+component+'.hprof')
+    if any(c.isspace() for c in str(s.base)):raise RuntimeError('candidate_jvm_path_whitespace')
+    if 'file=logs/gc.log' not in text:raise RuntimeError('candidate_jvm_log_template_drift')
+    text=text.replace('file=logs/gc.log','file='+str(gc))
+    text=text.replace('-XX:ErrorFile=logs/hs_err_pid%p.log','-XX:ErrorFile='+str(fatal))
+    text=text.replace('-XX:HeapDumpPath=data','-XX:HeapDumpPath='+str(heap))
+    return text
+
+
+def search_config(root,s,component,*,create=False):
+    source=checked(root,root/'opensearch/config');dest=file(s,'data',component+'-config')
+    files=sorted(source.rglob('*'))
+    if not (source/'jvm.options').is_file():raise RuntimeError('candidate_jvm_config_missing')
+    if create:dest.mkdir(mode=0o700,exist_ok=False)
+    expected=set()
+    for p in files:
+        checked(root,p);target=checked(s.root,dest/p.relative_to(source))
+        if p.is_dir():
+            if create:target.mkdir(mode=0o700,exist_ok=False)
+        elif p.is_file():
+            data=p.read_bytes()
+            if p==source/'jvm.options':data=jvm_config(data.decode(),s,component).encode()
+            if create:
+                with target.open('xb') as f:f.write(data)
+                target.chmod(0o600)
+            if target.read_bytes()!=data:raise RuntimeError('candidate_runtime_config_drift')
+            expected.add(target)
+        else:raise RuntimeError('candidate_runtime_config_special_file')
+    if set(p for p in dest.rglob('*') if p.is_file())!=expected:raise RuntimeError('candidate_runtime_config_extra_file')
+    return dest
+
+
 def require_path(s,path,area):
     validate(s)
     if Path(path)!=file(s,area,Path(path).name):raise RuntimeError('candidate_workspace_foreign_path')

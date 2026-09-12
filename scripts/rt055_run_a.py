@@ -123,6 +123,7 @@ def launch_opensearch(kb: str, port: int, log_path: Path, mode="run", window_id=
     env = runtime.clean_env(workspace.base)
     env["OPENSEARCH_JAVA_HOME"] = str(ROOT / "jdk" / "Contents" / "Home")
     env["OPENSEARCH_JAVA_OPTS"] = "-Djava.net.preferIPv4Stack=true"
+    env["OPENSEARCH_PATH_CONF"] = str(workspace_api.search_config(ROOT,workspace,f"a-{kb}",create=True))
     env["OPENSEARCH_TMPDIR"] = str(workspace.base / "tmp")
     env.pop("DISABLE_SECURITY_PLUGIN", None)
     env.pop("DISABLE_INSTALL_DEMO_CONFIG", None)

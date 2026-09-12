@@ -581,3 +581,10 @@ needle 硬门、私有日志留存、精确 cleanup、main-root 公开完整 sta
 判据：完整 RT055 回归和行为破坏；AI 评审：主工程师逐段检查租约/进程/扫描/完成顺序，
 未使用已退役固定 reviewer；读产出：真实 syscall 的拒绝/允许分类与 OPS 公开计数。
 不冒称全仓 CI；RT 仍 in_progress，正式查询及生产切流没有授权。
+
+### Amendment 6 JVM 诊断补丁（本地）
+
+第一份 source commit 的 OPS synthetic 并未通过：A 在 GC 日志初始化时被只读发行目录拦住，
+只产生公开 synthetic 启动日志，cleanup/runtime 残留0，正式 query/exposure0。原回执不改。
+补丁改为每租约复制并核对 config，仅重定向 JVM 诊断路径；原配置、heap/算法保持不变。
+新的 [本地回归](candidate-workspace-jvm-tests.json) 单独保留，不能把未通过的 OPS 轮改写成 PASS。

@@ -114,9 +114,15 @@ def spawn(root, argv, network_policy='loopback', window_id=None, workspace=None,
     else:profile=spawn_precheck(root,network_policy,window_id)
     validate_environment(kwargs.get('env', {}))
     if any(str(a).endswith('/opensearch') for a in argv):
+        from rt055_candidate_workspace import search_config, require_path
+        paths=[str(a)[len('path.logs='):] for a in argv if str(a).startswith('path.logs=')]
+        if workspace is None or workspace.candidate!='a' or len(paths)!=1:
+            raise ValueError('search_execution_boundary_invalid')
+        require_path(workspace,Path(paths[0]),'logs')
         if (network_policy != 'inbound-only' or 'network.host=127.0.0.1' not in argv
                 or 'transport.host=127.0.0.1' not in argv
-                or kwargs['env'].get('OPENSEARCH_JAVA_OPTS') != '-Djava.net.preferIPv4Stack=true'):
+                or kwargs['env'].get('OPENSEARCH_JAVA_OPTS') != '-Djava.net.preferIPv4Stack=true'
+                or kwargs['env'].get('OPENSEARCH_PATH_CONF') != str(search_config(root,workspace,Path(paths[0]).name))):
             raise ValueError('search_execution_boundary_invalid')
     from rt055_candidate_workspace import validate, policy
     if window_id is not None and workspace is None:raise RuntimeError('candidate_workspace_required')

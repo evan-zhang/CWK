@@ -50,7 +50,7 @@ def artifact_plan(root):
 
 def dependencies(root,key):
     if key=='a':
-        files=[p for base in ('jdk','opensearch/lib','opensearch/plugins','opensearch/modules') for p in (root/base).rglob('*') if p.is_file()]
+        files=[p for base in ('jdk','opensearch/lib','opensearch/plugins','opensearch/modules','opensearch/config') for p in (root/base).rglob('*') if p.is_file()]
     else:
         files=[root/'sidecar/requirements-freeze.txt']+[p for p in (root/'sidecar/hf').rglob('*') if p.is_file() and '.lock' not in p.name]
         dictionaries=[root/'jieba'/name for name in runtime.JIEBA_FILES]

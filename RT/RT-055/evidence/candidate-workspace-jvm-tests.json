@@ -1,0 +1,111 @@
+{
+  "schema": "cwk.rt055.candidate-workspace-tests.v1",
+  "data_class": "PUBLIC_SYNTHETIC_ONLY_NOT_OPS",
+  "green": {
+    "tests": 189,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exit_code": 0
+  },
+  "mutations": [
+    {
+      "mutation": "CROSS_WINDOW_GUARD_REMOVED",
+      "tests": 13,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "SYMLINK_GUARD_REMOVED",
+      "tests": 13,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "OWNERSHIP_GUARD_REMOVED",
+      "tests": 13,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "BROAD_RUNTIME_DELETION",
+      "tests": 13,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "LOG_HARD_FAILURE_REMOVED",
+      "tests": 13,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "SIBLING_READ_ISOLATION_REMOVED",
+      "tests": 13,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "FORMAL_LEDGER_SCOPE_REMOVED",
+      "tests": 13,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "MAIN_STARTUP_SOURCE_CHECK_REMOVED",
+      "tests": 13,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "A_LOG_SCAN_DISCONNECTED",
+      "tests": 21,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "B_LOG_SCAN_DISCONNECTED",
+      "tests": 21,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    }
+  ],
+  "formal_queries": 0,
+  "restored_green": {
+    "tests": 189,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exit_code": 0
+  }
+}

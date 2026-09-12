@@ -271,3 +271,13 @@ score/complete/result 均0，after 已关闭，不重开、不重试、不覆盖
 - [行为破坏测试](../../scripts/rt055_candidate_workspace_qa.py)
 - [主运行策略真实 startup](../../scripts/rt055_candidate_startup.py)
 - [旧路径公开 synthetic 根因证据](evidence/candidate-workspace-root-cause.json)
+
+### Amendment 6 补充 — JVM 启动前日志
+
+首次新源码的 OPS synthetic 在 JVM ergonomics 阶段被拒绝：发行包 `jvm.options` 中的相对
+GC 日志目标仍指向只读发行目录。该失败与旧正式窗口的应用日志冲突属于不同启动层，失败回执保留，
+公开 synthetic 已精确 cleanup；未打开 holdout，未创建新正式窗口/attempt。
+
+JVM 会在逐项解析 `-Xlog` 时立即打开目标，后置 override 不能撤销前一次失败。修复在租约 data 内
+独占复制原始 OpenSearch config，仅将 JVM GC/错误/heapdump 目的地改到本租约 logs/data；不改原配置、
+heap 或其它选项。每次 spawn 重算该副本，config 原始字节进入 freeze 依赖指纹。
