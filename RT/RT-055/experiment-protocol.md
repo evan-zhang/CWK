@@ -384,3 +384,41 @@ Amendment 6 的 closed window 保留 INVALID/after，旧 attempt/arm/claim/freez
 - 完成须新 attempt/arm/exposure/query/score/result/after 全 0，旧 window 留存，Gateway
   3×200，无候选/controller/临时 runtime，公开证据 Schema/QA 通过。本地提交，不 push。
   完整 NAS/index 不变性未证明，不把既有 UNKNOWN 或历史 drift 擦成 PASS。
+
+## Amendment 8 — Streaming log firewall and workload readiness（2026-09-12）
+
+授权仅修执行器、公开合成验证和新 READY；不得运行正式 coordinator、重开旧 window、
+重做 builder/verifier 或消费 holdout。旧 Amendment 7 的 B attempt1、INVALID/after、log FAIL
+及全部历史不覆写。旧约 7720.6s 总时长只能说明接近 build 窗口加启动/清理，不能证明子型。
+
+生产使用的公开 upstream `internal/container/container.go` 调用 `gorm.Open` 时仅设置
+`NowFunc`，未配置 GORM Logger/ParameterizedQueries；应用 `LOG_LEVEL=fatal` 不控制
+GORM 默认独立 SQL logger。其绑定值 stdout 被旧 runner 直接持久化，属于真实隐私失败。
+公开子进程跨写入 canary 的 RED 证明旧 scan 只能事后发现；不得再次读取旧命中内容。
+
+新 `rt055_log_firewall.py` 由 controller 持有全部 corpus/verified/case string leaf 和
+Unicode/JSON-escaped 变体；子进程只获得 pipe，不获 needles。字节级左起最长优先匹配，
+保留最长 pattern 的未决后缀，跨 chunk/无换行不改变语义。固定 `[RT055_REDACTED]` 无
+长度或摘要。每流输入上限64MiB、needle总字节64MiB、单needle8MiB、read chunk64KiB；
+不使用磁盘 spool/无界队列，overflow、drain异常、缺EOF、关闭/子进程失败均 hard fail。
+所有 A/B/native/sidecar stdout+stderr 及 coordinator 子进程输出统一接 pipe；原始字节
+不写日志。A 的临时私有配置将 Log4j/GC 改送 console，关闭 heapdump，fatal诊断送
+/dev/null；原分发配置与 WeKnora core 不改，网络/读写 sandbox 不放宽。
+
+终止顺序为 stop → finalize firewall → post-scan → 仅净化日志归档 → 清理独占 workspace。
+receipt 仅 log identity、input/output bytes、redaction count、overflow/error/eof/closed；
+不含 patterns、匹配值或其 hash。有效 redaction 是防火墙观测，不是检索 leak/质量失败。
+没有完整 verified firewall、出现额外直接文件日志或 post-scan 非零，均不能 PASS；失败流
+不进入日志归档，新独占 runtime 清理仍执行，旧证据一字节不删。
+
+B `check_ready` 必须分辨 pending 与 terminal failed；一次 pending 检查继续查看后续已导入
+文档，以免前面的 pending 遮住后面的 failed。terminal failed 立即中止。每库 imported/
+completed/pending/failed、deadline phase 和封闭 error enum 持续写计数状态，不写doc ID。
+A/B 每库 build 仍7200秒；查询30秒、模型和评分合同不变。
+
+公开同形负载由源码作者生成42/31/42 documents/trials，不派生私有字符串；每库1个512KiB
+尺寸上界文档，其余8KiB，A/B 输入完全相同。真实 build 和每库至少1次公开 search；
+只在新合成DB短暂锁定触发真实GORM slow SQL INSERT并验证净化流，占位符和 post-scan0。
+这不是正式成绩，不输出私有内容、不调用正式 scorer。若 B 不在原合同内完成或任一硬门
+失败，停在 BLOCKED readiness，不创建 freeze。成功后才允许 main runtime/workspace/input
+readiness → 新 before → freeze/verify；freeze 绑定 workload receipt 并复核 source/time。

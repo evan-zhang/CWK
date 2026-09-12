@@ -77,6 +77,15 @@ class WindowTests(unittest.TestCase):
         manifest={n:runtime.ops.sha_file(self.root/'impl'/n) for n in runtime.MIGRATION_SOURCE_FILES}
         window.write_once(self.root/'executioner-migrations'/self.mid/'deployment.json',{'schema':'cwk.rt055.executioner-deployment.v1','run_id':self.root.name.removeprefix('rt055-'),'migration_id':self.mid,'code_commit':'1'*40,'source_files':manifest})
         runtime.bind_privacy_migration(self.root,self.mid,1)
+        import rt055_workload_readiness as work,time
+        # Explicit public UNIT fixture, not OPS/native evidence.
+        row={'schema':work.SCHEMA,'status':'PASS','counts':work.COUNTS,'timeout_seconds':7200,
+             'document_byte_upper_bound':work.UPPER_BYTES,'private_reads':0,'formal_queries':0,'formal_attempts':0,
+             'cleanup_failures':0,'remaining_runtime':0,'native_sql_slowpath_injected':True,'source_commit':'1'*40,
+             'migration_id':self.mid,'finished_at':time.time(),
+             'candidates':{k:{'libraries':{kb:{'imported':n,'completed':n,'pending':0,'failed':0,'build_seconds':1} for kb,n in work.COUNTS.items()},
+                 'firewall_verified':True,'post_scan_hits':0,'searches':3,'sql_canary_redactions':1} for k in ('a','b')}}
+        window.write_once(self.root/'executioner-migrations'/self.mid/'public-workload.json',row)
         return attempt
 
     def prepare_policy(self,wid=None):
@@ -106,7 +115,8 @@ class WindowTests(unittest.TestCase):
              'formal_queries':0,'cleanup_failures':0,'remaining_runtime':0,'started_at':time.time(),'leases':[]}
         for key in ('a','b'):
             space=cw.create(self.root,wid,key,str(uuid.uuid4()),synthetic=True,migration_id=self.mid)
-            cw.file(space,'logs','public.log').write_text('service ready')
+            import rt055_log_firewall as fw
+            f=fw.bind(space,['PUBLIC CANARY']);proc=f.spawn([sys.executable,'-c','print("service ready")'],cw.file(space,'logs','public.log'),{});proc.wait(5);f.finalize()
             cw.scan(space,['PUBLIC CANARY']);cw.cleanup(space)
             row['leases'].append({'candidate':key,'attempt_id':space.attempt_id,
                   'owner_sha256':runtime.ops.sha_file(space.ledger),'scan_sha256':runtime.ops.sha_file(space.ledger.parent/'log-scan.json'),
@@ -307,18 +317,28 @@ class WindowTests(unittest.TestCase):
                     calls.append(kb)
                 return []
             def close(self):pass
+        import rt055_log_firewall as fw
+        real_stop=runner.ops.stop_process
+        def pipe_log(space,log,text):
+            p=fw.get(space).spawn([sys.executable,'-c','import os,time;os.write(1,b"service started\\n");time.sleep(30)'],log,{})
+            def stop():
+                real_stop(p)
+                if leak:log.write_text(text)
+            self.addCleanup(real_stop,p)
+            p._test_stop=stop
+            return p
         def server(kb,port,side,data,log,rng,*,window_id=None,workspace=None):
             outer.assertEqual(window_id,outer.wid)
             outer.assertIn('candidate-runtime',str(log))
-            log.write_text(cases[0].query if leak else 'public service started')
-            return {'kb_id':kb,'proc':Mock(pid=123),'data_dir':data,'base_url':'http://127.0.0.1:41101'}
+            proc=pipe_log(workspace,log,cases[0].query)
+            return {'kb_id':kb,'proc':proc,'data_dir':data,'base_url':'http://127.0.0.1:41101'}
         def sidecar(port,hf,log,*,window_id=None,workspace=None):
             outer.assertEqual(window_id,outer.wid)
-            log.write_text('public sidecar started');return Mock(pid=124)
+            return pipe_log(workspace,log,'public sidecar started')
         def search_start(kb,port,log,mode,*,window_id=None,workspace=None):
             outer.assertEqual(window_id,outer.wid)
-            outer.assertIn('candidate-runtime',str(log));log.write_text(cases[0].query if leak else 'service started')
-            return Mock(pid=123),{'base_url':'http://127.0.0.1:41101'}
+            outer.assertIn('candidate-runtime',str(log))
+            return pipe_log(workspace,log,cases[0].query),{'base_url':'http://127.0.0.1:41101'}
         class Response:
             def __init__(self,url):self.url=url
             def __enter__(self):return self
@@ -332,7 +352,7 @@ class WindowTests(unittest.TestCase):
             stack.enter_context(patch.object(runtime,'gateway_probe',return_value=gateway))
             stack.enter_context(patch.object(runtime,'data_bytes',return_value=1000))
             stack.enter_context(patch.object(runner.ops,'RssSampler',return_value=Mock(stop=Mock(return_value=10000))))
-            stack.enter_context(patch.object(runner.ops,'stop_process'))
+            stack.enter_context(patch.object(runner.ops,'stop_process',side_effect=lambda p:p._test_stop()))
             if key=='a':
                 stack.enter_context(patch.object(runner,'launch_opensearch',side_effect=search_start))
                 stack.enter_context(patch.object(runner,'verify_icu'))

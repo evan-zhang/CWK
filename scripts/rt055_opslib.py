@@ -299,11 +299,19 @@ def wait_for_http(url: str, timeout: float, expect: tuple[int, ...] = (200,), pr
 def stop_process(proc: subprocess.Popen, grace: float = 20.0) -> None:
     if proc.poll() is not None:
         return
-    proc.terminate()
+    if hasattr(proc,'_rt055_firewall'):
+        import signal
+        proc._rt055_controller_stop=True
+        try:os.killpg(proc.pid,signal.SIGTERM)
+        except ProcessLookupError:pass
+    else:proc.terminate()
     try:
         proc.wait(timeout=grace)
     except subprocess.TimeoutExpired:
-        proc.kill()
+        if hasattr(proc,'_rt055_firewall'):
+            try:os.killpg(proc.pid,signal.SIGKILL)
+            except ProcessLookupError:pass
+        else:proc.kill()
         try:
             proc.wait(timeout=10)
         except subprocess.TimeoutExpired:

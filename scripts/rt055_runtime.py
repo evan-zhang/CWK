@@ -140,7 +140,12 @@ def spawn(root, argv, network_policy='loopback', window_id=None, workspace=None,
         if workspace.root!=root:raise RuntimeError('candidate_workspace_root_mismatch')
         sandbox=['/usr/bin/sandbox-exec','-p',policy(workspace,profile.read_text())]
     else:sandbox=['/usr/bin/sandbox-exec','-f',str(profile)]
-    proc = subprocess.Popen([*sandbox,*argv],**kwargs)
+    if workspace is not None:
+        from rt055_log_firewall import get
+        log_path=kwargs.pop('firewall_log_path',None)
+        if log_path is None:raise RuntimeError('candidate_log_firewall_required')
+        proc=get(workspace).spawn([*sandbox,*argv],log_path,kwargs)
+    else:proc = subprocess.Popen([*sandbox,*argv],**kwargs)
     folder=root/'resources';folder.mkdir(mode=0o700,exist_ok=True)
     window.write_once(folder/f'process-{proc.pid}-{uuid.uuid4()}.json',
         {'pid':proc.pid,'argv':argv,'started':time.time(),
@@ -191,7 +196,7 @@ MIGRATION_SOURCE_FILES = PRIVACY_SOURCE_FILES + (
     'rt055_window.py','rt055_baseline.py','rt055_formal_coordinator.py',
     'rt055_aggregate.py','rt055_cleanup.py','rt055_tiers.py',
     'kb_retrieval_decision.py','rt055_runbooks.json','aggregate-report.schema.json',
-    'rt055_zero_exposure.py','rt055_runtime_readiness.py','rt055_candidate_workspace.py','rt055_candidate_startup.py','rt055_scoring_input.py')
+    'rt055_zero_exposure.py','rt055_runtime_readiness.py','rt055_candidate_workspace.py','rt055_candidate_startup.py','rt055_scoring_input.py','rt055_log_firewall.py','rt055_build_readiness.py','rt055_workload_readiness.py')
 
 
 def migration_directory(root,migration_id):

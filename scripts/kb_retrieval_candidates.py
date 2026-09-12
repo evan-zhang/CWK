@@ -43,6 +43,12 @@ class CandidateError(RuntimeError):
     """Constant messages only; never propagate native response text."""
 
 
+class CandidatePending(CandidateError):
+    """Native import acknowledged, at least one job still in progress."""
+
+class CandidateBuildFailed(CandidateError):
+    """Native terminal failed job; retrying readiness cannot repair it."""
+
 class CandidateTimeout(CandidateError):
     pass
 
@@ -363,15 +369,19 @@ class WeKnoraCandidate:
             raise CandidateError('candidate not imported')
         self.ready = False
         deadline = Deadline(timeout)
+        pending=False
         for identifier, (kb_id, _) in self.documents.items():
             response = self.request('GET', '/api/v1/knowledge/' + identifier, None, deadline.remaining())
             data = response.get('data', {})
             if (response.get('success') is not True or data.get('id') != identifier
                     or data.get('knowledge_base_id') != self.kb_bindings[kb_id]):
                 raise CandidateLeak('native ingestion scope mismatch')
-            if data.get('parse_status') != 'completed':
-                raise CandidateError('native ingestion not complete')
+            status=data.get('parse_status')
+            if status in ('failed','error'):raise CandidateBuildFailed('native ingestion terminal failed')
+            if status in ('pending','processing','unprocessed','parsing'):pending=True
+            elif status != 'completed':raise CandidateError('native ingestion status invalid')
         deadline.remaining()
+        if pending:raise CandidatePending('native ingestion pending')
         self.ready = True
 
     def search(self, query: str, kb_id: str, timeout: float = 30) -> list[Hit]:

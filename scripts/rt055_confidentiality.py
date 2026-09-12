@@ -19,6 +19,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+import rt055_log_firewall as firewall
 import rt055_opslib as ops
 import rt055_runtime as runtime
 import rt055_candidate_workspace as cw
@@ -200,6 +201,7 @@ def run(root,protected_root=None):
         phase('SEARCH_START');search.ensure_icu_plugin()
         synthetic_window=str(uuid.uuid4())
         a=cw.create(root,synthetic_window,'a',str(uuid.uuid4()),synthetic=True);spaces.append(a)
+        firewall.bind(a,NEEDLES)
         proc,info=search.launch_opensearch('privacy',free_port(),cw.file(a,'logs','search.log'),'smoke',workspace=a)
         processes.append(proc);o['search_started']=proc.poll() is None
         search.verify_icu(info['base_url'])
@@ -212,6 +214,7 @@ def run(root,protected_root=None):
         o['search_normal_calls']=int(any(h.doc_id==doc.doc_id for h in hits))
         phase('SIDECAR_START');side_port=free_port()
         bspace=cw.create(root,synthetic_window,'b',str(uuid.uuid4()),synthetic=True);spaces.append(bspace)
+        firewall.bind(bspace,NEEDLES)
         side=native.launch_sidecar(side_port,root/'sidecar/hf',cw.file(bspace,'logs','sidecar.log'),privacy_probe=True,workspace=bspace)
         processes.append(side);o['sidecar_started']=side.poll() is None
         phase('NATIVE_START')
@@ -279,6 +282,8 @@ def run(root,protected_root=None):
         o.update(observer.finish());o['denial_probes']=denial_probes
         count=hits=0
         for space in spaces:
+            try:firewall.finalize(space)
+            except Exception:o['cleanup_error']=True
             paths=cw.log_files(space);count+=len(paths)
             hits+=sum(any(n in p.read_text(errors='replace') for n in NEEDLES) for p in paths)
             try:cw.scan(space,NEEDLES)

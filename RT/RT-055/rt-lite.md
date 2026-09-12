@@ -367,3 +367,12 @@ freeze/verify 与无 Popen precheck 均 PASS。完整池42/31/42不变，合法�
 - 唯一裁决 **INVALID**；formal complete=false，v3 aggregate available=false，deferred=[]。不切流、不清除旧漂移、不关闭 RT。
 - [完整固定分母/质量/资源、Gateway、复杂度与收口事实](evidence/acceptance.md#amendment-7-正式窗口收口2026-09-12)。
 - [OPS 公开收口](evidence/amendment7-formal-closeout.json)、[唯一裁决](evidence/amendment7-formal-decision.json)、[QA](evidence/amendment7-formal-qa.json)。
+
+## Amendment 8 — 日志落盘前防火墙与公开同形 build readiness
+
+继续同一 RT，授权执行器修复，不执行正式A/B。旧窗永久 INVALID/after，不再使用。
+[协议](experiment-protocol.md#amendment-8--streaming-log-firewall-and-workload-readiness2026-09-12)
+约定 controller 流式净化、完整EOF与post-scan、终止失败分类、同7200秒公开同形验证。
+新源提交后部署独立migration，只有全门通过才新建window/freeze。保留所有历史、96材料和
+builder/verifier1/1；不改生产/NAS/index/alias/config、WeKnora core或sandbox/egress。
+当前本地源码修复在验证中，未建立新READY，未push。

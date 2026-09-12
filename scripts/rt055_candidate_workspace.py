@@ -165,9 +165,12 @@ def jvm_config(text,s,component):
     heap=file(s,'data','heapdump-'+component+'.hprof')
     if any(c.isspace() for c in str(s.base)):raise RuntimeError('candidate_jvm_path_whitespace')
     if 'file=logs/gc.log' not in text:raise RuntimeError('candidate_jvm_log_template_drift')
-    text=text.replace('file=logs/gc.log','file='+str(gc))
-    text=text.replace('-XX:ErrorFile=logs/hs_err_pid%p.log','-XX:ErrorFile='+str(fatal))
+    text=text.replace('file=logs/gc.log','stdout')
+    text=text.replace('-XX:ErrorFile=logs/hs_err_pid%p.log','-XX:ErrorFile=/dev/null')
     text=text.replace('-XX:HeapDumpPath=data','-XX:HeapDumpPath='+str(heap))
+    text=text.replace('-XX:+HeapDumpOnOutOfMemoryError','-XX:-HeapDumpOnOutOfMemoryError')
+    # stdout has no rotation options. Preserve selectors, level and decorators.
+    text=re.sub(r'(stdout:[^\n:]+):filecount=[^\n]+',r'\1',text)
     return text
 
 
@@ -184,6 +187,8 @@ def search_config(root,s,component,*,create=False):
         elif p.is_file():
             data=p.read_bytes()
             if p==source/'jvm.options':data=jvm_config(data.decode(),s,component).encode()
+            if p==source/'log4j2.properties':
+                data=b'appender.console.type = Console\nappender.console.name = console\nappender.console.layout.type = PatternLayout\nappender.console.layout.pattern = %d %p %c - %m%n\nrootLogger.level = info\nrootLogger.appenderRef.console.ref = console\n'
             if create:
                 with target.open('xb') as f:f.write(data)
                 target.chmod(0o600)
@@ -241,7 +246,7 @@ def needles(corpus,cases):
     for case in cases:
         row=case if isinstance(case,dict) else vars(case)
         for k,v in row.items():
-            if k not in ('kb_id','library','category','exact','expected_outcome'):visit(v)
+            visit(v)
     encoded={json.dumps(v,ensure_ascii=ascii)[1:-1] for v in values for ascii in (False,True)}
     return sorted(values|encoded)
 
@@ -254,8 +259,11 @@ def log_files(s):
 
 def scan(s,values):
     paths=log_files(s)
+    from rt055_log_firewall import verified_paths,FirewallError
+    try:firewall_verified=set(paths)==verified_paths(s)
+    except FirewallError:firewall_verified=False
     hits=sum(any(n in p.read_text(errors='replace') for n in values if n) for p in paths)
-    row={'schema':'cwk.rt055.candidate-log-scan.v1','passed':bool(paths) and bool(values) and hits==0,
+    row={'schema':'cwk.rt055.candidate-log-scan.v1','passed':bool(paths) and bool(values) and hits==0 and firewall_verified,'firewall_verified':firewall_verified,
          'log_files':len(paths),'hit_files':hits,'needles_present':bool(values),'content_exported':False}
     window.write_once(s.ledger.parent/'log-scan.json',row)
     if not row['passed']:raise RuntimeError('candidate_log_privacy_failed')
@@ -272,7 +280,9 @@ def cleanup(s):
     # Retain private logs, then remove exactly the inode-bound lease. Never
     # delete data-run/data-smoke or traverse another window's runtime tree.
     s.archive.mkdir(mode=0o700,exist_ok=False)
-    for p in log_files(s):
+    scan_path=s.ledger.parent/'log-scan.json'
+    retained=scan_path.exists() and ops.read_json(scan_path).get('passed') is True and ops.read_json(scan_path).get('firewall_verified') is True
+    for p in log_files(s) if retained else []:
         checked(s.root,p);dest=s.archive/p.relative_to(s.base)
         dest.parent.mkdir(mode=0o700,parents=True,exist_ok=True)
         with dest.open('xb') as f:f.write(p.read_bytes())
@@ -282,7 +292,9 @@ def cleanup(s):
     for p in (s.base.parent,s.base.parent.parent,s.root/'candidate-runtime'):
         try:p.rmdir()
         except OSError:pass  # nonempty siblings are retained, never traversed
-    row={**s.identity(),'complete':not s.base.exists(),'remaining_owned_runtime':int(s.base.exists()),'logs_retained':True}
+    row={**s.identity(),'complete':not s.base.exists(),'remaining_owned_runtime':int(s.base.exists()),'logs_retained':retained}
+    from rt055_log_firewall import release
+    release(s)
     window.write_once(s.ledger.parent/'workspace-cleanup.json',row)
     return row
 

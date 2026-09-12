@@ -829,3 +829,13 @@ main/synthetic 边界、无正式 attempt 副作用、历史字节不修改。�
 - [本地 QA](amendment7-formal-qa.json)。
 
 QA：本地 RT-055 回归 219 项全部通过，136 个冻结源码/测试文件编译通过；闭集 Schema、固定分母与缺测、OPS/本地裁决、私有字段/摘要与 secret、文档链接、历史前缀、冻结源码与提交范围均核验。aodw-check/governance 以本次 QA JSON 中的实测字段为准，不声称运行完整 repository CI。
+
+## Amendment 8 本地合同与 OPS readiness
+
+旧日志泄漏根因与防火墙、build分类、公开同形负载合同见
+[Amendment 8](../experiment-protocol.md#amendment-8--streaming-log-firewall-and-workload-readiness2026-09-12)。
+本地RED必须先证明旧 direct-file canary确实落盘；GREEN涵盖每个chunk边界、前缀/重叠、
+Unicode/JSON转义、无换行、64MiB cap、drain异常、缺EOF、child nonzero、fd/thread回收、
+净化占位符和post-scan0；故意断线/残余拒绝。B terminal failed不能轮询至timeout。
+完整 RT055 回归、pycompile、Schema反例、隐私字段/链接/AODW/governance/diff均为独立门。
+OPS workload/native/privacy/main readiness尚未通过时，本地GREEN不得称为READY。

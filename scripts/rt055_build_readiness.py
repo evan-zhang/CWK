@@ -1,0 +1,50 @@
+"""Count-only native build observation; terminal failures never poll to deadline."""
+from __future__ import annotations
+import time
+import kb_retrieval_candidates as kbc
+import rt055_opslib as ops
+from rt055_log_firewall import FirewallError
+TIMEOUT=7200.0
+CODES=('NONE','NATIVE_PENDING','NATIVE_TERMINAL_FAILED','BUILD_DEADLINE','REQUEST_FAILED','SCOPE_INVALID','FIREWALL_FAILED','UNKNOWN_EXECUTION_FAILURE')
+def error_code(exc):
+    if isinstance(exc,FirewallError):return 'FIREWALL_FAILED'
+    if isinstance(exc,kbc.CandidateBuildFailed):return 'NATIVE_TERMINAL_FAILED'
+    if isinstance(exc,kbc.CandidatePending):return 'NATIVE_PENDING'
+    if isinstance(exc,kbc.CandidateTimeout):return 'BUILD_DEADLINE'
+    if isinstance(exc,kbc.CandidateLeak):return 'SCOPE_INVALID'
+    if isinstance(exc,kbc.CandidateError):return 'REQUEST_FAILED'
+    return 'UNKNOWN_EXECUTION_FAILURE'
+def counts(transport):
+    return {kb:{'imported':len(transport.imported[kb]),'completed':len(transport.completed[kb]),
+                'failed':len(transport.failed[kb]),'pending':len(transport.imported[kb]-transport.completed[kb]-transport.failed[kb])}
+            for kb in transport.servers}
+def build_b(candidate,documents,transport,kb,path,firewall,timeout=TIMEOUT,poll_seconds=5):
+    start=time.monotonic();deadline=start+timeout
+    phase='IMPORT';code='NONE'
+    def observe():
+        firewall.health()
+        ops.write_private_json(path,{'schema':'cwk.rt055.build-status.v1','candidate':'b','library':kb,
+            'deadline_phase':phase,'error':code,'timeout_seconds':timeout,'elapsed_seconds':round(time.monotonic()-start,3),
+            'libraries':counts(transport)})
+    transport.observer=observe
+    try:
+        observe()
+        try:candidate.build(documents,timeout=timeout)
+        except kbc.CandidatePending:pass
+        phase='READY_POLL'
+        while not candidate.ready:
+            code='NATIVE_PENDING';observe();remaining=deadline-time.monotonic()
+            if remaining<=0:raise kbc.CandidateTimeout('build deadline')
+            time.sleep(min(poll_seconds,remaining));remaining=deadline-time.monotonic()
+            if remaining<=0:raise kbc.CandidateTimeout('build deadline')
+            try:candidate.check_ready(min(120,remaining))
+            except kbc.CandidatePending:continue
+        phase='COMPLETE';code='NONE';observe()
+    except Exception as exc:
+        code=error_code(exc)
+        # Failure observation must survive a failed firewall without raw error text.
+        ops.write_private_json(path,{'schema':'cwk.rt055.build-status.v1','candidate':'b','library':kb,
+            'deadline_phase':phase,'error':code,'timeout_seconds':timeout,'elapsed_seconds':round(time.monotonic()-start,3),
+            'libraries':counts(transport)})
+        raise
+    finally:transport.observer=None

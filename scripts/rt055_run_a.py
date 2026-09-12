@@ -28,6 +28,8 @@ import kb_retrieval_candidates as kbc  # noqa: E402
 import kb_stage_b_poc as poc  # noqa: E402
 import rt055_opslib as ops
 import rt055_runtime as runtime
+import rt055_log_firewall as firewall
+import rt055_build_readiness as build_readiness
 import rt055_candidate_workspace as workspace_api
 import uuid
 import rt055_window as window  # noqa: E402
@@ -131,20 +133,19 @@ def launch_opensearch(kb: str, port: int, log_path: Path, mode="run", window_id=
     env["RT055_KEYSTORE_STDIN"]=str(stdin_file)
     transport_port = free_port(random.Random())
     while transport_port == port:transport_port = free_port(random.Random())
-    with log_path.open("xb") as log:
-        proc = runtime.spawn(ROOT,
-            [*launcher,
-             "-E", "network.host=127.0.0.1",
-             "-E", "transport.host=127.0.0.1",
-             "-E", f"transport.port={transport_port}",
-             "-E", f"http.port={port}",
-             "-E", "discovery.type=single-node",
-             "-E", "plugins.security.disabled=true",
-             "-E", f"path.data={data_dir}",
-             "-E", f"path.logs={logs_dir}",
-             "-E", "cluster.routing.allocation.disk.threshold_enabled=false"],
-            stdout=log, stderr=subprocess.STDOUT,
-            env=env, cwd=str(ROOT / "opensearch"), network_policy="inbound-only", window_id=window_id, workspace=workspace)
+    proc = runtime.spawn(ROOT,
+        [*launcher,
+         "-E", "network.host=127.0.0.1",
+         "-E", "transport.host=127.0.0.1",
+         "-E", f"transport.port={transport_port}",
+         "-E", f"http.port={port}",
+         "-E", "discovery.type=single-node",
+         "-E", "plugins.security.disabled=true",
+         "-E", f"path.data={data_dir}",
+         "-E", f"path.logs={logs_dir}",
+         "-E", "cluster.routing.allocation.disk.threshold_enabled=false"],
+        firewall_log_path=log_path,
+        env=env, cwd=str(ROOT / "opensearch"), network_policy="inbound-only", window_id=window_id, workspace=workspace)
 
     base = f"http://127.0.0.1:{port}"
     try:
@@ -180,7 +181,7 @@ def load_cases(verified: dict) -> list[kbc.Case]:
     return load_private_trials(verified)
 
 
-def main() -> int:
+def _main() -> int:
     os.umask(0o077)
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=("smoke", "run"), required=True)
@@ -195,6 +196,7 @@ def main() -> int:
     corpus=None
     cases=[]
     log_scanned=False
+    log_needles=[]
     completed={}
     log_root=ROOT/"runtime-logs"
 
@@ -259,6 +261,8 @@ def main() -> int:
         if args.mode == "smoke" and args.case_limit:
             cases = cases[:args.case_limit]
 
+        log_needles=workspace_api.needles(corpus,cases)+list(ops.WARMUP_QUERIES)+(workspace_api.needles(verified,[]) if args.mode=="run" else [])
+        firewall.bind(workspace,log_needles)
         multi = MultiLibraryA()
         pids: list[int] = []
         build_seconds: dict[str, float] = {}
@@ -288,6 +292,7 @@ def main() -> int:
         metrics={}
         for kb in participating:
             rows=[c for c in cases if c.kb_id==kb]
+            firewall.get(workspace).health()
             if args.mode=='run':
                 metrics.update(window.score_library(ROOT,args.window_id,'a',kb,attempt,multi,rows,timeout=30))
             else:
@@ -310,7 +315,8 @@ def main() -> int:
         if leftovers_total:
             raise RuntimeError("temporary_indices_not_zero")
         for proc in services:ops.stop_process(proc)
-        workspace_api.scan(workspace,workspace_api.needles(corpus,cases));log_scanned=True
+        firewall.finalize(workspace)
+        workspace_api.scan(workspace,log_needles);log_scanned=True
         if args.mode=='run':
             for kb in participating:
                 window.library_complete(ROOT,args.window_id,'a',kb,{'metrics':{**metrics[kb],
@@ -355,10 +361,22 @@ def main() -> int:
         for proc in services:
             ops.stop_process(proc)
         if workspace is not None:
+            failed=False
             try:
+                try:firewall.finalize(workspace)
+                except Exception:failed=True
                 if not log_scanned and not (workspace.ledger.parent/'log-scan.json').exists():
-                    workspace_api.scan(workspace,workspace_api.needles(corpus,cases))
+                    try:workspace_api.scan(workspace,log_needles)
+                    except Exception:failed=True
             finally:workspace_api.cleanup(workspace)
+            if failed:raise firewall.FirewallError('UNVERIFIED')
+
+
+def main() -> int:
+    try:return _main()
+    except firewall.FirewallError:
+        print('CANDIDATE_LOG_FIREWALL_FAILED')
+        return 2
 
 
 if __name__ == "__main__":

@@ -11,6 +11,7 @@ from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 import rt055_candidate_workspace as cw
 import rt055_runtime as rt
+import rt055_log_firewall as fw
 
 class WorkspaceTests(unittest.TestCase):
     def setUp(self):
@@ -40,7 +41,7 @@ class WorkspaceTests(unittest.TestCase):
         with self.assertRaises(FileExistsError):self.make()
     def test_cleanup_exact_owner_preserves_sibling_and_audit(self):
         a=self.make();b=self.make('b');other=self.make(wid=str(uuid.uuid4()),aid=str(uuid.uuid4()))
-        cw.file(a,'logs','public.log').write_text('public startup')
+        f=fw.bind(a,['PUBLIC CANARY']);proc=f.spawn([sys.executable,'-c','print("public startup")'],cw.file(a,'logs','public.log'),{});proc.wait(5);f.finalize();cw.scan(a,['PUBLIC CANARY'])
         cw.file(a,'data','owned.bin').write_bytes(b'public')
         original=a.ledger.read_bytes();row=cw.cleanup(a)
         self.assertTrue(row['complete']);self.assertFalse(a.base.exists())
@@ -63,7 +64,7 @@ class WorkspaceTests(unittest.TestCase):
         s=self.make()
         with self.assertRaises(RuntimeError):cw.scan(s,['PUBLIC CANARY'])
         # Different scan receipt because failures are append-only.
-        other=self.make(aid=str(uuid.uuid4()));cw.file(other,'logs','public.log').write_text('service ready')
+        other=self.make(aid=str(uuid.uuid4()));f=fw.bind(other,['PUBLIC CANARY']);proc=f.spawn([sys.executable,'-c','print("service ready")'],cw.file(other,'logs','public.log'),{});proc.wait(5);f.finalize()
         self.assertTrue(cw.scan(other,['PUBLIC CANARY'])['passed'])
     def test_jvm_config_copy_redirects_only_diagnostics_and_rejects_drift(self):
         s=self.make();conf=self.root/'opensearch/config';conf.mkdir(parents=True)
@@ -71,7 +72,7 @@ class WorkspaceTests(unittest.TestCase):
         (conf/'jvm.options').write_text(original);(conf/'opensearch.yml').write_text('public: true')
         copied=cw.search_config(self.root,s,'a-public',create=True);text=(copied/'jvm.options').read_text()
         self.assertIn('-Xms1g\n-Xmx1g',text);self.assertNotIn('file=logs/gc.log',text)
-        self.assertIn('file='+str(s.base/'logs/gc-a-public.log'),text)
+        self.assertIn('safepoint:stdout:utctime,pid,tags',text)
         self.assertEqual((conf/'jvm.options').read_text(),original)
         self.assertEqual((copied/'opensearch.yml').read_text(),'public: true')
         (copied/'jvm.options').write_text(original)
@@ -132,7 +133,7 @@ print(json.dumps(out))
         (data/'app.db').write_text('DATABASE DOCUMENT CONTENT')
         with self.assertRaises(RuntimeError):cw.scan(s,['PUBLIC LEAK CANARY'])
         self.assertEqual(len(cw.log_files(s)),1);cw.cleanup(s)
-        self.assertEqual((s.archive/'data/b-public/logs/fallback.log').read_text(),'PUBLIC LEAK CANARY')
+        self.assertFalse((s.archive/'data/b-public/logs/fallback.log').exists())
         self.assertFalse(list(s.archive.rglob('app.db')))
 
     def test_formal_without_claim_rejected(self):

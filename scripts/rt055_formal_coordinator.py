@@ -41,10 +41,12 @@ def main(argv=None):
     def save():ops.write_private_json(w/'status/formal.json',state)
     def run(name,script,*extra):
         state['phase']=name;save()
-        with (w/'controllers'/attempt/(name.lower()+'.log')).open('xb') as log:
-            p=subprocess.Popen([sys.executable,str(ROOT/'impl'/script),*extra],cwd=ROOT/'impl',
-                               stdin=subprocess.DEVNULL,stdout=log,stderr=subprocess.STDOUT)
-            state['child_process_id']=p.pid;save();code=p.wait();state['child_process_id']=0
+        from rt055_log_firewall import run_command
+        from rt055_candidate_workspace import needles
+        values=needles(ops.read_json(ROOT/'builder/private-corpus.json'),[])+needles(ops.read_json(ROOT/'verifier/private-verified.json'),[])
+        code=run_command([sys.executable,str(ROOT/'impl'/script),*extra],
+            w/'controllers'/attempt/(name.lower()+'.log'),values,cwd=ROOT/'impl',stdin=subprocess.DEVNULL)
+        state['child_process_id']=0
         window.write_once(w/'controllers'/attempt/(name.lower()+'.json'),{'phase':name,'exit_code':code,'finished_at':time.time()})
         if code:state.update(failed_phase=name,exit_code=code)
         else:state['completed'].append(name)

@@ -33,6 +33,8 @@ import kb_retrieval_candidates as kbc  # noqa: E402
 import kb_stage_b_poc as poc  # noqa: E402
 import rt055_opslib as ops
 import rt055_runtime as runtime
+import rt055_log_firewall as firewall
+import rt055_build_readiness as build_readiness
 import rt055_candidate_workspace as workspace_api
 import uuid
 import rt055_window as window  # noqa: E402
@@ -68,11 +70,14 @@ class RoutingTransport:
         self.first_import: dict[str, float] = {}
         self.completed: dict[str, set] = {}
         self.imported: dict[str, set] = {}
+        self.failed: dict[str, set] = {}
+        self.observer=None
 
     def add_server(self, kb: str, info: dict[str, Any]) -> None:
         self.servers[kb] = info
         self.completed[kb] = set()
         self.imported[kb] = set()
+        self.failed[kb] = set()
 
     def build_seconds(self) -> dict[str, float]:
         out = {}
@@ -122,6 +127,7 @@ class RoutingTransport:
         except (ValueError, OSError):
             raise kbc.CandidateError("native request failed") from None
         self._instrument(method, path, payload, data, kb)
+        if self.observer:self.observer()
         return data
 
     def _instrument(self, method: str, path: str, payload: Any, data: Any, kb: str) -> None:
@@ -134,6 +140,8 @@ class RoutingTransport:
                 self.first_import.setdefault(kb, now)
         elif method == "GET" and KNOWLEDGE_PATH_RE.match(path):
             identifier = KNOWLEDGE_PATH_RE.match(path).group(1)
+            if (data.get('data') or {}).get('parse_status') in ('failed','error'):
+                self.failed[kb].add(identifier)
             if ((data.get("data") or {}).get("parse_status") == "completed"
                     and identifier in self.imported.get(kb, set())):
                 self.completed[kb].add(identifier)
@@ -174,13 +182,12 @@ def launch_sidecar(port: int, hf_home: Path, log_path: Path, *, privacy_probe=Fa
     env["HF_HUB_OFFLINE"] = "1"
     env["TRANSFORMERS_OFFLINE"] = "1"
     env["HF_HOME"] = str(hf_home)
-    with log_path.open("xb") as log:
-        proc = runtime.spawn(ROOT,
-            [str(ROOT / "sidecar" / "venv" / "bin" / "python"),
-             str(HERE / "rt055_embed_sidecar.py"),
-             "--port", str(port), "--model", EMBED_REPO,
-             "--hf-home", str(hf_home), *(["--privacy-probe"] if privacy_probe else [])],
-            stdout=log, stderr=subprocess.STDOUT, env=env, window_id=window_id, workspace=workspace)
+    proc = runtime.spawn(ROOT,
+        [str(ROOT / "sidecar" / "venv" / "bin" / "python"),
+         str(HERE / "rt055_embed_sidecar.py"),
+         "--port", str(port), "--model", EMBED_REPO,
+         "--hf-home", str(hf_home), *(["--privacy-probe"] if privacy_probe else [])],
+        firewall_log_path=log_path, env=env, window_id=window_id, workspace=workspace)
 
     deadline = time.monotonic() + 1800
     while time.monotonic() < deadline:
@@ -219,10 +226,9 @@ def launch_server(port: int, data_dir: Path, log_path: Path, *, window_id=None, 
     for name in list(env):
         if name.startswith("LANGFUSE") and name != "LANGFUSE_ENABLED":
             env.pop(name)
-    with log_path.open("xb") as log:
-        proc = runtime.spawn(ROOT,[str(ROOT / "bin" / "weknora-server")],
-                                stdout=log, stderr=subprocess.STDOUT,
-                                env=env, cwd=str(data_dir), window_id=window_id, workspace=workspace)
+    proc = runtime.spawn(ROOT,[str(ROOT / "bin" / "weknora-server")],
+                            firewall_log_path=log_path,
+                            env=env, cwd=str(data_dir), window_id=window_id, workspace=workspace)
 
     try:
         ops.wait_for_http(f"http://127.0.0.1:{port}{BASE}/knowledge-bases", timeout=180,
@@ -308,7 +314,7 @@ def log_leak_check(log_paths: list[Path], needles: list[str]) -> bool:
     return True
 
 
-def main() -> int:
+def _main() -> int:
     os.umask(0o077)
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=("smoke", "run"), required=True)
@@ -321,6 +327,7 @@ def main() -> int:
     corpus=None
     cases=[]
     log_scanned=False
+    log_needles=[]
     completed={}
     log_root=ROOT/"runtime-logs"
 
@@ -384,6 +391,8 @@ def main() -> int:
             participating = list(ops.LIBRARIES)
             workspace=workspace_api.create(ROOT,str(uuid.uuid4()),"b",str(uuid.uuid4()),synthetic=True)
             log_root=workspace.base/"logs"
+        log_needles=workspace_api.needles(corpus,cases)+list(ops.WARMUP_QUERIES)+(workspace_api.needles(verified,[]) if args.mode=="run" else [])
+        firewall.bind(workspace,log_needles)
         data_root=workspace.base/"data"
         transport = RoutingTransport()
         per_lib_pids: dict[str, list[int]] = {}
@@ -409,18 +418,13 @@ def main() -> int:
         for kb in participating:
             candidate = kbc.WeKnoraCandidate(transport, {kb:transport.servers[kb]['kb_id']})
             started_library = time.monotonic()
-            try: candidate.build(load_documents(corpus,kb),timeout=BUILD_TIMEOUT)
-            except kbc.CandidateError:
-                if not candidate_ready_to_poll(candidate): raise
-                while time.monotonic()-started_library < BUILD_TIMEOUT and not candidate.ready:
-                    time.sleep(5)
-                    try: candidate.check_ready(120)
-                    except kbc.CandidateError: continue
-            if not candidate.ready: raise RuntimeError('candidate_b_build_timeout')
+            build_readiness.build_b(candidate,load_documents(corpus,kb),transport,kb,
+                workspace.ledger.parent/'build-status.json',firewall.get(workspace),timeout=BUILD_TIMEOUT)
             build_seconds[kb]=time.monotonic()-started_library
             for query in ops.WARMUP_QUERIES: candidate.search(query,kb,timeout=30)
             gateway_results.append(runtime.gateway_probe(ROOT,'b',candidate,[kb]))
             rows=[c for c in cases if c.kb_id==kb]
+            firewall.get(workspace).health()
             if args.mode=='run':
                 metrics.update(window.score_library(ROOT,args.window_id,'b',kb,attempt,candidate,rows,timeout=30))
             else:
@@ -435,7 +439,8 @@ def main() -> int:
             if index_bytes[kb] <= 0 or build_seconds[kb] <= 0:
                 raise RuntimeError("resource_measurement_incomplete")
         for proc in processes:ops.stop_process(proc)
-        workspace_api.scan(workspace,workspace_api.needles(corpus,cases));log_scanned=True
+        firewall.finalize(workspace)
+        workspace_api.scan(workspace,log_needles);log_scanned=True
         if not log_leak_check(log_paths, list(ops.WARMUP_QUERIES)):
             raise RuntimeError("log_confidentiality_gate_failed")
         if args.mode=='run':
@@ -469,6 +474,7 @@ def main() -> int:
 
         result["status"] = "FAILED"
         result["error"] = type(exc).__name__
+        result["build_error"] = build_readiness.error_code(exc)
         try:
             if args.mode=='smoke':ops.write_private_json(ROOT/'run-b/smoke-result.json',result)
             elif attempt:window.write_once(w/'run-b/attempts'/attempt/'failure.json',result)
@@ -481,10 +487,15 @@ def main() -> int:
         for proc in processes:
             ops.stop_process(proc)
         if workspace is not None:
+            failed=False
             try:
+                try:firewall.finalize(workspace)
+                except Exception:failed=True
                 if not log_scanned and not (workspace.ledger.parent/'log-scan.json').exists():
-                    workspace_api.scan(workspace,workspace_api.needles(corpus,cases))
+                    try:workspace_api.scan(workspace,log_needles)
+                    except Exception:failed=True
             finally:workspace_api.cleanup(workspace)
+            if failed:raise firewall.FirewallError('UNVERIFIED')
 
 
 def candidate_ready_to_poll(candidate: kbc.WeKnoraCandidate) -> bool:
@@ -496,6 +507,13 @@ def load_documents_all(corpus: dict):
     for kb in corpus['libraries']:
         docs.extend(load_documents(corpus, kb))
     return docs
+
+
+def main() -> int:
+    try:return _main()
+    except firewall.FirewallError:
+        print('CANDIDATE_LOG_FIREWALL_FAILED')
+        return 2
 
 
 if __name__ == "__main__":

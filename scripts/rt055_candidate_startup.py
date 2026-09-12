@@ -12,6 +12,7 @@ import random
 import sys
 import time
 import uuid
+import rt055_log_firewall as firewall
 import rt055_opslib as ops
 import rt055_window as window
 import rt055_candidate_workspace as cw
@@ -72,6 +73,7 @@ def run(root,wid,mid):
     try:
         for key in ('a','b'):
             s=cw.create(root,wid,key,str(uuid.uuid4()),synthetic=True,migration_id=mid);spaces.append(s)
+            firewall.bind(s,['RT055_PUBLIC_STARTUP_NEEDLE_NOT_IN_LOG'])
             for kb in ops.LIBRARIES:
                 if key=='a':
                     proc,info=a.launch_opensearch(kb,free_port(),cw.file(s,'logs','opensearch-'+kb+'.log'),'smoke',workspace=s)
@@ -87,7 +89,7 @@ def run(root,wid,mid):
     finally:
         for proc in reversed(processes):ops.stop_process(proc)
         for s in spaces:
-            try:cw.scan(s,['RT055_PUBLIC_STARTUP_NEEDLE_NOT_IN_LOG'])
+            try:firewall.finalize(s);cw.scan(s,['RT055_PUBLIC_STARTUP_NEEDLE_NOT_IN_LOG'])
             except Exception:state['cleanup_failures']+=1
             try:cw.cleanup(s)
             except Exception:state['cleanup_failures']+=1

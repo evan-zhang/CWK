@@ -114,7 +114,10 @@ def prepare(root, wid, mid):
 def before_precheck(root,wid):
     window.require_open(root,wid)
     need(window.holdout_unexposed(root))
-    return verify(root,wid)
+    row=verify(root,wid)
+    from rt055_workload_readiness import verify as workload_verify
+    workload_verify(root,row['migration_id'])
+    return row
 
 
 def freeze_files(root,wid,mid,before_started):

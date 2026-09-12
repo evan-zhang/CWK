@@ -14,8 +14,9 @@ import rt055_runtime as runtime
 import rt055_window as window
 import rt055_runtime_readiness as readiness
 import rt055_scoring_input as scoring_input
+import rt055_workload_readiness as workload
 PINNED='8d7298fb5d759973cb1e481cadc5ecdf16dca599'
-SHARED=('kb_retrieval_candidates.py','kb_retrieval_decision.py','kb_stage_b_poc.py','kb_stage_b_opensearch_benchmark.py','rt055_runtime.py','rt055_opslib.py','rt055_tiers.py','rt055_confidentiality.py','rt055_window.py','rt055_baseline.py','rt055_formal_coordinator.py','rt055_aggregate.py','rt055_cleanup.py','rt055_freeze.py','rt055_zero_exposure.py','rt055_runtime_readiness.py','rt055_candidate_workspace.py','rt055_candidate_startup.py','rt055_scoring_input.py')
+SHARED=('kb_retrieval_candidates.py','kb_retrieval_decision.py','kb_stage_b_poc.py','kb_stage_b_opensearch_benchmark.py','rt055_runtime.py','rt055_opslib.py','rt055_tiers.py','rt055_confidentiality.py','rt055_window.py','rt055_baseline.py','rt055_formal_coordinator.py','rt055_aggregate.py','rt055_cleanup.py','rt055_freeze.py','rt055_zero_exposure.py','rt055_runtime_readiness.py','rt055_candidate_workspace.py','rt055_candidate_startup.py','rt055_scoring_input.py','rt055_log_firewall.py','rt055_build_readiness.py','rt055_workload_readiness.py')
 
 def upstream(root):
     def git(*args):return subprocess.check_output(['git','-C',str(root/'weknora'),*args],stderr=subprocess.DEVNULL,text=True).strip()
@@ -72,6 +73,7 @@ def create(root,window_id,privacy_migration_id):
     if not runtime.privacy_passed(root,privacy_migration_id):raise RuntimeError('confidentiality_invalid')
     policy_files=readiness.freeze_files(root,window_id,privacy_migration_id,before_status['started_at'])
     scoring_files=scoring_input.freeze_files(root,window_id,privacy_migration_id,before_status['started_at'])
+    workload_files=workload.freeze_files(root,privacy_migration_id,before_status['started_at'])
     window.write_once(w/'status/freeze.claim',window.envelope(root,window_id,'freeze'))
     freeze=w/'freeze';freeze.mkdir(mode=0o700,exist_ok=False)
     prefix=str(freeze.relative_to(root))
@@ -82,7 +84,7 @@ def create(root,window_id,privacy_migration_id):
     window.write_once(freeze/'role-audit.json',roles)
     receipt={'schema':'cwk.rt055.ops-freeze.amendment3','run_id':root.name.removeprefix('rt055-'),'window_id':window_id,'privacy_migration_id':privacy_migration_id,'created_at':time.time(),'run_order':['a','b'] if secrets.randbits(1) else ['b','a'],
              'participating_libraries':checks['participating_libraries'],'deferred_libraries':checks['deferred_libraries'],
-             'private_files':{p:ops.sha_file(root/p) for p in ('builder/private-corpus.json','verifier/private-verified.json','verifier/case-verification.json',before_path,status_path,privacy_path)+tuple(window.void_paths(root))+policy_files+scoring_files},'candidates':{},
+             'private_files':{p:ops.sha_file(root/p) for p in ('builder/private-corpus.json','verifier/private-verified.json','verifier/case-verification.json',before_path,status_path,privacy_path)+tuple(window.void_paths(root))+policy_files+scoring_files+workload_files},'candidates':{},
              'ledger_contract':'arm-exposure-score-complete-v1'}
     for key in ('a','b'):
         extra=('rt055_run_a.py',) if key=='a' else ('rt055_run_b.py','rt055_embed_sidecar.py')
@@ -114,6 +116,7 @@ def _verify_artifacts(root,window_id):
                         str((w/'status/baseline-before.json').relative_to(root)),
                         str((runtime.migration_directory(root,privacy_id)/'privacy-receipt.json').relative_to(root))}
     required_private.update(window.void_paths(root))
+    required_private.update(workload.freeze_files(root,privacy_id,before_status['started_at']))
     required_private.update(readiness.freeze_files(root,window_id,privacy_id,before_status['started_at']))
     required_private.update(scoring_input.freeze_files(root,window_id,privacy_id,before_status['started_at']))
     if receipt.get('ledger_contract')!='arm-exposure-score-complete-v1':return False
