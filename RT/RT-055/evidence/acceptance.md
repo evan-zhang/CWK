@@ -886,3 +886,10 @@ B失败总回执未回填firewall_verified，单独最终drain回执6流全部PA
 投前库native日志有UNIQUE_CONSTRAINT1；CWork的SQLITE_BUSY1来自公开刻意探针，不归因为投前失败，更不归因为旧私有B。
 
 详见[Amendment8完整断点](amendment8-blocked.md)与[最终QA](amendment8-qa.json)。
+
+## Amendment 9 验收边界
+
+按 [协议](../experiment-protocol.md#amendment-9--串行原生导入与新准备门2026-09-12)执行，正式 A/B 不在本次授权中。
+验收必须同时有：真实 SQLite RED、串行 GREEN/行为变异、完整 RT055 回归 >=241、编译/Schema/privacy/links/AODW/governance/diff；真实 OPS 同形 A/B 三库 build/search 与 B inflight<=1；final firewall 全流与cleanup0；source-bound privacy/input/main readiness；before/final 两次三 Gateway 合同；新 UUID freeze/verify/order；正式计数全0及旧历史不变。任何准备硬门失败不得标 READY。
+
+机器证据及最终状态：[Amendment 9](amendment9-summary.md)。不把 mock、单库成功、HTTP200 或本地回归替代全套真实准备门。

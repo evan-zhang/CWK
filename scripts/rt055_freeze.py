@@ -3,6 +3,8 @@
 from __future__ import annotations
 import argparse
 import inspect
+import os
+import hashlib
 from pathlib import Path
 import secrets
 import subprocess
@@ -18,8 +20,25 @@ import rt055_workload_readiness as workload
 PINNED='8d7298fb5d759973cb1e481cadc5ecdf16dca599'
 SHARED=('kb_retrieval_candidates.py','kb_retrieval_decision.py','kb_stage_b_poc.py','kb_stage_b_opensearch_benchmark.py','rt055_runtime.py','rt055_opslib.py','rt055_tiers.py','rt055_confidentiality.py','rt055_window.py','rt055_baseline.py','rt055_formal_coordinator.py','rt055_aggregate.py','rt055_cleanup.py','rt055_freeze.py','rt055_zero_exposure.py','rt055_runtime_readiness.py','rt055_candidate_workspace.py','rt055_candidate_startup.py','rt055_scoring_input.py','rt055_log_firewall.py','rt055_build_readiness.py','rt055_workload_readiness.py')
 
+def upstream_files(root):
+    """Byte inventory of the already Git-verified checkout, including Git state.
+
+    Immutable freeze binding lets the coordinator recheck without Popen. No
+    content or digest is exported; inventory lives only in the OPS freeze.
+    """
+    base=root/'weknora'
+    if base.is_symlink() or not (base/'.git/HEAD').is_file():
+        raise RuntimeError('upstream_inventory_invalid')
+    result={}
+    for p in sorted(base.rglob('*')):
+        if p.is_symlink():
+            result[str(p.relative_to(base))]='link:'+hashlib.sha256(os.readlink(p).encode()).hexdigest()
+        elif p.is_file():result[str(p.relative_to(base))]=ops.sha_file(p)
+    if not result:raise RuntimeError('upstream_inventory_empty')
+    return result
+
 def upstream(root):
-    def git(*args):return subprocess.check_output(['git','-C',str(root/'weknora'),*args],stderr=subprocess.DEVNULL,text=True).strip()
+    def git(*args):return subprocess.check_output(['git','-C',str(root/'weknora'),*args],env={**os.environ,'GIT_OPTIONAL_LOCKS':'0'},stderr=subprocess.DEVNULL,text=True).strip()
     clean=not git('status','--porcelain');head=git('rev-parse','HEAD')==PINNED
     official=git('remote','get-url','origin') in ('https://github.com/Tencent/WeKnora.git','https://github.com/Tencent/WeKnora')
     reachable=subprocess.run(['git','-C',str(root/'weknora'),'merge-base','--is-ancestor',PINNED,'origin/main'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0
@@ -95,15 +114,15 @@ def create(root,window_id,privacy_migration_id):
         dependency_paths=[str(p.relative_to(root)) for p in deps]
         artifact_paths={'image_digest':image,'config_digest':f'{prefix}/{key}-config.json','mapping_digest':f'{prefix}/{key}-mapping.json','query_plan_digest':f'{prefix}/{key}-query-plan.json'}
         block={'candidate_id':'cwk-opensearch-dual-channel-v1' if key=='a' else 'weknora-native-'+PINNED,'receipt_id':'ops-rt055-freeze-candidate-'+key,'code_files':code_files,'artifact_paths':artifact_paths,'dependency_paths':dependency_paths,'frozen_before_run':True,'digests':{'code_digest':ops.file_manifest([root/p for p in code_files],base=root),**{k:ops.sha_file(root/p) for k,p in artifact_paths.items()},'dependency_digest':ops.file_manifest(deps+[root/'impl/rt055_runbooks.json'],base=root)}}
-        if key=='b':block.update(upstream_receipt=upstream(root),native_config=True,core_modified=False)
+        if key=='b':block.update(upstream_receipt=upstream(root),upstream_files=upstream_files(root),native_config=True,core_modified=False)
         receipt['candidates'][key]=block
     window.write_once(freeze/'freeze-receipt.json',receipt)
 
-def verify_artifacts(root,window_id=None):
-    try:return _verify_artifacts(root,window_id)
+def verify_artifacts(root,window_id=None,*,no_popen=False):
+    try:return _verify_artifacts(root,window_id,no_popen=no_popen)
     except (OSError,ValueError,KeyError,TypeError,RuntimeError):return False
 
-def _verify_artifacts(root,window_id):
+def _verify_artifacts(root,window_id,*,no_popen=False):
     w=window.directory(root,window_id);prefix=str((w/'freeze').relative_to(root))
     receipt=window.receipt(root,window_id)
     before,before_status,before_artifact=window.baseline(root,window_id,'before')
@@ -141,7 +160,9 @@ def _verify_artifacts(root,window_id):
     if not all(ops.sha_file(root/p)==h for p,h in receipt['private_files'].items()):return False
     if not all(ops.read_json(w/'freeze'/p)==v for p,v in artifact_plan(root).items()):return False
     if not role_audit(root)['verified']:return False
-    upstream_checked=upstream(root)
+    upstream_block=receipt['candidates']['b']
+    if upstream_block.get('upstream_files')!=upstream_files(root):return False
+    upstream_checked=upstream_block['upstream_receipt'] if no_popen else upstream(root)
     if not upstream_checked['verified_on_ops']:return False
     for key,block in receipt['candidates'].items():
         d=block['digests']

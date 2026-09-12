@@ -463,3 +463,19 @@ B CWork42份56.203秒完成；投前31份导入后1 failed/30 pending，立即�
 三路Gateway HTTP200，但1路缺read_only字段；完整只读合同与NAS/index不变性不得宣称PASS。
 新window/before/freeze/verify均未创建，随机顺序未抽取；main runtime/workspace/scoring gate和正式coordinator均未运行。
 源码与本地QA通过不等于READY_TO_RUN。当前BLOCKED、cleanup0，无后台候选任务，不自动重跑。
+
+## Amendment 9 — 串行原生导入与新准备门（2026-09-12）
+
+本修订仅获准修复、公开 synthetic 同形复测与建立新 READY_TO_RUN；不启动正式 coordinator，不消费私有 query。Am8 及此前窗口/归档/失败回执原字节保留；Am8 预留但未创建窗口永不复用。
+
+公开根因：旧 B 一次 POST 整库后才轮询。native 异步分块并发分配 `chunks.seq_id`，真实公开日志含 UNIQUE constraint 与多行 INSERT；这是公开合成失败的根因，不将其反推成旧私有 B 的失败子类。无需改 core、内容大小或 timeout。
+
+- B 每个独占临时 KB 逐文档 POST 一次，随后只 GET 该 ID；只有原生 `completed` 后才 POST 下一份。pending 继续同 ID；failed/error 立即终止，不重试、不重新导入、不晋升 ready。状态由闭合 enum 和专用异常区分。
+- transport 独立拒绝未完成时第二 POST、重复 payload POST 和重入；记忆内身份/内容不落 receipt。私有 build-status 仅计数、phase、封闭 error 与计时，不含 ID、内容值或 hash。
+- 三库独立服务/数据库保留，42/31/42 与全部文档不变。每库单一总 deadline 7200 秒；build_seconds 包含所有 POST、GET、串行等待。模型、规范化内容、search、top_k、scoring、warmup、tier/seed/题池不变。
+- 原始 stdout/stderr 始终只经内存 firewall；cap、EOF、关闭、redaction、postscan 必须通过。新 workload 成功/失败两条路径都收集最终 drain；绝不回填 Am8 原失败回执。
+- RED 使用真实 SQLite UNIQUE 约束的公开异步调度 fixture；GREEN 与破坏测试覆盖完成屏障、重复、terminal、timeout、firewall。它不冒充 native OPS 运行；必须另过真实 42/31/42 全库 build + 每库至少一 search。
+- public PASS 后才执行主 runtime/workspace/scoring readiness，再 before、freeze/verify、随机顺序。新的 freeze 在 OPS 私有回执绑定已验证 WeKnora checkout 与 Git 状态的字节清单；coordinator_precheck 在禁止 Popen/socket 下重算全部清单与冻结输入，不跳过 core 验证。
+- before 和最终三 Gateway 必须各实测 HTTP200、ok=true、read_only 字段存在且 true；缺字段即 BLOCKED，不改 Gateway。新 attempt/arm/exposure/query/score/result/after 全零；清理与历史不变性检查后才发布 READY。
+
+公开结果入口：[Amendment 9 证据](evidence/amendment9-summary.md)（最终收口时更新）。

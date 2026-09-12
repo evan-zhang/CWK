@@ -213,11 +213,11 @@ class NativeBTests(unittest.TestCase):
     def test_pending_import_is_not_ready_and_failed_partial_import_cannot_promote(self):
         self.make()
         self.service.status = 'processing'
-        with self.assertRaises(candidates.CandidateError): self.b.build(documents())
+        with self.assertRaises(candidates.CandidateTimeout): self.b.build(documents(),timeout=.01)
         self.assertFalse(self.b.ready)
         for d in self.service.docs.values(): d['parse_status'] = 'completed'
-        self.b.check_ready()
-        self.assertTrue(self.b.ready)
+        with self.assertRaises(candidates.CandidateError): self.b.check_ready()
+        self.assertFalse(self.b.ready)
         self.make()
         self.service.fail_import_at = 1
         with self.assertRaises(candidates.CandidateError): self.b.build(documents())

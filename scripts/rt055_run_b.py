@@ -20,6 +20,7 @@ import secrets
 import subprocess
 import sys
 import time
+import threading
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -72,12 +73,22 @@ class RoutingTransport:
         self.imported: dict[str, set] = {}
         self.failed: dict[str, set] = {}
         self.observer=None
+        self._import_locks = {}
+        self._posted = {}
+        self.max_inflight = {}
+        self.post_count = {}
+        self.completed_before_next_post = {}
 
     def add_server(self, kb: str, info: dict[str, Any]) -> None:
         self.servers[kb] = info
         self.completed[kb] = set()
         self.imported[kb] = set()
         self.failed[kb] = set()
+        self._import_locks[kb] = threading.Lock()
+        self._posted[kb] = set()
+        self.max_inflight[kb] = 0
+        self.post_count[kb] = 0
+        self.completed_before_next_post[kb] = 0
 
     def build_seconds(self) -> dict[str, float]:
         out = {}
@@ -103,8 +114,31 @@ class RoutingTransport:
 
     def __call__(self, method: str, path: str, payload: Any, timeout: float) -> Any:
         if not isinstance(path, str) or not path.startswith(BASE):
-            raise kbc.CandidateError("invalid request path")
-        kb, route_path = self._route(path)
+            raise kbc.CandidateError('invalid request path')
+        kb, _ = self._route(path)
+        importing = method == 'POST' and path.endswith('/knowledge/manual')
+        lock = self._import_locks[kb]
+        if not lock.acquire(blocking=False):
+            raise kbc.CandidateImportContractError('overlapping native request')
+        try:
+            if self.observer:self.observer()  # firewall before network I/O
+            if importing:
+                if self.failed[kb]:raise kbc.CandidateBuildFailed('native ingestion terminal failed')
+                if self.imported[kb] != self.completed[kb]:
+                    raise kbc.CandidateImportContractError('native import still pending')
+                # Payload fingerprints are in-memory values, never receipts or logs.
+                identity = json.dumps(payload, sort_keys=True, ensure_ascii=False, allow_nan=False)
+                if identity in self._posted[kb]:
+                    raise kbc.CandidateImportContractError('duplicate native import')
+                self._posted[kb].add(identity)  # an ambiguous POST is never retried
+                if self.post_count[kb]:self.completed_before_next_post[kb] += 1
+                self.post_count[kb] += 1
+                self.first_import.setdefault(kb, time.monotonic())
+            return self._request(method, path, payload, timeout, kb)
+        finally:
+            lock.release()
+
+    def _request(self, method, path, payload, timeout, kb):
         info = self.servers[kb]
         url = info["base_url"] + path
         raw = None if payload is None else json.dumps(payload, ensure_ascii=False,
@@ -137,6 +171,7 @@ class RoutingTransport:
             if isinstance(identifier, str):
                 self.knowledge_owner[identifier] = kb
                 self.imported[kb].add(identifier)
+                self.max_inflight[kb] = max(self.max_inflight[kb], len(self.imported[kb]-self.completed[kb]-self.failed[kb]))
                 self.first_import.setdefault(kb, now)
         elif method == "GET" and KNOWLEDGE_PATH_RE.match(path):
             identifier = KNOWLEDGE_PATH_RE.match(path).group(1)

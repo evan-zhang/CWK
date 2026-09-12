@@ -25,7 +25,7 @@ import rt055_build_readiness as build
 import kb_retrieval_candidates as kbc
 import kb_stage_b_poc as poc
 
-SCHEMA='cwk.rt055.public-workload.v1'
+SCHEMA='cwk.rt055.public-workload.v2'
 COUNTS=dict(zip(ops.LIBRARIES,(42,31,42)))
 UPPER_BYTES=524288
 SQL_CANARY='RT055_PUBLIC_NATIVE_SQL_FIREWALL_CANARY_雪'
@@ -51,6 +51,12 @@ def safe_result(row):
             and v.get('post_scan_hits')==0 and v.get('searches')==3
             and all(x.get('imported')==x.get('completed')==COUNTS[k] and x.get('pending')==x.get('failed')==0
                 and 0<x.get('build_seconds',0)<=7200 for k,x in v['libraries'].items()) for v in row['candidates'].values())
+        and all(v.get('max_inflight')==1 and v.get('post_count')==COUNTS[k]
+                and v.get('completed_before_next_post')==COUNTS[k]-1
+                for k,v in row['candidates']['b']['libraries'].items())
+        and all(v.get('firewall_streams',0)==(3 if key=='a' else 6) and v.get('eof_all') is True
+                and v.get('closed_all') is True and v.get('caps_pass') is True
+                and v.get('firewall_errors')==0 for key,v in row['candidates'].items())
         and row['candidates']['b'].get('sql_canary_redactions',0)>0
         and row.get('native_sql_errorpath_injected') is True)
 
@@ -66,6 +72,26 @@ def freeze_files(root,mid,before_started):
     row=verify(root,mid)
     if row['finished_at']>=before_started:raise RuntimeError('public_workload_after_before')
     return (str((runtime.migration_directory(root,mid)/'public-workload.json').relative_to(root)),)
+
+def finalize_streams(space, current, values):
+    """Final drain result is collected on both success and failure, before cleanup."""
+    receipt = fw.finalize(space)
+    current.update(firewall_verified=receipt['verified'],
+        firewall_streams=len(receipt['logs']),
+        eof_all=all(x['eof'] for x in receipt['logs']),
+        closed_all=all(x['closed'] for x in receipt['logs']),
+        caps_pass=all(not x['overflow'] and x['input_bytes']<=fw.CAP
+                      and x['output_bytes']<=fw.CAP for x in receipt['logs']),
+        firewall_errors=sum(x['error']!='NONE' for x in receipt['logs']),
+        input_bytes=sum(x['input_bytes'] for x in receipt['logs']),
+        output_bytes=sum(x['output_bytes'] for x in receipt['logs']),
+        redactions=sum(x['redaction_count'] for x in receipt['logs']))
+    scan_path=space.ledger.parent/'log-scan.json'
+    scan=ops.read_json(scan_path) if scan_path.exists() else cw.scan(space,values)
+    current['post_scan_hits']=scan['hit_files']
+    if not receipt['verified'] or not scan['passed'] or not current['caps_pass']:
+        raise fw.FirewallError('UNVERIFIED')
+    return receipt
 
 def run(root,mid,source_commit):
     import rt055_run_a as a,rt055_run_b as b
@@ -118,6 +144,10 @@ def run(root,mid,source_commit):
                     build.build_b(adapter,docs[kb],transport,kb,space.ledger.parent/'build-status.json',firewall)
                 elapsed=time.monotonic()-started
                 current['libraries'][kb]={'imported':COUNTS[kb],'completed':COUNTS[kb],'pending':0,'failed':0,'build_seconds':round(elapsed,3)}
+                if key=='b':
+                    current['libraries'][kb].update(build.counts(transport)[kb],
+                        max_inflight=transport.max_inflight[kb],post_count=transport.post_count[kb],
+                        completed_before_next_post=transport.completed_before_next_post[kb])
                 status('SEARCH_'+key.upper());firewall.health()
                 # At least one real public native search per library; no scorer.
                 hits=adapter.search('Public synthetic solar panels electricity',kb,timeout=30)
@@ -143,8 +173,7 @@ def run(root,mid,source_commit):
             adapters=[]
             for proc in reversed(processes):ops.stop_process(proc)
             processes=[]
-            receipt=firewall.finalize();scan=cw.scan(space,values)
-            current['firewall_verified']=receipt['verified'];current['post_scan_hits']=scan['hit_files']
+            receipt=finalize_streams(space,current,values)
             current['redactions']=sum(x['redaction_count'] for x in receipt['logs'])
             if key=='b':
                 current['sql_canary_redactions']=sum(x['redaction_count'] for x in receipt['logs'] if x['log_identity'].startswith('logs/native-'))
@@ -162,11 +191,10 @@ def run(root,mid,source_commit):
             except Exception:row['cleanup_failures']+=1
         for proc in reversed(processes):ops.stop_process(proc)
         for space in spaces:
-            try:fw.finalize(space)
-            except Exception:pass
-            if not (space.ledger.parent/'log-scan.json').exists():
-                try:cw.scan(space,fw.get(space).values or [SQL_CANARY])
-                except Exception:pass
+            try:finalize_streams(space,row['candidates'][space.candidate],fw.get(space).values or [SQL_CANARY])
+            except Exception:
+                row['status']='BLOCKED';row['error']='FIREWALL_FAILED'
+                row['candidates'][space.candidate]['firewall_verified']=False
             try:cw.cleanup(space)
             except Exception:row['cleanup_failures']+=1
         row['remaining_runtime']=int((root/'candidate-runtime').exists());row['finished_at']=time.time()

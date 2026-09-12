@@ -175,6 +175,16 @@ class InputReadinessTests(unittest.TestCase):
         with self.assertRaises((RuntimeError,kbc.CandidateError)):scoring.verify(self.root,self.wid,self.mid)
         self.assertFalse(freeze.verify_artifacts(self.root,self.wid))
 
+    def test_coordinator_precheck_no_popen_and_core_inventory_drift(self):
+        import subprocess,socket
+        self.frozen()
+        with patch.object(subprocess,'Popen',side_effect=AssertionError('NO_POPEN')),patch.object(socket.socket,'connect',side_effect=AssertionError('NO_QUERY')):
+            scoring.coordinator_precheck(self.root,self.wid,self.mid)
+            p=self.root/'weknora/public-new-file';p.write_text('public changed core')
+            with self.assertRaises(RuntimeError):scoring.coordinator_precheck(self.root,self.wid,self.mid)
+            p.unlink();scoring.coordinator_precheck(self.root,self.wid,self.mid)
+        self.assertFalse((self.w/'controllers').exists())
+
     def test_formal_coordinator_bad_receipt_source_after_exposure_zero_claims_popen(self):
         import rt055_formal_coordinator as coordinator
         self.frozen();receipt=self.base/'receipt.json';original=receipt.read_bytes()

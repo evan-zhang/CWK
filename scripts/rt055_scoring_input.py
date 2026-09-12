@@ -136,7 +136,7 @@ def coordinator_precheck(root,wid,mid):
     window.require_open(root,wid)
     need(window.holdout_unexposed(root))
     verify(root,wid,mid); window.verification(root,wid)
-    need(window.receipt(root,wid)['privacy_migration_id'] == mid and verify_artifacts(root,wid))
+    need(window.receipt(root,wid)['privacy_migration_id'] == mid and verify_artifacts(root,wid,no_popen=True))
 
 
 def main():

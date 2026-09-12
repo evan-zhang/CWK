@@ -423,3 +423,12 @@ B失败总回执未回填firewall_verified，单独最终drain回执6流全部PA
 投前库native日志有UNIQUE_CONSTRAINT1；CWork的SQLITE_BUSY1来自公开刻意探针，不归因为投前失败，更不归因为旧私有B。
 
 详见[Amendment8完整断点](evidence/amendment8-blocked.md)与[最终QA](evidence/amendment8-qa.json)。
+
+## Amendment 9 — 修复公开 B SQLite seq_id 并发冲突
+
+2026-09-12 用户明确批准从 Amendment 8 BLOCKED 接续，只建立新 readiness，不执行正式 A/B。建议和授权方案一致：候选 runner 加逐文档完成屏障，保留 native core、内容、三库隔离、模型与7200秒总预算。
+
+- 判据：真实 SQLite 并发调度 RED；完成屏障、失败/重复/超时/firewall 破坏测试；完整 RT055 回归与静态/隐私/流程门。真实 OPS 42/31/42 同形是独立必需验收，不用 mock 代替。
+- AI 评审：本轮由父执行者直接审查双重完成屏障、pending/terminal 单次 POST、计时与 source-bound 无 Popen 预检；不调用已退役固定 reviewer，不以自述代替证据。
+- 读产出：父执行者读取计数与封闭状态的公开 OPS workload、最终 drain、Gateway 两次观测、freeze/order/零暴露和归档字节复核。旧私有值及 hash 不出 OPS，旧失败日志不复制。
+- 收口与剩余边界：[公开 Amendment 9 证据](evidence/amendment9-summary.md)。未明确授权前禁止正式 coordinator；禁止 push/merge、生产/core/config/sandbox/egress 改动、重建题池和旧窗重开。

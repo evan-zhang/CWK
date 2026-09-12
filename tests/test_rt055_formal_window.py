@@ -83,8 +83,9 @@ class WindowTests(unittest.TestCase):
              'document_byte_upper_bound':work.UPPER_BYTES,'private_reads':0,'formal_queries':0,'formal_attempts':0,
              'cleanup_failures':0,'remaining_runtime':0,'native_sql_errorpath_injected':True,'source_commit':'1'*40,
              'migration_id':self.mid,'finished_at':time.time(),
-             'candidates':{k:{'libraries':{kb:{'imported':n,'completed':n,'pending':0,'failed':0,'build_seconds':1} for kb,n in work.COUNTS.items()},
-                 'firewall_verified':True,'post_scan_hits':0,'searches':3,'sql_canary_redactions':1} for k in ('a','b')}}
+             'candidates':{k:{'libraries':{kb:{'imported':n,'completed':n,'pending':0,'failed':0,'build_seconds':1,'max_inflight':1,'post_count':n,'completed_before_next_post':n-1} for kb,n in work.COUNTS.items()},
+                 'firewall_verified':True,'post_scan_hits':0,'searches':3,'sql_canary_redactions':1,
+                 'firewall_streams':3 if k=='a' else 6,'eof_all':True,'closed_all':True,'caps_pass':True,'firewall_errors':0} for k in ('a','b')}}
         window.write_once(self.root/'executioner-migrations'/self.mid/'public-workload.json',row)
         return attempt
 
@@ -138,6 +139,8 @@ class WindowTests(unittest.TestCase):
             self.prepare_policy();scoring.prepare(self.root,self.wid,self.mid);self.collect()
         for name in ('downloads/opensearch.tar.gz','bin/weknora-server','jdk/public','sidecar/requirements-freeze.txt'):(self.root/name).write_text('public')
         for name in runtime.JIEBA_FILES:(self.root/'jieba'/name).write_text('public')
+        (self.root/'weknora/.git').mkdir(parents=True,exist_ok=True)
+        (self.root/'weknora/.git/HEAD').write_text('public-unit-fixture')
         stack=contextlib.ExitStack();self.addCleanup(stack.close)
         stack.enter_context(patch.object(freeze,'role_audit',return_value={'verified':True,'role_separation_level':'PROCESS_LEVEL_SEPARATION_SINGLE_UID'}))
         stack.enter_context(patch.object(freeze,'upstream',return_value={'verified_on_ops':True,'head_matches_commit':True,'tree_clean':True,'receipt_id':'ops-rt055-weknora-upstream','repository_id':'github.com/Tencent/WeKnora','commit':freeze.PINNED,'commit_reachable':True}))

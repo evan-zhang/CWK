@@ -1,0 +1,12 @@
+{
+  "status": "CONFIRMED",
+  "data_class": "PUBLIC_SYNTHETIC_ONLY",
+  "root_cause": "NATIVE_CHUNK_SEQ_ID_ALLOCATION_CONCURRENCY_RACE",
+  "unique_chunks_seq_id_events": 1,
+  "batch_chunk_insert_observed": true,
+  "multirow_insert_observed": true,
+  "legacy_runner_all_posts_before_ready": true,
+  "content_limit_or_timeout": false,
+  "private_failure_subtype": "UNPROVEN",
+  "raw_log_exported": false
+}

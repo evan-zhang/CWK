@@ -19,6 +19,7 @@ import urllib.parse
 import urllib.request
 import uuid
 from dataclasses import dataclass, field, replace
+from enum import Enum
 from typing import Any, Callable, Mapping, Sequence
 
 import kb_retrieval_decision as decision
@@ -48,6 +49,21 @@ class CandidatePending(CandidateError):
 
 class CandidateBuildFailed(CandidateError):
     """Native terminal failed job; retrying readiness cannot repair it."""
+
+class CandidateImportContractError(CandidateError):
+    """Duplicate or overlapping import refused before network I/O."""
+
+class NativeImportState(str, Enum):
+    PENDING = "pending"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+def native_import_state(value):
+    if value in ("pending", "processing", "unprocessed", "parsing"):
+        return NativeImportState.PENDING
+    if value == "completed":return NativeImportState.COMPLETED
+    if value in ("failed", "error"):return NativeImportState.FAILED
+    raise CandidateError("native ingestion status invalid")
 
 class CandidateTimeout(CandidateError):
     pass
@@ -343,13 +359,16 @@ class WeKnoraCandidate:
         self._import_complete = False
         self.ready = False
         self._attempted = False
+        self._terminal_failed = False
 
     def build(self, documents: Sequence[projection.SourceDocument], timeout: float = 3600) -> None:
         validate_documents(documents)
         if self._attempted:
-            raise CandidateError('candidate build is single use')
+            raise CandidateImportContractError('candidate build is single use')
         self._attempted = True
         deadline = Deadline(timeout)
+        # One shared deadline, including all POST, GET and wait time. Never
+        # issue the next POST until this knowledge ID is observed completed.
         for doc in documents:
             response = self.request('POST', '/api/v1/knowledge-bases/' + self.kb_bindings[doc.kb_id] + '/knowledge/manual',
                 {'title': doc.title, 'content': canonical_text(doc), 'status': 'publish'}, deadline.remaining())
@@ -359,27 +378,36 @@ class WeKnoraCandidate:
                     or not SAFE_ID.fullmatch(identifier) or identifier in self.documents):
                 raise CandidateError('invalid native ingestion receipt')
             self.documents[identifier] = (doc.kb_id, doc.doc_id)
+            while self._status(identifier, doc.kb_id, deadline) is NativeImportState.PENDING:
+                time.sleep(min(0.25, deadline.remaining()))
+        deadline.remaining()
         self._import_complete = True
-        # One bounded pass. Pending native jobs are not success; OPS may call
-        # check_ready again with the same imported corpus, never import twice.
-        self.check_ready(deadline.remaining())
+        self.ready = True
+
+    def _status(self, identifier, kb_id, deadline):
+        if self._terminal_failed:
+            raise CandidateBuildFailed('native ingestion terminal failed')
+        response = self.request('GET', '/api/v1/knowledge/' + identifier, None, deadline.remaining())
+        data = response.get('data', {})
+        if (response.get('success') is not True or data.get('id') != identifier
+                or data.get('knowledge_base_id') != self.kb_bindings[kb_id]):
+            raise CandidateLeak('native ingestion scope mismatch')
+        state = native_import_state(data.get('parse_status'))
+        if state is NativeImportState.FAILED:
+            self._terminal_failed = True
+            raise CandidateBuildFailed('native ingestion terminal failed')
+        deadline.remaining()
+        return state
 
     def check_ready(self, timeout: float = 30) -> None:
         if not self._import_complete or not self.documents:
             raise CandidateError('candidate not imported')
         self.ready = False
         deadline = Deadline(timeout)
-        pending=False
+        pending = False
         for identifier, (kb_id, _) in self.documents.items():
-            response = self.request('GET', '/api/v1/knowledge/' + identifier, None, deadline.remaining())
-            data = response.get('data', {})
-            if (response.get('success') is not True or data.get('id') != identifier
-                    or data.get('knowledge_base_id') != self.kb_bindings[kb_id]):
-                raise CandidateLeak('native ingestion scope mismatch')
-            status=data.get('parse_status')
-            if status in ('failed','error'):raise CandidateBuildFailed('native ingestion terminal failed')
-            if status in ('pending','processing','unprocessed','parsing'):pending=True
-            elif status != 'completed':raise CandidateError('native ingestion status invalid')
+            if self._status(identifier, kb_id, deadline) is NativeImportState.PENDING:
+                pending = True
         deadline.remaining()
         if pending:raise CandidatePending('native ingestion pending')
         self.ready = True

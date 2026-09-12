@@ -12,8 +12,9 @@ class NativeHTTPError(kbc.CandidateError):
         self.code=value if value in HTTP_CODES else 'NATIVE_HTTP_OTHER'
         super().__init__(self.code)
 
-CODES=HTTP_CODES+('NONE','NATIVE_PENDING','NATIVE_TERMINAL_FAILED','BUILD_DEADLINE','REQUEST_FAILED','SCOPE_INVALID','FIREWALL_FAILED','UNKNOWN_EXECUTION_FAILURE')
+CODES=HTTP_CODES+('NONE','NATIVE_PENDING','NATIVE_TERMINAL_FAILED','BUILD_DEADLINE','REQUEST_FAILED','SCOPE_INVALID','FIREWALL_FAILED','UNKNOWN_EXECUTION_FAILURE','IMPORT_CONTRACT_REJECTED')
 def error_code(exc):
+    if isinstance(exc,kbc.CandidateImportContractError):return 'IMPORT_CONTRACT_REJECTED'
     if isinstance(exc,NativeHTTPError):return exc.code
     if isinstance(exc,FirewallError):return 'FIREWALL_FAILED'
     if isinstance(exc,kbc.CandidateBuildFailed):return 'NATIVE_TERMINAL_FAILED'
