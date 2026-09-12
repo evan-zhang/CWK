@@ -488,3 +488,12 @@ RT055回归265项与源码红绿/行为破坏通过；最终Schema negatives、�
 - 先公开红绿/行为破坏/隐私凭据检查并提交 source，再 detached 部署。当前门通过后才进入必要 public workload → main readiness → fresh before → 新随机 freeze/verify → no-Popen/no-query precheck → 新 window 正式 A/B（各最多一次）。任何 exposure>0 不重放；7200、42/31/42、seed/tier/floor、A/B 对称门、builder/verifier 1/1 均不变。
 - 成功发布 120 正式指标、24 Gateway 能力、源码机械复杂度、聚合和唯一裁决；未测指标为 null。失败按同窗唯一 cleanup → after → abort/decision 收口。完整 NAS/index 不变性仍 UNKNOWN，历史 services/config false 不清除；无 production/core/NAS/index/alias/config 变更，不 push/merge/清 worktree。
 - 最后另起只读终态审计：历史原字节与 96 材料、当前与历史日志分层、ledger/唯一性、无运行残留、Gateway 3×health、before/after、builder/verifier。测试绿不冒称完整 OPS gate 或全仓 CI；实际结果另追加。
+
+
+### Amendment 13 补充：历史零曝光证明的判据版本绑定
+
+第一次 detached 部署在 PRECHECK 被拒绝：零曝光作废证明调用了当前 `evaluate`，误把后来增加的独立 probe 条件倒推给更早归档的隐私证明。已确认 source 安装=0、archive 创建=0、current privacy=0；原部署 claim/status/terminal/payload 保留，不改成成功。
+
+修复只影响旧作废证明的核验：核对原冻结链和归档源码哈希后，仅提取原公开源码里的纯 `evaluate` 谓词与固定 KINDS；不 import 归档模块，不执行 initializer，不授予 I/O 或 Popen。原判据的 FAIL 仍被拒绝，源码 hash 不符仍被拒绝。旧 exposure 永不可 void、所有旧 claim/私有字节/冻结链检查不变。当前 migration 仍独立要求最新 `evaluate_current` 的完整 bank + 独立 PID 强门，不能使用此历史核验作为放行。
+
+部署后续采用独立 append-only resolution/resume claim：先确认第一次没有 source/隐私/候选副作用，再在 controller 内使用已提交、hash-bound 的新公开核验器做只读 preflight；首次 source 安装和单次 current privacy 预算均未提前消费。旧部署失败回执不覆盖，旧 gate 不重跑。

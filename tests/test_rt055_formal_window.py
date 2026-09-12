@@ -65,6 +65,7 @@ class WindowTests(unittest.TestCase):
         for name in runtime.MIGRATION_SOURCE_FILES:
             p=self.root/'impl'/name
             if name=='aggregate-report.schema.json':p.write_bytes((Path(__file__).parents[1]/'RT/RT-055/contracts'/name).read_bytes())
+            elif name=='rt055_confidentiality.py':p.write_bytes((Path(__file__).parents[1]/'scripts'/name).read_bytes())
             else:p.write_text('public synthetic '+name)
         attempt=self.root/'executioner-migrations'/self.mid/'rt055-synthetic-001'
         for name in ('audit','status','impl'):(attempt/name).mkdir(parents=True,exist_ok=True)

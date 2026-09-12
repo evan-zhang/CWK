@@ -357,3 +357,34 @@ for _name in tuple(dir(LedgerTests)):
     if _name.startswith('test_') and _name not in VoidTests.__dict__:setattr(VoidTests,_name,None)
 
 if __name__=='__main__':unittest.main()
+
+class HistoricalPrivacyContractTests(unittest.TestCase):
+    def source(self):
+        import subprocess
+        return subprocess.check_output(['git','show','1af1362:scripts/rt055_confidentiality.py'])
+
+    def test_original_contract_can_validate_old_pass_but_never_old_failure(self):
+        import rt055_zero_exposure as zero,rt055_confidentiality as privacy
+        import test_rt055_privacy_recovery as tests
+        source=self.source();digest=runtime.ops.sha_bytes(source);obs=tests.GateTests().fixture()
+        obs.pop('measurement_contract');obs.pop('isolated_deny_probe_verified')
+        from tempfile import TemporaryDirectory
+        with TemporaryDirectory() as td:
+            p=Path(td)/'public-source.py';p.write_bytes(source)
+            self.assertTrue(zero.historical_privacy_evaluate(p,digest,obs)['passed'])
+            self.assertFalse(privacy.evaluate_current(obs)['passed'])
+            self.assertFalse(zero.historical_privacy_evaluate(p,digest,{**obs,'external_socket_observations':1})['passed'])
+            self.assertFalse(zero.historical_privacy_evaluate(p,digest,{**obs,'log_canary_hits':1})['passed'])
+            with self.assertRaises(RuntimeError):zero.historical_privacy_evaluate(p,'0'*64,obs)
+
+    def test_no_archived_module_import_or_io_and_no_new_gate_waiver(self):
+        import rt055_zero_exposure as zero
+        import test_rt055_privacy_recovery as tests
+        from tempfile import TemporaryDirectory
+        source=self.source()+b'\nraise AssertionError("module initializer must not run")\n'
+        with TemporaryDirectory() as td:
+            p=Path(td)/'public-source.py';p.write_bytes(source)
+            self.assertTrue(zero.historical_privacy_evaluate(p,runtime.ops.sha_bytes(source),tests.GateTests().fixture())['passed'])
+            source=source.replace(b'def evaluate(o):',b'def evaluate(o):\n    open("PUBLIC_FORBIDDEN", "w")')
+            p.write_bytes(source)
+            with self.assertRaises(RuntimeError):zero.historical_privacy_evaluate(p,runtime.ops.sha_bytes(source),tests.GateTests().fixture())

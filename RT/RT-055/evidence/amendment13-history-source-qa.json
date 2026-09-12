@@ -1,0 +1,33 @@
+{
+  "schema": "cwk.rt055.amendment13-history-source-qa.v1",
+  "status": "PASS",
+  "regression_tests": 280,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "initial_red_errors": 2,
+  "behavior_mutations": [
+    {
+      "mutation": "ARCHIVED_HASH_BINDING_REMOVED",
+      "detected": true
+    },
+    {
+      "mutation": "HISTORICAL_CURRENT_GATE_SUBSTITUTED",
+      "detected": true
+    },
+    {
+      "mutation": "HISTORICAL_FAILURE_WAIVED",
+      "detected": true
+    }
+  ],
+  "restored_green": true,
+  "credential_hits": 0,
+  "archived_module_imported": false,
+  "archived_initializer_executed": false,
+  "archive_digest_required": true,
+  "historical_failure_waived": false,
+  "current_gate_weakened": false,
+  "original_deployment_precheck_failure_preserved": true,
+  "source_installs_before_resolution": 0,
+  "current_privacy_invocations_before_resolution": 0
+}

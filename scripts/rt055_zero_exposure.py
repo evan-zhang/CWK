@@ -235,8 +235,44 @@ def capture(root,wid,migration_id):
     return m
 
 
+
+def historical_privacy_evaluate(source,expected_digest,observations):
+    """Evaluate only the hash-bound archived pure predicate, never its module.
+
+    This validates an immutable prequery-void proof under its original contract;
+    it cannot admit a current migration or change a historical FAIL/UNKNOWN.
+    """
+    import ast
+    body=source.read_bytes();_need(ops.sha_bytes(body)==expected_digest)
+    tree=ast.parse(body)
+    functions=[n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='evaluate']
+    kinds=[n for n in tree.body if isinstance(n,ast.Assign) and len(n.targets)==1
+           and isinstance(n.targets[0],ast.Name) and n.targets[0].id=='KINDS']
+    _need(len(functions)==len(kinds)==1)
+    fn=functions[0];allowed_kinds=ast.literal_eval(kinds[0].value)
+    _need(allowed_kinds=={'search','native','sidecar'})
+    _need(not fn.decorator_list and not fn.args.defaults and not fn.args.kw_defaults
+          and not fn.args.vararg and not fn.args.kwarg and not fn.args.kwonlyargs
+          and not fn.args.posonlyargs and len(fn.args.args)==1 and fn.args.args[0].arg=='o')
+    allowed=(ast.FunctionDef,ast.arguments,ast.arg,ast.Expr,ast.Constant,ast.Assign,
+             ast.Name,ast.Store,ast.Load,ast.BoolOp,ast.And,ast.Or,ast.Compare,
+             ast.Eq,ast.Is,ast.IsNot,ast.Gt,ast.GtE,ast.Lt,ast.LtE,ast.In,
+             ast.List,ast.Tuple,ast.Set,ast.Dict,ast.Call,ast.Attribute,
+             ast.GeneratorExp,ast.comprehension,ast.Subscript,ast.Return,ast.UnaryOp,ast.Not)
+    for node in ast.walk(fn):
+        _need(isinstance(node,allowed))
+        if isinstance(node,ast.Attribute):
+            _need(isinstance(node.value,ast.Name) and (node.value.id,node.attr) in (('o','get'),('result','values')))
+        if isinstance(node,ast.Call):
+            _need((isinstance(node.func,ast.Name) and node.func.id in ('all','set'))
+                  or isinstance(node.func,ast.Attribute))
+    namespace={'__builtins__':{'all':all,'set':set},'KINDS':allowed_kinds}
+    exec(compile(ast.Module(body=[fn],type_ignores=[]),'<archived-public-privacy-predicate>','exec'),namespace)
+    result=namespace['evaluate'](observations)
+    _need(isinstance(result,dict) and bool(result) and all(type(v)is bool for v in result.values()))
+    return result
+
 def validate_evidence(root,m,e,live_source=False):
-    from rt055_confidentiality import evaluate
     _need(e.get('schema')=='cwk.rt055.zero-exposure-private-evidence.v1' and e.get('run_id')==root.name.removeprefix('rt055-'))
     wid=e['old_window_id'];w=window.directory(root,wid);a=m/'archive';aw=window.directory(a,wid)
     _need(e['candidate']=='a' and e['library'] in ops.LIBRARIES and e['migration_id']==m.name)
@@ -283,7 +319,8 @@ def validate_evidence(root,m,e,live_source=False):
     for n,h in binding['source_files'].items():_need(ops.sha_file(a/'impl'/n)==h and ops.sha_file(a/t/'impl'/n)==h)
     for key,p in [('observations_sha256',t/'audit/confidentiality-observations.json'),('status_sha256',t/'status/confidentiality.json'),('cleanup_sha256',t/'audit/synthetic-cleanup.json'),('historical_recovery_sha256',Path('audit/confidentiality-recovery.json'))]:_need(binding[key]==ops.sha_file(a/p))
     obs=ops.read_json(a/t/'audit/confidentiality-observations.json')
-    _need(evaluate(obs)['passed'] and not obs.get('cleanup_error') and 'execution_error_kind' not in obs)
+    historical=historical_privacy_evaluate(_path(a,'impl/rt055_confidentiality.py'),dep['source_files']['rt055_confidentiality.py'],obs)
+    _need(historical['passed'] and not obs.get('cleanup_error') and 'execution_error_kind' not in obs)
     _need(ops.read_json(a/t/'status/confidentiality.json').get('status')=='PASS')
     _need(ops.read_json(a/t/'audit/synthetic-cleanup.json')=={'complete':True,'failures':0,'remaining_processes':0,'remaining_data_planes':0})
     materials=ops.read_json(_path(a,e['retention_path']));_need(len(materials)==96)
