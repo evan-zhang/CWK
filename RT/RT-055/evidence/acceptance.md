@@ -869,3 +869,20 @@ manualContentMaxLength=200000字符；首个512KiB ASCII夹具超过该上限。
 防火墙进一步同时封顶每流实际输出64MiB；input计量在os.read后、output计量按实际
 write返回字节，溢出块也进入input计数（最多input cap+1个64KiB read），不进入日志。
 HTTP失败新增封闭状态码枚举，不保留响应消息或私有值；7200秒timeout不变。
+
+## Amendment 8 最终断点 — BLOCKED
+
+部署源码 `a475b048c235b2f4a8b92d845760462b4879c83c`；migration `387d6d9e-5ae4-4ebb-96b7-d993275b6111`。
+[公开readiness](amendment8-readiness.json)、[独立OPS复核](amendment8-ops-verification.json)
+和[行为破坏QA](amendment8-mutations.json)为本轮入口。
+窗口实际创建：false；顺序：None；未运行正式coordinator。
+新attempt/arm/exposure/query/result/after全0，旧window保持INVALID/after与log FAIL。
+builder/verifier1/1、96材料、5938原归档和全部迁移历史字节保持；Gateway3×200、cleanup0、无候选/runtime。
+完整NAS/index不变性仍UNKNOWN，未清除历史漂移；1路Gateway缺read_only字段，未证明只读合同。前三次公开夹具/容量修正失败链保留，不是正式成绩。
+
+公开B硬门尚未通过；不创建window/before/freeze、不消费holdout。源码修复不能替代真实workload PASS。
+隐私合成证据已独立按源码重算PASS，但迁移privacy binding未创建；main runtime/workspace/scoring readiness均未运行。
+B失败总回执未回填firewall_verified，单独最终drain回执6流全部PASS、20次替换、scan0，原件不改。
+投前库native日志有UNIQUE_CONSTRAINT1；CWork的SQLITE_BUSY1来自公开刻意探针，不归因为投前失败，更不归因为旧私有B。
+
+详见[Amendment8完整断点](amendment8-blocked.md)与[最终QA](amendment8-qa.json)。

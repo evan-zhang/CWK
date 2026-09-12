@@ -452,3 +452,14 @@ manualContentMaxLength=200000字符；首个512KiB ASCII夹具超过该上限。
 防火墙进一步同时封顶每流实际输出64MiB；input计量在os.read后、output计量按实际
 write返回字节，溢出块也进入input计数（最多input cap+1个64KiB read），不进入日志。
 HTTP失败新增封闭状态码枚举，不保留响应消息或私有值；7200秒timeout不变。
+
+### Amendment 8 实测收口：BLOCKED，禁止推进 freeze
+
+[完整断点说明](evidence/amendment8-blocked.md)、[readiness/诊断](evidence/amendment8-readiness.json)、[独立OPS复核](evidence/amendment8-ops-verification.json)、[最终QA](evidence/amendment8-qa.json)。
+部署源 `a475b048c235b2f4a8b92d845760462b4879c83c`，migration `387d6d9e-5ae4-4ebb-96b7-d993275b6111`。
+B CWork42份56.203秒完成；投前31份导入后1 failed/30 pending，立即以NATIVE_TERMINAL_FAILED中止，SPBP未build。
+投前净化日志UNIQUE_CONSTRAINT1仅作当前公开诊断线索；不推定旧私有build根因。
+最终B drain6流PASS、20次替换、scan0；失败总回执的false字段未回填，原件与独立最终回执同时保留。
+三路Gateway HTTP200，但1路缺read_only字段；完整只读合同与NAS/index不变性不得宣称PASS。
+新window/before/freeze/verify均未创建，随机顺序未抽取；main runtime/workspace/scoring gate和正式coordinator均未运行。
+源码与本地QA通过不等于READY_TO_RUN。当前BLOCKED、cleanup0，无后台候选任务，不自动重跑。

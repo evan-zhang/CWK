@@ -1,0 +1,299 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "source_commit",
+    "run_id",
+    "old_window_id",
+    "executioner_migration_id",
+    "new_window_id",
+    "scoring_archive_id",
+    "old_window_status",
+    "old_after_closed",
+    "old_log_gate",
+    "old_attempts",
+    "old_arms",
+    "new_window_created",
+    "new_attempts",
+    "new_arms",
+    "new_after",
+    "global_exposure",
+    "formal_queries",
+    "formal_scores",
+    "formal_results",
+    "builder_runs",
+    "verifier_runs",
+    "pool",
+    "retained_files",
+    "retained_bytes_equal",
+    "original_archive_files",
+    "original_archive_equal",
+    "historical_bytes_equal",
+    "current_archive_files",
+    "gateway_http_200_count",
+    "gateway_health_observations",
+    "gateway_read_only_contract_verified",
+    "cleanup",
+    "candidate_processes",
+    "remaining_runtime",
+    "new_tmp_files",
+    "gateway_tls_files",
+    "formal_coordinator_invocations",
+    "full_nas_index_invariance",
+    "private_values_exported",
+    "production_cutover_allowed",
+    "readiness",
+    "run_order",
+    "freeze_verified"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.amendment8-final-ops.v1"
+    },
+    "status": {
+      "const": "VERIFIED"
+    },
+    "source_commit": {
+      "const": "a475b048c235b2f4a8b92d845760462b4879c83c"
+    },
+    "run_id": {
+      "const": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af"
+    },
+    "old_window_id": {
+      "const": "d408cfab-40f7-41d3-8ccb-75fb0aaa2b65"
+    },
+    "executioner_migration_id": {
+      "const": "387d6d9e-5ae4-4ebb-96b7-d993275b6111"
+    },
+    "new_window_id": {
+      "const": "16e5d3f2-0963-4b70-a202-c197c3b8958a"
+    },
+    "scoring_archive_id": {
+      "const": "42b7617e-3769-4eda-99df-b1f84032005c"
+    },
+    "old_window_status": {
+      "const": "INVALID"
+    },
+    "old_after_closed": {
+      "const": true
+    },
+    "old_log_gate": {
+      "const": "FAIL"
+    },
+    "old_attempts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "a",
+        "b"
+      ],
+      "properties": {
+        "a": {
+          "const": 0
+        },
+        "b": {
+          "const": 1
+        }
+      }
+    },
+    "old_arms": {
+      "const": 0
+    },
+    "new_window_created": {
+      "const": false
+    },
+    "new_attempts": {
+      "const": 0
+    },
+    "new_arms": {
+      "const": 0
+    },
+    "new_after": {
+      "const": 0
+    },
+    "global_exposure": {
+      "const": 0
+    },
+    "formal_queries": {
+      "const": 0
+    },
+    "formal_scores": {
+      "const": 0
+    },
+    "formal_results": {
+      "const": 0
+    },
+    "builder_runs": {
+      "const": 1
+    },
+    "verifier_runs": {
+      "const": 1
+    },
+    "pool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cwork-3m",
+        "docdb-touqian",
+        "spbp-2027"
+      ],
+      "properties": {
+        "cwork-3m": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "total_count",
+            "tier"
+          ],
+          "properties": {
+            "total_count": {
+              "const": 42
+            },
+            "tier": {
+              "const": "T3"
+            }
+          }
+        },
+        "docdb-touqian": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "total_count",
+            "tier"
+          ],
+          "properties": {
+            "total_count": {
+              "const": 31
+            },
+            "tier": {
+              "const": "T3"
+            }
+          }
+        },
+        "spbp-2027": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "total_count",
+            "tier"
+          ],
+          "properties": {
+            "total_count": {
+              "const": 42
+            },
+            "tier": {
+              "const": "T2"
+            }
+          }
+        }
+      }
+    },
+    "retained_files": {
+      "const": 96
+    },
+    "retained_bytes_equal": {
+      "const": true
+    },
+    "original_archive_files": {
+      "const": 5938
+    },
+    "original_archive_equal": {
+      "const": true
+    },
+    "historical_bytes_equal": {
+      "const": true
+    },
+    "current_archive_files": {
+      "const": 97376
+    },
+    "gateway_http_200_count": {
+      "const": 3
+    },
+    "gateway_health_observations": {
+      "type": "array",
+      "const": [
+        {
+          "http_status": 200,
+          "ok": true,
+          "read_only_asserted": false,
+          "read_only_field_present": false
+        },
+        {
+          "http_status": 200,
+          "ok": true,
+          "read_only_asserted": true,
+          "read_only_field_present": true
+        },
+        {
+          "http_status": 200,
+          "ok": true,
+          "read_only_asserted": true,
+          "read_only_field_present": true
+        }
+      ]
+    },
+    "gateway_read_only_contract_verified": {
+      "const": false
+    },
+    "cleanup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "complete",
+        "failures",
+        "remaining_data_planes",
+        "remaining_processes"
+      ],
+      "properties": {
+        "complete": {
+          "const": true
+        },
+        "failures": {
+          "const": 0
+        },
+        "remaining_data_planes": {
+          "const": 0
+        },
+        "remaining_processes": {
+          "const": 0
+        }
+      }
+    },
+    "candidate_processes": {
+      "const": 0
+    },
+    "remaining_runtime": {
+      "const": 0
+    },
+    "new_tmp_files": {
+      "const": 0
+    },
+    "gateway_tls_files": {
+      "const": 0
+    },
+    "formal_coordinator_invocations": {
+      "const": 0
+    },
+    "full_nas_index_invariance": {
+      "const": null
+    },
+    "private_values_exported": {
+      "const": false
+    },
+    "production_cutover_allowed": {
+      "const": false
+    },
+    "readiness": {
+      "const": "BLOCKED"
+    },
+    "run_order": {
+      "const": null
+    },
+    "freeze_verified": {
+      "const": false
+    }
+  }
+}

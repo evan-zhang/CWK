@@ -1,0 +1,87 @@
+{
+  "schema": "cwk.rt055.amendment8-final-ops.v1",
+  "status": "VERIFIED",
+  "source_commit": "a475b048c235b2f4a8b92d845760462b4879c83c",
+  "run_id": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af",
+  "old_window_id": "d408cfab-40f7-41d3-8ccb-75fb0aaa2b65",
+  "executioner_migration_id": "387d6d9e-5ae4-4ebb-96b7-d993275b6111",
+  "new_window_id": "16e5d3f2-0963-4b70-a202-c197c3b8958a",
+  "scoring_archive_id": "42b7617e-3769-4eda-99df-b1f84032005c",
+  "old_window_status": "INVALID",
+  "old_after_closed": true,
+  "old_log_gate": "FAIL",
+  "old_attempts": {
+    "a": 0,
+    "b": 1
+  },
+  "old_arms": 0,
+  "new_window_created": false,
+  "new_attempts": 0,
+  "new_arms": 0,
+  "new_after": 0,
+  "global_exposure": 0,
+  "formal_queries": 0,
+  "formal_scores": 0,
+  "formal_results": 0,
+  "builder_runs": 1,
+  "verifier_runs": 1,
+  "pool": {
+    "cwork-3m": {
+      "total_count": 42,
+      "tier": "T3"
+    },
+    "docdb-touqian": {
+      "total_count": 31,
+      "tier": "T3"
+    },
+    "spbp-2027": {
+      "total_count": 42,
+      "tier": "T2"
+    }
+  },
+  "retained_files": 96,
+  "retained_bytes_equal": true,
+  "original_archive_files": 5938,
+  "original_archive_equal": true,
+  "historical_bytes_equal": true,
+  "current_archive_files": 97376,
+  "gateway_http_200_count": 3,
+  "gateway_health_observations": [
+    {
+      "http_status": 200,
+      "ok": true,
+      "read_only_asserted": false,
+      "read_only_field_present": false
+    },
+    {
+      "http_status": 200,
+      "ok": true,
+      "read_only_asserted": true,
+      "read_only_field_present": true
+    },
+    {
+      "http_status": 200,
+      "ok": true,
+      "read_only_asserted": true,
+      "read_only_field_present": true
+    }
+  ],
+  "gateway_read_only_contract_verified": false,
+  "cleanup": {
+    "complete": true,
+    "failures": 0,
+    "remaining_data_planes": 0,
+    "remaining_processes": 0
+  },
+  "candidate_processes": 0,
+  "remaining_runtime": 0,
+  "new_tmp_files": 0,
+  "gateway_tls_files": 0,
+  "formal_coordinator_invocations": 0,
+  "full_nas_index_invariance": null,
+  "private_values_exported": false,
+  "production_cutover_allowed": false,
+  "readiness": "BLOCKED",
+  "run_order": null,
+  "freeze_verified": false
+}
