@@ -67,3 +67,8 @@ Linux 目标机先确认内存、磁盘和 `vm.max_map_count`；本工件不改�
 生产验收由部署窗口另行记录。至少保留：shadow 运行起止时间与零错误计数、三库灰度逐项
 指标、旧路径回滚结果、`/healthz` 与 `/readyz` 结果，以及索引模板和配置版本。测试只能证明
 合成夹具和 API 契约，不能替代真实语料上的 24 小时 shadow 或灰度验收。
+
+
+## 本地 RAG 问答
+
+RAG 服务按“检索 API → doc_id → 只读原文 → 本地模型”组合运行，与既有 OpenSearch 检索服务并列，不改变其行为。通过 `docker compose -f deploy/docker-compose.yml up -d --build rag-answer` 启动，停止使用同一命令加 `stop rag-answer`。默认调用 `RAG_RETRIEVAL_URL=http://host.docker.internal:18887/query`，库由 `RAG_BANK` 指定；容器内显式绑定 `0.0.0.0`，宿主端口仍只发布到 `127.0.0.1`。配置 `RAG_SOURCE_ROOTS`、`RAG_DOC_INDEX`、`RAG_LLM_URL`、`RAG_LLM_MODEL` 和 `RAG_LLM_TIMEOUT_SECONDS`；索引和原文只读挂载。Ollama 可提供 OpenAI-compatible chat completions 地址。模型切换只需更改模型环境变量后重启服务；服务不记录原文或答案正文。`POST /answer` 接受 `{\"query\": string, \"top_k\": 1..100}`。

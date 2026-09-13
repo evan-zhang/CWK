@@ -44,5 +44,27 @@ services:
       opensearch:
         condition: service_healthy
 
+  rag-answer:
+    build:
+      context: ..
+      dockerfile: deploy/rag.Dockerfile
+    environment:
+      RAG_HOST: 0.0.0.0
+      RAG_RETRIEVAL_URL: ${RAG_RETRIEVAL_URL:-http://host.docker.internal:18887/query}
+      RAG_BANK: ${RAG_BANK:-cwork-3m}
+      RAG_RETRIEVAL_TIMEOUT_SECONDS: ${RAG_RETRIEVAL_TIMEOUT_SECONDS:-10}
+      RAG_SOURCE_ROOTS: ${RAG_SOURCE_ROOTS:-/data/sources}
+      RAG_DOC_INDEX: ${RAG_DOC_INDEX:-/data/index.json}
+      RAG_LLM_URL: ${RAG_LLM_URL:-http://host.docker.internal:11434/v1/chat/completions}
+      RAG_LLM_MODEL: ${RAG_LLM_MODEL:-}
+      RAG_LLM_TIMEOUT_SECONDS: ${RAG_LLM_TIMEOUT_SECONDS:-60}
+    ports:
+      - "127.0.0.1:${RAG_PORT:-8790}:8790"
+    volumes:
+      - ${RAG_SOURCE_DIR:-./rag-sources}:/data/sources:ro
+      - ${RAG_INDEX_FILE:-./rag-index.json}:/data/index.json:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
 volumes:
   opensearch-data:
