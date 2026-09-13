@@ -25,6 +25,7 @@ from adapters.rag_answer.pipeline import (
     OllamaLLM,
     RAGError,
     RAGPipeline,
+    RetrievalHTTPRetriever,
 )
 from adapters.rag_answer.resolver import DocResolver
 
@@ -258,6 +259,41 @@ class OllamaLLMBearerTokenTest(unittest.TestCase):
             self.assertEqual(
                 _HeaderCaptureHandler.captured.get("auth"),
                 "Bearer synthetic-key-123",
+            )
+        finally:
+            stub.shutdown()
+            stub.server_close()
+class _RetrievalCaptureHandler(BaseHTTPRequestHandler):
+    captured = {}
+
+    def do_POST(self) -> None:
+        length = int(self.headers.get("Content-Length", "0"))
+        _RetrievalCaptureHandler.captured["body"] = json.loads(self.rfile.read(length))
+        body = json.dumps({"hits": [{"doc_id": "synthetic-doc", "score": 1.0}]}).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *args) -> None:
+        pass
+
+
+class RetrievalBankRoutingTest(unittest.TestCase):
+    def test_retrieval_payload_carries_requested_bank(self) -> None:
+        _RetrievalCaptureHandler.captured = {}
+        stub = ThreadingHTTPServer(("127.0.0.1", 0), _RetrievalCaptureHandler)
+        port = stub.server_address[1]
+        thread = threading.Thread(target=stub.serve_forever, daemon=True)
+        thread.start()
+        try:
+            retriever = RetrievalHTTPRetriever(
+                f"http://127.0.0.1:{port}/query", "cwork-3m"
+            )
+            retriever.search("synthetic question", top_k=2, bank="docdb-touqian")
+            self.assertEqual(
+                _RetrievalCaptureHandler.captured["body"]["bank"], "docdb-touqian"
             )
         finally:
             stub.shutdown()

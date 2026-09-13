@@ -36,7 +36,7 @@ class LexicalRetriever:
             raise ValueError("retrieval index must map text doc_ids to strings")
         self.index = dict(index)
 
-    def search(self, query: str, top_k: int = 5) -> list[dict[str, object]]:
+    def search(self, query: str, top_k: int = 5, bank: str | None = None) -> list[dict[str, object]]:
         validate_top_k(top_k)
         words = set(query.lower().split())
         out = []
@@ -62,9 +62,9 @@ class RetrievalHTTPRetriever:
         self.timeout = timeout
         self._opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
-    def search(self, query: str, top_k: int = 5) -> list[dict[str, object]]:
+    def search(self, query: str, top_k: int = 5, bank: str | None = None) -> list[dict[str, object]]:
         validate_top_k(top_k)
-        payload = {"bank": self.bank, "query": query, "top_k": top_k}
+        payload = {"bank": bank or self.bank, "query": query, "top_k": top_k}
         request = urllib.request.Request(
             self.url,
             data=json.dumps(payload, separators=(",", ":")).encode("utf-8"),
@@ -144,13 +144,13 @@ class RAGPipeline:
     def __init__(self, retriever, resolver: DocResolver, llm):
         self.retriever, self.resolver, self.llm = retriever, resolver, llm
 
-    def answer(self, query: str, *, top_k: int = 5) -> dict[str, object]:
+    def answer(self, query: str, *, top_k: int = 5, bank: str | None = None) -> dict[str, object]:
         if not isinstance(query, str) or not query.strip():
             raise RAGError("query is required", 400)
         top_k = validate_top_k(top_k)
         started = time.monotonic()
         try:
-            hits = self.retriever.search(query, top_k=top_k)
+            hits = self.retriever.search(query, top_k=top_k, bank=bank)
         except RAGError:
             raise
         except Exception as exc:

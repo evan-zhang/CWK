@@ -75,16 +75,20 @@ class Handler(BaseHTTPRequestHandler):
         except (UnicodeDecodeError, json.JSONDecodeError):
             self._send(400, {"error": "invalid JSON request"})
             return
-        if not isinstance(data, dict) or set(data) - {"query", "top_k"}:
+        if not isinstance(data, dict) or set(data) - {"query", "top_k", "bank"}:
             self._send(400, {"error": "invalid JSON request"})
             return
         query = data.get("query")
         top_k = data.get("top_k", DEFAULT_TOP_K)
+        bank = data.get("bank")
+        if bank is not None and (not isinstance(bank, str) or not bank.strip()):
+            self._send(400, {"error": "invalid JSON request"})
+            return
         try:
             validate_top_k(top_k)
             if self.pipeline is None:
                 raise RAGError("RAG pipeline is not configured")
-            self._send(200, self.pipeline.answer(query, top_k=top_k))
+            self._send(200, self.pipeline.answer(query, top_k=top_k, bank=bank))
         except RAGError as exc:
             self._send(exc.status, {"error": str(exc)})
         except (TypeError, ValueError):
