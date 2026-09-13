@@ -1,0 +1,18 @@
+{
+  "documents": [
+    {
+      "bank": "cwork-3m",
+      "doc_id": "synthetic-rt055-001",
+      "title": "Synthetic retrieval sample",
+      "filename": "synthetic-rt055.txt",
+      "text": "RT-055-SYNTH-001 is a synthetic retrieval fixture for smoke testing."
+    },
+    {
+      "bank": "docdb-touqian",
+      "doc_id": "synthetic-rt055-002",
+      "title": "Synthetic archive sample",
+      "filename": "synthetic-archive.txt",
+      "text": "Synthetic archive content is isolated to its registered bank."
+    }
+  ]
+}
