@@ -153,7 +153,6 @@ def _parent_row(document: SourceDocument, tenant_id: str, parent_id: str, ordina
         "acronyms": [],
         "locator": dict(document.locator),
         "join": "document",
-        "_parent_ordinal": ordinal,
     }
 
 
