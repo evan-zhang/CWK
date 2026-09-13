@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import json
 import os
+import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+from ..kb_auth import TOKEN_HEADER, authorize, header_value
 
 from .pipeline import (
     LexicalRetriever,
@@ -57,6 +60,23 @@ class Handler(BaseHTTPRequestHandler):
             ready = self.pipeline is not None and bool(getattr(self.pipeline.llm, "model", ""))
             self._send(200 if self.path == "/healthz" or ready else 503, {"status": "ok" if ready else "unready"})
             return
+        if urllib.parse.urlsplit(self.path).path == "/read":
+            params = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+            doc_id = params.get("doc_id", [""])[0]
+            bank = params.get("bank", [os.getenv("RAG_BANK", "cwork-3m")])[0]
+            refusal = authorize(self.headers, bank)
+            if refusal:
+                self._send(*refusal)
+                return
+            try:
+                if self.pipeline is None or not doc_id:
+                    raise ValueError
+                self._send(200, {"doc_id": doc_id, "text": self.pipeline.resolver.resolve(doc_id)})
+            except KeyError:
+                self._send(404, {"error": "document not found"})
+            except Exception:
+                self._send(503, {"error": "source document unavailable"})
+            return
         self._send(404, {"error": "not found"})
 
     def do_POST(self):  # noqa: N802 - stdlib HTTP handler contract
@@ -84,11 +104,16 @@ class Handler(BaseHTTPRequestHandler):
         if bank is not None and (not isinstance(bank, str) or not bank.strip()):
             self._send(400, {"error": "invalid JSON request"})
             return
+        bank_for_auth = bank or os.getenv("RAG_BANK", "cwork-3m")
+        refusal = authorize(self.headers, bank_for_auth)
+        if refusal:
+            self._send(*refusal)
+            return
         try:
             validate_top_k(top_k)
             if self.pipeline is None:
                 raise RAGError("RAG pipeline is not configured")
-            self._send(200, self.pipeline.answer(query, top_k=top_k, bank=bank))
+            self._send(200, self.pipeline.answer(query, top_k=top_k, bank=bank, token=header_value(self.headers, TOKEN_HEADER)))
         except RAGError as exc:
             self._send(exc.status, {"error": str(exc)})
         except (TypeError, ValueError):
