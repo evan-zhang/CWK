@@ -7,12 +7,16 @@ index, or copy repository knowledge-base material.
 from __future__ import annotations
 
 import json
+import sys
 import threading
 import urllib.error
 import urllib.request
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
 from adapters.rag_answer import server as rag_server
 from adapters.rag_answer.pipeline import LexicalRetriever, RAGError, RAGPipeline
