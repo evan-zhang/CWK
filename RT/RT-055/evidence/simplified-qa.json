@@ -1,0 +1,82 @@
+{
+  "PRIVACY_MODE": "SIMPLIFIED",
+  "added_line_secret_path_scan_pass": true,
+  "aggregate_harness_validation_pass": true,
+  "aggregate_schema_pass": true,
+  "aodw_check_pass": true,
+  "aodw_warning": "HOST_HANDOVER_SKILL_NOT_INSTALLED",
+  "behavior_mutations": [
+    {
+      "killed": true,
+      "mutation": "block_reconciled_a_resource_nulls",
+      "restored_pass": true
+    },
+    {
+      "killed": true,
+      "mutation": "drop_caveats_from_decision",
+      "restored_pass": true
+    },
+    {
+      "killed": true,
+      "mutation": "bypass_privacy_failure",
+      "restored_pass": true
+    }
+  ],
+  "digest_export_negative_cases": 6,
+  "final_ops_check": {
+    "active_candidate_processes": 0,
+    "candidate_executions_this_closeout": 0,
+    "gateway_http": {
+      "8787": 200,
+      "8788": 200,
+      "8789": 200
+    },
+    "listed_processes_alive": 0,
+    "observed_at": 1789256136.51177,
+    "owned_data_directories_remaining": 0,
+    "owned_resources_remaining": {
+      "containers": 0,
+      "launch_services": 0,
+      "networks": 0,
+      "volumes": 0
+    },
+    "private_value_scan_pass": true,
+    "public_items_scanned": 7,
+    "resource_deletions_this_closeout": 0,
+    "terminal_status": "DONE"
+  },
+  "git_diff_check_pass": true,
+  "governance_audit_pass": true,
+  "new_local_evidence_links_verified": 9,
+  "ops_aggregate_private_string_export_scan_pass": true,
+  "ops_final_public_private_value_scan_pass": true,
+  "private_samples_or_digests_exported": false,
+  "public_artifact_scan_pass": true,
+  "regressions": {
+    "all_rt055": {
+      "pass": true,
+      "tests": 308
+    },
+    "candidate": {
+      "pass": true,
+      "tests": 23
+    },
+    "decision": {
+      "pass": true,
+      "tests": 41
+    },
+    "import": {
+      "pass": true,
+      "tests": 16
+    },
+    "scoring": {
+      "pass": true,
+      "tests": 19
+    }
+  },
+  "required_caveat_negative_cases": 9,
+  "schema_structural_negative_cases": 16,
+  "scope": "related-regressions-not-full-repository-ci",
+  "verified_at": "2026-09-12T23:33:22.141481+00:00",
+  "window_id": "54d87603-feb4-473a-a741-adfc85fb77af"
+}

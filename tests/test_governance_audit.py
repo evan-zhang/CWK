@@ -42,6 +42,9 @@ _COPY_DIRS = (
     "config",
     "references",
     "skill/templates",
+    # RT-055 deployment assets are a governed runtime prefix; keep one real
+    # representative in synthetic repositories so stale-rule checks stay meaningful.
+    "deploy",
     ".aodw-next/06-project/governance",
 )
 _COPY_FILES = (
@@ -98,15 +101,19 @@ _REPRESENTATIVE_TRACKED = (
     "scripts/kb_wizard.py",
     "scripts/kb_gateway.py",
     "scripts/kb_ops.py",
+    "scripts/kb_p0.py",
+    "scripts/kb_p0_benchmark.py",
     "scripts/kb_gateway_client.py",
     "scripts/kb_lexical.py",
     "scripts/kb_lexical_builder.py",
+    "scripts/kb_retrieval_decision.py",
     "scripts/kb_token.py",
     "scripts/kb_access_file.py",
     "skills/cwk-kb-authorize/SKILL.md",
     "skills/cwk-kb-create/SKILL.md",
     "skills/cwk-kb-query/SKILL.md",
     "scripts/cwk_wiki_batch_driver.sh",
+    "deploy/README.md",
     "config/entity-family-registry.json",
     "references/relation-gold-v1.json",
     "skill/templates/CONFIG.example.json",

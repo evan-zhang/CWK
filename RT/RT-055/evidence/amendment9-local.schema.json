@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "data_class",
+    "red",
+    "green",
+    "compiled_files",
+    "builder_verifier_window_quality_search_firewall_unchanged",
+    "formal_queries",
+    "ops_candidate_runs"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.amendment9-local.v1"
+    },
+    "data_class": {
+      "const": "PUBLIC_SYNTHETIC_ONLY"
+    },
+    "red": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tests",
+        "errors",
+        "real_sqlite_unique_constraint_reproduced",
+        "legacy_max_inflight"
+      ],
+      "properties": {
+        "tests": {
+          "const": 2
+        },
+        "errors": {
+          "const": 1
+        },
+        "real_sqlite_unique_constraint_reproduced": {
+          "const": true
+        },
+        "legacy_max_inflight": {
+          "const": 2
+        }
+      }
+    },
+    "green": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tests",
+        "failures",
+        "errors",
+        "skipped",
+        "exit_code"
+      ],
+      "properties": {
+        "tests": {
+          "const": 254
+        },
+        "failures": {
+          "const": 0
+        },
+        "errors": {
+          "const": 0
+        },
+        "skipped": {
+          "const": 0
+        },
+        "exit_code": {
+          "const": 0
+        }
+      }
+    },
+    "compiled_files": {
+      "const": 142
+    },
+    "builder_verifier_window_quality_search_firewall_unchanged": {
+      "const": true
+    },
+    "formal_queries": {
+      "const": 0
+    },
+    "ops_candidate_runs": {
+      "const": 0
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "schema": "cwk.rt055.amendment12-audit-scan-diagnostic.v1",
+  "status": "READONLY_CLASSIFIED",
+  "first_audit_status": "AUDIT_FAILED",
+  "first_audit_phase": "LOG_FIREWALL",
+  "first_audit_error": "AssertionError",
+  "first_audit_preserved": true,
+  "scopes_differ": true,
+  "historical_log_checks": [
+    {
+      "streams": 1,
+      "firewall_verified": true,
+      "all_streams_verified": true,
+      "original_public_postscan_passed": true,
+      "original_public_postscan_hit_files": 0,
+      "independent_public_canary_hit_files": 0,
+      "expanded_all_private_literal_hit_files": 1
+    },
+    {
+      "streams": 2,
+      "firewall_verified": true,
+      "all_streams_verified": true,
+      "original_public_postscan_passed": true,
+      "original_public_postscan_hit_files": 0,
+      "independent_public_canary_hit_files": 0,
+      "expanded_all_private_literal_hit_files": 0
+    }
+  ],
+  "matched_literals_count": 1,
+  "matched_literal_also_exact_public_source_constant_count": 1,
+  "unmatched_public_source_constant_count": 0,
+  "private_literal_values_exported": false,
+  "private_leak_causal_attribution": "UNKNOWN",
+  "expanded_scan_passed": false,
+  "original_scan_waived": false,
+  "new_privacy_or_candidate_executions": 0
+}

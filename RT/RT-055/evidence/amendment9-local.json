@@ -1,0 +1,21 @@
+{
+  "schema": "cwk.rt055.amendment9-local.v1",
+  "data_class": "PUBLIC_SYNTHETIC_ONLY",
+  "red": {
+    "tests": 2,
+    "errors": 1,
+    "real_sqlite_unique_constraint_reproduced": true,
+    "legacy_max_inflight": 2
+  },
+  "green": {
+    "tests": 254,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exit_code": 0
+  },
+  "compiled_files": 142,
+  "builder_verifier_window_quality_search_firewall_unchanged": true,
+  "formal_queries": 0,
+  "ops_candidate_runs": 0
+}

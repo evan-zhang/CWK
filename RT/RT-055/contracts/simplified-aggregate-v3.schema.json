@@ -1,0 +1,1714 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.rt055.retrieval-decision.aggregate.v3.simplified",
+  "title": "RT-055 SIMPLIFIED truthful aggregate v3; null is unmeasured, not zero",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "run_id",
+    "holdout_contract",
+    "environment",
+    "verifier_attestations",
+    "candidates",
+    "cleanup",
+    "production_invariants",
+    "participating_libraries",
+    "deferred_libraries",
+    "library_validity",
+    "formal_window",
+    "PRIVACY_MODE",
+    "privacy_check",
+    "caveats"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.retrieval-decision.aggregate.v3"
+    },
+    "run_id": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "maxLength": 36
+    },
+    "holdout_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "created_after_rt054",
+        "rt054_final_holdout_reused",
+        "libraries",
+        "private_artifacts_retained_on_ops",
+        "aggregate_only_export",
+        "single_use_frozen_before_candidate_runs"
+      ],
+      "properties": {
+        "version": {
+          "const": "ops-rt055-confidential-v1"
+        },
+        "created_after_rt054": {
+          "const": true
+        },
+        "rt054_final_holdout_reused": {
+          "const": false
+        },
+        "libraries": {
+          "const": [
+            "cwork-3m",
+            "docdb-touqian",
+            "spbp-2027"
+          ]
+        },
+        "private_artifacts_retained_on_ops": {
+          "const": true
+        },
+        "aggregate_only_export": {
+          "const": true
+        },
+        "single_use_frozen_before_candidate_runs": {
+          "const": true
+        }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hardware_class",
+        "corpus_snapshot_version",
+        "same_corpus",
+        "same_hardware_class",
+        "same_timeout_budget",
+        "same_top_k",
+        "top_k",
+        "run_order_randomized"
+      ],
+      "properties": {
+        "hardware_class": {
+          "const": "ops-rt055-equivalent-a"
+        },
+        "corpus_snapshot_version": {
+          "const": "ops-rt055-frozen-corpus-v1"
+        },
+        "same_corpus": {
+          "const": true
+        },
+        "same_hardware_class": {
+          "const": true
+        },
+        "same_timeout_budget": {
+          "const": true
+        },
+        "same_top_k": {
+          "const": true
+        },
+        "top_k": {
+          "const": 10
+        },
+        "run_order_randomized": {
+          "const": true
+        }
+      }
+    },
+    "verifier_attestations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rt054_pool_excluded",
+        "input_disjoint_verified",
+        "category_coverage_verified",
+        "aggregate_only_verified",
+        "no_private_digest_exported"
+      ],
+      "properties": {
+        "rt054_pool_excluded": {
+          "const": true
+        },
+        "input_disjoint_verified": {
+          "const": true
+        },
+        "category_coverage_verified": {
+          "const": true
+        },
+        "aggregate_only_verified": {
+          "const": true
+        },
+        "no_private_digest_exported": {
+          "const": true
+        }
+      }
+    },
+    "candidates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cwk-opensearch-dual-channel-v1",
+        "weknora-native-8d7298fb5d759973cb1e481cadc5ecdf16dca599"
+      ],
+      "properties": {
+        "cwk-opensearch-dual-channel-v1": {
+          "$ref": "#/$defs/candidateA"
+        },
+        "weknora-native-8d7298fb5d759973cb1e481cadc5ecdf16dca599": {
+          "$ref": "#/$defs/candidateB"
+        }
+      }
+    },
+    "cleanup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "private_holdout_retained_on_ops",
+        "temporary_indices_zero",
+        "temporary_services_zero",
+        "temporary_containers_zero",
+        "cleanup_failures"
+      ],
+      "properties": {
+        "private_holdout_retained_on_ops": {
+          "type": "boolean"
+        },
+        "temporary_indices_zero": {
+          "type": "boolean"
+        },
+        "temporary_services_zero": {
+          "type": "boolean"
+        },
+        "temporary_containers_zero": {
+          "type": "boolean"
+        },
+        "cleanup_failures": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "production_invariants": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "nas_unchanged",
+        "gateway_unchanged",
+        "existing_indices_unchanged",
+        "production_config_unchanged"
+      ],
+      "properties": {
+        "nas_unchanged": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "gateway_unchanged": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "existing_indices_unchanged": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "production_config_unchanged": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "participating_libraries": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "cwork-3m",
+          "docdb-touqian",
+          "spbp-2027"
+        ]
+      },
+      "enum": [
+        [
+          "cwork-3m"
+        ],
+        [
+          "docdb-touqian"
+        ],
+        [
+          "spbp-2027"
+        ],
+        [
+          "cwork-3m",
+          "docdb-touqian"
+        ],
+        [
+          "cwork-3m",
+          "spbp-2027"
+        ],
+        [
+          "docdb-touqian",
+          "spbp-2027"
+        ],
+        [
+          "cwork-3m",
+          "docdb-touqian",
+          "spbp-2027"
+        ]
+      ]
+    },
+    "deferred_libraries": {
+      "type": "array",
+      "maxItems": 2,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "cwork-3m",
+          "docdb-touqian",
+          "spbp-2027"
+        ]
+      },
+      "enum": [
+        [],
+        [
+          "cwork-3m"
+        ],
+        [
+          "docdb-touqian"
+        ],
+        [
+          "spbp-2027"
+        ],
+        [
+          "cwork-3m",
+          "docdb-touqian"
+        ],
+        [
+          "cwork-3m",
+          "spbp-2027"
+        ],
+        [
+          "docdb-touqian",
+          "spbp-2027"
+        ]
+      ]
+    },
+    "library_validity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cwork-3m",
+        "docdb-touqian",
+        "spbp-2027"
+      ],
+      "properties": {
+        "cwork-3m": {
+          "$ref": "#/$defs/libraryValidity"
+        },
+        "docdb-touqian": {
+          "$ref": "#/$defs/libraryValidity"
+        },
+        "spbp-2027": {
+          "$ref": "#/$defs/libraryValidity"
+        }
+      }
+    },
+    "formal_window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "window_id",
+        "canonical_freeze_window_id",
+        "run_order",
+        "same_frozen_paper",
+        "five_digests_verified",
+        "reconciled_a_trial_count",
+        "new_a_trial_count",
+        "new_b_trial_count"
+      ],
+      "properties": {
+        "window_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "canonical_freeze_window_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "run_order": {
+          "enum": [
+            [
+              "a",
+              "b"
+            ],
+            [
+              "b",
+              "a"
+            ]
+          ]
+        },
+        "same_frozen_paper": {
+          "const": true
+        },
+        "five_digests_verified": {
+          "const": true
+        },
+        "reconciled_a_trial_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "new_a_trial_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "new_b_trial_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "PRIVACY_MODE": {
+      "const": "SIMPLIFIED"
+    },
+    "privacy_check": {
+      "enum": [
+        "SIMPLIFIED_SPOT_PASS",
+        "FAIL",
+        "UNVERIFIED"
+      ]
+    },
+    "caveats": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 7,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "A_ALREADY_CONSUMED_RECONCILED_NO_REPLAY",
+          "A_RESOURCE_MEASUREMENTS_MISSING",
+          "B_ONLY_FRESH_RESOURCES",
+          "NO_ANSWER_TO_CONFLICT_DEFAULT_PRESERVES_SINGLE_USE",
+          "SIMPLIFIED_REPLACES_AMENDMENT_CONTROLS",
+          "FULL_NAS_AND_EXISTING_INDEX_INVARIANTS_UNMEASURED",
+          "PER_TRIAL_RESPONSES_NOT_RETAINED_IDENTITY_AND_COUNTER_RECONCILIATION_ONLY"
+        ]
+      },
+      "allOf": [
+        {
+          "contains": {
+            "const": "A_ALREADY_CONSUMED_RECONCILED_NO_REPLAY"
+          }
+        },
+        {
+          "contains": {
+            "const": "A_RESOURCE_MEASUREMENTS_MISSING"
+          }
+        },
+        {
+          "contains": {
+            "const": "B_ONLY_FRESH_RESOURCES"
+          }
+        },
+        {
+          "contains": {
+            "const": "NO_ANSWER_TO_CONFLICT_DEFAULT_PRESERVES_SINGLE_USE"
+          }
+        },
+        {
+          "contains": {
+            "const": "SIMPLIFIED_REPLACES_AMENDMENT_CONTROLS"
+          }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "libraryMetrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total_count",
+        "answerable_count",
+        "recall_hits_at_10",
+        "exact_count",
+        "exact_hits",
+        "no_answer_count",
+        "no_answer_correct",
+        "system_error_count",
+        "answerable_system_error_count",
+        "exact_system_error_count",
+        "no_answer_system_error_count",
+        "timeout_count",
+        "recall_at_10",
+        "exact",
+        "no_answer",
+        "leak_count",
+        "p95_ms",
+        "index_bytes",
+        "build_seconds",
+        "peak_rss_bytes"
+      ],
+      "properties": {
+        "total_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "answerable_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "recall_hits_at_10": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "exact_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "exact_hits": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "no_answer_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "no_answer_correct": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "system_error_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "timeout_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "recall_at_10": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "exact": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "no_answer": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "leak_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "p95_ms": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "exclusiveMinimum": 0
+        },
+        "index_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "exclusiveMinimum": 0
+        },
+        "build_seconds": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "exclusiveMinimum": 0
+        },
+        "peak_rss_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "exclusiveMinimum": 0
+        },
+        "answerable_system_error_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "exact_system_error_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "no_answer_system_error_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "libraries": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cwork-3m",
+        "docdb-touqian",
+        "spbp-2027"
+      ],
+      "properties": {
+        "cwork-3m": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/libraryMetrics"
+            },
+            {
+              "$ref": "#/$defs/deferredMetrics"
+            }
+          ]
+        },
+        "docdb-touqian": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/libraryMetrics"
+            },
+            {
+              "$ref": "#/$defs/deferredMetrics"
+            }
+          ]
+        },
+        "spbp-2027": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/libraryMetrics"
+            },
+            {
+              "$ref": "#/$defs/deferredMetrics"
+            }
+          ]
+        }
+      }
+    },
+    "operations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "components_count",
+        "upgrade_steps_count",
+        "backup_restore_steps_count"
+      ],
+      "properties": {
+        "components_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "upgrade_steps_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "backup_restore_steps_count": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "gateway": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "https_query_api",
+        "per_gateway_identity",
+        "kb_grants_server_side",
+        "no_direct_nas_or_search_credentials"
+      ],
+      "properties": {
+        "https_query_api": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "per_gateway_identity": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "kb_grants_server_side": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "no_direct_nas_or_search_credentials": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "freezeA": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "receipt_id",
+        "candidate_id",
+        "frozen_before_run",
+        "ops_artifacts_verified",
+        "window_id",
+        "artifact_digests_verified_on_ops",
+        "candidate_artifacts_distinct_on_ops"
+      ],
+      "properties": {
+        "receipt_id": {
+          "const": "ops-rt055-freeze-candidate-a"
+        },
+        "frozen_before_run": {
+          "const": true
+        },
+        "ops_artifacts_verified": {
+          "const": true
+        },
+        "candidate_id": {
+          "const": "cwk-opensearch-dual-channel-v1"
+        },
+        "window_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "artifact_digests_verified_on_ops": {
+          "const": true
+        },
+        "candidate_artifacts_distinct_on_ops": {
+          "const": true
+        }
+      }
+    },
+    "upstreamReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "receipt_id",
+        "repository_id",
+        "commit",
+        "commit_reachable",
+        "verified_on_ops"
+      ],
+      "properties": {
+        "receipt_id": {
+          "const": "ops-rt055-weknora-upstream"
+        },
+        "repository_id": {
+          "const": "github.com/Tencent/WeKnora"
+        },
+        "commit": {
+          "const": "8d7298fb5d759973cb1e481cadc5ecdf16dca599"
+        },
+        "commit_reachable": {
+          "const": true
+        },
+        "verified_on_ops": {
+          "const": true
+        }
+      }
+    },
+    "freezeB": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "receipt_id",
+        "candidate_id",
+        "frozen_before_run",
+        "ops_artifacts_verified",
+        "head_matches_commit",
+        "tree_clean",
+        "native_config",
+        "upstream_receipt",
+        "window_id",
+        "artifact_digests_verified_on_ops",
+        "candidate_artifacts_distinct_on_ops"
+      ],
+      "properties": {
+        "receipt_id": {
+          "const": "ops-rt055-freeze-candidate-b"
+        },
+        "frozen_before_run": {
+          "const": true
+        },
+        "ops_artifacts_verified": {
+          "const": true
+        },
+        "head_matches_commit": {
+          "const": true
+        },
+        "tree_clean": {
+          "const": true
+        },
+        "native_config": {
+          "const": true
+        },
+        "upstream_receipt": {
+          "$ref": "#/$defs/upstreamReceipt"
+        },
+        "candidate_id": {
+          "const": "weknora-native-8d7298fb5d759973cb1e481cadc5ecdf16dca599"
+        },
+        "window_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+          "maxLength": 36
+        },
+        "artifact_digests_verified_on_ops": {
+          "const": true
+        },
+        "candidate_artifacts_distinct_on_ops": {
+          "const": true
+        }
+      }
+    },
+    "candidateA": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "identity",
+        "freeze_receipt",
+        "libraries",
+        "operations",
+        "gateway_readiness"
+      ],
+      "properties": {
+        "identity": {
+          "const": {
+            "kind": "opensearch_dual_channel",
+            "exact_resolver": "deterministic_v1",
+            "lexical_analyzer": "analysis_icu",
+            "doc_collapse": true,
+            "parent_expand": true,
+            "rerank_in_primary": false
+          }
+        },
+        "freeze_receipt": {
+          "$ref": "#/$defs/freezeA"
+        },
+        "libraries": {
+          "$ref": "#/$defs/libraries"
+        },
+        "operations": {
+          "$ref": "#/$defs/operations"
+        },
+        "gateway_readiness": {
+          "$ref": "#/$defs/gateway"
+        }
+      }
+    },
+    "candidateB": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "identity",
+        "freeze_receipt",
+        "libraries",
+        "operations",
+        "gateway_readiness"
+      ],
+      "properties": {
+        "identity": {
+          "const": {
+            "kind": "weknora",
+            "commit": "8d7298fb5d759973cb1e481cadc5ecdf16dca599",
+            "native_pipeline": true,
+            "core_modified": false
+          }
+        },
+        "freeze_receipt": {
+          "$ref": "#/$defs/freezeB"
+        },
+        "libraries": {
+          "$ref": "#/$defs/libraries"
+        },
+        "operations": {
+          "$ref": "#/$defs/operations"
+        },
+        "gateway_readiness": {
+          "$ref": "#/$defs/gateway"
+        }
+      }
+    },
+    "libraryValidity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "tier",
+        "category_counts",
+        "total_count",
+        "floors",
+        "total_floor",
+        "targets",
+        "trace",
+        "same_build_and_seed",
+        "complete_pool_verified"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "PARTICIPATING",
+            "DEFERRED"
+          ]
+        },
+        "tier": {
+          "enum": [
+            "T3",
+            "T2",
+            "T1",
+            null
+          ]
+        },
+        "category_counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "title_filename",
+            "exact_identifier_date",
+            "body_only_rare_phrase",
+            "table_row",
+            "no_answer_mutation",
+            "near_neighbour"
+          ],
+          "properties": {
+            "title_filename": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10
+            },
+            "exact_identifier_date": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 8
+            },
+            "body_only_rare_phrase": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10
+            },
+            "table_row": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4
+            },
+            "no_answer_mutation": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5
+            },
+            "near_neighbour": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 5
+            }
+          }
+        },
+        "total_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 42
+        },
+        "floors": {
+          "const": {
+            "title_filename": 3,
+            "exact_identifier_date": 2,
+            "body_only_rare_phrase": 3,
+            "table_row": 3,
+            "no_answer_mutation": 3,
+            "near_neighbour": 3
+          }
+        },
+        "total_floor": {
+          "const": 16
+        },
+        "targets": {
+          "const": {
+            "title_filename": 10,
+            "exact_identifier_date": 8,
+            "body_only_rare_phrase": 10,
+            "table_row": 4,
+            "no_answer_mutation": 5,
+            "near_neighbour": 5
+          }
+        },
+        "trace": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "tier",
+              "category_counts",
+              "total_count",
+              "floor_pass"
+            ],
+            "properties": {
+              "tier": {
+                "enum": [
+                  "T3",
+                  "T2",
+                  "T1"
+                ]
+              },
+              "category_counts": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "title_filename",
+                  "exact_identifier_date",
+                  "body_only_rare_phrase",
+                  "table_row",
+                  "no_answer_mutation",
+                  "near_neighbour"
+                ],
+                "properties": {
+                  "title_filename": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10
+                  },
+                  "exact_identifier_date": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 8
+                  },
+                  "body_only_rare_phrase": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10
+                  },
+                  "table_row": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4
+                  },
+                  "no_answer_mutation": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 5
+                  },
+                  "near_neighbour": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 5
+                  }
+                }
+              },
+              "total_count": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 42
+              },
+              "floor_pass": {
+                "type": "boolean"
+              }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "category_counts": {
+                      "properties": {
+                        "title_filename": {
+                          "minimum": 3
+                        },
+                        "exact_identifier_date": {
+                          "minimum": 2
+                        },
+                        "body_only_rare_phrase": {
+                          "minimum": 3
+                        },
+                        "table_row": {
+                          "minimum": 3
+                        },
+                        "no_answer_mutation": {
+                          "minimum": 3
+                        },
+                        "near_neighbour": {
+                          "minimum": 3
+                        }
+                      }
+                    }
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "floor_pass": {
+                      "const": true
+                    },
+                    "total_count": {
+                      "minimum": 16
+                    }
+                  }
+                },
+                "else": {
+                  "properties": {
+                    "floor_pass": {
+                      "const": false
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "same_build_and_seed": {
+          "const": true
+        },
+        "complete_pool_verified": {
+          "const": true
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "status": {
+              "const": "PARTICIPATING"
+            },
+            "tier": {
+              "const": "T3"
+            },
+            "category_counts": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "title_filename",
+                "exact_identifier_date",
+                "body_only_rare_phrase",
+                "table_row",
+                "no_answer_mutation",
+                "near_neighbour"
+              ],
+              "properties": {
+                "title_filename": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 10
+                },
+                "exact_identifier_date": {
+                  "type": "integer",
+                  "minimum": 2,
+                  "maximum": 8
+                },
+                "body_only_rare_phrase": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 10
+                },
+                "table_row": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 4
+                },
+                "no_answer_mutation": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 5
+                },
+                "near_neighbour": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 5
+                }
+              }
+            },
+            "total_count": {
+              "minimum": 16
+            },
+            "trace": {
+              "minItems": 1,
+              "maxItems": 1,
+              "prefixItems": [
+                {
+                  "properties": {
+                    "tier": {
+                      "const": "T3"
+                    },
+                    "floor_pass": {
+                      "const": true
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "properties": {
+            "status": {
+              "const": "PARTICIPATING"
+            },
+            "tier": {
+              "const": "T2"
+            },
+            "category_counts": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "title_filename",
+                "exact_identifier_date",
+                "body_only_rare_phrase",
+                "table_row",
+                "no_answer_mutation",
+                "near_neighbour"
+              ],
+              "properties": {
+                "title_filename": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 10
+                },
+                "exact_identifier_date": {
+                  "type": "integer",
+                  "minimum": 2,
+                  "maximum": 8
+                },
+                "body_only_rare_phrase": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 10
+                },
+                "table_row": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 4
+                },
+                "no_answer_mutation": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 5
+                },
+                "near_neighbour": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 5
+                }
+              }
+            },
+            "total_count": {
+              "minimum": 16
+            },
+            "trace": {
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "properties": {
+                    "tier": {
+                      "const": "T3"
+                    },
+                    "floor_pass": {
+                      "const": false
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "tier": {
+                      "const": "T2"
+                    },
+                    "floor_pass": {
+                      "const": true
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "properties": {
+            "status": {
+              "const": "PARTICIPATING"
+            },
+            "tier": {
+              "const": "T1"
+            },
+            "category_counts": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "title_filename",
+                "exact_identifier_date",
+                "body_only_rare_phrase",
+                "table_row",
+                "no_answer_mutation",
+                "near_neighbour"
+              ],
+              "properties": {
+                "title_filename": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 10
+                },
+                "exact_identifier_date": {
+                  "type": "integer",
+                  "minimum": 2,
+                  "maximum": 8
+                },
+                "body_only_rare_phrase": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 10
+                },
+                "table_row": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 4
+                },
+                "no_answer_mutation": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 5
+                },
+                "near_neighbour": {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 5
+                }
+              }
+            },
+            "total_count": {
+              "minimum": 16
+            },
+            "trace": {
+              "minItems": 3,
+              "maxItems": 3,
+              "prefixItems": [
+                {
+                  "properties": {
+                    "tier": {
+                      "const": "T3"
+                    },
+                    "floor_pass": {
+                      "const": false
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "tier": {
+                      "const": "T2"
+                    },
+                    "floor_pass": {
+                      "const": false
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "tier": {
+                      "const": "T1"
+                    },
+                    "floor_pass": {
+                      "const": true
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          "properties": {
+            "status": {
+              "const": "DEFERRED"
+            },
+            "tier": {
+              "const": null
+            },
+            "total_count": {
+              "const": 0
+            },
+            "category_counts": {
+              "const": {
+                "title_filename": 0,
+                "exact_identifier_date": 0,
+                "body_only_rare_phrase": 0,
+                "table_row": 0,
+                "no_answer_mutation": 0,
+                "near_neighbour": 0
+              }
+            },
+            "trace": {
+              "minItems": 3,
+              "maxItems": 3,
+              "prefixItems": [
+                {
+                  "properties": {
+                    "tier": {
+                      "const": "T3"
+                    },
+                    "floor_pass": {
+                      "const": false
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "tier": {
+                      "const": "T2"
+                    },
+                    "floor_pass": {
+                      "const": false
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "tier": {
+                      "const": "T1"
+                    },
+                    "floor_pass": {
+                      "const": false
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "deferredMetrics": {
+      "const": {
+        "status": "NOT_RUN_DEFERRED"
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "deferred_libraries": {
+            "contains": {
+              "const": "cwork-3m"
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "participating_libraries": {
+            "not": {
+              "contains": {
+                "const": "cwork-3m"
+              }
+            }
+          },
+          "library_validity": {
+            "properties": {
+              "cwork-3m": {
+                "properties": {
+                  "status": {
+                    "const": "DEFERRED"
+                  }
+                }
+              }
+            }
+          },
+          "candidates": {
+            "properties": {
+              "cwk-opensearch-dual-channel-v1": {
+                "properties": {
+                  "libraries": {
+                    "properties": {
+                      "cwork-3m": {
+                        "$ref": "#/$defs/deferredMetrics"
+                      }
+                    }
+                  }
+                }
+              },
+              "weknora-native-8d7298fb5d759973cb1e481cadc5ecdf16dca599": {
+                "properties": {
+                  "libraries": {
+                    "properties": {
+                      "cwork-3m": {
+                        "$ref": "#/$defs/deferredMetrics"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "participating_libraries": {
+            "contains": {
+              "const": "cwork-3m"
+            }
+          },
+          "library_validity": {
+            "properties": {
+              "cwork-3m": {
+                "properties": {
+                  "status": {
+                    "const": "PARTICIPATING"
+                  }
+                }
+              }
+            }
+          },
+          "candidates": {
+            "properties": {
+              "cwk-opensearch-dual-channel-v1": {
+                "properties": {
+                  "libraries": {
+                    "properties": {
+                      "cwork-3m": {
+                        "$ref": "#/$defs/libraryMetrics"
+                      }
+                    }
+                  }
+                }
+              },
+              "weknora-native-8d7298fb5d759973cb1e481cadc5ecdf16dca599": {
+                "properties": {
+                  "libraries": {
+                    "properties": {
+                      "cwork-3m": {
+                        "$ref": "#/$defs/libraryMetrics"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "deferred_libraries": {
+            "contains": {
+              "const": "docdb-touqian"
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "participating_libraries": {
+            "not": {
+              "contains": {
+                "const": "docdb-touqian"
+              }
+            }
+          },
+          "library_validity": {
+            "properties": {
+              "docdb-touqian": {
+                "properties": {
+                  "status": {
+                    "const": "DEFERRED"
+                  }
+                }
+              }
+            }
+          },
+          "candidates": {
+            "properties": {
+              "cwk-opensearch-dual-channel-v1": {
+                "properties": {
+                  "libraries": {
+                    "properties": {
+                      "docdb-touqian": {
+                        "$ref": "#/$defs/deferredMetrics"
+                      }
+                    }
+                  }
+                }
+              },
+              "weknora-native-8d7298fb5d759973cb1e481cadc5ecdf16dca599": {
+                "properties": {
+                  "libraries": {
+                    "properties": {
+                      "docdb-touqian": {
+                        "$ref": "#/$defs/deferredMetrics"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "participating_libraries": {
+            "contains": {
+              "const": "docdb-touqian"
+            }
+          },
+          "library_validity": {
+            "properties": {
+              "docdb-touqian": {
+                "properties": {
+                  "status": {
+                    "const": "PARTICIPATING"
+                  }
+                }
+              }
+            }
+          },
+          "candidates": {
+            "properties": {
+              "cwk-opensearch-dual-channel-v1": {
+                "properties": {
+                  "libraries": {
+                    "properties": {
+                      "docdb-touqian": {
+                        "$ref": "#/$defs/libraryMetrics"
+                      }
+                    }
+                  }
+                }
+              },
+              "weknora-native-8d7298fb5d759973cb1e481cadc5ecdf16dca599": {
+                "properties": {
+                  "libraries": {
+                    "properties": {
+                      "docdb-touqian": {
+                        "$ref": "#/$defs/libraryMetrics"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "deferred_libraries": {
+            "contains": {
+              "const": "spbp-2027"
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "participating_libraries": {
+            "not": {
+              "contains": {
+                "const": "spbp-2027"
+              }
+            }
+          },
+          "library_validity": {
+            "properties": {
+              "spbp-2027": {
+                "properties": {
+                  "status": {
+                    "const": "DEFERRED"
+                  }
+                }
+              }
+            }
+          },
+          "candidates": {
+            "properties": {
+              "cwk-opensearch-dual-channel-v1": {
+                "properties": {
+                  "libraries": {
+                    "properties": {
+                      "spbp-2027": {
+                        "$ref": "#/$defs/deferredMetrics"
+                      }
+                    }
+                  }
+                }
+              },
+              "weknora-native-8d7298fb5d759973cb1e481cadc5ecdf16dca599": {
+                "properties": {
+                  "libraries": {
+                    "properties": {
+                      "spbp-2027": {
+                        "$ref": "#/$defs/deferredMetrics"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "participating_libraries": {
+            "contains": {
+              "const": "spbp-2027"
+            }
+          },
+          "library_validity": {
+            "properties": {
+              "spbp-2027": {
+                "properties": {
+                  "status": {
+                    "const": "PARTICIPATING"
+                  }
+                }
+              }
+            }
+          },
+          "candidates": {
+            "properties": {
+              "cwk-opensearch-dual-channel-v1": {
+                "properties": {
+                  "libraries": {
+                    "properties": {
+                      "spbp-2027": {
+                        "$ref": "#/$defs/libraryMetrics"
+                      }
+                    }
+                  }
+                }
+              },
+              "weknora-native-8d7298fb5d759973cb1e481cadc5ecdf16dca599": {
+                "properties": {
+                  "libraries": {
+                    "properties": {
+                      "spbp-2027": {
+                        "$ref": "#/$defs/libraryMetrics"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$comment": "Explicit simplified contract: required caveats; reconciled A resource nulls do not invalidate quality selection; no resource advantage from nulls. Full controls and private digests remain outside this export."
+}

@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "data_class",
+    "mutations",
+    "restored_green"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.amendment8-mutations.v1"
+    },
+    "data_class": {
+      "const": "PUBLIC_SYNTHETIC_ONLY"
+    },
+    "mutations": {
+      "type": "array",
+      "const": [
+        {
+          "mutation": "RAW_BYPASS",
+          "detected": true,
+          "tests": 13,
+          "failures": 2,
+          "errors": 1,
+          "skipped": 0,
+          "exit_code": 1
+        },
+        {
+          "mutation": "NO_TAIL",
+          "detected": true,
+          "tests": 13,
+          "failures": 1,
+          "errors": 0,
+          "skipped": 0,
+          "exit_code": 1
+        },
+        {
+          "mutation": "NO_CAP",
+          "detected": true,
+          "tests": 13,
+          "failures": 1,
+          "errors": 1,
+          "skipped": 0,
+          "exit_code": 1
+        },
+        {
+          "mutation": "MISSING_EOF_PASS",
+          "detected": true,
+          "tests": 13,
+          "failures": 5,
+          "errors": 0,
+          "skipped": 0,
+          "exit_code": 1
+        },
+        {
+          "mutation": "BYPASS_VERIFICATION",
+          "detected": true,
+          "tests": 13,
+          "failures": 1,
+          "errors": 0,
+          "skipped": 0,
+          "exit_code": 1
+        },
+        {
+          "mutation": "TERMINAL_AS_PENDING",
+          "detected": true,
+          "tests": 9,
+          "failures": 0,
+          "errors": 1,
+          "skipped": 0,
+          "exit_code": 1
+        },
+        {
+          "mutation": "SWALLOW_TERMINAL",
+          "detected": true,
+          "tests": 9,
+          "failures": 1,
+          "errors": 0,
+          "skipped": 0,
+          "exit_code": 1
+        }
+      ]
+    },
+    "restored_green": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tests",
+        "failures",
+        "errors",
+        "skipped",
+        "exit_code"
+      ],
+      "properties": {
+        "tests": {
+          "const": 241
+        },
+        "failures": {
+          "const": 0
+        },
+        "errors": {
+          "const": 0
+        },
+        "skipped": {
+          "const": 0
+        },
+        "exit_code": {
+          "const": 0
+        }
+      }
+    }
+  }
+}

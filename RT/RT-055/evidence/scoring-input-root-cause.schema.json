@@ -1,0 +1,181 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "reason",
+    "failure_boundary",
+    "classification",
+    "private_values_or_hashes_exported",
+    "classification_readonly",
+    "classification_query_calls"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.scoring-input-root-cause.v1"
+    },
+    "status": {
+      "const": "CONFIRMED"
+    },
+    "reason": {
+      "const": "CASE_DROPPED_ORDINAL_QUERY_MISTAKEN_FOR_TRIAL_IDENTITY"
+    },
+    "failure_boundary": {
+      "const": "ARMED_BEFORE_EXPOSURE_AND_FIRST_PRIVATE_SEARCH"
+    },
+    "classification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cwork-3m",
+        "docdb-touqian",
+        "spbp-2027"
+      ],
+      "properties": {
+        "cwork-3m": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "all_pairs",
+            "bad_input_rows",
+            "category_ordinal_valid_unique",
+            "cross_category",
+            "duplicate_extra_rows",
+            "duplicate_groups",
+            "ordinal_valid_unique",
+            "same_semantics",
+            "total_count"
+          ],
+          "properties": {
+            "all_pairs": {
+              "const": true
+            },
+            "bad_input_rows": {
+              "const": 0
+            },
+            "category_ordinal_valid_unique": {
+              "const": true
+            },
+            "cross_category": {
+              "const": true
+            },
+            "duplicate_extra_rows": {
+              "const": 4
+            },
+            "duplicate_groups": {
+              "const": 4
+            },
+            "ordinal_valid_unique": {
+              "const": true
+            },
+            "same_semantics": {
+              "const": true
+            },
+            "total_count": {
+              "const": 42
+            }
+          }
+        },
+        "docdb-touqian": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "all_pairs",
+            "bad_input_rows",
+            "category_ordinal_valid_unique",
+            "cross_category",
+            "duplicate_extra_rows",
+            "duplicate_groups",
+            "ordinal_valid_unique",
+            "same_semantics",
+            "total_count"
+          ],
+          "properties": {
+            "all_pairs": {
+              "const": true
+            },
+            "bad_input_rows": {
+              "const": 0
+            },
+            "category_ordinal_valid_unique": {
+              "const": true
+            },
+            "cross_category": {
+              "const": true
+            },
+            "duplicate_extra_rows": {
+              "const": 4
+            },
+            "duplicate_groups": {
+              "const": 4
+            },
+            "ordinal_valid_unique": {
+              "const": true
+            },
+            "same_semantics": {
+              "const": true
+            },
+            "total_count": {
+              "const": 31
+            }
+          }
+        },
+        "spbp-2027": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "all_pairs",
+            "bad_input_rows",
+            "category_ordinal_valid_unique",
+            "cross_category",
+            "duplicate_extra_rows",
+            "duplicate_groups",
+            "ordinal_valid_unique",
+            "same_semantics",
+            "total_count"
+          ],
+          "properties": {
+            "all_pairs": {
+              "const": true
+            },
+            "bad_input_rows": {
+              "const": 0
+            },
+            "category_ordinal_valid_unique": {
+              "const": true
+            },
+            "cross_category": {
+              "const": true
+            },
+            "duplicate_extra_rows": {
+              "const": 5
+            },
+            "duplicate_groups": {
+              "const": 5
+            },
+            "ordinal_valid_unique": {
+              "const": true
+            },
+            "same_semantics": {
+              "const": true
+            },
+            "total_count": {
+              "const": 42
+            }
+          }
+        }
+      }
+    },
+    "private_values_or_hashes_exported": {
+      "const": false
+    },
+    "classification_readonly": {
+      "const": true
+    },
+    "classification_query_calls": {
+      "const": 0
+    }
+  }
+}

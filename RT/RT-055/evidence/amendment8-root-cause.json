@@ -1,0 +1,22 @@
+{
+  "schema": "cwk.rt055.amendment8-root-cause.v1",
+  "data_class": "OPS_COUNT_ONLY_AND_PUBLIC_UPSTREAM_SOURCE",
+  "old_window_id": "d408cfab-40f7-41d3-8ccb-75fb0aaa2b65",
+  "root_cause": "GORM_DEFAULT_SQL_LOGGER_BYPASSES_APPLICATION_LOG_LEVEL",
+  "production_gorm_logger_configured": false,
+  "parameterized_queries_enabled": false,
+  "legacy_stdout_direct_to_disk": true,
+  "hit_log_files": 1,
+  "total_log_files": 6,
+  "hit_fields": {
+    "case_query_fields": 2,
+    "filename_fields": 6
+  },
+  "hit_lines": 20,
+  "sidecar_hit_files": 0,
+  "private_values_or_contents_exported": false,
+  "old_build_total_seconds_approx": 7720.6,
+  "old_build_subtype": "UNPROVEN",
+  "build_timeout_seconds": 7200,
+  "synthetic_document_byte_upper_bound": 524288
+}

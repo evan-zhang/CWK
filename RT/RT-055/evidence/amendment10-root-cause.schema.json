@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "reason",
+    "source_commit",
+    "chain",
+    "new_proof",
+    "proof_reads",
+    "archive_module_imported",
+    "guard_relaxed",
+    "original_claim_void_freeze_modified",
+    "proof_checks_original_failure_reason",
+    "deployment_preflight",
+    "workload_reexecution_reason",
+    "new_workload_authorized_runs",
+    "old_workload_retried",
+    "old_after_retried"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.amendment10-root-cause.v1"
+    },
+    "status": {
+      "const": "REPAIRED_AND_OPS_READONLY_VERIFIED"
+    },
+    "reason": {
+      "const": "LEGACY_VOID_PUBLIC_PROOF_SPAWN_IN_PURE_VALIDATION"
+    },
+    "source_commit": {
+      "const": "43207eefbe30557b53d556055fa5438c8afe47ee"
+    },
+    "chain": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "prefixItems": [
+        {
+          "const": "coordinator_precheck"
+        },
+        {
+          "const": "holdout_unexposed"
+        },
+        {
+          "const": "void_paths"
+        },
+        {
+          "const": "validate_void"
+        },
+        {
+          "const": "validate_evidence"
+        },
+        {
+          "const": "_proof"
+        }
+      ],
+      "items": false
+    },
+    "new_proof": {
+      "const": "HASH_AUTHENTICATED_FROZEN_DEFINITIONS_IN_RESTRICTED_CURRENT_PROCESS"
+    },
+    "proof_reads": {
+      "const": "PUBLIC_ARCHIVED_SOURCES_ONLY"
+    },
+    "archive_module_imported": {
+      "const": false
+    },
+    "guard_relaxed": {
+      "const": false
+    },
+    "original_claim_void_freeze_modified": {
+      "const": false
+    },
+    "proof_checks_original_failure_reason": {
+      "const": true
+    },
+    "deployment_preflight": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "actual_legacy_void_in_process",
+        "no_popen",
+        "no_socket",
+        "write_denial_active",
+        "legacy_claim_void_unchanged",
+        "private_values_exported"
+      ],
+      "properties": {
+        "status": {
+          "const": "PASS"
+        },
+        "actual_legacy_void_in_process": {
+          "const": "PASS"
+        },
+        "no_popen": {
+          "const": "PASS"
+        },
+        "no_socket": {
+          "const": "PASS"
+        },
+        "write_denial_active": {
+          "const": true
+        },
+        "legacy_claim_void_unchanged": {
+          "const": true
+        },
+        "private_values_exported": {
+          "const": false
+        }
+      }
+    },
+    "workload_reexecution_reason": {
+      "const": "SOURCE_BINDING_REQUIRES_NEW_WORKLOAD"
+    },
+    "new_workload_authorized_runs": {
+      "const": 1
+    },
+    "old_workload_retried": {
+      "const": false
+    },
+    "old_after_retried": {
+      "const": false
+    }
+  }
+}

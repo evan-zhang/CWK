@@ -1,0 +1,240 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "source_commit",
+    "regression",
+    "behavior_mutations_detected",
+    "compiled_files",
+    "aodw",
+    "governance",
+    "mechanical_scope",
+    "independent_audit",
+    "first_audit",
+    "expanded_scan_failure_retained",
+    "runtime_privacy_passed",
+    "old_unknowns_waived",
+    "public_privacy_invocations",
+    "formal_coordinator_invocations",
+    "candidate_attempts",
+    "formal_metrics_null",
+    "gateway_capabilities_null",
+    "historical_files_verified",
+    "historical_prior_files_verified",
+    "retained_materials",
+    "builder_runs",
+    "verifier_runs",
+    "production_changes",
+    "full_repository_ci_claimed",
+    "private_values_or_digests_exported",
+    "local_only_no_push_merge_cleanup",
+    "mechanical"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.amendment12-qa.v1"
+    },
+    "status": {
+      "const": "PUBLIC_EVIDENCE_QA_PASS_RUNTIME_INVALID"
+    },
+    "source_commit": {
+      "const": "6c524bc10369464f0a8cf50d1380504deb64f9aa"
+    },
+    "regression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tests",
+        "failures",
+        "errors",
+        "skipped",
+        "exit_code"
+      ],
+      "properties": {
+        "tests": {
+          "const": 272
+        },
+        "failures": {
+          "const": 0
+        },
+        "errors": {
+          "const": 0
+        },
+        "skipped": {
+          "const": 0
+        },
+        "exit_code": {
+          "const": 0
+        }
+      }
+    },
+    "behavior_mutations_detected": {
+      "const": 3
+    },
+    "compiled_files": {
+      "const": 142
+    },
+    "aodw": {
+      "const": "PASS_WITH_EXISTING_HOST_SKILL_WARNING"
+    },
+    "governance": {
+      "const": "PASS"
+    },
+    "mechanical_scope": {
+      "const": "CLOSED_SCHEMA_NEGATIVES_PRIVACY_CREDENTIAL_PREFIX_LINK_CROSS_EVIDENCE"
+    },
+    "independent_audit": {
+      "const": "COMPLETE_WITH_RETAINED_FAILURES"
+    },
+    "first_audit": {
+      "const": "AUDIT_FAILED_LOG_FIREWALL"
+    },
+    "expanded_scan_failure_retained": {
+      "const": true
+    },
+    "runtime_privacy_passed": {
+      "const": false
+    },
+    "old_unknowns_waived": {
+      "const": false
+    },
+    "public_privacy_invocations": {
+      "const": 0
+    },
+    "formal_coordinator_invocations": {
+      "const": 0
+    },
+    "candidate_attempts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "a",
+        "b"
+      ],
+      "properties": {
+        "a": {
+          "const": 0
+        },
+        "b": {
+          "const": 0
+        }
+      }
+    },
+    "formal_metrics_null": {
+      "const": 120
+    },
+    "gateway_capabilities_null": {
+      "const": 24
+    },
+    "historical_files_verified": {
+      "const": 390197
+    },
+    "historical_prior_files_verified": {
+      "const": 390079
+    },
+    "retained_materials": {
+      "const": 96
+    },
+    "builder_runs": {
+      "const": 1
+    },
+    "verifier_runs": {
+      "const": 1
+    },
+    "production_changes": {
+      "const": false
+    },
+    "full_repository_ci_claimed": {
+      "const": false
+    },
+    "private_values_or_digests_exported": {
+      "const": false
+    },
+    "local_only_no_push_merge_cleanup": {
+      "const": true
+    },
+    "mechanical": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "schemas_validated",
+        "schema_negative_rejections",
+        "private_field_or_digest_hits",
+        "credential_value_hits",
+        "historical_public_files_unchanged",
+        "historical_document_prefixes_preserved",
+        "compiled_files",
+        "links_checked",
+        "anchors_checked",
+        "formal_metrics_null",
+        "gateway_capabilities_null",
+        "cross_evidence_recomputed",
+        "source_frozen_since_commit",
+        "new_files_scope_valid",
+        "first_audit_failure_retained",
+        "runtime_privacy_passed",
+        "full_repository_ci_claimed"
+      ],
+      "properties": {
+        "status": {
+          "const": "PUBLIC_EVIDENCE_QA_PASS_RUNTIME_INVALID"
+        },
+        "schemas_validated": {
+          "const": 9
+        },
+        "schema_negative_rejections": {
+          "const": 1289
+        },
+        "private_field_or_digest_hits": {
+          "const": 0
+        },
+        "credential_value_hits": {
+          "const": 0
+        },
+        "historical_public_files_unchanged": {
+          "const": 162
+        },
+        "historical_document_prefixes_preserved": {
+          "const": 3
+        },
+        "compiled_files": {
+          "const": 142
+        },
+        "links_checked": {
+          "const": 235
+        },
+        "anchors_checked": {
+          "const": 31
+        },
+        "formal_metrics_null": {
+          "const": 120
+        },
+        "gateway_capabilities_null": {
+          "const": 24
+        },
+        "cross_evidence_recomputed": {
+          "const": true
+        },
+        "source_frozen_since_commit": {
+          "const": true
+        },
+        "new_files_scope_valid": {
+          "const": true
+        },
+        "first_audit_failure_retained": {
+          "const": true
+        },
+        "runtime_privacy_passed": {
+          "const": false
+        },
+        "full_repository_ci_claimed": {
+          "const": false
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "schema": "cwk.rt055.amendment10-local.v1",
+  "data_class": "PUBLIC_SYNTHETIC_ONLY",
+  "status": "PASS",
+  "source_commit": "43207eefbe30557b53d556055fa5438c8afe47ee",
+  "red_tests": 19,
+  "red_failures": 1,
+  "red_error": "NO_POPEN",
+  "green": {
+    "tests": 258,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exit_code": 0
+  },
+  "compiled_files": 142,
+  "actual_frozen_public_source_executed": true,
+  "guard_not_relaxed": true,
+  "source_tamper_rejected": true,
+  "dependency_tamper_rejected": true,
+  "removed_prequery_gate_mutation_rejected": true,
+  "real_legacy_void_traversal_without_popen_tested": true,
+  "builder_verifier_pool_scoring_workload_unchanged": true,
+  "full_repository_ci_claimed": false
+}

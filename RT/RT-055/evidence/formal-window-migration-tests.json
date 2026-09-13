@@ -1,0 +1,240 @@
+{
+  "schema": "cwk.rt055.formal-window-migration-tests.v1",
+  "data_class": "SYNTHETIC_ONLY_NOT_OPS",
+  "baseline_commit": "e71ee346f42378b58fe03dde673412815503857e",
+  "red_before_implementation": {
+    "tests": 9,
+    "failures": 0,
+    "errors": 9,
+    "exit_code": 1
+  },
+  "green": {
+    "tests": 142,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exit_code": 0
+  },
+  "mutations": [
+    {
+      "mutation": "BUILDER_ACCEPTS_FIRST_FAILED_TIER",
+      "tests": 6,
+      "failures": 4,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "rejected": true
+    },
+    {
+      "mutation": "VERIFIER_SELECTION_DISCONNECTED",
+      "tests": 7,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "rejected": true
+    },
+    {
+      "mutation": "DEFERRED_METRIC_REJECTION_DISCONNECTED",
+      "tests": 8,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "rejected": true
+    },
+    {
+      "mutation": "ROLE_ENUM_REJECTION_DISCONNECTED",
+      "tests": 12,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "rejected": true
+    },
+    {
+      "mutation": "JVM_IPV4_INJECTION_REMOVED",
+      "tests": 18,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "rejected": true
+    },
+    {
+      "mutation": "SEARCH_OUTBOUND_POLICY_RELAXED",
+      "tests": 18,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "rejected": true
+    },
+    {
+      "mutation": "LOOPBACK_ENDPOINT_GUARD_REMOVED",
+      "tests": 18,
+      "failures": 1,
+      "errors": 1,
+      "skipped": 0,
+      "exit_code": 1,
+      "rejected": true
+    },
+    {
+      "mutation": "TELEMETRY_ENV_GUARD_REMOVED",
+      "tests": 18,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "rejected": true
+    },
+    {
+      "mutation": "CANARY_LOG_LEAK_IGNORED",
+      "tests": 18,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "rejected": true
+    },
+    {
+      "mutation": "AUTHENTICATED_ERROR_GUARD_REMOVED",
+      "tests": 18,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "rejected": true
+    },
+    {
+      "mutation": "SIDECAR_TRACE_OBSERVER_REMOVED",
+      "tests": 18,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "rejected": true
+    },
+    {
+      "mutation": "RECOVERY_SOURCE_DRIFT_GUARD_REMOVED",
+      "tests": 18,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "rejected": true
+    },
+    {
+      "mutation": "WINDOW_IDENTITY_MODE_DISCONNECTED",
+      "tests": 19,
+      "failures": 1,
+      "errors": 1,
+      "skipped": 0,
+      "exit_code": 1,
+      "rejected": true
+    },
+    {
+      "mutation": "APPEND_ONLY_CLAIM_GUARD_REMOVED",
+      "tests": 19,
+      "failures": 5,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "rejected": true
+    },
+    {
+      "mutation": "AFTER_COMPARISON_RECOMPUTE_DISCONNECTED",
+      "tests": 19,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "rejected": true
+    },
+    {
+      "mutation": "MIGRATION_CURRENT_SOURCE_CHECK_REMOVED",
+      "tests": 19,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "rejected": true
+    },
+    {
+      "mutation": "MIGRATION_REAL_CANARY_GATE_DISCONNECTED",
+      "tests": 19,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "rejected": true
+    },
+    {
+      "mutation": "FREEZE_PRIVATE_ARTIFACT_RECOMPUTE_REMOVED",
+      "tests": 19,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "rejected": true
+    },
+    {
+      "mutation": "CONSUMPTION_AMBIGUITY_GUARD_REMOVED",
+      "tests": 19,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "rejected": true
+    },
+    {
+      "mutation": "AGGREGATE_CROSS_WINDOW_GUARD_REMOVED",
+      "tests": 19,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "rejected": true
+    }
+  ],
+  "restored_green": {
+    "tests": 142,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exit_code": 0
+  },
+  "compiled_sources": 23,
+  "historical_public_json_schema_files_unchanged": 18,
+  "historical_document_prefixes_unchanged": 2,
+  "candidate_algorithms_tiers_seed_quality_utility_unchanged": true,
+  "ops_migration_started": false,
+  "ops_freeze_created": false,
+  "ops_holdout_consumed": false,
+  "fixture_corrections": [
+    "IMPORTED_TEST_CLASS_DUPLICATION",
+    "MACOS_TEMP_ALIAS",
+    "PUBLIC_FREEZE_METADATA",
+    "MOCK_CANDIDATE_IDENTITY",
+    "MOCK_SCORER_RESOURCE_FIELDS"
+  ],
+  "full_repository_ci_run": false,
+  "independent_external_reviewer": false,
+  "checks": {
+    "compile_files": 23,
+    "historical_json_schema_unchanged": 18,
+    "protocol_acceptance_prefixes_unchanged": 2,
+    "relative_links": 67,
+    "anchors": 11,
+    "evidence_schema_rejections": 4,
+    "privacy_secret_scan_passed": true,
+    "rule_functions_ast_equal": 3,
+    "all_passed": true,
+    "aodw_fixture_pass": 79,
+    "aodw_fixture_fail": 0,
+    "rt_roster_count": 53,
+    "governed_files": 837,
+    "governance_passed": true,
+    "preexisting_host_skill_warning": true
+  }
+}

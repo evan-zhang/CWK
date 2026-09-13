@@ -1,0 +1,963 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwk.rt055.formal-window-migration-tests.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "data_class",
+    "baseline_commit",
+    "red_before_implementation",
+    "green",
+    "mutations",
+    "restored_green",
+    "compiled_sources",
+    "historical_public_json_schema_files_unchanged",
+    "historical_document_prefixes_unchanged",
+    "candidate_algorithms_tiers_seed_quality_utility_unchanged",
+    "ops_migration_started",
+    "ops_freeze_created",
+    "ops_holdout_consumed",
+    "fixture_corrections",
+    "full_repository_ci_run",
+    "independent_external_reviewer",
+    "checks"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.formal-window-migration-tests.v1"
+    },
+    "data_class": {
+      "const": "SYNTHETIC_ONLY_NOT_OPS"
+    },
+    "baseline_commit": {
+      "const": "e71ee346f42378b58fe03dde673412815503857e"
+    },
+    "red_before_implementation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tests",
+        "failures",
+        "errors",
+        "exit_code"
+      ],
+      "properties": {
+        "tests": {
+          "const": 9
+        },
+        "failures": {
+          "const": 0
+        },
+        "errors": {
+          "const": 9
+        },
+        "exit_code": {
+          "const": 1
+        }
+      }
+    },
+    "green": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tests",
+        "failures",
+        "errors",
+        "skipped",
+        "exit_code"
+      ],
+      "properties": {
+        "tests": {
+          "const": 142
+        },
+        "failures": {
+          "const": 0
+        },
+        "errors": {
+          "const": 0
+        },
+        "skipped": {
+          "const": 0
+        },
+        "exit_code": {
+          "const": 0
+        }
+      }
+    },
+    "mutations": {
+      "type": "array",
+      "minItems": 20,
+      "maxItems": 20,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "rejected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "BUILDER_ACCEPTS_FIRST_FAILED_TIER"
+            },
+            "tests": {
+              "const": 6
+            },
+            "failures": {
+              "const": 4
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "rejected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "rejected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "VERIFIER_SELECTION_DISCONNECTED"
+            },
+            "tests": {
+              "const": 7
+            },
+            "failures": {
+              "const": 2
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "rejected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "rejected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "DEFERRED_METRIC_REJECTION_DISCONNECTED"
+            },
+            "tests": {
+              "const": 8
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "rejected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "rejected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "ROLE_ENUM_REJECTION_DISCONNECTED"
+            },
+            "tests": {
+              "const": 12
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "rejected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "rejected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "JVM_IPV4_INJECTION_REMOVED"
+            },
+            "tests": {
+              "const": 18
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "rejected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "rejected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "SEARCH_OUTBOUND_POLICY_RELAXED"
+            },
+            "tests": {
+              "const": 18
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "rejected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "rejected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "LOOPBACK_ENDPOINT_GUARD_REMOVED"
+            },
+            "tests": {
+              "const": 18
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 1
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "rejected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "rejected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "TELEMETRY_ENV_GUARD_REMOVED"
+            },
+            "tests": {
+              "const": 18
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "rejected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "rejected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "CANARY_LOG_LEAK_IGNORED"
+            },
+            "tests": {
+              "const": 18
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "rejected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "rejected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "AUTHENTICATED_ERROR_GUARD_REMOVED"
+            },
+            "tests": {
+              "const": 18
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "rejected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "rejected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "SIDECAR_TRACE_OBSERVER_REMOVED"
+            },
+            "tests": {
+              "const": 18
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "rejected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "rejected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "RECOVERY_SOURCE_DRIFT_GUARD_REMOVED"
+            },
+            "tests": {
+              "const": 18
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "rejected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "rejected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "WINDOW_IDENTITY_MODE_DISCONNECTED"
+            },
+            "tests": {
+              "const": 19
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 1
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "rejected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "rejected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "APPEND_ONLY_CLAIM_GUARD_REMOVED"
+            },
+            "tests": {
+              "const": 19
+            },
+            "failures": {
+              "const": 5
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "rejected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "rejected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "AFTER_COMPARISON_RECOMPUTE_DISCONNECTED"
+            },
+            "tests": {
+              "const": 19
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "rejected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "rejected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "MIGRATION_CURRENT_SOURCE_CHECK_REMOVED"
+            },
+            "tests": {
+              "const": 19
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "rejected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "rejected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "MIGRATION_REAL_CANARY_GATE_DISCONNECTED"
+            },
+            "tests": {
+              "const": 19
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "rejected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "rejected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "FREEZE_PRIVATE_ARTIFACT_RECOMPUTE_REMOVED"
+            },
+            "tests": {
+              "const": 19
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "rejected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "rejected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "CONSUMPTION_AMBIGUITY_GUARD_REMOVED"
+            },
+            "tests": {
+              "const": 19
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "rejected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "rejected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "AGGREGATE_CROSS_WINDOW_GUARD_REMOVED"
+            },
+            "tests": {
+              "const": 19
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "rejected": {
+              "const": true
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "restored_green": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tests",
+        "failures",
+        "errors",
+        "skipped",
+        "exit_code"
+      ],
+      "properties": {
+        "tests": {
+          "const": 142
+        },
+        "failures": {
+          "const": 0
+        },
+        "errors": {
+          "const": 0
+        },
+        "skipped": {
+          "const": 0
+        },
+        "exit_code": {
+          "const": 0
+        }
+      }
+    },
+    "compiled_sources": {
+      "const": 23
+    },
+    "historical_public_json_schema_files_unchanged": {
+      "const": 18
+    },
+    "historical_document_prefixes_unchanged": {
+      "const": 2
+    },
+    "candidate_algorithms_tiers_seed_quality_utility_unchanged": {
+      "const": true
+    },
+    "ops_migration_started": {
+      "const": false
+    },
+    "ops_freeze_created": {
+      "const": false
+    },
+    "ops_holdout_consumed": {
+      "const": false
+    },
+    "fixture_corrections": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "prefixItems": [
+        {
+          "const": "IMPORTED_TEST_CLASS_DUPLICATION"
+        },
+        {
+          "const": "MACOS_TEMP_ALIAS"
+        },
+        {
+          "const": "PUBLIC_FREEZE_METADATA"
+        },
+        {
+          "const": "MOCK_CANDIDATE_IDENTITY"
+        },
+        {
+          "const": "MOCK_SCORER_RESOURCE_FIELDS"
+        }
+      ],
+      "items": false
+    },
+    "full_repository_ci_run": {
+      "const": false
+    },
+    "independent_external_reviewer": {
+      "const": false
+    },
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "compile_files",
+        "historical_json_schema_unchanged",
+        "protocol_acceptance_prefixes_unchanged",
+        "relative_links",
+        "anchors",
+        "evidence_schema_rejections",
+        "privacy_secret_scan_passed",
+        "rule_functions_ast_equal",
+        "all_passed",
+        "aodw_fixture_pass",
+        "aodw_fixture_fail",
+        "rt_roster_count",
+        "governed_files",
+        "governance_passed",
+        "preexisting_host_skill_warning"
+      ],
+      "properties": {
+        "compile_files": {
+          "const": 23
+        },
+        "historical_json_schema_unchanged": {
+          "const": 18
+        },
+        "protocol_acceptance_prefixes_unchanged": {
+          "const": 2
+        },
+        "relative_links": {
+          "const": 67
+        },
+        "anchors": {
+          "const": 11
+        },
+        "evidence_schema_rejections": {
+          "const": 4
+        },
+        "privacy_secret_scan_passed": {
+          "const": true
+        },
+        "rule_functions_ast_equal": {
+          "const": 3
+        },
+        "all_passed": {
+          "const": true
+        },
+        "aodw_fixture_pass": {
+          "const": 79
+        },
+        "aodw_fixture_fail": {
+          "const": 0
+        },
+        "rt_roster_count": {
+          "const": 53
+        },
+        "governed_files": {
+          "const": 837
+        },
+        "governance_passed": {
+          "const": true
+        },
+        "preexisting_host_skill_warning": {
+          "const": true
+        }
+      }
+    }
+  }
+}

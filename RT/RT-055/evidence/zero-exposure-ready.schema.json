@@ -1,0 +1,528 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RT055 immutable public zero-exposure readiness projection",
+  "description": "Closed public snapshot only. Structural validation is not a substitute for the independently rechecked OPS evidence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "data_class",
+    "readiness",
+    "privacy",
+    "limits"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.zero-exposure-ready-closeout.v1"
+    },
+    "data_class": {
+      "const": "OPS_COUNTS_AND_PUBLIC_SYNTHETIC_ONLY"
+    },
+    "readiness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "independent_check",
+        "live_controllers",
+        "ready"
+      ],
+      "properties": {
+        "independent_check": {
+          "const": "PASS"
+        },
+        "live_controllers": {
+          "const": 0
+        },
+        "ready": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "builder_runs",
+            "cleanup_failures",
+            "deferred_libraries",
+            "executioner_migration_id",
+            "formal_after_claims",
+            "formal_evaluation_complete",
+            "formal_query_calls",
+            "formal_results",
+            "fresh_before_claims",
+            "fresh_before_verified",
+            "gateway_http_200_count",
+            "global_exposure",
+            "native_upstream_verified",
+            "new_arms",
+            "new_candidate_attempts",
+            "old_a_attempts",
+            "old_b_attempts",
+            "old_claim_candidate",
+            "old_claim_library",
+            "old_claim_retained",
+            "old_claims",
+            "old_library_results",
+            "old_query_calls",
+            "old_score_receipts",
+            "old_window_claim_freeze_original_bytes_equal",
+            "old_window_id",
+            "old_window_status",
+            "old_window_superseded",
+            "pool",
+            "privacy_binding_recomputed",
+            "production_cutover_allowed",
+            "reason",
+            "replacement_freeze_claims",
+            "replacement_freeze_verified",
+            "replacement_window_id",
+            "retained_bytes_equal",
+            "retained_files",
+            "run_id",
+            "run_order",
+            "same_holdout_verified",
+            "schema",
+            "source_commit",
+            "status",
+            "synthetic_data_planes",
+            "synthetic_processes",
+            "verifier_runs",
+            "void_status",
+            "zero_exposure_migration_id"
+          ],
+          "properties": {
+            "builder_runs": {
+              "const": 1
+            },
+            "cleanup_failures": {
+              "const": 0
+            },
+            "deferred_libraries": {
+              "type": "array",
+              "maxItems": 0
+            },
+            "executioner_migration_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "formal_after_claims": {
+              "const": 0
+            },
+            "formal_evaluation_complete": {
+              "const": false
+            },
+            "formal_query_calls": {
+              "const": 0
+            },
+            "formal_results": {
+              "const": 0
+            },
+            "fresh_before_claims": {
+              "const": 1
+            },
+            "fresh_before_verified": {
+              "const": true
+            },
+            "gateway_http_200_count": {
+              "const": 3
+            },
+            "global_exposure": {
+              "const": 0
+            },
+            "native_upstream_verified": {
+              "const": true
+            },
+            "new_arms": {
+              "const": 0
+            },
+            "new_candidate_attempts": {
+              "const": 0
+            },
+            "old_a_attempts": {
+              "const": 1
+            },
+            "old_b_attempts": {
+              "const": 0
+            },
+            "old_claim_candidate": {
+              "const": "a"
+            },
+            "old_claim_library": {
+              "const": "cwork-3m"
+            },
+            "old_claim_retained": {
+              "const": true
+            },
+            "old_claims": {
+              "const": 1
+            },
+            "old_library_results": {
+              "const": 0
+            },
+            "old_query_calls": {
+              "const": 0
+            },
+            "old_score_receipts": {
+              "const": 0
+            },
+            "old_window_claim_freeze_original_bytes_equal": {
+              "const": true
+            },
+            "old_window_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "old_window_status": {
+              "const": "INVALID"
+            },
+            "old_window_superseded": {
+              "const": true
+            },
+            "pool": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "cwork-3m",
+                "docdb-touqian",
+                "spbp-2027"
+              ],
+              "properties": {
+                "cwork-3m": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "tier",
+                    "total_count"
+                  ],
+                  "properties": {
+                    "tier": {
+                      "const": "T3"
+                    },
+                    "total_count": {
+                      "const": 42
+                    }
+                  }
+                },
+                "docdb-touqian": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "tier",
+                    "total_count"
+                  ],
+                  "properties": {
+                    "tier": {
+                      "const": "T3"
+                    },
+                    "total_count": {
+                      "const": 31
+                    }
+                  }
+                },
+                "spbp-2027": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "tier",
+                    "total_count"
+                  ],
+                  "properties": {
+                    "tier": {
+                      "const": "T2"
+                    },
+                    "total_count": {
+                      "const": 42
+                    }
+                  }
+                }
+              }
+            },
+            "privacy_binding_recomputed": {
+              "const": true
+            },
+            "production_cutover_allowed": {
+              "const": false
+            },
+            "reason": {
+              "const": "PREQUERY_CONFLICT_RECOVERED_NO_FORMAL_RUN"
+            },
+            "replacement_freeze_claims": {
+              "const": 1
+            },
+            "replacement_freeze_verified": {
+              "const": true
+            },
+            "replacement_window_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "retained_bytes_equal": {
+              "const": true
+            },
+            "retained_files": {
+              "const": 96
+            },
+            "run_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "run_order": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "const": "b"
+                },
+                {
+                  "const": "a"
+                }
+              ],
+              "items": false
+            },
+            "same_holdout_verified": {
+              "const": true
+            },
+            "schema": {
+              "const": "cwk.rt055.zero-exposure-ready.v1"
+            },
+            "source_commit": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "status": {
+              "const": "READY_TO_RUN"
+            },
+            "synthetic_data_planes": {
+              "const": 0
+            },
+            "synthetic_processes": {
+              "const": 0
+            },
+            "verifier_runs": {
+              "const": 1
+            },
+            "void_status": {
+              "const": "VOID_PREQUERY_NO_EXPOSURE"
+            },
+            "zero_exposure_migration_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          }
+        }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "phase",
+        "observations",
+        "gates",
+        "cleanup",
+        "privacy_binding_recomputed",
+        "global_unexposed"
+      ],
+      "properties": {
+        "status": {
+          "const": "READY_TO_FREEZE"
+        },
+        "phase": {
+          "const": "COMPLETE"
+        },
+        "observations": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "search_normal_calls",
+            "native_normal_calls",
+            "authenticated_session_verified",
+            "authenticated_query_error_code",
+            "authenticated_title_error_code",
+            "embedding_calls",
+            "embedding_successes",
+            "log_files_scanned",
+            "log_canary_hits",
+            "trace_header_observations",
+            "native_trace_response_headers",
+            "runtime_environment_verified",
+            "socket_samples",
+            "external_socket_observations",
+            "observer_errors",
+            "external_probes_denied",
+            "network_policy_verified",
+            "nonloopback_model_rejected",
+            "model_endpoint_verified",
+            "forbidden_reads",
+            "denial_probes"
+          ],
+          "properties": {
+            "search_normal_calls": {
+              "const": 1
+            },
+            "native_normal_calls": {
+              "const": 1
+            },
+            "authenticated_session_verified": {
+              "const": true
+            },
+            "authenticated_query_error_code": {
+              "const": 400
+            },
+            "authenticated_title_error_code": {
+              "const": 400
+            },
+            "embedding_calls": {
+              "const": 3
+            },
+            "embedding_successes": {
+              "const": 3
+            },
+            "log_files_scanned": {
+              "const": 13
+            },
+            "log_canary_hits": {
+              "const": 0
+            },
+            "trace_header_observations": {
+              "const": 0
+            },
+            "native_trace_response_headers": {
+              "const": 0
+            },
+            "runtime_environment_verified": {
+              "const": true
+            },
+            "socket_samples": {
+              "const": 123
+            },
+            "external_socket_observations": {
+              "const": 0
+            },
+            "observer_errors": {
+              "const": 0
+            },
+            "external_probes_denied": {
+              "const": true
+            },
+            "network_policy_verified": {
+              "const": true
+            },
+            "nonloopback_model_rejected": {
+              "const": true
+            },
+            "model_endpoint_verified": {
+              "const": true
+            },
+            "forbidden_reads": {
+              "const": 0
+            },
+            "denial_probes": {
+              "const": 1
+            }
+          }
+        },
+        "gates": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "normal_native_canary",
+            "authenticated_error_canaries",
+            "native_log_canary_absent",
+            "langfuse_runtime_disabled",
+            "otel_runtime_disabled",
+            "loopback_models_only",
+            "external_egress_denied",
+            "forbidden_reads_zero",
+            "passed"
+          ],
+          "properties": {
+            "normal_native_canary": {
+              "const": true
+            },
+            "authenticated_error_canaries": {
+              "const": true
+            },
+            "native_log_canary_absent": {
+              "const": true
+            },
+            "langfuse_runtime_disabled": {
+              "const": true
+            },
+            "otel_runtime_disabled": {
+              "const": true
+            },
+            "loopback_models_only": {
+              "const": true
+            },
+            "external_egress_denied": {
+              "const": true
+            },
+            "forbidden_reads_zero": {
+              "const": true
+            },
+            "passed": {
+              "const": true
+            }
+          }
+        },
+        "cleanup": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "complete",
+            "failures",
+            "remaining_data_planes",
+            "remaining_processes"
+          ],
+          "properties": {
+            "complete": {
+              "const": true
+            },
+            "failures": {
+              "const": 0
+            },
+            "remaining_data_planes": {
+              "const": 0
+            },
+            "remaining_processes": {
+              "const": 0
+            }
+          }
+        },
+        "privacy_binding_recomputed": {
+          "const": true
+        },
+        "global_unexposed": {
+          "const": true
+        }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "formal_evaluation_complete",
+        "production_cutover_allowed",
+        "full_production_invariance_proven",
+        "historical_drift_cleared",
+        "full_repository_ci_claimed"
+      ],
+      "properties": {
+        "formal_evaluation_complete": {
+          "const": false
+        },
+        "production_cutover_allowed": {
+          "const": false
+        },
+        "full_production_invariance_proven": {
+          "const": false
+        },
+        "historical_drift_cleared": {
+          "const": false
+        },
+        "full_repository_ci_claimed": {
+          "const": false
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "status",
+    "data_class",
+    "root_cause",
+    "unique_chunks_seq_id_events",
+    "batch_chunk_insert_observed",
+    "multirow_insert_observed",
+    "legacy_runner_all_posts_before_ready",
+    "content_limit_or_timeout",
+    "private_failure_subtype",
+    "raw_log_exported"
+  ],
+  "properties": {
+    "status": {
+      "const": "CONFIRMED"
+    },
+    "data_class": {
+      "const": "PUBLIC_SYNTHETIC_ONLY"
+    },
+    "root_cause": {
+      "const": "NATIVE_CHUNK_SEQ_ID_ALLOCATION_CONCURRENCY_RACE"
+    },
+    "unique_chunks_seq_id_events": {
+      "const": 1
+    },
+    "batch_chunk_insert_observed": {
+      "const": true
+    },
+    "multirow_insert_observed": {
+      "const": true
+    },
+    "legacy_runner_all_posts_before_ready": {
+      "const": true
+    },
+    "content_limit_or_timeout": {
+      "const": false
+    },
+    "private_failure_subtype": {
+      "const": "UNPROVEN"
+    },
+    "raw_log_exported": {
+      "const": false
+    }
+  }
+}

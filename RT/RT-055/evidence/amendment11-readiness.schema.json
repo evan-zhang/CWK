@@ -1,0 +1,305 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "run_id",
+    "old_window_id",
+    "executioner_migration_id",
+    "new_window_id",
+    "scoring_archive_id",
+    "source_commit",
+    "ready_established",
+    "source_gate",
+    "public_finalizing_red_green",
+    "source_bound_public_privacy",
+    "privacy_gate_reason",
+    "firewall_input_capacity",
+    "workload_gate",
+    "workload_invocations",
+    "workload_authorized_runs",
+    "workload_reason",
+    "main_runtime_readiness",
+    "main_workspace_readiness",
+    "main_scoring_readiness",
+    "formal_before",
+    "freeze",
+    "random_order_sampled",
+    "run_order",
+    "coordinator_no_popen_precheck",
+    "formal_coordinator_invocations",
+    "candidate_attempts",
+    "global_exposure",
+    "queries",
+    "scores",
+    "complete",
+    "results",
+    "gateway_final_health",
+    "cleanup",
+    "after",
+    "after_claims",
+    "after_reason",
+    "after_libraries_measured",
+    "terminal_only_window",
+    "abort",
+    "decision",
+    "builder_runs",
+    "verifier_runs",
+    "pool_counts",
+    "full_nas_index_invariance",
+    "new_before_after_comparison",
+    "historical_drift_cleared",
+    "production_changes_performed",
+    "old_private_failure_root_cause",
+    "formal_private_values_exported"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.amendment11-readiness.v1"
+    },
+    "status": {
+      "const": "BLOCKED_INVALID_CLOSED"
+    },
+    "run_id": {
+      "const": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af"
+    },
+    "old_window_id": {
+      "const": "be3ab168-0568-4d39-a06e-824b4cd26a58"
+    },
+    "executioner_migration_id": {
+      "const": "aee2e2eb-4cd7-4f97-a864-5ce6c3782529"
+    },
+    "new_window_id": {
+      "const": "3330a46e-bfdd-4639-bb0c-ea5c1b3df622"
+    },
+    "scoring_archive_id": {
+      "const": "feb9590b-8322-43ef-8567-808d14e2cd21"
+    },
+    "source_commit": {
+      "const": "fdfcfb6dfef57862cf5efd478e88820419e7c322"
+    },
+    "ready_established": {
+      "const": false
+    },
+    "source_gate": {
+      "const": "PASS"
+    },
+    "public_finalizing_red_green": {
+      "const": "PASS"
+    },
+    "source_bound_public_privacy": {
+      "const": "FAIL"
+    },
+    "privacy_gate_reason": {
+      "const": "PUBLIC_PRIVACY_EXTERNAL_SOCKET_OBSERVATION"
+    },
+    "firewall_input_capacity": {
+      "const": "PASS"
+    },
+    "workload_gate": {
+      "const": "NOT_RUN"
+    },
+    "workload_invocations": {
+      "const": 0
+    },
+    "workload_authorized_runs": {
+      "const": 1
+    },
+    "workload_reason": {
+      "const": "SOURCE_BINDING_REQUIRES_NEW_WORKLOAD"
+    },
+    "main_runtime_readiness": {
+      "const": "NOT_RUN"
+    },
+    "main_workspace_readiness": {
+      "const": "NOT_RUN"
+    },
+    "main_scoring_readiness": {
+      "const": "NOT_RUN"
+    },
+    "formal_before": {
+      "const": "NOT_RUN"
+    },
+    "freeze": {
+      "const": "NOT_RUN"
+    },
+    "random_order_sampled": {
+      "const": false
+    },
+    "run_order": {
+      "const": null
+    },
+    "coordinator_no_popen_precheck": {
+      "const": "NOT_RUN"
+    },
+    "formal_coordinator_invocations": {
+      "const": 0
+    },
+    "candidate_attempts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "a",
+        "b"
+      ],
+      "properties": {
+        "a": {
+          "const": 0
+        },
+        "b": {
+          "const": 0
+        }
+      }
+    },
+    "global_exposure": {
+      "const": 0
+    },
+    "queries": {
+      "const": 0
+    },
+    "scores": {
+      "const": 0
+    },
+    "complete": {
+      "const": 0
+    },
+    "results": {
+      "const": 0
+    },
+    "gateway_final_health": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "http_status",
+            "ok",
+            "read_only"
+          ],
+          "properties": {
+            "http_status": {
+              "const": 200
+            },
+            "ok": {
+              "const": true
+            },
+            "read_only": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "http_status",
+            "ok",
+            "read_only"
+          ],
+          "properties": {
+            "http_status": {
+              "const": 200
+            },
+            "ok": {
+              "const": true
+            },
+            "read_only": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "http_status",
+            "ok",
+            "read_only"
+          ],
+          "properties": {
+            "http_status": {
+              "const": 200
+            },
+            "ok": {
+              "const": true
+            },
+            "read_only": {
+              "const": true
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "cleanup": {
+      "const": "PASS"
+    },
+    "after": {
+      "const": "FAIL"
+    },
+    "after_claims": {
+      "const": 1
+    },
+    "after_reason": {
+      "const": "FRESH_BEFORE_NOT_CREATED_PRIVACY_GATE_FAILED"
+    },
+    "after_libraries_measured": {
+      "const": 0
+    },
+    "terminal_only_window": {
+      "const": true
+    },
+    "abort": {
+      "const": "INVALID"
+    },
+    "decision": {
+      "const": "INVALID"
+    },
+    "builder_runs": {
+      "const": 1
+    },
+    "verifier_runs": {
+      "const": 1
+    },
+    "pool_counts": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "prefixItems": [
+        {
+          "const": 42
+        },
+        {
+          "const": 31
+        },
+        {
+          "const": 42
+        }
+      ],
+      "items": false
+    },
+    "full_nas_index_invariance": {
+      "const": null
+    },
+    "new_before_after_comparison": {
+      "const": null
+    },
+    "historical_drift_cleared": {
+      "const": false
+    },
+    "production_changes_performed": {
+      "const": false
+    },
+    "old_private_failure_root_cause": {
+      "const": "UNKNOWN"
+    },
+    "formal_private_values_exported": {
+      "const": false
+    }
+  }
+}

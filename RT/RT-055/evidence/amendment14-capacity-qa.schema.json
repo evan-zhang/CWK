@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "actual_hard_cap_rejections",
+    "all_needles_exercised",
+    "bank_cap_bytes",
+    "bank_object_shared",
+    "candidate_budget_count",
+    "comparison_budget_bytes",
+    "compile_seconds",
+    "data_class",
+    "elapsed_seconds",
+    "input_bytes",
+    "leaf_cap_bytes",
+    "maximum_needle_bytes",
+    "needle_count",
+    "nohit_64mib_seconds",
+    "pattern_bytes",
+    "peak_rss_bytes",
+    "prefix_bytes",
+    "raw_buffer_slots",
+    "raw_files_written",
+    "redactions",
+    "rss_budget_bytes",
+    "schema",
+    "six_giant_clean_seconds",
+    "status",
+    "stream_input_output_cap_bytes"
+  ],
+  "properties": {
+    "actual_hard_cap_rejections": {
+      "const": 2
+    },
+    "all_needles_exercised": {
+      "const": true
+    },
+    "bank_cap_bytes": {
+      "const": 536870912
+    },
+    "bank_object_shared": {
+      "const": true
+    },
+    "candidate_budget_count": {
+      "const": 1048576
+    },
+    "comparison_budget_bytes": {
+      "const": 8589934592
+    },
+    "compile_seconds": {
+      "const": 1.1664
+    },
+    "data_class": {
+      "const": "PUBLIC_SYNTHETIC_ONLY"
+    },
+    "elapsed_seconds": {
+      "const": 2.9443
+    },
+    "input_bytes": {
+      "const": 302132385
+    },
+    "leaf_cap_bytes": {
+      "const": 67108864
+    },
+    "maximum_needle_bytes": {
+      "const": 50331648
+    },
+    "needle_count": {
+      "const": 6481
+    },
+    "nohit_64mib_seconds": {
+      "const": 0.2033
+    },
+    "pattern_bytes": {
+      "const": 302125863
+    },
+    "peak_rss_bytes": {
+      "const": 714375168
+    },
+    "prefix_bytes": {
+      "const": 16
+    },
+    "raw_buffer_slots": {
+      "const": 12
+    },
+    "raw_files_written": {
+      "const": 0
+    },
+    "redactions": {
+      "const": 6481
+    },
+    "rss_budget_bytes": {
+      "const": 1610612736
+    },
+    "schema": {
+      "const": "cwk.rt055.amendment14-capacity-qa.v1"
+    },
+    "six_giant_clean_seconds": {
+      "const": 0.0058
+    },
+    "status": {
+      "const": "PASS"
+    },
+    "stream_input_output_cap_bytes": {
+      "const": 67108864
+    }
+  }
+}

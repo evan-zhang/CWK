@@ -1,0 +1,127 @@
+{
+  "schema": "cwk.rt055.zero-exposure-ready-closeout.v1",
+  "data_class": "OPS_COUNTS_AND_PUBLIC_SYNTHETIC_ONLY",
+  "readiness": {
+    "independent_check": "PASS",
+    "live_controllers": 0,
+    "ready": {
+      "builder_runs": 1,
+      "cleanup_failures": 0,
+      "deferred_libraries": [],
+      "executioner_migration_id": "a82157ee-324b-4806-ae01-3a4675b1f8d4",
+      "formal_after_claims": 0,
+      "formal_evaluation_complete": false,
+      "formal_query_calls": 0,
+      "formal_results": 0,
+      "fresh_before_claims": 1,
+      "fresh_before_verified": true,
+      "gateway_http_200_count": 3,
+      "global_exposure": 0,
+      "native_upstream_verified": true,
+      "new_arms": 0,
+      "new_candidate_attempts": 0,
+      "old_a_attempts": 1,
+      "old_b_attempts": 0,
+      "old_claim_candidate": "a",
+      "old_claim_library": "cwork-3m",
+      "old_claim_retained": true,
+      "old_claims": 1,
+      "old_library_results": 0,
+      "old_query_calls": 0,
+      "old_score_receipts": 0,
+      "old_window_claim_freeze_original_bytes_equal": true,
+      "old_window_id": "7bed2d1c-4943-4da6-b6d2-a23aab5c195f",
+      "old_window_status": "INVALID",
+      "old_window_superseded": true,
+      "pool": {
+        "cwork-3m": {
+          "tier": "T3",
+          "total_count": 42
+        },
+        "docdb-touqian": {
+          "tier": "T3",
+          "total_count": 31
+        },
+        "spbp-2027": {
+          "tier": "T2",
+          "total_count": 42
+        }
+      },
+      "privacy_binding_recomputed": true,
+      "production_cutover_allowed": false,
+      "reason": "PREQUERY_CONFLICT_RECOVERED_NO_FORMAL_RUN",
+      "replacement_freeze_claims": 1,
+      "replacement_freeze_verified": true,
+      "replacement_window_id": "0155202c-b6a0-40c6-a779-48aff0ab57fe",
+      "retained_bytes_equal": true,
+      "retained_files": 96,
+      "run_id": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af",
+      "run_order": [
+        "b",
+        "a"
+      ],
+      "same_holdout_verified": true,
+      "schema": "cwk.rt055.zero-exposure-ready.v1",
+      "source_commit": "a4b3c64ebb609eee5d08a8c53dc594798f43ec58",
+      "status": "READY_TO_RUN",
+      "synthetic_data_planes": 0,
+      "synthetic_processes": 0,
+      "verifier_runs": 1,
+      "void_status": "VOID_PREQUERY_NO_EXPOSURE",
+      "zero_exposure_migration_id": "5e3c6265-8cfd-42b9-a2eb-bef592e171cf"
+    }
+  },
+  "privacy": {
+    "status": "READY_TO_FREEZE",
+    "phase": "COMPLETE",
+    "observations": {
+      "search_normal_calls": 1,
+      "native_normal_calls": 1,
+      "authenticated_session_verified": true,
+      "authenticated_query_error_code": 400,
+      "authenticated_title_error_code": 400,
+      "embedding_calls": 3,
+      "embedding_successes": 3,
+      "log_files_scanned": 13,
+      "log_canary_hits": 0,
+      "trace_header_observations": 0,
+      "native_trace_response_headers": 0,
+      "runtime_environment_verified": true,
+      "socket_samples": 123,
+      "external_socket_observations": 0,
+      "observer_errors": 0,
+      "external_probes_denied": true,
+      "network_policy_verified": true,
+      "nonloopback_model_rejected": true,
+      "model_endpoint_verified": true,
+      "forbidden_reads": 0,
+      "denial_probes": 1
+    },
+    "gates": {
+      "normal_native_canary": true,
+      "authenticated_error_canaries": true,
+      "native_log_canary_absent": true,
+      "langfuse_runtime_disabled": true,
+      "otel_runtime_disabled": true,
+      "loopback_models_only": true,
+      "external_egress_denied": true,
+      "forbidden_reads_zero": true,
+      "passed": true
+    },
+    "cleanup": {
+      "complete": true,
+      "failures": 0,
+      "remaining_data_planes": 0,
+      "remaining_processes": 0
+    },
+    "privacy_binding_recomputed": true,
+    "global_unexposed": true
+  },
+  "limits": {
+    "formal_evaluation_complete": false,
+    "production_cutover_allowed": false,
+    "full_production_invariance_proven": false,
+    "historical_drift_cleared": false,
+    "full_repository_ci_claimed": false
+  }
+}

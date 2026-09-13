@@ -1,0 +1,448 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "data_class",
+    "green",
+    "mutations",
+    "formal_queries",
+    "restored_green"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.candidate-workspace-tests.v1"
+    },
+    "data_class": {
+      "const": "PUBLIC_SYNTHETIC_ONLY_NOT_OPS"
+    },
+    "green": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tests",
+        "failures",
+        "errors",
+        "skipped",
+        "exit_code"
+      ],
+      "properties": {
+        "tests": {
+          "const": 190
+        },
+        "failures": {
+          "const": 0
+        },
+        "errors": {
+          "const": 0
+        },
+        "skipped": {
+          "const": 0
+        },
+        "exit_code": {
+          "const": 0
+        }
+      }
+    },
+    "mutations": {
+      "type": "array",
+      "minItems": 10,
+      "maxItems": 10,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "CROSS_WINDOW_GUARD_REMOVED"
+            },
+            "tests": {
+              "const": 14
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "SYMLINK_GUARD_REMOVED"
+            },
+            "tests": {
+              "const": 14
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "OWNERSHIP_GUARD_REMOVED"
+            },
+            "tests": {
+              "const": 14
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "BROAD_RUNTIME_DELETION"
+            },
+            "tests": {
+              "const": 14
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "LOG_HARD_FAILURE_REMOVED"
+            },
+            "tests": {
+              "const": 14
+            },
+            "failures": {
+              "const": 2
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "SIBLING_READ_ISOLATION_REMOVED"
+            },
+            "tests": {
+              "const": 14
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "FORMAL_LEDGER_SCOPE_REMOVED"
+            },
+            "tests": {
+              "const": 14
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "MAIN_STARTUP_SOURCE_CHECK_REMOVED"
+            },
+            "tests": {
+              "const": 14
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "A_LOG_SCAN_DISCONNECTED"
+            },
+            "tests": {
+              "const": 21
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "B_LOG_SCAN_DISCONNECTED"
+            },
+            "tests": {
+              "const": 21
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "formal_queries": {
+      "const": 0
+    },
+    "restored_green": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tests",
+        "failures",
+        "errors",
+        "skipped",
+        "exit_code"
+      ],
+      "properties": {
+        "tests": {
+          "const": 190
+        },
+        "failures": {
+          "const": 0
+        },
+        "errors": {
+          "const": 0
+        },
+        "skipped": {
+          "const": 0
+        },
+        "exit_code": {
+          "const": 0
+        }
+      }
+    }
+  }
+}

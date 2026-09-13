@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cwk.local/schemas/cwk.kb.error.v3.json",
+  "title": "CWK KB Search v3 error response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "ok", "request_id", "error"],
+  "properties": {
+    "schema": {"const": "cwk.kb.error.v3"},
+    "ok": {"const": false},
+    "request_id": {"type": "string", "minLength": 8, "maxLength": 128},
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "retryable"],
+      "properties": {
+        "code": {"enum": ["bad_request", "unsupported_contract", "unauthorized", "forbidden", "source_stale", "rate_limited", "capacity_exceeded", "index_not_ready", "control_plane_unavailable", "object_unavailable", "search_timeout"]},
+        "retryable": {"type": "boolean"},
+        "retry_after_ms": {"type": "integer", "minimum": 1, "maximum": 3600000}
+      }
+    }
+  }
+}

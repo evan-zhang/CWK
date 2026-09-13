@@ -1,0 +1,356 @@
+{
+  "cleanup": {
+    "candidate_processes": 0,
+    "controller_processes": 0,
+    "failures": 0,
+    "gateway_http_200_count": 3,
+    "new_gateway_tls_files": 0,
+    "new_resource_audit_records_retained": 1,
+    "new_temporary_files": 0,
+    "prelaunch_tmp_files_preserved": true,
+    "private_holdout_retained": true,
+    "temporary_data_planes": 0,
+    "uuid_resources": {
+      "containers": 0,
+      "image_tags": 0,
+      "networks": 0,
+      "services": 0,
+      "volumes": 0
+    }
+  },
+  "closure": {
+    "after_claims": 1,
+    "after_file_counts": [
+      1248,
+      316,
+      317
+    ],
+    "after_libraries_measured": 3,
+    "before_after_same_window_verified": true,
+    "before_claims": 1,
+    "before_file_counts": [
+      1248,
+      316,
+      317
+    ],
+    "cleanup_before_after_verified": true,
+    "cleanup_receipts": 1,
+    "closeout_order": [
+      "cleanup",
+      "after",
+      "abort_evidence",
+      "decision"
+    ],
+    "comparison_recomputed": true,
+    "controller_attempts": 2,
+    "formal_candidate_sequence": [
+      "a"
+    ],
+    "initial_failed_controller_terminal_retained": true,
+    "terminal_phase": "COMPLETE",
+    "terminal_status": "INVALID",
+    "window_closed_to_replay": true
+  },
+  "data_class": "OPS_PUBLIC_ABORT_NOT_FORMAL_AGGREGATE",
+  "deferred_libraries": [],
+  "execution": {
+    "candidate_attempts": {
+      "a": 1,
+      "b": 0
+    },
+    "candidate_restarts": 0,
+    "candidate_results": 0,
+    "closeout_only_launches": 1,
+    "complete_libraries": {
+      "a": 0,
+      "b": 0
+    },
+    "diagnosis_reopened_private_holdout": false,
+    "exact_cause_proven": false,
+    "failure_boundary": "PROCESS_CREATED_SERVICE_NOT_READY",
+    "failure_type": "RuntimeError",
+    "formal_arms": 0,
+    "formal_launches": 1,
+    "formal_query_calls": 0,
+    "global_exposure": 0,
+    "holdout_unexposed": true,
+    "new_process_records": 1,
+    "score_receipts": 0
+  },
+  "executioner_commit": "58951f92656e7a29b334461c7aa6d1148fec4e8f",
+  "executioner_migration_id": "e5a11f4d-445c-4c05-90b1-2c7e1fbeb0b0",
+  "formal_metrics": {
+    "cwork-3m": {
+      "A": {
+        "answerable_count": null,
+        "answerable_system_error_count": null,
+        "build_seconds": null,
+        "exact": null,
+        "exact_count": null,
+        "exact_hits": null,
+        "exact_system_error_count": null,
+        "index_bytes": null,
+        "leak_count": null,
+        "no_answer": null,
+        "no_answer_correct": null,
+        "no_answer_count": null,
+        "no_answer_system_error_count": null,
+        "p95_ms": null,
+        "peak_rss_bytes": null,
+        "recall_at_10": null,
+        "recall_hits_at_10": null,
+        "status": "NOT_MEASURED_STARTUP_ABORT",
+        "system_error_count": null,
+        "timeout_count": null,
+        "total_count": null
+      },
+      "B": {
+        "answerable_count": null,
+        "answerable_system_error_count": null,
+        "build_seconds": null,
+        "exact": null,
+        "exact_count": null,
+        "exact_hits": null,
+        "exact_system_error_count": null,
+        "index_bytes": null,
+        "leak_count": null,
+        "no_answer": null,
+        "no_answer_correct": null,
+        "no_answer_count": null,
+        "no_answer_system_error_count": null,
+        "p95_ms": null,
+        "peak_rss_bytes": null,
+        "recall_at_10": null,
+        "recall_hits_at_10": null,
+        "status": "NOT_RUN_PREVIOUS_CANDIDATE_ABORT",
+        "system_error_count": null,
+        "timeout_count": null,
+        "total_count": null
+      }
+    },
+    "docdb-touqian": {
+      "A": {
+        "answerable_count": null,
+        "answerable_system_error_count": null,
+        "build_seconds": null,
+        "exact": null,
+        "exact_count": null,
+        "exact_hits": null,
+        "exact_system_error_count": null,
+        "index_bytes": null,
+        "leak_count": null,
+        "no_answer": null,
+        "no_answer_correct": null,
+        "no_answer_count": null,
+        "no_answer_system_error_count": null,
+        "p95_ms": null,
+        "peak_rss_bytes": null,
+        "recall_at_10": null,
+        "recall_hits_at_10": null,
+        "status": "NOT_MEASURED_STARTUP_ABORT",
+        "system_error_count": null,
+        "timeout_count": null,
+        "total_count": null
+      },
+      "B": {
+        "answerable_count": null,
+        "answerable_system_error_count": null,
+        "build_seconds": null,
+        "exact": null,
+        "exact_count": null,
+        "exact_hits": null,
+        "exact_system_error_count": null,
+        "index_bytes": null,
+        "leak_count": null,
+        "no_answer": null,
+        "no_answer_correct": null,
+        "no_answer_count": null,
+        "no_answer_system_error_count": null,
+        "p95_ms": null,
+        "peak_rss_bytes": null,
+        "recall_at_10": null,
+        "recall_hits_at_10": null,
+        "status": "NOT_RUN_PREVIOUS_CANDIDATE_ABORT",
+        "system_error_count": null,
+        "timeout_count": null,
+        "total_count": null
+      }
+    },
+    "spbp-2027": {
+      "A": {
+        "answerable_count": null,
+        "answerable_system_error_count": null,
+        "build_seconds": null,
+        "exact": null,
+        "exact_count": null,
+        "exact_hits": null,
+        "exact_system_error_count": null,
+        "index_bytes": null,
+        "leak_count": null,
+        "no_answer": null,
+        "no_answer_correct": null,
+        "no_answer_count": null,
+        "no_answer_system_error_count": null,
+        "p95_ms": null,
+        "peak_rss_bytes": null,
+        "recall_at_10": null,
+        "recall_hits_at_10": null,
+        "status": "NOT_MEASURED_STARTUP_ABORT",
+        "system_error_count": null,
+        "timeout_count": null,
+        "total_count": null
+      },
+      "B": {
+        "answerable_count": null,
+        "answerable_system_error_count": null,
+        "build_seconds": null,
+        "exact": null,
+        "exact_count": null,
+        "exact_hits": null,
+        "exact_system_error_count": null,
+        "index_bytes": null,
+        "leak_count": null,
+        "no_answer": null,
+        "no_answer_correct": null,
+        "no_answer_count": null,
+        "no_answer_system_error_count": null,
+        "p95_ms": null,
+        "peak_rss_bytes": null,
+        "recall_at_10": null,
+        "recall_hits_at_10": null,
+        "status": "NOT_RUN_PREVIOUS_CANDIDATE_ABORT",
+        "system_error_count": null,
+        "timeout_count": null,
+        "total_count": null
+      }
+    }
+  },
+  "freeze_privacy_roles": {
+    "before_claims": 1,
+    "builder_runs": 1,
+    "candidate_service_ready": false,
+    "freeze_artifacts_recomputed": true,
+    "freeze_claims": 1,
+    "freeze_verifier_claims": 1,
+    "native_upstream_verified": true,
+    "privacy_readiness": "PASS",
+    "privacy_receipt_binding_recomputed": true,
+    "readiness_before_before_before_freeze": true,
+    "role_separation_level": "PROCESS_LEVEL_SEPARATION_SINGLE_UID",
+    "roles_verified": true,
+    "runtime_policy_readiness": "PASS",
+    "runtime_readiness_recomputed": true,
+    "spawn_precheck_passed_for_created_process": true,
+    "verifier_runs": 1
+  },
+  "gateway_readiness": {
+    "A": {
+      "https_query_api": null,
+      "kb_grants_server_side": null,
+      "no_direct_nas_or_search_credentials": null,
+      "per_gateway_identity": null
+    },
+    "B": {
+      "https_query_api": null,
+      "kb_grants_server_side": null,
+      "no_direct_nas_or_search_credentials": null,
+      "per_gateway_identity": null
+    }
+  },
+  "limits": {
+    "formal_evaluation_complete": false,
+    "full_production_invariance_proven": false,
+    "historical_drift_cleared": false,
+    "private_data_or_digests_exported": false,
+    "production_cutover_allowed": false,
+    "runtime_source_or_configuration_repaired": false,
+    "schema_valid_v3_aggregate_available": false,
+    "synthetic_scores_used_as_formal": false
+  },
+  "mechanical_complexity": {
+    "A": {
+      "backup_restore_steps_count": 4,
+      "components_count": 1,
+      "upgrade_steps_count": 6
+    },
+    "B": {
+      "backup_restore_steps_count": 3,
+      "components_count": 2,
+      "upgrade_steps_count": 7
+    },
+    "basis": "FROZEN_RUNBOOK_STEP_COUNTS_NOT_FORMAL_PERFORMANCE"
+  },
+  "participating_libraries": [
+    "cwork-3m",
+    "docdb-touqian",
+    "spbp-2027"
+  ],
+  "pool": {
+    "cwork-3m": {
+      "tier": "T3",
+      "total_count": 42
+    },
+    "docdb-touqian": {
+      "tier": "T3",
+      "total_count": 31
+    },
+    "spbp-2027": {
+      "tier": "T2",
+      "total_count": 42
+    }
+  },
+  "production_comparison": {
+    "all_items_measured": false,
+    "containers_unchanged": true,
+    "existing_indices_unchanged": null,
+    "existing_indices_unchanged_measured_projection": true,
+    "gateway_health_content_unchanged": true,
+    "gateway_unchanged": true,
+    "nas_unchanged": null,
+    "nas_unchanged_measured_projection": true,
+    "production_config_unchanged": false,
+    "production_config_unchanged_measured_projection": true,
+    "services_unchanged": false,
+    "three_gateways_healthy": true,
+    "volumes_unchanged": true
+  },
+  "reason": "CANDIDATE_A_STARTUP_FAILED_BEFORE_PRIVATE_SEARCH",
+  "retention": {
+    "all_archived_originals_equal": true,
+    "archived_original_files": 1222,
+    "frozen_source_unchanged": true,
+    "holdout_freeze_audit_history_retained": true,
+    "old_original_files_bytes_equal": true,
+    "old_void_strictly_valid": true,
+    "old_window_permanently_invalid": true,
+    "original_materials": 96,
+    "original_materials_bytes_equal": true,
+    "runtime_policy_bytes_unchanged": true
+  },
+  "run_id": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af",
+  "run_order": [
+    "a",
+    "b"
+  ],
+  "schema": "cwk.rt055.amendment5-formal-abort.v1",
+  "startup_diagnostic": {
+    "class_markers": {
+      "DIRECTORY_CREATION_FAILURE": 2,
+      "ENVIRONMENT_LOG_FAILURE": 0,
+      "LOG_CONFIGURATION_FAILURE": 480,
+      "NIO_ACCESS_FAILURE": 0
+    },
+    "frozen_code_or_policy_changes": 0,
+    "log_files_checked": 1,
+    "new_attempts": 0,
+    "new_query_calls": 0,
+    "private_holdout_reopened": false,
+    "protected_log_path_error_lines": 36,
+    "protected_log_path_near_error_lines": 36,
+    "raw_logs_or_paths_exported": false,
+    "startup_failure_root_cause_fully_proven": false,
+    "status": "READONLY_CLASSIFICATION_COMPLETE"
+  },
+  "window_decision": "INVALID",
+  "window_id": "835c5188-0f29-4f41-8fe6-119b61917e2d"
+}

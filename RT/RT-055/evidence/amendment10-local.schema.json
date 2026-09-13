@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "data_class",
+    "status",
+    "source_commit",
+    "red_tests",
+    "red_failures",
+    "red_error",
+    "green",
+    "compiled_files",
+    "actual_frozen_public_source_executed",
+    "guard_not_relaxed",
+    "source_tamper_rejected",
+    "dependency_tamper_rejected",
+    "removed_prequery_gate_mutation_rejected",
+    "real_legacy_void_traversal_without_popen_tested",
+    "builder_verifier_pool_scoring_workload_unchanged",
+    "full_repository_ci_claimed"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.amendment10-local.v1"
+    },
+    "data_class": {
+      "const": "PUBLIC_SYNTHETIC_ONLY"
+    },
+    "status": {
+      "const": "PASS"
+    },
+    "source_commit": {
+      "const": "43207eefbe30557b53d556055fa5438c8afe47ee"
+    },
+    "red_tests": {
+      "const": 19
+    },
+    "red_failures": {
+      "const": 1
+    },
+    "red_error": {
+      "const": "NO_POPEN"
+    },
+    "green": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tests",
+        "failures",
+        "errors",
+        "skipped",
+        "exit_code"
+      ],
+      "properties": {
+        "tests": {
+          "const": 258
+        },
+        "failures": {
+          "const": 0
+        },
+        "errors": {
+          "const": 0
+        },
+        "skipped": {
+          "const": 0
+        },
+        "exit_code": {
+          "const": 0
+        }
+      }
+    },
+    "compiled_files": {
+      "const": 142
+    },
+    "actual_frozen_public_source_executed": {
+      "const": true
+    },
+    "guard_not_relaxed": {
+      "const": true
+    },
+    "source_tamper_rejected": {
+      "const": true
+    },
+    "dependency_tamper_rejected": {
+      "const": true
+    },
+    "removed_prequery_gate_mutation_rejected": {
+      "const": true
+    },
+    "real_legacy_void_traversal_without_popen_tested": {
+      "const": true
+    },
+    "builder_verifier_pool_scoring_workload_unchanged": {
+      "const": true
+    },
+    "full_repository_ci_claimed": {
+      "const": false
+    }
+  }
+}

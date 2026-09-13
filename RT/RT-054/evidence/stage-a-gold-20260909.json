@@ -1,0 +1,1731 @@
+{
+  "schema": "cwk.rt054.retrieval-gold.v1",
+  "version": 3,
+  "frozen_at": "2026-09-09",
+  "case_count": 72,
+  "top_k": 10,
+  "source_policy": "48 independently reviewed RT-051 cases plus 24 repository-fixture-backed RT-054 cases",
+  "categories": {
+    "availability": 6,
+    "body": 6,
+    "company_person": 8,
+    "date": 8,
+    "exact_identifier": 6,
+    "no_answer": 6,
+    "permission": 6,
+    "short_cjk": 6,
+    "table": 8,
+    "title": 6,
+    "version": 6
+  },
+  "scoring": {
+    "document_recall_at_10": {
+      "applies_to_outcomes": [
+        "hits"
+      ],
+      "pass": ">=0.90 and not below legacy"
+    },
+    "exact_identifier_recall_at_10": {
+      "category": "exact_identifier",
+      "exclude_expected_outcomes": [
+        "no_evidence"
+      ],
+      "pass": "1.00"
+    },
+    "permission_leaks": {
+      "category": "permission",
+      "pass": "0 and every behavior_assertion true"
+    },
+    "table_evidence": {
+      "category": "table",
+      "pass": "all must_match atoms in one returned evidence unit and locator equals expected_locator"
+    }
+  },
+  "cases": [
+    {
+      "id": "G01",
+      "origin": "RT-051/A11",
+      "category": "body",
+      "kb_id": "liba",
+      "query": "天枢",
+      "expected_doc_ids": [
+        "docdb:601"
+      ],
+      "expected_outcome": "hits",
+      "rationale": "『天枢』只在 601 正文；标题/路径均无",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G02",
+      "origin": "RT-051/A11",
+      "category": "body",
+      "kb_id": "liba",
+      "query": "蓝图",
+      "expected_doc_ids": [
+        "docdb:603"
+      ],
+      "expected_outcome": "hits",
+      "rationale": "marker 在约 2400 字之后（正文中后部），标题无",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G03",
+      "origin": "RT-051/A11",
+      "category": "body",
+      "kb_id": "liba",
+      "query": "灰度",
+      "expected_doc_ids": [
+        "docdb:604"
+      ],
+      "expected_outcome": "hits",
+      "rationale": "约 3600 字长文跨块召回，标题无",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G04",
+      "origin": "RT-051/A11",
+      "category": "body",
+      "kb_id": "libb",
+      "query": "基线",
+      "expected_doc_ids": [
+        "docdb:701"
+      ],
+      "expected_outcome": "hits",
+      "rationale": "『基线』只在 701 正文；A 库全库无",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G05",
+      "origin": "RT-051/A11",
+      "category": "body",
+      "kb_id": "libb",
+      "query": "对齐",
+      "expected_doc_ids": [
+        "docdb:702"
+      ],
+      "expected_outcome": "hits",
+      "rationale": "marker 在长文后半部，标题无",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G06",
+      "origin": "RT-051/A11",
+      "category": "body",
+      "kb_id": "libb",
+      "query": "脱敏",
+      "expected_doc_ids": [
+        "docdb:703"
+      ],
+      "expected_outcome": "hits",
+      "rationale": "『脱敏』只在 703 正文",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G07",
+      "origin": "RT-051/A11",
+      "category": "short_cjk",
+      "kb_id": "liba",
+      "query": "熔断",
+      "expected_doc_ids": [
+        "docdb:602"
+      ],
+      "expected_outcome": "hits",
+      "rationale": "2 字词，只出现在 602 正文",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G08",
+      "origin": "RT-051/A11",
+      "category": "short_cjk",
+      "kb_id": "liba",
+      "query": "巡检",
+      "expected_doc_ids": [
+        "docdb:605"
+      ],
+      "expected_outcome": "hits",
+      "rationale": "2 字词，只出现在 605 正文",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G09",
+      "origin": "RT-051/A11",
+      "category": "short_cjk",
+      "kb_id": "liba",
+      "query": "锚点",
+      "expected_doc_ids": [
+        "docdb:610"
+      ],
+      "expected_outcome": "hits",
+      "rationale": "2 字词，只出现在 610 正文",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G10",
+      "origin": "RT-051/A11",
+      "category": "short_cjk",
+      "kb_id": "libb",
+      "query": "采样",
+      "expected_doc_ids": [
+        "docdb:710"
+      ],
+      "expected_outcome": "hits",
+      "rationale": "2 字词，只出现在 710 正文",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G11",
+      "origin": "RT-051/A11",
+      "category": "short_cjk",
+      "kb_id": "libb",
+      "query": "隔离",
+      "expected_doc_ids": [
+        "docdb:711"
+      ],
+      "expected_outcome": "hits",
+      "rationale": "2 字词，只出现在 711 正文",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G12",
+      "origin": "RT-051/A11",
+      "category": "short_cjk",
+      "kb_id": "liba",
+      "query": "压测",
+      "expected_doc_ids": [
+        "docdb:606"
+      ],
+      "expected_outcome": "hits",
+      "rationale": "2 字词，只出现在 606 正文",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G13",
+      "origin": "RT-051/A11",
+      "category": "exact_identifier",
+      "kb_id": "liba",
+      "query": "AB-017",
+      "expected_doc_ids": [
+        "docdb:607"
+      ],
+      "expected_outcome": "hits",
+      "rationale": "编号只在正文；C07：AB-017 是单一 ASCII 词项",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G14",
+      "origin": "RT-051/A11",
+      "category": "exact_identifier",
+      "kb_id": "liba",
+      "query": "XY-2026-004",
+      "expected_doc_ids": [
+        "docdb:608"
+      ],
+      "expected_outcome": "hits",
+      "rationale": "复合编号整词匹配",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G15",
+      "origin": "RT-051/A11",
+      "category": "exact_identifier",
+      "kb_id": "libb",
+      "query": "BB-204",
+      "expected_doc_ids": [
+        "docdb:707"
+      ],
+      "expected_outcome": "hits",
+      "rationale": "B 库正文编号",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G16",
+      "origin": "RT-051/A11",
+      "category": "exact_identifier",
+      "kb_id": "libb",
+      "query": "QW-77",
+      "expected_doc_ids": [
+        "docdb:708"
+      ],
+      "expected_outcome": "hits",
+      "rationale": "B 库正文编号",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G17",
+      "origin": "RT-051/A11",
+      "category": "exact_identifier",
+      "kb_id": "libb",
+      "query": "RT-33",
+      "expected_doc_ids": [
+        "docdb:709"
+      ],
+      "expected_outcome": "hits",
+      "rationale": "B 库正文编号",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G18",
+      "origin": "RT-051/A11",
+      "category": "exact_identifier",
+      "kb_id": "liba",
+      "query": "017",
+      "expected_doc_ids": [],
+      "expected_outcome": "no_evidence",
+      "rationale": "编号语义：017 不得命中 AB-017（矩阵失败样例）",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G19",
+      "origin": "RT-051/A11",
+      "category": "no_answer",
+      "kb_id": "liba",
+      "query": "麒麟凤凰",
+      "expected_doc_ids": [],
+      "expected_outcome": "no_evidence",
+      "rationale": "查询词逐字不在该库全部正文/标题/路径中（Phase 0 自证）",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G20",
+      "origin": "RT-051/A11",
+      "category": "no_answer",
+      "kb_id": "liba",
+      "query": "甲乙丙丁",
+      "expected_doc_ids": [],
+      "expected_outcome": "no_evidence",
+      "rationale": "查询词逐字不在该库全部正文/标题/路径中（Phase 0 自证）",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G21",
+      "origin": "RT-051/A11",
+      "category": "no_answer",
+      "kb_id": "liba",
+      "query": "恐龙化石",
+      "expected_doc_ids": [],
+      "expected_outcome": "no_evidence",
+      "rationale": "查询词逐字不在该库全部正文/标题/路径中（Phase 0 自证）",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G22",
+      "origin": "RT-051/A11",
+      "category": "no_answer",
+      "kb_id": "libb",
+      "query": "琥珀陨石",
+      "expected_doc_ids": [],
+      "expected_outcome": "no_evidence",
+      "rationale": "查询词逐字不在该库全部正文/标题/路径中（Phase 0 自证）",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G23",
+      "origin": "RT-051/A11",
+      "category": "no_answer",
+      "kb_id": "libb",
+      "query": "戊己庚辛",
+      "expected_doc_ids": [],
+      "expected_outcome": "no_evidence",
+      "rationale": "查询词逐字不在该库全部正文/标题/路径中（Phase 0 自证）",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G24",
+      "origin": "RT-051/A11",
+      "category": "no_answer",
+      "kb_id": "libb",
+      "query": "壬癸乾坤",
+      "expected_doc_ids": [],
+      "expected_outcome": "no_evidence",
+      "rationale": "查询词逐字不在该库全部正文/标题/路径中（Phase 0 自证）",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G43",
+      "origin": "RT-051/A11",
+      "category": "title",
+      "kb_id": "liba",
+      "query": "里程碑",
+      "expected_doc_ids": [
+        "docdb:612"
+      ],
+      "expected_outcome": "hits",
+      "rationale": "只在标题；融合响应 body_rank 须为 None（路线分离）",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G44",
+      "origin": "RT-051/A11",
+      "category": "title",
+      "kb_id": "liba",
+      "query": "审计底稿",
+      "expected_doc_ids": [
+        "docdb:613"
+      ],
+      "expected_outcome": "hits",
+      "rationale": "只在标题",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G45",
+      "origin": "RT-051/A11",
+      "category": "title",
+      "kb_id": "liba",
+      "query": "验收清单",
+      "expected_doc_ids": [
+        "docdb:614"
+      ],
+      "expected_outcome": "hits",
+      "rationale": "只在标题",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G46",
+      "origin": "RT-051/A11",
+      "category": "title",
+      "kb_id": "libb",
+      "query": "决策纪要",
+      "expected_doc_ids": [
+        "docdb:712"
+      ],
+      "expected_outcome": "hits",
+      "rationale": "只在标题",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G47",
+      "origin": "RT-051/A11",
+      "category": "title",
+      "kb_id": "libb",
+      "query": "移交档案",
+      "expected_doc_ids": [
+        "docdb:713"
+      ],
+      "expected_outcome": "hits",
+      "rationale": "只在标题",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G48",
+      "origin": "RT-051/A11",
+      "category": "title",
+      "kb_id": "libb",
+      "query": "答疑记录",
+      "expected_doc_ids": [
+        "docdb:714"
+      ],
+      "expected_outcome": "hits",
+      "rationale": "只在标题",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G25",
+      "origin": "RT-051/A11",
+      "category": "version",
+      "kb_id": "liba",
+      "query": "天枢",
+      "expected_doc_ids": [
+        "docdb:601"
+      ],
+      "expected_outcome": "hits",
+      "rationale": "源覆写升 v2：旧 ref 409、新 read 含修订标记、钩子重建后融合仍召回",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G26",
+      "origin": "RT-051/A11",
+      "category": "version",
+      "kb_id": "liba",
+      "query": "AB-017",
+      "expected_doc_ids": [
+        "docdb:607"
+      ],
+      "expected_outcome": "hits",
+      "rationale": "源覆写升 v2：旧 ref 409、新 read 含修订标记、钩子重建后融合仍召回",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G27",
+      "origin": "RT-051/A11",
+      "category": "version",
+      "kb_id": "liba",
+      "query": "锚点",
+      "expected_doc_ids": [
+        "docdb:610"
+      ],
+      "expected_outcome": "hits",
+      "rationale": "源覆写升 v2：旧 ref 409、新 read 含修订标记、钩子重建后融合仍召回",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G28",
+      "origin": "RT-051/A11",
+      "category": "version",
+      "kb_id": "libb",
+      "query": "基线",
+      "expected_doc_ids": [
+        "docdb:701"
+      ],
+      "expected_outcome": "hits",
+      "rationale": "源覆写升 v2：旧 ref 409、新 read 含修订标记、钩子重建后融合仍召回",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G29",
+      "origin": "RT-051/A11",
+      "category": "version",
+      "kb_id": "libb",
+      "query": "BB-204",
+      "expected_doc_ids": [
+        "docdb:707"
+      ],
+      "expected_outcome": "hits",
+      "rationale": "源覆写升 v2：旧 ref 409、新 read 含修订标记、钩子重建后融合仍召回",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G30",
+      "origin": "RT-051/A11",
+      "category": "version",
+      "kb_id": "libb",
+      "query": "采样",
+      "expected_doc_ids": [
+        "docdb:710"
+      ],
+      "expected_outcome": "hits",
+      "rationale": "源覆写升 v2：旧 ref 409、新 read 含修订标记、钩子重建后融合仍召回",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G31",
+      "origin": "RT-051/A11",
+      "category": "permission",
+      "kb_id": "liba",
+      "query": "基线",
+      "expected_doc_ids": [],
+      "expected_outcome": "authorized_behavior",
+      "rationale": "liba-token 访问 ?kb=libb → 403，不泄露 B 库 title/计数",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "behavior_assertions": {
+        "status": 403,
+        "payload_clean": true
+      },
+      "action": {
+        "principal": "liba-token",
+        "operation": "search",
+        "requested_kb": "libb",
+        "query": "基线"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G32",
+      "origin": "RT-051/A11",
+      "category": "permission",
+      "kb_id": "liba",
+      "query": "基线",
+      "expected_doc_ids": [],
+      "expected_outcome": "authorized_behavior",
+      "rationale": "?kb=liba 查 B 库 marker『基线』→ 融合与 metadata 双零命中",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "behavior_assertions": {
+        "fusion_total": 0,
+        "metadata_total": 0
+      },
+      "action": {
+        "principal": "liba-token",
+        "operation": "search",
+        "requested_kb": "liba",
+        "query": "基线"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G33",
+      "origin": "RT-051/A11",
+      "category": "permission",
+      "kb_id": "liba",
+      "query": "基线",
+      "expected_doc_ids": [
+        "docdb:701"
+      ],
+      "expected_outcome": "authorized_behavior",
+      "rationale": "admin 多库挂载查 ?kb=libb『基线』→ 200 命中 701（隔离不是藏死）",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "behavior_assertions": {
+        "status": 200,
+        "hit": true,
+        "expected_doc_id": "docdb:701"
+      },
+      "action": {
+        "principal": "admin",
+        "operation": "search",
+        "requested_kb": "libb",
+        "query": "基线"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G34",
+      "origin": "RT-051/A11",
+      "category": "permission",
+      "kb_id": "liba",
+      "query": "天枢",
+      "expected_doc_ids": [],
+      "expected_outcome": "authorized_behavior",
+      "rationale": "撤权后同 token 再查 liba → 401（即刻生效）",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "behavior_assertions": {
+        "status": 401
+      },
+      "action": {
+        "principal": "revoked-liba-token",
+        "operation": "search",
+        "requested_kb": "liba",
+        "query": "天枢"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G35",
+      "origin": "RT-051/A11",
+      "category": "permission",
+      "kb_id": "liba",
+      "query": "",
+      "expected_doc_ids": [],
+      "expected_outcome": "authorized_behavior",
+      "rationale": "ref 过期 → 410；重新 resolve 恢复 200",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "behavior_assertions": {
+        "expired_410": true,
+        "resolved": 200
+      },
+      "action": {
+        "principal": "liba-token",
+        "operation": "read_then_resolve",
+        "requested_kb": "liba",
+        "reference_state": "expired"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G36",
+      "origin": "RT-051/A11",
+      "category": "permission",
+      "kb_id": "liba",
+      "query": "",
+      "expected_doc_ids": [],
+      "expected_outcome": "authorized_behavior",
+      "rationale": "篡改句柄尾部两字符 → 400",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "behavior_assertions": {
+        "status": 400
+      },
+      "action": {
+        "principal": "liba-token",
+        "operation": "read",
+        "requested_kb": "liba",
+        "reference_state": "tampered"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G37",
+      "origin": "RT-051/A11",
+      "category": "availability",
+      "kb_id": "libb",
+      "query": "",
+      "expected_doc_ids": [],
+      "expected_outcome": "availability_behavior",
+      "rationale": "词法代缺失 → 融合 503；同 ref read 仍 200",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "behavior_assertions": {
+        "fusion": 503,
+        "read": 200
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G38",
+      "origin": "RT-051/A11",
+      "category": "availability",
+      "kb_id": "libb",
+      "query": "",
+      "expected_doc_ids": [],
+      "expected_outcome": "availability_behavior",
+      "rationale": "词法代损坏 → 融合 503；read 仍 200",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "behavior_assertions": {
+        "fusion": 503,
+        "read": 200
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G41",
+      "origin": "RT-051/A11",
+      "category": "availability",
+      "kb_id": "libb",
+      "query": "",
+      "expected_doc_ids": [],
+      "expected_outcome": "availability_behavior",
+      "rationale": "词法坏期间 metadata 模式不受影响 → 200",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "behavior_assertions": {
+        "metadata": 200
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G39",
+      "origin": "RT-051/A11",
+      "category": "availability",
+      "kb_id": "libb",
+      "query": "",
+      "expected_doc_ids": [],
+      "expected_outcome": "availability_behavior",
+      "rationale": "词法代 generation 与资格域不符 → 503（不冒充）",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "behavior_assertions": {
+        "before": 200,
+        "stale": 503
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G40",
+      "origin": "RT-051/A11",
+      "category": "availability",
+      "kb_id": "libb",
+      "query": "",
+      "expected_doc_ids": [],
+      "expected_outcome": "availability_behavior",
+      "rationale": "raw-index 不可读 → list 503 且无正文内容",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "behavior_assertions": {
+        "status": 503,
+        "clean": true
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G42",
+      "origin": "RT-051/A11",
+      "category": "availability",
+      "kb_id": "libb",
+      "query": "",
+      "expected_doc_ids": [],
+      "expected_outcome": "availability_behavior",
+      "rationale": "refresh 钩子自动重建 → 融合恢复 200",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-051/a11-review.md"
+      },
+      "behavior_assertions": {
+        "heal_status": 200,
+        "lexical": "rebuilt"
+      },
+      "fixture_scope": "rt051_a11"
+    },
+    {
+      "id": "G49",
+      "origin": "RT-054/Stage-A-synthetic",
+      "fixture": "RT/RT-054/evidence/stage-a-gold-fixture-20260909.json",
+      "category": "company_person",
+      "kb_id": "liba",
+      "query": "北京星河科技有限公司",
+      "expected_doc_ids": [
+        "synthetic:801"
+      ],
+      "expected_outcome": "hits",
+      "evidence_excerpt": "合同甲方：北京星河科技有限公司。",
+      "expected_locator": {
+        "page_start": 2
+      },
+      "must_match": [
+        "北京",
+        "星河科技有限公司"
+      ],
+      "must_not_match_doc_ids": [
+        "synthetic:802"
+      ],
+      "rationale": "同主体词、不同城市的 802 是真实近邻负例。",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
+        "reviewed_at": "2026-09-09T15:52:00+08:00"
+      },
+      "fixture_scope": "rt054_extension"
+    },
+    {
+      "id": "G50",
+      "origin": "RT-054/Stage-A-synthetic",
+      "fixture": "RT/RT-054/evidence/stage-a-gold-fixture-20260909.json",
+      "category": "company_person",
+      "kb_id": "liba",
+      "query": "上海星河科技有限公司",
+      "expected_doc_ids": [
+        "synthetic:802"
+      ],
+      "expected_outcome": "hits",
+      "evidence_excerpt": "合同乙方：上海星河科技有限公司。",
+      "expected_locator": {
+        "page_start": 3
+      },
+      "must_match": [
+        "上海",
+        "星河科技有限公司"
+      ],
+      "must_not_match_doc_ids": [
+        "synthetic:801"
+      ],
+      "rationale": "同主体词、不同城市的 801 是真实近邻负例。",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
+        "reviewed_at": "2026-09-09T15:52:00+08:00"
+      },
+      "fixture_scope": "rt054_extension"
+    },
+    {
+      "id": "G51",
+      "origin": "RT-054/Stage-A-synthetic",
+      "fixture": "RT/RT-054/evidence/stage-a-gold-fixture-20260909.json",
+      "category": "company_person",
+      "kb_id": "liba",
+      "query": "陈雨桐",
+      "expected_doc_ids": [
+        "synthetic:803"
+      ],
+      "expected_outcome": "hits",
+      "evidence_excerpt": "项目负责人：陈雨桐；复核人：周宁。",
+      "expected_locator": {
+        "section_path": [
+          "项目分工"
+        ]
+      },
+      "must_match": [
+        "陈雨桐"
+      ],
+      "must_not_match_doc_ids": [
+        "synthetic:806",
+        "synthetic:807"
+      ],
+      "rationale": "完整人名匹配，不把其他负责人文档当目标。",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
+        "reviewed_at": "2026-09-09T15:52:00+08:00"
+      },
+      "fixture_scope": "rt054_extension"
+    },
+    {
+      "id": "G52",
+      "origin": "RT-054/Stage-A-synthetic",
+      "fixture": "RT/RT-054/evidence/stage-a-gold-fixture-20260909.json",
+      "category": "company_person",
+      "kb_id": "liba",
+      "query": "周宁",
+      "expected_doc_ids": [
+        "synthetic:803"
+      ],
+      "expected_outcome": "hits",
+      "evidence_excerpt": "项目负责人：陈雨桐；复核人：周宁。",
+      "expected_locator": {
+        "section_path": [
+          "项目分工"
+        ]
+      },
+      "must_match": [
+        "周宁"
+      ],
+      "must_not_match_doc_ids": [
+        "synthetic:806",
+        "synthetic:807"
+      ],
+      "rationale": "验证同一证据单元的第二个人名。",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
+        "reviewed_at": "2026-09-09T15:52:00+08:00"
+      },
+      "fixture_scope": "rt054_extension"
+    },
+    {
+      "id": "G53",
+      "origin": "RT-054/Stage-A-synthetic",
+      "fixture": "RT/RT-054/evidence/stage-a-gold-fixture-20260909.json",
+      "category": "company_person",
+      "kb_id": "libb",
+      "query": "杭州云帆数据有限公司",
+      "expected_doc_ids": [
+        "synthetic:804"
+      ],
+      "expected_outcome": "hits",
+      "evidence_excerpt": "供应商：杭州云帆数据有限公司。",
+      "expected_locator": {
+        "page_start": 1
+      },
+      "must_match": [
+        "杭州",
+        "云帆数据有限公司"
+      ],
+      "must_not_match_doc_ids": [
+        "synthetic:805"
+      ],
+      "rationale": "805 是同主体词不同城市负例。",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
+        "reviewed_at": "2026-09-09T15:52:00+08:00"
+      },
+      "fixture_scope": "rt054_extension"
+    },
+    {
+      "id": "G54",
+      "origin": "RT-054/Stage-A-synthetic",
+      "fixture": "RT/RT-054/evidence/stage-a-gold-fixture-20260909.json",
+      "category": "company_person",
+      "kb_id": "libb",
+      "query": "深圳云帆数据有限公司",
+      "expected_doc_ids": [
+        "synthetic:805"
+      ],
+      "expected_outcome": "hits",
+      "evidence_excerpt": "供应商：深圳云帆数据有限公司。",
+      "expected_locator": {
+        "page_start": 1
+      },
+      "must_match": [
+        "深圳",
+        "云帆数据有限公司"
+      ],
+      "must_not_match_doc_ids": [
+        "synthetic:804"
+      ],
+      "rationale": "804 是同主体词不同城市负例。",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
+        "reviewed_at": "2026-09-09T15:52:00+08:00"
+      },
+      "fixture_scope": "rt054_extension"
+    },
+    {
+      "id": "G55",
+      "origin": "RT-054/Stage-A-synthetic",
+      "fixture": "RT/RT-054/evidence/stage-a-gold-fixture-20260909.json",
+      "category": "company_person",
+      "kb_id": "libb",
+      "query": "王书航",
+      "expected_doc_ids": [
+        "synthetic:806"
+      ],
+      "expected_outcome": "hits",
+      "evidence_excerpt": "审批人王书航于会后签字确认。",
+      "expected_locator": {
+        "paragraph_start": 18
+      },
+      "must_match": [
+        "王书航"
+      ],
+      "must_not_match_doc_ids": [
+        "synthetic:807"
+      ],
+      "rationale": "807 是同角色的另一人名负例。",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
+        "reviewed_at": "2026-09-09T15:52:00+08:00"
+      },
+      "fixture_scope": "rt054_extension"
+    },
+    {
+      "id": "G56",
+      "origin": "RT-054/Stage-A-synthetic",
+      "fixture": "RT/RT-054/evidence/stage-a-gold-fixture-20260909.json",
+      "category": "company_person",
+      "kb_id": "libb",
+      "query": "李沐阳",
+      "expected_doc_ids": [
+        "synthetic:807"
+      ],
+      "expected_outcome": "hits",
+      "evidence_excerpt": "联系人：李沐阳，职责为交付协调。",
+      "expected_locator": {
+        "paragraph_start": 7
+      },
+      "must_match": [
+        "李沐阳"
+      ],
+      "must_not_match_doc_ids": [
+        "synthetic:806"
+      ],
+      "rationale": "806 是同角色的另一人名负例。",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
+        "reviewed_at": "2026-09-09T15:52:00+08:00"
+      },
+      "fixture_scope": "rt054_extension"
+    },
+    {
+      "id": "G57",
+      "origin": "RT-054/Stage-A-synthetic",
+      "fixture": "RT/RT-054/evidence/stage-a-gold-fixture-20260909.json",
+      "category": "date",
+      "kb_id": "liba",
+      "query": "2027-03-15",
+      "expected_doc_ids": [
+        "synthetic:808"
+      ],
+      "expected_outcome": "hits",
+      "evidence_excerpt": "计划上线日期：2027-03-15。验收日期：2027年3月18日。",
+      "expected_locator": {
+        "page_start": 4
+      },
+      "must_match": [
+        "2027-03-15"
+      ],
+      "must_not_match_doc_ids": [
+        "synthetic:810"
+      ],
+      "rationale": "同件另有 2027-03-18，另件有 2026-12-30。",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
+        "reviewed_at": "2026-09-09T15:52:00+08:00"
+      },
+      "fixture_scope": "rt054_extension"
+    },
+    {
+      "id": "G58",
+      "origin": "RT-054/Stage-A-synthetic",
+      "fixture": "RT/RT-054/evidence/stage-a-gold-fixture-20260909.json",
+      "category": "date",
+      "kb_id": "liba",
+      "query": "2027年3月18日",
+      "expected_doc_ids": [
+        "synthetic:808"
+      ],
+      "expected_outcome": "hits",
+      "evidence_excerpt": "计划上线日期：2027-03-15。验收日期：2027年3月18日。",
+      "expected_locator": {
+        "page_start": 4
+      },
+      "must_match": [
+        "2027年3月18日"
+      ],
+      "must_not_match_doc_ids": [
+        "synthetic:810"
+      ],
+      "rationale": "同件同时有另一日期，需保留查询日期。",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
+        "reviewed_at": "2026-09-09T15:52:00+08:00"
+      },
+      "fixture_scope": "rt054_extension"
+    },
+    {
+      "id": "G59",
+      "origin": "RT-054/Stage-A-synthetic",
+      "fixture": "RT/RT-054/evidence/stage-a-gold-fixture-20260909.json",
+      "category": "date",
+      "kb_id": "liba",
+      "query": "2026-12-31",
+      "expected_doc_ids": [
+        "synthetic:809"
+      ],
+      "expected_outcome": "hits",
+      "evidence_excerpt": "数据冻结日为 2026-12-31。",
+      "expected_locator": {
+        "section_path": [
+          "冻结口径"
+        ]
+      },
+      "must_match": [
+        "2026-12-31"
+      ],
+      "must_not_match_doc_ids": [
+        "synthetic:810"
+      ],
+      "rationale": "810 的同格式 2026-12-30 是近邻负例。",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
+        "reviewed_at": "2026-09-09T15:52:00+08:00"
+      },
+      "fixture_scope": "rt054_extension"
+    },
+    {
+      "id": "G60",
+      "origin": "RT-054/Stage-A-synthetic",
+      "fixture": "RT/RT-054/evidence/stage-a-gold-fixture-20260909.json",
+      "category": "date",
+      "kb_id": "liba",
+      "query": "2026年12月30日",
+      "expected_doc_ids": [
+        "synthetic:810"
+      ],
+      "expected_outcome": "hits",
+      "evidence_excerpt": "初审截止：2026-12-30（2026年12月30日）。",
+      "expected_locator": {
+        "section_path": [
+          "初审"
+        ]
+      },
+      "must_match": [
+        "2026年12月30日"
+      ],
+      "must_not_match_doc_ids": [
+        "synthetic:809"
+      ],
+      "rationale": "809 的相邻日 2026-12-31 是负例。",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
+        "reviewed_at": "2026-09-09T15:52:00+08:00"
+      },
+      "fixture_scope": "rt054_extension"
+    },
+    {
+      "id": "G61",
+      "origin": "RT-054/Stage-A-synthetic",
+      "fixture": "RT/RT-054/evidence/stage-a-gold-fixture-20260909.json",
+      "category": "date",
+      "kb_id": "libb",
+      "query": "2028-01-05",
+      "expected_doc_ids": [
+        "synthetic:811"
+      ],
+      "expected_outcome": "hits",
+      "evidence_excerpt": "续约生效：2028-01-05。",
+      "expected_locator": {
+        "page_start": 6
+      },
+      "must_match": [
+        "2028-01-05"
+      ],
+      "must_not_match_doc_ids": [
+        "synthetic:812"
+      ],
+      "rationale": "812 的同格式 2028-01-06 是负例。",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
+        "reviewed_at": "2026-09-09T15:52:00+08:00"
+      },
+      "fixture_scope": "rt054_extension"
+    },
+    {
+      "id": "G62",
+      "origin": "RT-054/Stage-A-synthetic",
+      "fixture": "RT/RT-054/evidence/stage-a-gold-fixture-20260909.json",
+      "category": "date",
+      "kb_id": "libb",
+      "query": "2028年1月6日",
+      "expected_doc_ids": [
+        "synthetic:812"
+      ],
+      "expected_outcome": "hits",
+      "evidence_excerpt": "付款日：2028-01-06（2028年1月6日）。",
+      "expected_locator": {
+        "page_start": 2
+      },
+      "must_match": [
+        "2028年1月6日"
+      ],
+      "must_not_match_doc_ids": [
+        "synthetic:811"
+      ],
+      "rationale": "811 的相邻日是负例。",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
+        "reviewed_at": "2026-09-09T15:52:00+08:00"
+      },
+      "fixture_scope": "rt054_extension"
+    },
+    {
+      "id": "G63",
+      "origin": "RT-054/Stage-A-synthetic",
+      "fixture": "RT/RT-054/evidence/stage-a-gold-fixture-20260909.json",
+      "category": "date",
+      "kb_id": "libb",
+      "query": "2026-09-09",
+      "expected_doc_ids": [
+        "synthetic:813"
+      ],
+      "expected_outcome": "hits",
+      "evidence_excerpt": "会议日期：2026-09-09。",
+      "expected_locator": {
+        "section_path": [
+          "会议记录"
+        ]
+      },
+      "must_match": [
+        "2026-09-09"
+      ],
+      "must_not_match_doc_ids": [
+        "synthetic:814"
+      ],
+      "rationale": "814 的同格式 2026-09-10 是负例。",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
+        "reviewed_at": "2026-09-09T15:52:00+08:00"
+      },
+      "fixture_scope": "rt054_extension"
+    },
+    {
+      "id": "G64",
+      "origin": "RT-054/Stage-A-synthetic",
+      "fixture": "RT/RT-054/evidence/stage-a-gold-fixture-20260909.json",
+      "category": "date",
+      "kb_id": "libb",
+      "query": "2026年9月10日",
+      "expected_doc_ids": [
+        "synthetic:814"
+      ],
+      "expected_outcome": "hits",
+      "evidence_excerpt": "复核日期：2026-09-10（2026年9月10日）。",
+      "expected_locator": {
+        "section_path": [
+          "复核记录"
+        ]
+      },
+      "must_match": [
+        "2026年9月10日"
+      ],
+      "must_not_match_doc_ids": [
+        "synthetic:813"
+      ],
+      "rationale": "813 的相邻日是负例。",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
+        "reviewed_at": "2026-09-09T15:52:00+08:00"
+      },
+      "fixture_scope": "rt054_extension"
+    },
+    {
+      "id": "G65",
+      "origin": "RT-054/Stage-A-synthetic",
+      "fixture": "RT/RT-054/evidence/stage-a-gold-fixture-20260909.json",
+      "category": "table",
+      "kb_id": "liba",
+      "query": "库存 SKU-X91 华东仓 37",
+      "expected_doc_ids": [
+        "synthetic:815"
+      ],
+      "expected_outcome": "hits",
+      "evidence_excerpt": "SKU｜仓库｜库存数量\nSKU-X91｜华东仓｜37",
+      "expected_locator": {
+        "sheet_name": "库存",
+        "row_start": 12,
+        "row_end": 12
+      },
+      "must_match": [
+        "库存",
+        "SKU-X91",
+        "华东仓",
+        "37"
+      ],
+      "must_not_match_doc_ids": [],
+      "rationale": "表头与目标行作为一个证据单元；同表另有只匹配部分字段的相邻行，禁止跨行拼接。",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
+        "reviewed_at": "2026-09-09T15:52:00+08:00"
+      },
+      "fixture_scope": "rt054_extension"
+    },
+    {
+      "id": "G66",
+      "origin": "RT-054/Stage-A-synthetic",
+      "fixture": "RT/RT-054/evidence/stage-a-gold-fixture-20260909.json",
+      "category": "table",
+      "kb_id": "liba",
+      "query": "项目 PRJ-204 负责人 陈雨桐",
+      "expected_doc_ids": [
+        "synthetic:816"
+      ],
+      "expected_outcome": "hits",
+      "evidence_excerpt": "项目编号｜负责人｜状态\nPRJ-204｜陈雨桐｜进行中",
+      "expected_locator": {
+        "sheet_name": "项目台账",
+        "row_start": 8,
+        "row_end": 8
+      },
+      "must_match": [
+        "项目",
+        "PRJ-204",
+        "负责人",
+        "陈雨桐"
+      ],
+      "must_not_match_doc_ids": [],
+      "rationale": "表头与目标行作为一个证据单元；同表另有只匹配部分字段的相邻行，禁止跨行拼接。",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
+        "reviewed_at": "2026-09-09T15:52:00+08:00"
+      },
+      "fixture_scope": "rt054_extension"
+    },
+    {
+      "id": "G67",
+      "origin": "RT-054/Stage-A-synthetic",
+      "fixture": "RT/RT-054/evidence/stage-a-gold-fixture-20260909.json",
+      "category": "table",
+      "kb_id": "liba",
+      "query": "华南区 预算 860万元",
+      "expected_doc_ids": [
+        "synthetic:817"
+      ],
+      "expected_outcome": "hits",
+      "evidence_excerpt": "区域｜预算｜状态\n华南区｜860万元｜已批准",
+      "expected_locator": {
+        "sheet_name": "预算",
+        "row_start": 5,
+        "row_end": 5
+      },
+      "must_match": [
+        "华南区",
+        "预算",
+        "860万元"
+      ],
+      "must_not_match_doc_ids": [],
+      "rationale": "表头与目标行作为一个证据单元；同表另有只匹配部分字段的相邻行，禁止跨行拼接。",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
+        "reviewed_at": "2026-09-09T15:52:00+08:00"
+      },
+      "fixture_scope": "rt054_extension"
+    },
+    {
+      "id": "G68",
+      "origin": "RT-054/Stage-A-synthetic",
+      "fixture": "RT/RT-054/evidence/stage-a-gold-fixture-20260909.json",
+      "category": "table",
+      "kb_id": "liba",
+      "query": "故障 E-771 级别 三级",
+      "expected_doc_ids": [
+        "synthetic:818"
+      ],
+      "expected_outcome": "hits",
+      "evidence_excerpt": "故障编号｜描述｜级别\nE-771｜网络抖动｜三级",
+      "expected_locator": {
+        "sheet_name": "故障清单",
+        "row_start": 21,
+        "row_end": 21
+      },
+      "must_match": [
+        "故障",
+        "E-771",
+        "级别",
+        "三级"
+      ],
+      "must_not_match_doc_ids": [],
+      "rationale": "表头与目标行作为一个证据单元；同表另有只匹配部分字段的相邻行，禁止跨行拼接。",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
+        "reviewed_at": "2026-09-09T15:52:00+08:00"
+      },
+      "fixture_scope": "rt054_extension"
+    },
+    {
+      "id": "G69",
+      "origin": "RT-054/Stage-A-synthetic",
+      "fixture": "RT/RT-054/evidence/stage-a-gold-fixture-20260909.json",
+      "category": "table",
+      "kb_id": "libb",
+      "query": "合同 CT-55 到期日 2027-11-30",
+      "expected_doc_ids": [
+        "synthetic:819"
+      ],
+      "expected_outcome": "hits",
+      "evidence_excerpt": "合同编号｜到期日｜状态\nCT-55｜2027-11-30｜待续签",
+      "expected_locator": {
+        "sheet_name": "合同台账",
+        "row_start": 9,
+        "row_end": 9
+      },
+      "must_match": [
+        "合同",
+        "CT-55",
+        "到期日",
+        "2027-11-30"
+      ],
+      "must_not_match_doc_ids": [],
+      "rationale": "表头与目标行作为一个证据单元；同表另有只匹配部分字段的相邻行，禁止跨行拼接。",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
+        "reviewed_at": "2026-09-09T15:52:00+08:00"
+      },
+      "fixture_scope": "rt054_extension"
+    },
+    {
+      "id": "G70",
+      "origin": "RT-054/Stage-A-synthetic",
+      "fixture": "RT/RT-054/evidence/stage-a-gold-fixture-20260909.json",
+      "category": "table",
+      "kb_id": "libb",
+      "query": "门店 S018 客流 1240",
+      "expected_doc_ids": [
+        "synthetic:820"
+      ],
+      "expected_outcome": "hits",
+      "evidence_excerpt": "门店｜客流｜转化数\nS018｜1240｜98",
+      "expected_locator": {
+        "sheet_name": "日报",
+        "row_start": 18,
+        "row_end": 18
+      },
+      "must_match": [
+        "门店",
+        "S018",
+        "客流",
+        "1240"
+      ],
+      "must_not_match_doc_ids": [],
+      "rationale": "表头与目标行作为一个证据单元；同表另有只匹配部分字段的相邻行，禁止跨行拼接。",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
+        "reviewed_at": "2026-09-09T15:52:00+08:00"
+      },
+      "fixture_scope": "rt054_extension"
+    },
+    {
+      "id": "G71",
+      "origin": "RT-054/Stage-A-synthetic",
+      "fixture": "RT/RT-054/evidence/stage-a-gold-fixture-20260909.json",
+      "category": "table",
+      "kb_id": "libb",
+      "query": "员工 E204 部门 产品中心",
+      "expected_doc_ids": [
+        "synthetic:821"
+      ],
+      "expected_outcome": "hits",
+      "evidence_excerpt": "员工号｜姓名｜部门\nE204｜赵清｜产品中心",
+      "expected_locator": {
+        "sheet_name": "花名册",
+        "row_start": 33,
+        "row_end": 33
+      },
+      "must_match": [
+        "员工",
+        "E204",
+        "部门",
+        "产品中心"
+      ],
+      "must_not_match_doc_ids": [],
+      "rationale": "表头与目标行作为一个证据单元；同表另有只匹配部分字段的相邻行，禁止跨行拼接。",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
+        "reviewed_at": "2026-09-09T15:52:00+08:00"
+      },
+      "fixture_scope": "rt054_extension"
+    },
+    {
+      "id": "G72",
+      "origin": "RT-054/Stage-A-synthetic",
+      "fixture": "RT/RT-054/evidence/stage-a-gold-fixture-20260909.json",
+      "category": "table",
+      "kb_id": "libb",
+      "query": "批次 B-908 不合格数 2",
+      "expected_doc_ids": [
+        "synthetic:822"
+      ],
+      "expected_outcome": "hits",
+      "evidence_excerpt": "批次｜抽检数｜不合格数\nB-908｜200｜2",
+      "expected_locator": {
+        "sheet_name": "质检",
+        "row_start": 14,
+        "row_end": 14
+      },
+      "must_match": [
+        "批次",
+        "B-908",
+        "不合格数",
+        "2"
+      ],
+      "must_not_match_doc_ids": [],
+      "rationale": "表头与目标行作为一个证据单元；同表另有只匹配部分字段的相邻行，禁止跨行拼接。",
+      "review": {
+        "method": "independent_manual_case_review",
+        "status": "accepted",
+        "source": "RT/RT-054/evidence/stage-a-gold-review-20260909.md",
+        "reviewed_at": "2026-09-09T15:52:00+08:00"
+      },
+      "fixture_scope": "rt054_extension"
+    }
+  ],
+  "fixture_scopes": {
+    "rt051_a11": {
+      "doc_id_prefixes": [
+        "docdb:"
+      ],
+      "reason": "RT-051 no-answer and ranking gold was reviewed against its original 28-document fixture"
+    },
+    "rt054_extension": {
+      "doc_id_prefixes": [
+        "synthetic:"
+      ],
+      "reason": "RT-054 company/person/date/table extension is reviewed against its separate 22-document fixture"
+    }
+  }
+}

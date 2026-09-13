@@ -1,0 +1,308 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "data_class",
+    "status",
+    "source_commit",
+    "readiness",
+    "gate_failure_not_overridden",
+    "local_regression",
+    "compiled_files",
+    "source_bound_prior_behavior_mutations",
+    "prior_mutations_detected",
+    "mutations_repeated",
+    "all_source_tests_contracts_unchanged",
+    "independent_source_privacy_input_history",
+    "independent_native_workload",
+    "independent_core_inventory",
+    "main_runtime_workspace_scoring_input",
+    "regular_freeze_verification",
+    "no_popen_coordinator_precheck",
+    "denied_probe_children_started",
+    "before",
+    "after_claims",
+    "after",
+    "after_error_kind",
+    "after_snapshot_verified",
+    "after_retried",
+    "new_window_status",
+    "ready_receipt_created",
+    "new_candidate_attempts",
+    "new_arms",
+    "global_formal_exposure",
+    "global_formal_queries",
+    "global_formal_results",
+    "formal_coordinator_invocations",
+    "cleanup_failures",
+    "remaining_runtime",
+    "candidate_processes",
+    "full_nas_index_invariance",
+    "historical_drift_cleared",
+    "production_changes_performed",
+    "full_repository_ci_claimed",
+    "mechanical",
+    "method_gates",
+    "publication_scope",
+    "source_scripts_in_evidence_commit",
+    "runs_private_handover_in_evidence_commit",
+    "push_performed",
+    "merge_performed"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.amendment9-final-qa.v1"
+    },
+    "data_class": {
+      "const": "PUBLIC_SYNTHETIC_AND_CLOSED_OPS_COUNTS_ONLY"
+    },
+    "status": {
+      "const": "PUBLIC_EVIDENCE_VERIFIED_READINESS_BLOCKED"
+    },
+    "source_commit": {
+      "const": "6b32584023cd27096e7c2167c0c28f47b380f922"
+    },
+    "readiness": {
+      "const": "BLOCKED"
+    },
+    "gate_failure_not_overridden": {
+      "const": true
+    },
+    "local_regression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tests",
+        "failures",
+        "errors",
+        "skipped",
+        "exit_code"
+      ],
+      "properties": {
+        "tests": {
+          "const": 254
+        },
+        "failures": {
+          "const": 0
+        },
+        "errors": {
+          "const": 0
+        },
+        "skipped": {
+          "const": 0
+        },
+        "exit_code": {
+          "const": 0
+        }
+      }
+    },
+    "compiled_files": {
+      "const": 142
+    },
+    "source_bound_prior_behavior_mutations": {
+      "const": 13
+    },
+    "prior_mutations_detected": {
+      "const": true
+    },
+    "mutations_repeated": {
+      "const": false
+    },
+    "all_source_tests_contracts_unchanged": {
+      "const": true
+    },
+    "independent_source_privacy_input_history": {
+      "const": "PASS"
+    },
+    "independent_native_workload": {
+      "const": "PASS"
+    },
+    "independent_core_inventory": {
+      "const": "PASS"
+    },
+    "main_runtime_workspace_scoring_input": {
+      "const": "PASS"
+    },
+    "regular_freeze_verification": {
+      "const": "PASS"
+    },
+    "no_popen_coordinator_precheck": {
+      "const": "FAIL_CONFIRMED"
+    },
+    "denied_probe_children_started": {
+      "const": 0
+    },
+    "before": {
+      "const": "PASS"
+    },
+    "after_claims": {
+      "const": 1
+    },
+    "after": {
+      "const": "FAIL"
+    },
+    "after_error_kind": {
+      "const": "TransientStorageError"
+    },
+    "after_snapshot_verified": {
+      "const": false
+    },
+    "after_retried": {
+      "const": false
+    },
+    "new_window_status": {
+      "const": "INVALID"
+    },
+    "ready_receipt_created": {
+      "const": false
+    },
+    "new_candidate_attempts": {
+      "const": 0
+    },
+    "new_arms": {
+      "const": 0
+    },
+    "global_formal_exposure": {
+      "const": 0
+    },
+    "global_formal_queries": {
+      "const": 0
+    },
+    "global_formal_results": {
+      "const": 0
+    },
+    "formal_coordinator_invocations": {
+      "const": 0
+    },
+    "cleanup_failures": {
+      "const": 0
+    },
+    "remaining_runtime": {
+      "const": 0
+    },
+    "candidate_processes": {
+      "const": 0
+    },
+    "full_nas_index_invariance": {
+      "const": null
+    },
+    "historical_drift_cleared": {
+      "const": false
+    },
+    "production_changes_performed": {
+      "const": false
+    },
+    "full_repository_ci_claimed": {
+      "const": false
+    },
+    "mechanical": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "compiled",
+        "schemas",
+        "schema_negative_rejections",
+        "private_field_or_digest_hits",
+        "secret_hits",
+        "links",
+        "anchors",
+        "historical_public_files_unchanged",
+        "document_prefixes_unchanged",
+        "pool_tier_seed_quality_algorithm_exposure_unchanged",
+        "full_repository_ci_claimed",
+        "all_source_scripts_unchanged_from_deployed_commit",
+        "public_rt055_only"
+      ],
+      "properties": {
+        "status": {
+          "const": "PASS"
+        },
+        "compiled": {
+          "const": 142
+        },
+        "schemas": {
+          "const": 10
+        },
+        "schema_negative_rejections": {
+          "const": 1500
+        },
+        "private_field_or_digest_hits": {
+          "const": 0
+        },
+        "secret_hits": {
+          "const": 0
+        },
+        "links": {
+          "const": 208
+        },
+        "anchors": {
+          "const": 31
+        },
+        "historical_public_files_unchanged": {
+          "const": 107
+        },
+        "document_prefixes_unchanged": {
+          "const": 4
+        },
+        "pool_tier_seed_quality_algorithm_exposure_unchanged": {
+          "const": true
+        },
+        "full_repository_ci_claimed": {
+          "const": false
+        },
+        "all_source_scripts_unchanged_from_deployed_commit": {
+          "const": true
+        },
+        "public_rt055_only": {
+          "const": true
+        }
+      }
+    },
+    "method_gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "aodw_exit_code",
+        "aodw_warning_count",
+        "aodw_warning_kind",
+        "governance_exit_code",
+        "governance_tracked_files"
+      ],
+      "properties": {
+        "aodw_exit_code": {
+          "const": 0
+        },
+        "aodw_warning_count": {
+          "const": 1
+        },
+        "aodw_warning_kind": {
+          "const": "EXISTING_HOST_HANDOVER_SKILL_NOT_INSTALLED"
+        },
+        "governance_exit_code": {
+          "const": 0
+        },
+        "governance_tracked_files": {
+          "const": 956
+        }
+      }
+    },
+    "publication_scope": {
+      "const": "PUBLIC_RT055_EVIDENCE_AND_APPEND_ONLY_DOCUMENTS"
+    },
+    "source_scripts_in_evidence_commit": {
+      "const": false
+    },
+    "runs_private_handover_in_evidence_commit": {
+      "const": false
+    },
+    "push_performed": {
+      "const": false
+    },
+    "merge_performed": {
+      "const": false
+    }
+  }
+}

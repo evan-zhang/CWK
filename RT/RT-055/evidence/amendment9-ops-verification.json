@@ -1,0 +1,383 @@
+{
+  "schema": "cwk.rt055.amendment9-final-ops.v1",
+  "status": "VERIFIED",
+  "source_commit": "6b32584023cd27096e7c2167c0c28f47b380f922",
+  "run_id": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af",
+  "old_window_id": "d408cfab-40f7-41d3-8ccb-75fb0aaa2b65",
+  "executioner_migration_id": "89edbd10-2905-41f1-9037-62b502890856",
+  "new_window_id": "7652dbee-3679-4886-a391-ffcf871e712c",
+  "scoring_archive_id": "1b9f56b2-688f-4b94-a95d-e1fa55d074c5",
+  "unused_amendment8_window_not_created": true,
+  "old_window_status": "INVALID",
+  "old_after_closed": true,
+  "old_log_gate": "FAIL",
+  "old_attempts": {
+    "a": 0,
+    "b": 1
+  },
+  "old_arms": 0,
+  "new_window_created": true,
+  "new_attempts": 0,
+  "new_arms": 0,
+  "new_after": 1,
+  "global_exposure": 0,
+  "formal_queries": 0,
+  "formal_scores": 0,
+  "formal_results": 0,
+  "builder_runs": 1,
+  "verifier_runs": 1,
+  "pool": {
+    "cwork-3m": {
+      "total_count": 42,
+      "tier": "T3"
+    },
+    "docdb-touqian": {
+      "total_count": 31,
+      "tier": "T3"
+    },
+    "spbp-2027": {
+      "total_count": 42,
+      "tier": "T2"
+    }
+  },
+  "retained_files": 96,
+  "retained_bytes_equal": true,
+  "original_archive_files": 5938,
+  "original_archive_equal": true,
+  "historical_bytes_equal": true,
+  "current_archive_files": 194848,
+  "gateway_http_200_count": 3,
+  "gateway_health_observations": [
+    {
+      "http_status": 200,
+      "ok": true,
+      "read_only_asserted": true,
+      "read_only_field_present": true
+    },
+    {
+      "http_status": 200,
+      "ok": true,
+      "read_only_asserted": true,
+      "read_only_field_present": true
+    },
+    {
+      "http_status": 200,
+      "ok": true,
+      "read_only_asserted": true,
+      "read_only_field_present": true
+    }
+  ],
+  "gateway_read_only_contract_verified": true,
+  "cleanup": {
+    "complete": true,
+    "failures": 0,
+    "remaining_data_planes": 0,
+    "remaining_processes": 0
+  },
+  "candidate_processes": 0,
+  "remaining_runtime": 0,
+  "new_tmp_files": 0,
+  "gateway_tls_files": 0,
+  "formal_coordinator_invocations": 0,
+  "full_nas_index_invariance": null,
+  "private_values_exported": false,
+  "production_cutover_allowed": false,
+  "readiness": "BLOCKED",
+  "reason": "LEGACY_VOID_PROOF_REQUIRES_POPEN",
+  "failed_gate": "COORDINATOR_PRECHECK_NO_POPEN_NO_QUERY",
+  "new_window_status": "INVALID",
+  "run_order": [
+    "b",
+    "a"
+  ],
+  "freeze_verified": true,
+  "freeze_created_before_blocker_discovery": true,
+  "freeze_and_failure_receipts_preserved": true,
+  "ready_receipt_created": false,
+  "gateway_before_observations": [
+    {
+      "http_status": 200,
+      "ok": true,
+      "read_only_asserted": true,
+      "read_only_field_present": true
+    },
+    {
+      "http_status": 200,
+      "ok": true,
+      "read_only_asserted": true,
+      "read_only_field_present": true
+    },
+    {
+      "http_status": 200,
+      "ok": true,
+      "read_only_asserted": true,
+      "read_only_field_present": true
+    }
+  ],
+  "scoring_inputs": {
+    "cwork-3m": {
+      "duplicate_extra_rows": 4,
+      "duplicate_groups": 4,
+      "ordinal_unique": true,
+      "positive_category_denominators": true,
+      "semantics_consistent": true,
+      "total_count": 42
+    },
+    "docdb-touqian": {
+      "duplicate_extra_rows": 4,
+      "duplicate_groups": 4,
+      "ordinal_unique": true,
+      "positive_category_denominators": true,
+      "semantics_consistent": true,
+      "total_count": 31
+    },
+    "spbp-2027": {
+      "duplicate_extra_rows": 5,
+      "duplicate_groups": 5,
+      "ordinal_unique": true,
+      "positive_category_denominators": true,
+      "semantics_consistent": true,
+      "total_count": 42
+    }
+  },
+  "runtime_policy_readiness": "PASS",
+  "candidate_workspace_readiness": "PASS",
+  "scoring_input_readiness": "PASS",
+  "private_input_no_popen_no_query": "PASS",
+  "freeze_no_popen_gate": "FAIL_CONFIRMED",
+  "coordinator_precheck_without_popen": "FAIL",
+  "denied_popen_kind": "PUBLIC_LEGACY_PROOF_INTERPRETER",
+  "denied_popen_actual_children": 0,
+  "closeout_claim_launch_terminal_pid_match": true,
+  "closeout_after_status": "FAIL",
+  "source_frames": [
+    {
+      "line": 78,
+      "module": "amendment9-main-readiness-controller.py"
+    },
+    {
+      "line": 137,
+      "module": "rt055_scoring_input.py"
+    },
+    {
+      "line": 145,
+      "module": "rt055_window.py"
+    },
+    {
+      "line": 132,
+      "module": "rt055_window.py"
+    },
+    {
+      "line": 280,
+      "module": "rt055_zero_exposure.py"
+    },
+    {
+      "line": 218,
+      "module": "rt055_zero_exposure.py"
+    },
+    {
+      "line": 136,
+      "module": "rt055_zero_exposure.py"
+    }
+  ],
+  "new_window_cleanup": {
+    "cleanup_failures": 0,
+    "mode": "cleanup",
+    "private_artifacts_retained": true,
+    "private_holdout_retained_on_ops": true,
+    "related_processes": 0,
+    "run_id": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af",
+    "temporary_containers_zero": true,
+    "temporary_indices_zero": true,
+    "temporary_services_zero": true,
+    "uuid_container_volume_network_resources": 0,
+    "window_id": "7652dbee-3679-4886-a391-ffcf871e712c"
+  },
+  "production_comparison": {
+    "status": "NOT_AVAILABLE_AFTER_FAILED",
+    "nas_unchanged": null,
+    "existing_indices_unchanged": null,
+    "production_config_unchanged": null
+  },
+  "public_blocked": {
+    "additional_blockers": [
+      "AFTER_NAS_TRANSIENT_STORAGE_ERROR"
+    ],
+    "after": 1,
+    "after_error_kind": "TransientStorageError",
+    "after_libraries_measured": 1,
+    "after_retried": false,
+    "after_snapshot_verified": false,
+    "after_status": "FAIL",
+    "before": 1,
+    "candidate_processes": 0,
+    "cleanup_failures": 0,
+    "comparison_created": false,
+    "executioner_migration_id": "89edbd10-2905-41f1-9037-62b502890856",
+    "existing_indices_unchanged": null,
+    "failed_after_bytes_preserved": true,
+    "failed_controller_and_freeze_bytes_preserved": true,
+    "failed_gate": "COORDINATOR_PRECHECK_NO_POPEN_NO_QUERY",
+    "formal_coordinator_invocations": 0,
+    "formal_queries": 0,
+    "formal_results": 0,
+    "formal_scores": 0,
+    "freeze": 1,
+    "freeze_verification": 1,
+    "freeze_verification_passed": true,
+    "full_nas_index_invariance": null,
+    "historical_drift_cleared": false,
+    "nas_unchanged": null,
+    "new_arms": 0,
+    "new_candidate_attempts": 0,
+    "new_controller_attempts": 0,
+    "new_exposure": 0,
+    "new_window_id": "7652dbee-3679-4886-a391-ffcf871e712c",
+    "old_window_id": "d408cfab-40f7-41d3-8ccb-75fb0aaa2b65",
+    "private_values_or_digests_exported": false,
+    "production_config_unchanged": null,
+    "production_cutover_allowed": false,
+    "ready_receipt_created": false,
+    "reason": "LEGACY_VOID_PROOF_REQUIRES_POPEN",
+    "remaining_runtime": 0,
+    "run_id": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af",
+    "run_order": [
+      "b",
+      "a"
+    ],
+    "schema": "cwk.rt055.amendment9-blocked-closeout.v1",
+    "scoring_archive_id": "1b9f56b2-688f-4b94-a95d-e1fa55d074c5",
+    "source_commit": "6b32584023cd27096e7c2167c0c28f47b380f922",
+    "source_frames": [
+      {
+        "line": 78,
+        "module": "amendment9-main-readiness-controller.py"
+      },
+      {
+        "line": 137,
+        "module": "rt055_scoring_input.py"
+      },
+      {
+        "line": 145,
+        "module": "rt055_window.py"
+      },
+      {
+        "line": 132,
+        "module": "rt055_window.py"
+      },
+      {
+        "line": 280,
+        "module": "rt055_zero_exposure.py"
+      },
+      {
+        "line": 218,
+        "module": "rt055_zero_exposure.py"
+      },
+      {
+        "line": 136,
+        "module": "rt055_zero_exposure.py"
+      }
+    ],
+    "status": "BLOCKED",
+    "window_status": "INVALID"
+  },
+  "additional_blockers": [
+    "AFTER_NAS_TRANSIENT_STORAGE_ERROR"
+  ],
+  "after_status": "FAIL",
+  "after_error_kind": "TransientStorageError",
+  "after_libraries_measured": 1,
+  "after_snapshot_verified": false,
+  "after_artifact_created": false,
+  "comparison_created": false,
+  "after_retried": false,
+  "failed_after_original_bytes_preserved": true,
+  "migration_terminal_exact": "READY_TO_FREEZE",
+  "main_controller_claim_terminal_pid_match": true,
+  "main_controller_terminal": "STOPPED_NO_FORMAL_RUN",
+  "source_privacy_firewall_input_recomputed": true,
+  "historical_file_sets_preserved": {
+    "formal_windows": true,
+    "consumption": true,
+    "exposure": true,
+    "void_prequery": true,
+    "executioner_migrations": true,
+    "runtime_policy": true,
+    "runtime_policy_versions": true,
+    "zero_exposure_migrations": true
+  },
+  "new_window_counts": {
+    "controller_attempts": 0,
+    "candidate_attempts": 0,
+    "arms": 0,
+    "scores": 0,
+    "results_and_completions": 0,
+    "after": 1
+  },
+  "exclusive_claim_counts": {
+    "before": 1,
+    "freeze": 1,
+    "freeze_verification": 1,
+    "runtime_policy": 1,
+    "startup": 1,
+    "scoring_input": 1,
+    "main_controller": 1,
+    "after": 1,
+    "blocked_closeout": 1,
+    "blocked_finalization": 1
+  },
+  "public_final_drains": {
+    "a": {
+      "streams": 3,
+      "verified": true,
+      "eof_all": true,
+      "closed_all": true,
+      "caps_pass": true,
+      "errors": 0,
+      "postscan_hits": 0,
+      "input_bytes": 334672,
+      "output_bytes": 334780,
+      "redactions": 18
+    },
+    "b": {
+      "streams": 6,
+      "verified": true,
+      "eof_all": true,
+      "closed_all": true,
+      "caps_pass": true,
+      "errors": 0,
+      "postscan_hits": 0,
+      "input_bytes": 18237,
+      "output_bytes": 18048,
+      "redactions": 18
+    }
+  },
+  "main_startup_final_drains": {
+    "a": {
+      "streams": 3,
+      "verified": true,
+      "eof_all": true,
+      "closed_all": true,
+      "caps_pass": true,
+      "errors": 0,
+      "postscan_hits": 0,
+      "input_bytes": 308440,
+      "output_bytes": 308440,
+      "redactions": 0
+    },
+    "b": {
+      "streams": 6,
+      "verified": true,
+      "eof_all": true,
+      "closed_all": true,
+      "caps_pass": true,
+      "errors": 0,
+      "postscan_hits": 0,
+      "input_bytes": 12126,
+      "output_bytes": 12126,
+      "redactions": 0
+    }
+  },
+  "readonly_audit_enforced": true,
+  "private_values_or_digests_exported": false
+}

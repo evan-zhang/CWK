@@ -1,0 +1,64 @@
+{
+  "schema": "cwk.rt055.amendment14-source-qa.v1",
+  "status": "PASS",
+  "regression_tests": 288,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 0,
+  "initial_red_failures": 3,
+  "initial_red_errors": 4,
+  "behavior_mutations": [
+    {
+      "mutation": "raw_before_eof",
+      "detected": true
+    },
+    {
+      "mutation": "shortest_wins",
+      "detected": true
+    },
+    {
+      "mutation": "overlap_skipped",
+      "detected": true
+    },
+    {
+      "mutation": "full_comparison_removed",
+      "detected": true
+    },
+    {
+      "mutation": "per_stream_bank_copy",
+      "detected": true
+    },
+    {
+      "mutation": "independent_postscan_disabled",
+      "detected": true
+    },
+    {
+      "mutation": "json_escaping_removed",
+      "detected": true
+    },
+    {
+      "mutation": "full_bank_binding_disconnected",
+      "detected": true
+    },
+    {
+      "mutation": "work_cap_waived",
+      "detected": true
+    }
+  ],
+  "restored_green": true,
+  "compiled_python_files": 143,
+  "credential_hits": 0,
+  "private_values_received_locally": false,
+  "runner_changes_log_boundary_only": true,
+  "complete_bank_compiled_once_per_controller": true,
+  "private_bank_bytes_shared_across_streams": true,
+  "deny_socket_gate_ast_unchanged": true,
+  "candidate_algorithms_unchanged": true,
+  "pool_tiers_floors_timeouts_unchanged": true,
+  "weknora_core_patched": false,
+  "ops_current_privacy_executed_by_unit_tests": false,
+  "immutable_input_files": 240,
+  "append_only_document_prefixes": 3,
+  "full_make_ci_claimed": false,
+  "third_party_agent_review_claimed": false
+}

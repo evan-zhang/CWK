@@ -1,0 +1,344 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "candidate_processes_zero",
+    "cleanup_error_present",
+    "error_kind",
+    "execution_error_present",
+    "global_exposure",
+    "markers",
+    "migration_id",
+    "privacy",
+    "privacy_binding_present",
+    "privacy_counts",
+    "privacy_evaluation",
+    "privacy_execution_error_kind",
+    "privacy_kinds",
+    "privacy_observation_boolean_counts",
+    "privacy_status_present",
+    "status",
+    "synthetic_cleanup",
+    "window_exists",
+    "workload_receipt_present",
+    "workload_status_present",
+    "workspace_cleanup_zero",
+    "source_commit",
+    "formal_values_exported",
+    "external_data_transfer_proven",
+    "observer_failure_root_cause",
+    "retry_performed"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.amendment11-public-privacy.v1"
+    },
+    "candidate_processes_zero": {
+      "const": true
+    },
+    "cleanup_error_present": {
+      "const": false
+    },
+    "error_kind": {
+      "const": "CalledProcessError"
+    },
+    "execution_error_present": {
+      "const": false
+    },
+    "global_exposure": {
+      "const": 0
+    },
+    "markers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ASSERTION",
+        "CONFIDENTIALITY",
+        "CP",
+        "GIT",
+        "NETWORK",
+        "NO_SPACE",
+        "PERMISSION_DENIED",
+        "SINGLE_USE",
+        "TRACEBACK",
+        "WORKLOAD"
+      ],
+      "properties": {
+        "ASSERTION": {
+          "const": 0
+        },
+        "CONFIDENTIALITY": {
+          "const": 1
+        },
+        "CP": {
+          "const": 0
+        },
+        "GIT": {
+          "const": 0
+        },
+        "NETWORK": {
+          "const": 0
+        },
+        "NO_SPACE": {
+          "const": 0
+        },
+        "PERMISSION_DENIED": {
+          "const": 0
+        },
+        "SINGLE_USE": {
+          "const": 0
+        },
+        "TRACEBACK": {
+          "const": 1
+        },
+        "WORKLOAD": {
+          "const": 0
+        }
+      }
+    },
+    "migration_id": {
+      "const": "aee2e2eb-4cd7-4f97-a864-5ce6c3782529"
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "phase",
+        "status"
+      ],
+      "properties": {
+        "phase": {
+          "const": "COMPLETE"
+        },
+        "status": {
+          "const": "RECOVERABLE_EXECUTION_FAILURE"
+        }
+      }
+    },
+    "privacy_binding_present": {
+      "const": false
+    },
+    "privacy_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "embedding_calls",
+        "embedding_successes",
+        "external_socket_observations",
+        "forbidden_reads",
+        "log_canary_hits",
+        "log_files_scanned",
+        "native_normal_calls",
+        "native_trace_response_headers",
+        "observer_errors",
+        "search_normal_calls",
+        "socket_samples",
+        "trace_header_observations"
+      ],
+      "properties": {
+        "embedding_calls": {
+          "const": 3
+        },
+        "embedding_successes": {
+          "const": 3
+        },
+        "external_socket_observations": {
+          "const": 1
+        },
+        "forbidden_reads": {
+          "const": 0
+        },
+        "log_canary_hits": {
+          "const": 0
+        },
+        "log_files_scanned": {
+          "const": 3
+        },
+        "native_normal_calls": {
+          "const": 1
+        },
+        "native_trace_response_headers": {
+          "const": 0
+        },
+        "observer_errors": {
+          "const": 0
+        },
+        "search_normal_calls": {
+          "const": 1
+        },
+        "socket_samples": {
+          "const": 108
+        },
+        "trace_header_observations": {
+          "const": 0
+        }
+      }
+    },
+    "privacy_evaluation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authenticated_error_canaries",
+        "external_egress_denied",
+        "forbidden_reads_zero",
+        "langfuse_runtime_disabled",
+        "loopback_models_only",
+        "native_log_canary_absent",
+        "normal_native_canary",
+        "otel_runtime_disabled",
+        "passed"
+      ],
+      "properties": {
+        "authenticated_error_canaries": {
+          "const": true
+        },
+        "external_egress_denied": {
+          "const": true
+        },
+        "forbidden_reads_zero": {
+          "const": true
+        },
+        "langfuse_runtime_disabled": {
+          "const": true
+        },
+        "loopback_models_only": {
+          "const": false
+        },
+        "native_log_canary_absent": {
+          "const": true
+        },
+        "normal_native_canary": {
+          "const": true
+        },
+        "otel_runtime_disabled": {
+          "const": true
+        },
+        "passed": {
+          "const": false
+        }
+      }
+    },
+    "privacy_execution_error_kind": {
+      "const": "OTHER"
+    },
+    "privacy_kinds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "loopback_listener_kinds",
+        "observed_kinds"
+      ],
+      "properties": {
+        "loopback_listener_kinds": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "prefixItems": [
+            {
+              "const": "native"
+            },
+            {
+              "const": "search"
+            },
+            {
+              "const": "sidecar"
+            }
+          ],
+          "items": false
+        },
+        "observed_kinds": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "prefixItems": [
+            {
+              "const": "native"
+            },
+            {
+              "const": "search"
+            },
+            {
+              "const": "sidecar"
+            }
+          ],
+          "items": false
+        }
+      }
+    },
+    "privacy_observation_boolean_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "false",
+        "true"
+      ],
+      "properties": {
+        "false": {
+          "const": 0
+        },
+        "true": {
+          "const": 11
+        }
+      }
+    },
+    "privacy_status_present": {
+      "const": true
+    },
+    "status": {
+      "const": "READONLY_PUBLIC_FAILURE_CLASSIFIED"
+    },
+    "synthetic_cleanup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "complete",
+        "failures",
+        "remaining_data_planes",
+        "remaining_processes"
+      ],
+      "properties": {
+        "complete": {
+          "const": true
+        },
+        "failures": {
+          "const": 0
+        },
+        "remaining_data_planes": {
+          "const": 0
+        },
+        "remaining_processes": {
+          "const": 0
+        }
+      }
+    },
+    "window_exists": {
+      "const": false
+    },
+    "workload_receipt_present": {
+      "const": false
+    },
+    "workload_status_present": {
+      "const": false
+    },
+    "workspace_cleanup_zero": {
+      "const": true
+    },
+    "source_commit": {
+      "const": "fdfcfb6dfef57862cf5efd478e88820419e7c322"
+    },
+    "formal_values_exported": {
+      "const": false
+    },
+    "external_data_transfer_proven": {
+      "const": null
+    },
+    "observer_failure_root_cause": {
+      "const": "UNKNOWN"
+    },
+    "retry_performed": {
+      "const": false
+    }
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "data_class",
+    "old_window_id",
+    "root_cause",
+    "production_gorm_logger_configured",
+    "parameterized_queries_enabled",
+    "legacy_stdout_direct_to_disk",
+    "hit_log_files",
+    "total_log_files",
+    "hit_fields",
+    "hit_lines",
+    "sidecar_hit_files",
+    "private_values_or_contents_exported",
+    "old_build_total_seconds_approx",
+    "old_build_subtype",
+    "build_timeout_seconds",
+    "synthetic_document_byte_upper_bound"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.amendment8-root-cause.v1"
+    },
+    "data_class": {
+      "const": "OPS_COUNT_ONLY_AND_PUBLIC_UPSTREAM_SOURCE"
+    },
+    "old_window_id": {
+      "const": "d408cfab-40f7-41d3-8ccb-75fb0aaa2b65"
+    },
+    "root_cause": {
+      "const": "GORM_DEFAULT_SQL_LOGGER_BYPASSES_APPLICATION_LOG_LEVEL"
+    },
+    "production_gorm_logger_configured": {
+      "const": false
+    },
+    "parameterized_queries_enabled": {
+      "const": false
+    },
+    "legacy_stdout_direct_to_disk": {
+      "const": true
+    },
+    "hit_log_files": {
+      "const": 1
+    },
+    "total_log_files": {
+      "const": 6
+    },
+    "hit_fields": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "case_query_fields",
+        "filename_fields"
+      ],
+      "properties": {
+        "case_query_fields": {
+          "const": 2
+        },
+        "filename_fields": {
+          "const": 6
+        }
+      }
+    },
+    "hit_lines": {
+      "const": 20
+    },
+    "sidecar_hit_files": {
+      "const": 0
+    },
+    "private_values_or_contents_exported": {
+      "const": false
+    },
+    "old_build_total_seconds_approx": {
+      "const": 7720.6
+    },
+    "old_build_subtype": {
+      "const": "UNPROVEN"
+    },
+    "build_timeout_seconds": {
+      "const": 7200
+    },
+    "synthetic_document_byte_upper_bound": {
+      "const": 524288
+    }
+  }
+}

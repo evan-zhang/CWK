@@ -1,0 +1,92 @@
+{
+  "schema": "cwk.rt055.amendment9-readiness-failure.v1",
+  "data_class": "PUBLIC_CONTROL_FLOW_ONLY",
+  "status": "HARD_GATE_CONFIRMED",
+  "source_commit": "6b32584023cd27096e7c2167c0c28f47b380f922",
+  "run_id": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af",
+  "old_window_id": "d408cfab-40f7-41d3-8ccb-75fb0aaa2b65",
+  "executioner_migration_id": "89edbd10-2905-41f1-9037-62b502890856",
+  "new_window_id": "7652dbee-3679-4886-a391-ffcf871e712c",
+  "scoring_archive_id": "1b9f56b2-688f-4b94-a95d-e1fa55d074c5",
+  "reason": "LEGACY_VOID_PROOF_REQUIRES_POPEN",
+  "controller_failed_phase": "READONLY_PRECHECK_NO_POPEN_NO_QUERY",
+  "controller_error_kind": "AssertionError",
+  "controller_known_reason": "NO_POPEN",
+  "source_frames": [
+    {
+      "line": 78,
+      "module": "amendment9-main-readiness-controller.py"
+    },
+    {
+      "line": 137,
+      "module": "rt055_scoring_input.py"
+    },
+    {
+      "line": 145,
+      "module": "rt055_window.py"
+    },
+    {
+      "line": 132,
+      "module": "rt055_window.py"
+    },
+    {
+      "line": 280,
+      "module": "rt055_zero_exposure.py"
+    },
+    {
+      "line": 218,
+      "module": "rt055_zero_exposure.py"
+    },
+    {
+      "line": 136,
+      "module": "rt055_zero_exposure.py"
+    }
+  ],
+  "independent_precloseout_checks": {
+    "source_privacy": {
+      "passed": true
+    },
+    "freeze_regular_readonly": {
+      "passed": true
+    },
+    "spawn_loopback": {
+      "passed": true
+    },
+    "spawn_inbound-only": {
+      "passed": true
+    },
+    "scoring_input_readonly": {
+      "passed": true
+    },
+    "freeze_no_popen": {
+      "passed": false,
+      "error_kind": "AssertionError",
+      "known_reason": "NO_POPEN"
+    },
+    "coordinator_precheck_only": {
+      "passed": false,
+      "error_kind": "AssertionError",
+      "known_reason": "NO_POPEN"
+    }
+  },
+  "independent_final_no_popen_gate": "FAIL_CONFIRMED",
+  "attempted_subprocess_kind": "PUBLIC_LEGACY_PROOF_INTERPRETER",
+  "actual_subprocesses_started_by_denied_probe": 0,
+  "formal_coordinator_invocations": 0,
+  "formal_queries": 0,
+  "source_scripts_modified": false,
+  "guard_relaxed": false,
+  "old_claim_or_void_removed": false,
+  "controller_restarted": false,
+  "readiness_controller_launches": 1,
+  "failure_closeout_launches": 1,
+  "ssh_observer_interruptions": 2,
+  "original_pid_claim_reconciled_before_resuming_observation": true,
+  "after_closeout": 1,
+  "after_status": "FAIL",
+  "after_error_kind": "TransientStorageError",
+  "after_retried": false,
+  "failed_after_bytes_preserved": true,
+  "failed_controller_and_freeze_preserved": true,
+  "private_values_or_digests_exported": false
+}

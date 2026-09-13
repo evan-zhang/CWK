@@ -1,0 +1,1404 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "data_class",
+    "run_id",
+    "window_id",
+    "executioner_migration_id",
+    "executioner_commit",
+    "window_decision",
+    "reason",
+    "run_order",
+    "participating_libraries",
+    "deferred_libraries",
+    "pool",
+    "execution",
+    "formal_metrics",
+    "mechanical_complexity",
+    "gateway_readiness",
+    "freeze_privacy_roles",
+    "cleanup",
+    "production_comparison",
+    "retention",
+    "closure",
+    "limits",
+    "startup_diagnostic"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.amendment5-formal-abort.v1"
+    },
+    "data_class": {
+      "const": "OPS_PUBLIC_ABORT_NOT_FORMAL_AGGREGATE"
+    },
+    "run_id": {
+      "const": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af"
+    },
+    "window_id": {
+      "const": "835c5188-0f29-4f41-8fe6-119b61917e2d"
+    },
+    "executioner_migration_id": {
+      "const": "e5a11f4d-445c-4c05-90b1-2c7e1fbeb0b0"
+    },
+    "executioner_commit": {
+      "const": "58951f92656e7a29b334461c7aa6d1148fec4e8f"
+    },
+    "window_decision": {
+      "const": "INVALID"
+    },
+    "reason": {
+      "const": "CANDIDATE_A_STARTUP_FAILED_BEFORE_PRIVATE_SEARCH"
+    },
+    "run_order": {
+      "const": [
+        "a",
+        "b"
+      ]
+    },
+    "participating_libraries": {
+      "const": [
+        "cwork-3m",
+        "docdb-touqian",
+        "spbp-2027"
+      ]
+    },
+    "deferred_libraries": {
+      "const": []
+    },
+    "pool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cwork-3m",
+        "docdb-touqian",
+        "spbp-2027"
+      ],
+      "properties": {
+        "cwork-3m": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "tier",
+            "total_count"
+          ],
+          "properties": {
+            "tier": {
+              "const": "T3"
+            },
+            "total_count": {
+              "const": 42
+            }
+          }
+        },
+        "docdb-touqian": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "tier",
+            "total_count"
+          ],
+          "properties": {
+            "tier": {
+              "const": "T3"
+            },
+            "total_count": {
+              "const": 31
+            }
+          }
+        },
+        "spbp-2027": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "tier",
+            "total_count"
+          ],
+          "properties": {
+            "tier": {
+              "const": "T2"
+            },
+            "total_count": {
+              "const": 42
+            }
+          }
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate_attempts",
+        "formal_arms",
+        "global_exposure",
+        "formal_query_calls",
+        "score_receipts",
+        "complete_libraries",
+        "candidate_results",
+        "new_process_records",
+        "failure_type",
+        "failure_boundary",
+        "exact_cause_proven",
+        "diagnosis_reopened_private_holdout",
+        "formal_launches",
+        "candidate_restarts",
+        "closeout_only_launches",
+        "holdout_unexposed"
+      ],
+      "properties": {
+        "candidate_attempts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "a",
+            "b"
+          ],
+          "properties": {
+            "a": {
+              "const": 1
+            },
+            "b": {
+              "const": 0
+            }
+          }
+        },
+        "formal_arms": {
+          "const": 0
+        },
+        "global_exposure": {
+          "const": 0
+        },
+        "formal_query_calls": {
+          "const": 0
+        },
+        "score_receipts": {
+          "const": 0
+        },
+        "complete_libraries": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "a",
+            "b"
+          ],
+          "properties": {
+            "a": {
+              "const": 0
+            },
+            "b": {
+              "const": 0
+            }
+          }
+        },
+        "candidate_results": {
+          "const": 0
+        },
+        "new_process_records": {
+          "const": 1
+        },
+        "failure_type": {
+          "const": "RuntimeError"
+        },
+        "failure_boundary": {
+          "const": "PROCESS_CREATED_SERVICE_NOT_READY"
+        },
+        "exact_cause_proven": {
+          "const": false
+        },
+        "diagnosis_reopened_private_holdout": {
+          "const": false
+        },
+        "formal_launches": {
+          "const": 1
+        },
+        "candidate_restarts": {
+          "const": 0
+        },
+        "closeout_only_launches": {
+          "const": 1
+        },
+        "holdout_unexposed": {
+          "const": true
+        }
+      }
+    },
+    "formal_metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cwork-3m",
+        "docdb-touqian",
+        "spbp-2027"
+      ],
+      "properties": {
+        "cwork-3m": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "A",
+            "B"
+          ],
+          "properties": {
+            "A": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "answerable_count",
+                "answerable_system_error_count",
+                "build_seconds",
+                "exact",
+                "exact_count",
+                "exact_hits",
+                "exact_system_error_count",
+                "index_bytes",
+                "leak_count",
+                "no_answer",
+                "no_answer_correct",
+                "no_answer_count",
+                "no_answer_system_error_count",
+                "p95_ms",
+                "peak_rss_bytes",
+                "recall_at_10",
+                "recall_hits_at_10",
+                "system_error_count",
+                "timeout_count",
+                "total_count",
+                "status"
+              ],
+              "properties": {
+                "answerable_count": {
+                  "const": null
+                },
+                "answerable_system_error_count": {
+                  "const": null
+                },
+                "build_seconds": {
+                  "const": null
+                },
+                "exact": {
+                  "const": null
+                },
+                "exact_count": {
+                  "const": null
+                },
+                "exact_hits": {
+                  "const": null
+                },
+                "exact_system_error_count": {
+                  "const": null
+                },
+                "index_bytes": {
+                  "const": null
+                },
+                "leak_count": {
+                  "const": null
+                },
+                "no_answer": {
+                  "const": null
+                },
+                "no_answer_correct": {
+                  "const": null
+                },
+                "no_answer_count": {
+                  "const": null
+                },
+                "no_answer_system_error_count": {
+                  "const": null
+                },
+                "p95_ms": {
+                  "const": null
+                },
+                "peak_rss_bytes": {
+                  "const": null
+                },
+                "recall_at_10": {
+                  "const": null
+                },
+                "recall_hits_at_10": {
+                  "const": null
+                },
+                "system_error_count": {
+                  "const": null
+                },
+                "timeout_count": {
+                  "const": null
+                },
+                "total_count": {
+                  "const": null
+                },
+                "status": {
+                  "const": "NOT_MEASURED_STARTUP_ABORT"
+                }
+              }
+            },
+            "B": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "answerable_count",
+                "answerable_system_error_count",
+                "build_seconds",
+                "exact",
+                "exact_count",
+                "exact_hits",
+                "exact_system_error_count",
+                "index_bytes",
+                "leak_count",
+                "no_answer",
+                "no_answer_correct",
+                "no_answer_count",
+                "no_answer_system_error_count",
+                "p95_ms",
+                "peak_rss_bytes",
+                "recall_at_10",
+                "recall_hits_at_10",
+                "system_error_count",
+                "timeout_count",
+                "total_count",
+                "status"
+              ],
+              "properties": {
+                "answerable_count": {
+                  "const": null
+                },
+                "answerable_system_error_count": {
+                  "const": null
+                },
+                "build_seconds": {
+                  "const": null
+                },
+                "exact": {
+                  "const": null
+                },
+                "exact_count": {
+                  "const": null
+                },
+                "exact_hits": {
+                  "const": null
+                },
+                "exact_system_error_count": {
+                  "const": null
+                },
+                "index_bytes": {
+                  "const": null
+                },
+                "leak_count": {
+                  "const": null
+                },
+                "no_answer": {
+                  "const": null
+                },
+                "no_answer_correct": {
+                  "const": null
+                },
+                "no_answer_count": {
+                  "const": null
+                },
+                "no_answer_system_error_count": {
+                  "const": null
+                },
+                "p95_ms": {
+                  "const": null
+                },
+                "peak_rss_bytes": {
+                  "const": null
+                },
+                "recall_at_10": {
+                  "const": null
+                },
+                "recall_hits_at_10": {
+                  "const": null
+                },
+                "system_error_count": {
+                  "const": null
+                },
+                "timeout_count": {
+                  "const": null
+                },
+                "total_count": {
+                  "const": null
+                },
+                "status": {
+                  "const": "NOT_RUN_PREVIOUS_CANDIDATE_ABORT"
+                }
+              }
+            }
+          }
+        },
+        "docdb-touqian": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "A",
+            "B"
+          ],
+          "properties": {
+            "A": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "answerable_count",
+                "answerable_system_error_count",
+                "build_seconds",
+                "exact",
+                "exact_count",
+                "exact_hits",
+                "exact_system_error_count",
+                "index_bytes",
+                "leak_count",
+                "no_answer",
+                "no_answer_correct",
+                "no_answer_count",
+                "no_answer_system_error_count",
+                "p95_ms",
+                "peak_rss_bytes",
+                "recall_at_10",
+                "recall_hits_at_10",
+                "system_error_count",
+                "timeout_count",
+                "total_count",
+                "status"
+              ],
+              "properties": {
+                "answerable_count": {
+                  "const": null
+                },
+                "answerable_system_error_count": {
+                  "const": null
+                },
+                "build_seconds": {
+                  "const": null
+                },
+                "exact": {
+                  "const": null
+                },
+                "exact_count": {
+                  "const": null
+                },
+                "exact_hits": {
+                  "const": null
+                },
+                "exact_system_error_count": {
+                  "const": null
+                },
+                "index_bytes": {
+                  "const": null
+                },
+                "leak_count": {
+                  "const": null
+                },
+                "no_answer": {
+                  "const": null
+                },
+                "no_answer_correct": {
+                  "const": null
+                },
+                "no_answer_count": {
+                  "const": null
+                },
+                "no_answer_system_error_count": {
+                  "const": null
+                },
+                "p95_ms": {
+                  "const": null
+                },
+                "peak_rss_bytes": {
+                  "const": null
+                },
+                "recall_at_10": {
+                  "const": null
+                },
+                "recall_hits_at_10": {
+                  "const": null
+                },
+                "system_error_count": {
+                  "const": null
+                },
+                "timeout_count": {
+                  "const": null
+                },
+                "total_count": {
+                  "const": null
+                },
+                "status": {
+                  "const": "NOT_MEASURED_STARTUP_ABORT"
+                }
+              }
+            },
+            "B": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "answerable_count",
+                "answerable_system_error_count",
+                "build_seconds",
+                "exact",
+                "exact_count",
+                "exact_hits",
+                "exact_system_error_count",
+                "index_bytes",
+                "leak_count",
+                "no_answer",
+                "no_answer_correct",
+                "no_answer_count",
+                "no_answer_system_error_count",
+                "p95_ms",
+                "peak_rss_bytes",
+                "recall_at_10",
+                "recall_hits_at_10",
+                "system_error_count",
+                "timeout_count",
+                "total_count",
+                "status"
+              ],
+              "properties": {
+                "answerable_count": {
+                  "const": null
+                },
+                "answerable_system_error_count": {
+                  "const": null
+                },
+                "build_seconds": {
+                  "const": null
+                },
+                "exact": {
+                  "const": null
+                },
+                "exact_count": {
+                  "const": null
+                },
+                "exact_hits": {
+                  "const": null
+                },
+                "exact_system_error_count": {
+                  "const": null
+                },
+                "index_bytes": {
+                  "const": null
+                },
+                "leak_count": {
+                  "const": null
+                },
+                "no_answer": {
+                  "const": null
+                },
+                "no_answer_correct": {
+                  "const": null
+                },
+                "no_answer_count": {
+                  "const": null
+                },
+                "no_answer_system_error_count": {
+                  "const": null
+                },
+                "p95_ms": {
+                  "const": null
+                },
+                "peak_rss_bytes": {
+                  "const": null
+                },
+                "recall_at_10": {
+                  "const": null
+                },
+                "recall_hits_at_10": {
+                  "const": null
+                },
+                "system_error_count": {
+                  "const": null
+                },
+                "timeout_count": {
+                  "const": null
+                },
+                "total_count": {
+                  "const": null
+                },
+                "status": {
+                  "const": "NOT_RUN_PREVIOUS_CANDIDATE_ABORT"
+                }
+              }
+            }
+          }
+        },
+        "spbp-2027": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "A",
+            "B"
+          ],
+          "properties": {
+            "A": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "answerable_count",
+                "answerable_system_error_count",
+                "build_seconds",
+                "exact",
+                "exact_count",
+                "exact_hits",
+                "exact_system_error_count",
+                "index_bytes",
+                "leak_count",
+                "no_answer",
+                "no_answer_correct",
+                "no_answer_count",
+                "no_answer_system_error_count",
+                "p95_ms",
+                "peak_rss_bytes",
+                "recall_at_10",
+                "recall_hits_at_10",
+                "system_error_count",
+                "timeout_count",
+                "total_count",
+                "status"
+              ],
+              "properties": {
+                "answerable_count": {
+                  "const": null
+                },
+                "answerable_system_error_count": {
+                  "const": null
+                },
+                "build_seconds": {
+                  "const": null
+                },
+                "exact": {
+                  "const": null
+                },
+                "exact_count": {
+                  "const": null
+                },
+                "exact_hits": {
+                  "const": null
+                },
+                "exact_system_error_count": {
+                  "const": null
+                },
+                "index_bytes": {
+                  "const": null
+                },
+                "leak_count": {
+                  "const": null
+                },
+                "no_answer": {
+                  "const": null
+                },
+                "no_answer_correct": {
+                  "const": null
+                },
+                "no_answer_count": {
+                  "const": null
+                },
+                "no_answer_system_error_count": {
+                  "const": null
+                },
+                "p95_ms": {
+                  "const": null
+                },
+                "peak_rss_bytes": {
+                  "const": null
+                },
+                "recall_at_10": {
+                  "const": null
+                },
+                "recall_hits_at_10": {
+                  "const": null
+                },
+                "system_error_count": {
+                  "const": null
+                },
+                "timeout_count": {
+                  "const": null
+                },
+                "total_count": {
+                  "const": null
+                },
+                "status": {
+                  "const": "NOT_MEASURED_STARTUP_ABORT"
+                }
+              }
+            },
+            "B": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "answerable_count",
+                "answerable_system_error_count",
+                "build_seconds",
+                "exact",
+                "exact_count",
+                "exact_hits",
+                "exact_system_error_count",
+                "index_bytes",
+                "leak_count",
+                "no_answer",
+                "no_answer_correct",
+                "no_answer_count",
+                "no_answer_system_error_count",
+                "p95_ms",
+                "peak_rss_bytes",
+                "recall_at_10",
+                "recall_hits_at_10",
+                "system_error_count",
+                "timeout_count",
+                "total_count",
+                "status"
+              ],
+              "properties": {
+                "answerable_count": {
+                  "const": null
+                },
+                "answerable_system_error_count": {
+                  "const": null
+                },
+                "build_seconds": {
+                  "const": null
+                },
+                "exact": {
+                  "const": null
+                },
+                "exact_count": {
+                  "const": null
+                },
+                "exact_hits": {
+                  "const": null
+                },
+                "exact_system_error_count": {
+                  "const": null
+                },
+                "index_bytes": {
+                  "const": null
+                },
+                "leak_count": {
+                  "const": null
+                },
+                "no_answer": {
+                  "const": null
+                },
+                "no_answer_correct": {
+                  "const": null
+                },
+                "no_answer_count": {
+                  "const": null
+                },
+                "no_answer_system_error_count": {
+                  "const": null
+                },
+                "p95_ms": {
+                  "const": null
+                },
+                "peak_rss_bytes": {
+                  "const": null
+                },
+                "recall_at_10": {
+                  "const": null
+                },
+                "recall_hits_at_10": {
+                  "const": null
+                },
+                "system_error_count": {
+                  "const": null
+                },
+                "timeout_count": {
+                  "const": null
+                },
+                "total_count": {
+                  "const": null
+                },
+                "status": {
+                  "const": "NOT_RUN_PREVIOUS_CANDIDATE_ABORT"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "mechanical_complexity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "A",
+        "B",
+        "basis"
+      ],
+      "properties": {
+        "A": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "components_count",
+            "upgrade_steps_count",
+            "backup_restore_steps_count"
+          ],
+          "properties": {
+            "components_count": {
+              "const": 1
+            },
+            "upgrade_steps_count": {
+              "const": 6
+            },
+            "backup_restore_steps_count": {
+              "const": 4
+            }
+          }
+        },
+        "B": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "components_count",
+            "upgrade_steps_count",
+            "backup_restore_steps_count"
+          ],
+          "properties": {
+            "components_count": {
+              "const": 2
+            },
+            "upgrade_steps_count": {
+              "const": 7
+            },
+            "backup_restore_steps_count": {
+              "const": 3
+            }
+          }
+        },
+        "basis": {
+          "const": "FROZEN_RUNBOOK_STEP_COUNTS_NOT_FORMAL_PERFORMANCE"
+        }
+      }
+    },
+    "gateway_readiness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "A",
+        "B"
+      ],
+      "properties": {
+        "A": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "https_query_api",
+            "per_gateway_identity",
+            "kb_grants_server_side",
+            "no_direct_nas_or_search_credentials"
+          ],
+          "properties": {
+            "https_query_api": {
+              "const": null
+            },
+            "per_gateway_identity": {
+              "const": null
+            },
+            "kb_grants_server_side": {
+              "const": null
+            },
+            "no_direct_nas_or_search_credentials": {
+              "const": null
+            }
+          }
+        },
+        "B": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "https_query_api",
+            "per_gateway_identity",
+            "kb_grants_server_side",
+            "no_direct_nas_or_search_credentials"
+          ],
+          "properties": {
+            "https_query_api": {
+              "const": null
+            },
+            "per_gateway_identity": {
+              "const": null
+            },
+            "kb_grants_server_side": {
+              "const": null
+            },
+            "no_direct_nas_or_search_credentials": {
+              "const": null
+            }
+          }
+        }
+      }
+    },
+    "freeze_privacy_roles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "before_claims",
+        "freeze_claims",
+        "freeze_verifier_claims",
+        "freeze_artifacts_recomputed",
+        "readiness_before_before_before_freeze",
+        "runtime_policy_readiness",
+        "privacy_readiness",
+        "runtime_readiness_recomputed",
+        "privacy_receipt_binding_recomputed",
+        "spawn_precheck_passed_for_created_process",
+        "candidate_service_ready",
+        "native_upstream_verified",
+        "builder_runs",
+        "verifier_runs",
+        "roles_verified",
+        "role_separation_level"
+      ],
+      "properties": {
+        "before_claims": {
+          "const": 1
+        },
+        "freeze_claims": {
+          "const": 1
+        },
+        "freeze_verifier_claims": {
+          "const": 1
+        },
+        "freeze_artifacts_recomputed": {
+          "const": true
+        },
+        "readiness_before_before_before_freeze": {
+          "const": true
+        },
+        "runtime_policy_readiness": {
+          "const": "PASS"
+        },
+        "privacy_readiness": {
+          "const": "PASS"
+        },
+        "runtime_readiness_recomputed": {
+          "const": true
+        },
+        "privacy_receipt_binding_recomputed": {
+          "const": true
+        },
+        "spawn_precheck_passed_for_created_process": {
+          "const": true
+        },
+        "candidate_service_ready": {
+          "const": false
+        },
+        "native_upstream_verified": {
+          "const": true
+        },
+        "builder_runs": {
+          "const": 1
+        },
+        "verifier_runs": {
+          "const": 1
+        },
+        "roles_verified": {
+          "const": true
+        },
+        "role_separation_level": {
+          "const": "PROCESS_LEVEL_SEPARATION_SINGLE_UID"
+        }
+      }
+    },
+    "cleanup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate_processes",
+        "controller_processes",
+        "temporary_data_planes",
+        "new_temporary_files",
+        "new_gateway_tls_files",
+        "failures",
+        "gateway_http_200_count",
+        "private_holdout_retained",
+        "uuid_resources",
+        "new_resource_audit_records_retained",
+        "prelaunch_tmp_files_preserved"
+      ],
+      "properties": {
+        "candidate_processes": {
+          "const": 0
+        },
+        "controller_processes": {
+          "const": 0
+        },
+        "temporary_data_planes": {
+          "const": 0
+        },
+        "new_temporary_files": {
+          "const": 0
+        },
+        "new_gateway_tls_files": {
+          "const": 0
+        },
+        "failures": {
+          "const": 0
+        },
+        "gateway_http_200_count": {
+          "const": 3
+        },
+        "private_holdout_retained": {
+          "const": true
+        },
+        "uuid_resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "containers",
+            "volumes",
+            "networks",
+            "image_tags",
+            "services"
+          ],
+          "properties": {
+            "containers": {
+              "const": 0
+            },
+            "volumes": {
+              "const": 0
+            },
+            "networks": {
+              "const": 0
+            },
+            "image_tags": {
+              "const": 0
+            },
+            "services": {
+              "const": 0
+            }
+          }
+        },
+        "new_resource_audit_records_retained": {
+          "const": 1
+        },
+        "prelaunch_tmp_files_preserved": {
+          "const": true
+        }
+      }
+    },
+    "production_comparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "all_items_measured",
+        "containers_unchanged",
+        "volumes_unchanged",
+        "services_unchanged",
+        "three_gateways_healthy",
+        "gateway_unchanged",
+        "gateway_health_content_unchanged",
+        "nas_unchanged_measured_projection",
+        "existing_indices_unchanged_measured_projection",
+        "production_config_unchanged_measured_projection",
+        "nas_unchanged",
+        "existing_indices_unchanged",
+        "production_config_unchanged"
+      ],
+      "properties": {
+        "all_items_measured": {
+          "const": false
+        },
+        "containers_unchanged": {
+          "type": "boolean"
+        },
+        "volumes_unchanged": {
+          "type": "boolean"
+        },
+        "services_unchanged": {
+          "type": "boolean"
+        },
+        "three_gateways_healthy": {
+          "type": "boolean"
+        },
+        "gateway_unchanged": {
+          "type": "boolean"
+        },
+        "gateway_health_content_unchanged": {
+          "type": "boolean"
+        },
+        "nas_unchanged_measured_projection": {
+          "type": "boolean"
+        },
+        "existing_indices_unchanged_measured_projection": {
+          "type": "boolean"
+        },
+        "production_config_unchanged_measured_projection": {
+          "type": "boolean"
+        },
+        "nas_unchanged": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "existing_indices_unchanged": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "production_config_unchanged": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "retention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "original_materials",
+        "original_materials_bytes_equal",
+        "archived_original_files",
+        "all_archived_originals_equal",
+        "old_original_files_bytes_equal",
+        "old_window_permanently_invalid",
+        "old_void_strictly_valid",
+        "holdout_freeze_audit_history_retained",
+        "frozen_source_unchanged",
+        "runtime_policy_bytes_unchanged"
+      ],
+      "properties": {
+        "original_materials": {
+          "const": 96
+        },
+        "original_materials_bytes_equal": {
+          "const": true
+        },
+        "archived_original_files": {
+          "const": 1222
+        },
+        "all_archived_originals_equal": {
+          "const": true
+        },
+        "old_original_files_bytes_equal": {
+          "const": true
+        },
+        "old_window_permanently_invalid": {
+          "const": true
+        },
+        "old_void_strictly_valid": {
+          "const": true
+        },
+        "holdout_freeze_audit_history_retained": {
+          "const": true
+        },
+        "frozen_source_unchanged": {
+          "const": true
+        },
+        "runtime_policy_bytes_unchanged": {
+          "const": true
+        }
+      }
+    },
+    "closure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "terminal_status",
+        "terminal_phase",
+        "before_claims",
+        "after_claims",
+        "cleanup_receipts",
+        "controller_attempts",
+        "formal_candidate_sequence",
+        "closeout_order",
+        "cleanup_before_after_verified",
+        "initial_failed_controller_terminal_retained",
+        "before_after_same_window_verified",
+        "comparison_recomputed",
+        "after_libraries_measured",
+        "before_file_counts",
+        "after_file_counts",
+        "window_closed_to_replay"
+      ],
+      "properties": {
+        "terminal_status": {
+          "const": "INVALID"
+        },
+        "terminal_phase": {
+          "const": "COMPLETE"
+        },
+        "before_claims": {
+          "const": 1
+        },
+        "after_claims": {
+          "const": 1
+        },
+        "cleanup_receipts": {
+          "const": 1
+        },
+        "controller_attempts": {
+          "const": 2
+        },
+        "formal_candidate_sequence": {
+          "const": [
+            "a"
+          ]
+        },
+        "closeout_order": {
+          "const": [
+            "cleanup",
+            "after",
+            "abort_evidence",
+            "decision"
+          ]
+        },
+        "cleanup_before_after_verified": {
+          "const": true
+        },
+        "initial_failed_controller_terminal_retained": {
+          "const": true
+        },
+        "before_after_same_window_verified": {
+          "const": true
+        },
+        "comparison_recomputed": {
+          "const": true
+        },
+        "after_libraries_measured": {
+          "const": 3
+        },
+        "before_file_counts": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "after_file_counts": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "window_closed_to_replay": {
+          "const": true
+        }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "formal_evaluation_complete",
+        "schema_valid_v3_aggregate_available",
+        "production_cutover_allowed",
+        "full_production_invariance_proven",
+        "historical_drift_cleared",
+        "synthetic_scores_used_as_formal",
+        "private_data_or_digests_exported",
+        "runtime_source_or_configuration_repaired"
+      ],
+      "properties": {
+        "formal_evaluation_complete": {
+          "const": false
+        },
+        "schema_valid_v3_aggregate_available": {
+          "const": false
+        },
+        "production_cutover_allowed": {
+          "const": false
+        },
+        "full_production_invariance_proven": {
+          "const": false
+        },
+        "historical_drift_cleared": {
+          "const": false
+        },
+        "synthetic_scores_used_as_formal": {
+          "const": false
+        },
+        "private_data_or_digests_exported": {
+          "const": false
+        },
+        "runtime_source_or_configuration_repaired": {
+          "const": false
+        }
+      }
+    },
+    "startup_diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "class_markers",
+        "frozen_code_or_policy_changes",
+        "log_files_checked",
+        "new_attempts",
+        "new_query_calls",
+        "private_holdout_reopened",
+        "protected_log_path_error_lines",
+        "protected_log_path_near_error_lines",
+        "raw_logs_or_paths_exported",
+        "startup_failure_root_cause_fully_proven",
+        "status"
+      ],
+      "properties": {
+        "class_markers": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "DIRECTORY_CREATION_FAILURE",
+            "ENVIRONMENT_LOG_FAILURE",
+            "LOG_CONFIGURATION_FAILURE",
+            "NIO_ACCESS_FAILURE"
+          ],
+          "properties": {
+            "DIRECTORY_CREATION_FAILURE": {
+              "const": 2
+            },
+            "ENVIRONMENT_LOG_FAILURE": {
+              "const": 0
+            },
+            "LOG_CONFIGURATION_FAILURE": {
+              "const": 480
+            },
+            "NIO_ACCESS_FAILURE": {
+              "const": 0
+            }
+          }
+        },
+        "frozen_code_or_policy_changes": {
+          "const": 0
+        },
+        "log_files_checked": {
+          "const": 1
+        },
+        "new_attempts": {
+          "const": 0
+        },
+        "new_query_calls": {
+          "const": 0
+        },
+        "private_holdout_reopened": {
+          "const": false
+        },
+        "protected_log_path_error_lines": {
+          "const": 36
+        },
+        "protected_log_path_near_error_lines": {
+          "const": 36
+        },
+        "raw_logs_or_paths_exported": {
+          "const": false
+        },
+        "startup_failure_root_cause_fully_proven": {
+          "const": false
+        },
+        "status": {
+          "const": "READONLY_CLASSIFICATION_COMPLETE"
+        }
+      }
+    }
+  }
+}

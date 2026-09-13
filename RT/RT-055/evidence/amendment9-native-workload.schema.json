@@ -1,0 +1,548 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "status",
+    "public_native_unique_constraint_events",
+    "b_workload_final_firewall",
+    "source_binding_recomputed",
+    "privacy_binding_recomputed",
+    "public_workload",
+    "formal_queries"
+  ],
+  "properties": {
+    "status": {
+      "const": "PASS"
+    },
+    "public_native_unique_constraint_events": {
+      "const": 0
+    },
+    "b_workload_final_firewall": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "streams",
+        "verified",
+        "eof_all",
+        "closed_all",
+        "caps_pass",
+        "errors",
+        "postscan_hits",
+        "redactions",
+        "input_bytes",
+        "output_bytes"
+      ],
+      "properties": {
+        "streams": {
+          "const": 6
+        },
+        "verified": {
+          "const": true
+        },
+        "eof_all": {
+          "const": true
+        },
+        "closed_all": {
+          "const": true
+        },
+        "caps_pass": {
+          "const": true
+        },
+        "errors": {
+          "const": 0
+        },
+        "postscan_hits": {
+          "const": 0
+        },
+        "redactions": {
+          "const": 18
+        },
+        "input_bytes": {
+          "const": 18237
+        },
+        "output_bytes": {
+          "const": 18048
+        }
+      }
+    },
+    "source_binding_recomputed": {
+      "const": true
+    },
+    "privacy_binding_recomputed": {
+      "const": true
+    },
+    "public_workload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidates",
+        "cleanup_failures",
+        "counts",
+        "data_class",
+        "document_byte_upper_bound",
+        "finished_at",
+        "formal_attempts",
+        "formal_queries",
+        "migration_id",
+        "native_sql_errorpath_injected",
+        "ordinary_document_bytes",
+        "phase",
+        "private_reads",
+        "remaining_runtime",
+        "schema",
+        "source_commit",
+        "started_at",
+        "status",
+        "timeout_seconds",
+        "trial_counts"
+      ],
+      "properties": {
+        "candidates": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "a",
+            "b"
+          ],
+          "properties": {
+            "a": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "caps_pass",
+                "closed_all",
+                "eof_all",
+                "firewall_errors",
+                "firewall_streams",
+                "firewall_verified",
+                "input_bytes",
+                "libraries",
+                "output_bytes",
+                "post_scan_hits",
+                "redactions",
+                "searches"
+              ],
+              "properties": {
+                "caps_pass": {
+                  "const": true
+                },
+                "closed_all": {
+                  "const": true
+                },
+                "eof_all": {
+                  "const": true
+                },
+                "firewall_errors": {
+                  "const": 0
+                },
+                "firewall_streams": {
+                  "const": 3
+                },
+                "firewall_verified": {
+                  "const": true
+                },
+                "input_bytes": {
+                  "const": 334672
+                },
+                "libraries": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "cwork-3m",
+                    "docdb-touqian",
+                    "spbp-2027"
+                  ],
+                  "properties": {
+                    "cwork-3m": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "build_seconds",
+                        "completed",
+                        "failed",
+                        "imported",
+                        "pending"
+                      ],
+                      "properties": {
+                        "build_seconds": {
+                          "const": 2.128
+                        },
+                        "completed": {
+                          "const": 42
+                        },
+                        "failed": {
+                          "const": 0
+                        },
+                        "imported": {
+                          "const": 42
+                        },
+                        "pending": {
+                          "const": 0
+                        }
+                      }
+                    },
+                    "docdb-touqian": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "build_seconds",
+                        "completed",
+                        "failed",
+                        "imported",
+                        "pending"
+                      ],
+                      "properties": {
+                        "build_seconds": {
+                          "const": 1.667
+                        },
+                        "completed": {
+                          "const": 31
+                        },
+                        "failed": {
+                          "const": 0
+                        },
+                        "imported": {
+                          "const": 31
+                        },
+                        "pending": {
+                          "const": 0
+                        }
+                      }
+                    },
+                    "spbp-2027": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "build_seconds",
+                        "completed",
+                        "failed",
+                        "imported",
+                        "pending"
+                      ],
+                      "properties": {
+                        "build_seconds": {
+                          "const": 2.076
+                        },
+                        "completed": {
+                          "const": 42
+                        },
+                        "failed": {
+                          "const": 0
+                        },
+                        "imported": {
+                          "const": 42
+                        },
+                        "pending": {
+                          "const": 0
+                        }
+                      }
+                    }
+                  }
+                },
+                "output_bytes": {
+                  "const": 334780
+                },
+                "post_scan_hits": {
+                  "const": 0
+                },
+                "redactions": {
+                  "const": 18
+                },
+                "searches": {
+                  "const": 3
+                }
+              }
+            },
+            "b": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "caps_pass",
+                "closed_all",
+                "eof_all",
+                "firewall_errors",
+                "firewall_streams",
+                "firewall_verified",
+                "input_bytes",
+                "libraries",
+                "native_sql_sanitized_observed",
+                "output_bytes",
+                "post_scan_hits",
+                "redactions",
+                "searches",
+                "sql_canary_redactions"
+              ],
+              "properties": {
+                "caps_pass": {
+                  "const": true
+                },
+                "closed_all": {
+                  "const": true
+                },
+                "eof_all": {
+                  "const": true
+                },
+                "firewall_errors": {
+                  "const": 0
+                },
+                "firewall_streams": {
+                  "const": 6
+                },
+                "firewall_verified": {
+                  "const": true
+                },
+                "input_bytes": {
+                  "const": 18237
+                },
+                "libraries": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "cwork-3m",
+                    "docdb-touqian",
+                    "spbp-2027"
+                  ],
+                  "properties": {
+                    "cwork-3m": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "build_seconds",
+                        "completed",
+                        "completed_before_next_post",
+                        "failed",
+                        "imported",
+                        "max_inflight",
+                        "pending",
+                        "post_count"
+                      ],
+                      "properties": {
+                        "build_seconds": {
+                          "const": 62.924
+                        },
+                        "completed": {
+                          "const": 42
+                        },
+                        "completed_before_next_post": {
+                          "const": 41
+                        },
+                        "failed": {
+                          "const": 0
+                        },
+                        "imported": {
+                          "const": 42
+                        },
+                        "max_inflight": {
+                          "const": 1
+                        },
+                        "pending": {
+                          "const": 0
+                        },
+                        "post_count": {
+                          "const": 42
+                        }
+                      }
+                    },
+                    "docdb-touqian": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "build_seconds",
+                        "completed",
+                        "completed_before_next_post",
+                        "failed",
+                        "imported",
+                        "max_inflight",
+                        "pending",
+                        "post_count"
+                      ],
+                      "properties": {
+                        "build_seconds": {
+                          "const": 54.406
+                        },
+                        "completed": {
+                          "const": 31
+                        },
+                        "completed_before_next_post": {
+                          "const": 30
+                        },
+                        "failed": {
+                          "const": 0
+                        },
+                        "imported": {
+                          "const": 31
+                        },
+                        "max_inflight": {
+                          "const": 1
+                        },
+                        "pending": {
+                          "const": 0
+                        },
+                        "post_count": {
+                          "const": 31
+                        }
+                      }
+                    },
+                    "spbp-2027": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "build_seconds",
+                        "completed",
+                        "completed_before_next_post",
+                        "failed",
+                        "imported",
+                        "max_inflight",
+                        "pending",
+                        "post_count"
+                      ],
+                      "properties": {
+                        "build_seconds": {
+                          "const": 62.913
+                        },
+                        "completed": {
+                          "const": 42
+                        },
+                        "completed_before_next_post": {
+                          "const": 41
+                        },
+                        "failed": {
+                          "const": 0
+                        },
+                        "imported": {
+                          "const": 42
+                        },
+                        "max_inflight": {
+                          "const": 1
+                        },
+                        "pending": {
+                          "const": 0
+                        },
+                        "post_count": {
+                          "const": 42
+                        }
+                      }
+                    }
+                  }
+                },
+                "native_sql_sanitized_observed": {
+                  "const": true
+                },
+                "output_bytes": {
+                  "const": 18048
+                },
+                "post_scan_hits": {
+                  "const": 0
+                },
+                "redactions": {
+                  "const": 18
+                },
+                "searches": {
+                  "const": 3
+                },
+                "sql_canary_redactions": {
+                  "const": 18
+                }
+              }
+            }
+          }
+        },
+        "cleanup_failures": {
+          "const": 0
+        },
+        "counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cwork-3m",
+            "docdb-touqian",
+            "spbp-2027"
+          ],
+          "properties": {
+            "cwork-3m": {
+              "const": 42
+            },
+            "docdb-touqian": {
+              "const": 31
+            },
+            "spbp-2027": {
+              "const": 42
+            }
+          }
+        },
+        "data_class": {
+          "const": "PUBLIC_SYNTHETIC_ONLY_NOT_FORMAL_SCORES"
+        },
+        "document_byte_upper_bound": {
+          "const": 524288
+        },
+        "finished_at": {
+          "const": 1789195771.927572
+        },
+        "formal_attempts": {
+          "const": 0
+        },
+        "formal_queries": {
+          "const": 0
+        },
+        "migration_id": {
+          "const": "89edbd10-2905-41f1-9037-62b502890856"
+        },
+        "native_sql_errorpath_injected": {
+          "const": true
+        },
+        "ordinary_document_bytes": {
+          "const": 8192
+        },
+        "phase": {
+          "const": "COMPLETE"
+        },
+        "private_reads": {
+          "const": 0
+        },
+        "remaining_runtime": {
+          "const": 0
+        },
+        "schema": {
+          "const": "cwk.rt055.public-workload.v2"
+        },
+        "source_commit": {
+          "const": "6b32584023cd27096e7c2167c0c28f47b380f922"
+        },
+        "started_at": {
+          "const": 1789195513.1469371
+        },
+        "status": {
+          "const": "PASS"
+        },
+        "timeout_seconds": {
+          "const": 7200
+        },
+        "trial_counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cwork-3m",
+            "docdb-touqian",
+            "spbp-2027"
+          ],
+          "properties": {
+            "cwork-3m": {
+              "const": 42
+            },
+            "docdb-touqian": {
+              "const": 31
+            },
+            "spbp-2027": {
+              "const": 42
+            }
+          }
+        }
+      }
+    },
+    "formal_queries": {
+      "const": 0
+    }
+  }
+}

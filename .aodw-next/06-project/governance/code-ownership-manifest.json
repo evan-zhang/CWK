@@ -303,6 +303,77 @@
       "rationale": "RT-052 的只读 OPS 盘点面；scripts/ 是 exact-only 区，创建时逐条登记。"
     },
     {
+      "id": "R-runtime-rt054-p0-diagnostics",
+      "domain": "runtime",
+      "kind": "exact_set",
+      "paths": [
+        "scripts/kb_p0.py",
+        "scripts/kb_p0_benchmark.py",
+        "scripts/kb_stage_b_poc.py",
+        "scripts/kb_stage_b_opensearch_benchmark.py",
+        "scripts/kb_stage_b_ops_benchmark.py",
+        "scripts/kb_stage_b_ops_cases.py",
+        "scripts/kb_stage_b_ops_verify.py",
+        "scripts/rt054_pure_local.py",
+        "scripts/rt054_pure_local_launcher.sh",
+        "scripts/rt054_pure_local_path_validation.sh"
+      ],
+      "owner": "RT-054",
+      "management_domain": "cwk-governance-v1",
+      "change_entry": "RT → rt-lite.md → tests/test_rt054_p0.py + tests/test_rt054_pure_local.py + tests/test_rt054_stage_b_poc.py + tests/test_rt054_stage_b_opensearch_benchmark.py + tests/test_rt054_stage_b_ops_benchmark.py + env -i make rt054-pure-local + make governance-audit",
+      "evolution_path": "repo-standard-change",
+      "rationale": "RT-054 的默认关闭 P0 分段诊断、仅合成夹具离线 postings 对照、bounded-read 验收纯本地子进程入口，以及阶段 B 的 Parent/Child、离线 analyzer PoC 与显式 loopback OpenSearch benchmark。两个阶段 B runner 都只消费仓库内脱敏 fixture并逐题记录 72 题；离线 runner 区分 legacy 实测、等价模拟和 SKIP，并在固定 scope 后计算 BM25 统计；fixture runner 只连接用户显式提供的无认证 loopback OpenSearch，分开记录 shared-filter 全局 Lucene 统计与 isolated-scope 对照，实测 legacy mapping、官方 analysis-icu/analysis-smartcn、primary store、取回代价和结构化 SKIP，finally 删除 12 个唯一前缀临时索引；OPS runner 仅在明确授权后复用 OPS 生产进程的只读 NAS 环境，在唯一私有临时目录中对三库原地投影和构建临时 loopback 索引，只输出经过结构与敏感模式扫描的聚合数字，并在 finally 清除索引、容器、派生镜像和工作目录、复核 Gateway 与旧索引元数据不变。Make 从自身 realpath 固定 launcher；shell helper 只从 /usr/bin/python3 开始，在 exec 前有界解析最多 16 个 symlink。link 本身只要求 root owner：Unix lstat 的通常 0777 mode 不代表 target 可写；每跳父组件与最终 regular executable 仍逐一要求 root-owned/non-group-or-other-writable，最终仅 exec 该 regular executable。Homebrew、/usr/local、PATH、cycle、超深或任一不可信组件均无 fallback 地拒绝，并令第一个 Python 即 -I -S。runner 的受控临时 HOME/TMPDIR、所列 Python socket/FileStation/.env audit 与标准 Python open-route fail-closed trap 强制 NAS smoke skip。网络计数不主张进程级 sandbox 或任意 syscall 零网络。scripts/ 是 exact-only 区，故实际存在的脚本逐条登记；不预登记后续 pointer、epoch、cache 或存储文件。 OPS staged 质量闭环把固定分层 expected-doc 抽样/查询派生与独立原语料 verifier 拆成两个进程；固定 126 题按每库每类别稳定 ordinal 在 query 派生前版本化预分 calibration/holdout，calibration 只导出匿名 failure category/subtype 聚合，私有冻结 mapping/query SHA 后只执行一次 holdout。候选 ICU v2 通用化 exact normalization、title/filename keyword exact 与 phrase/AND 字段 boost；legacy 仅作基线。运行 case/query/freeze 只留在 0700 临时目录，评分器仅导出白名单聚合；该门只裁决 lexical analyzer/mapping，不构成产品语义验收。"
+    },
+    {
+      "id": "R-runtime-rt055-retrieval-decision",
+      "domain": "runtime",
+      "kind": "exact_set",
+      "owner": "RT-055",
+      "management_domain": "cwk-governance-v1",
+      "change_entry": "RT → rt-lite.md → tests/test_rt055_*.py + scripts/rt055_local_qa.py + make governance-audit",
+      "evolution_path": "repo-standard-change",
+      "rationale": "RT-055 的仓库侧 aggregate-only 检索方案裁决器。只消费 OPS 导出的白名单聚合，冻结 OpenSearch 双通道与固定 commit 原版 WeKnora 的候选身份，拒绝 RT-054 holdout 复用、私有 query/expected/source 形状、逐库硬门失败、生产不变性或清理失败；不连接 OPS、不建索引、不运行 WeKnora。scripts/ 为 exact-only 区，故逐文件登记。 本地实验阶段新增双候选执行适配与私有评分：A 仅在显式调用时创建随机独占临时索引，B 仅接已隔离的原生临时库；不负责部署，不伪造资源/权限/冻结证明。 Amendment 3 升级 v3 合同、固定 tier/DEFERRED 与角色审计；显式登记仅供后续 OPS 授权执行的 runner 源码，当前本地交付不启动它们。rt055_local_qa.py 只跑合成判据和隔离源码破坏实验，不调用 OPS runner；OPS native/完整生产证明未验收不得冒充 PASS。",
+      "paths": [
+        "scripts/kb_retrieval_decision.py",
+        "scripts/kb_retrieval_candidates.py",
+        "scripts/rt055_exclusion.py",
+        "scripts/rt055_builder.py",
+        "scripts/rt055_verifier.py",
+        "scripts/rt055_opslib.py",
+        "scripts/rt055_aggregate.py",
+        "scripts/rt055_baseline.py",
+        "scripts/rt055_cleanup.py",
+        "scripts/rt055_confidentiality.py",
+        "scripts/rt055_embed_sidecar.py",
+        "scripts/rt055_formal_coordinator.py",
+        "scripts/rt055_freeze.py",
+        "scripts/rt055_local_qa.py",
+        "scripts/rt055_pool_coordinator.py",
+        "scripts/rt055_prepare.py",
+        "scripts/rt055_role_runner.py",
+        "scripts/rt055_run_a.py",
+        "scripts/rt055_run_b.py",
+        "scripts/rt055_runbooks.json",
+        "scripts/rt055_runtime.py",
+        "scripts/rt055_runtime_readiness.py",
+        "scripts/rt055_runtime_readiness_qa.py",
+        "scripts/rt055_candidate_workspace.py",
+        "scripts/rt055_candidate_startup.py",
+        "scripts/rt055_scoring_input.py",
+        "scripts/rt055_scoring_input_qa.py",
+        "scripts/rt055_log_firewall.py",
+        "scripts/rt055_log_firewall_qa.py",
+        "scripts/rt055_build_readiness.py",
+        "scripts/rt055_workload_readiness.py",
+        "scripts/rt055_candidate_workspace_qa.py",
+        "scripts/rt055_setup.py",
+        "scripts/rt055_tiers.py",
+        "scripts/rt055_window.py",
+        "scripts/rt055_zero_exposure.py",
+        "scripts/rt055_zero_exposure_qa.py"
+      ]
+    },
+    {
       "id": "R-runtime-adapters",
       "domain": "runtime",
       "kind": "prefix",
@@ -314,6 +385,17 @@
       "rationale": "RT-041 源适配器目录（契约见 docs/ADAPTER-CONTRACT.md）。前缀而非 exact：新增适配器是被鼓励的扩展行为，与 R-test-suite 同理；scripts/ 封闭命名空间不受影响（包装式接入，gwork 只 import 现有函数）。adapters/ 不在 exact_only_zones：它只放适配器代码，配套契约文档在 docs/、测试在 tests/，均有各自认领规则。"
     },
     {
+      "id": "R-runtime-rt055-production-retrieval",
+      "domain": "runtime",
+      "kind": "prefix",
+      "prefix": "deploy/",
+      "owner": "RT-055",
+      "management_domain": "cwk-governance-v1",
+      "change_entry": "RT-055 → rt-lite.md 记录理由 → 改动 → make governance-audit + RT-055 生产检索测试",
+      "evolution_path": "repo-standard-change",
+      "rationale": "RT-055 的可移植部署资产：OpenSearch ICU 镜像构建、检索服务镜像、loopback compose 和 shadow/灰度/回滚说明。部署工件只描述路径，不执行生产变更。"
+    },
+    {
       "id": "R-build-makefile",
       "domain": "build_ci",
       "kind": "exact",
@@ -321,7 +403,7 @@
       "sensitive": true,
       "pin": {
         "mode": "100644",
-        "sha256": "ea0b94c17d0d70b07bebf1366dc409d0a2d3fa5956181a24d23476f635602247"
+        "sha256": "57227bf66a3fbdbe96555c10a11b1521233d0e91de03c6741357b0981a43bb78"
       },
       "owner": "RT-030",
       "management_domain": "cwk-governance-v1",
@@ -337,7 +419,7 @@
       "sensitive": true,
       "pin": {
         "mode": "100644",
-        "sha256": "3e3235fa1477764d466b42fb263697ca1484317b7138a1c1ea33ac30439ce72c"
+        "sha256": "98940777fc6150287ce496d0fc0410073b9a5cbf951cb66bbae220ca1a05e35b"
       },
       "owner": "RT-030",
       "management_domain": "cwk-governance-v1",
@@ -546,7 +628,7 @@
       "sensitive": true,
       "pin": {
         "mode": "100755",
-        "sha256": "ff9e61c1893750b85fb75cde60d6b9a1c3cb2d486db0bc030edd5a48c623917f"
+        "sha256": "6b13223c3f82822422a2f8fb2489ddc139b04958523b703ec10c50fceeeb879e"
       },
       "owner": "RT-030",
       "management_domain": "cwk-governance-v1",

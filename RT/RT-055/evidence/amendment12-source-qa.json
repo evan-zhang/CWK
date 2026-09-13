@@ -1,0 +1,46 @@
+{
+  "schema": "cwk.rt055.amendment12-source-qa.v1",
+  "status": "LOCAL_FIX_VERIFIED_NOT_OPS_PRIVACY_PASS",
+  "base_commit": "c9accd531970e9b0e1ca400d26fe5f09572690a2",
+  "red": {
+    "tests": 24,
+    "failures": 1,
+    "errors": 5
+  },
+  "regression": {
+    "tests": 272,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "behavior_mutations": [
+    {
+      "mutation": "CANDIDATE_SYN_SENT_BYPASS",
+      "detected": true
+    },
+    {
+      "mutation": "PROBE_PID_BINDING_BYPASS",
+      "detected": true
+    },
+    {
+      "mutation": "CANDIDATE_PROBE_REINTRODUCED",
+      "detected": true
+    }
+  ],
+  "compiled_files": 142,
+  "actual_local_sandbox_probe": "DENIED_CLOSED_ZERO_APPLICATION_PAYLOAD",
+  "candidate_external_zero_gate_preserved": true,
+  "candidate_probe_endpoint": "DISABLED_404",
+  "separate_probe_pid_binding": true,
+  "probe_target": "1.1.1.1:443",
+  "probe_accepted_state": "CLOSED",
+  "syn_sent_not_ignored": true,
+  "probe_receipt_recomputed_and_source_bound": true,
+  "source_aodw_passed": true,
+  "source_governance_passed": true,
+  "production_changes": false,
+  "candidate_algorithms_changed": false,
+  "full_repository_ci_claimed": false,
+  "ops_public_privacy_runs": 0,
+  "historical_attribution": "UNKNOWN"
+}

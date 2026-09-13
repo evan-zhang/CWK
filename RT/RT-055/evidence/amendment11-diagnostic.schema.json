@@ -1,0 +1,358 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "build_error",
+    "builder_runs",
+    "candidate_attempts",
+    "candidate_error",
+    "candidate_firewall_verified",
+    "candidate_log_files",
+    "candidate_log_hit_files",
+    "controller_checks",
+    "deadline_exhausted",
+    "deadline_phase",
+    "first_library_counts",
+    "global_exposure",
+    "health",
+    "log_marker_counts",
+    "logs_exported",
+    "migration_id",
+    "old_after_claims",
+    "old_after_status",
+    "original_formal_status",
+    "private_values_or_digests_exported",
+    "read_only_guard_active",
+    "retained_bytes_equal",
+    "retained_materials",
+    "root_cause",
+    "run_id",
+    "runtime",
+    "schema",
+    "source_bytes_equal",
+    "source_commit",
+    "status",
+    "task_processes",
+    "terminal",
+    "verifier_runs",
+    "window_id",
+    "confirmed_public_defect",
+    "old_failure_causal_attribution",
+    "new_window_retry_old_attempt"
+  ],
+  "properties": {
+    "build_error": {
+      "const": "REQUEST_FAILED"
+    },
+    "builder_runs": {
+      "const": 1
+    },
+    "candidate_attempts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "a",
+        "b"
+      ],
+      "properties": {
+        "a": {
+          "const": 0
+        },
+        "b": {
+          "const": 1
+        }
+      }
+    },
+    "candidate_error": {
+      "const": "CandidateError"
+    },
+    "candidate_firewall_verified": {
+      "const": true
+    },
+    "candidate_log_files": {
+      "const": 6
+    },
+    "candidate_log_hit_files": {
+      "const": 0
+    },
+    "controller_checks": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "error",
+            "post_scan_hits",
+            "verified"
+          ],
+          "properties": {
+            "error": {
+              "const": "CHILD_NONZERO"
+            },
+            "post_scan_hits": {
+              "const": 0
+            },
+            "verified": {
+              "const": false
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "deadline_exhausted": {
+      "const": false
+    },
+    "deadline_phase": {
+      "const": "IMPORT"
+    },
+    "first_library_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "completed",
+        "failed",
+        "imported",
+        "pending"
+      ],
+      "properties": {
+        "completed": {
+          "const": 29
+        },
+        "failed": {
+          "const": 0
+        },
+        "imported": {
+          "const": 30
+        },
+        "pending": {
+          "const": 1
+        }
+      }
+    },
+    "global_exposure": {
+      "const": 0
+    },
+    "health": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "http_status",
+            "ok",
+            "read_only"
+          ],
+          "properties": {
+            "http_status": {
+              "const": 200
+            },
+            "ok": {
+              "const": true
+            },
+            "read_only": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "http_status",
+            "ok",
+            "read_only"
+          ],
+          "properties": {
+            "http_status": {
+              "const": 200
+            },
+            "ok": {
+              "const": true
+            },
+            "read_only": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "http_status",
+            "ok",
+            "read_only"
+          ],
+          "properties": {
+            "http_status": {
+              "const": 200
+            },
+            "ok": {
+              "const": true
+            },
+            "read_only": {
+              "const": true
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "log_marker_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "COMPLETED_LITERAL",
+        "DEADLINE",
+        "FINALIZING_LITERAL",
+        "FINALIZING_SQL_ASSIGNMENT",
+        "INGESTION_FAILED",
+        "INVALID_JSON",
+        "INVALID_NATIVE_STATE",
+        "INVALID_RECEIPT",
+        "INVALID_UTF8",
+        "MISSING_TABLE",
+        "NATIVE_REQUEST_FAILED",
+        "PANIC",
+        "REDIRECT_REFUSED",
+        "REQUEST_TOO_LARGE",
+        "RESPONSE_SIZE",
+        "SQLITE_BUSY",
+        "TRANSPORT_RESET",
+        "UNIQUE_CONSTRAINT"
+      ],
+      "properties": {
+        "COMPLETED_LITERAL": {
+          "const": 0
+        },
+        "DEADLINE": {
+          "const": 0
+        },
+        "FINALIZING_LITERAL": {
+          "const": 0
+        },
+        "FINALIZING_SQL_ASSIGNMENT": {
+          "const": 0
+        },
+        "INGESTION_FAILED": {
+          "const": 0
+        },
+        "INVALID_JSON": {
+          "const": 0
+        },
+        "INVALID_NATIVE_STATE": {
+          "const": 0
+        },
+        "INVALID_RECEIPT": {
+          "const": 0
+        },
+        "INVALID_UTF8": {
+          "const": 0
+        },
+        "MISSING_TABLE": {
+          "const": 3
+        },
+        "NATIVE_REQUEST_FAILED": {
+          "const": 0
+        },
+        "PANIC": {
+          "const": 0
+        },
+        "REDIRECT_REFUSED": {
+          "const": 0
+        },
+        "REQUEST_TOO_LARGE": {
+          "const": 0
+        },
+        "RESPONSE_SIZE": {
+          "const": 0
+        },
+        "SQLITE_BUSY": {
+          "const": 0
+        },
+        "TRANSPORT_RESET": {
+          "const": 0
+        },
+        "UNIQUE_CONSTRAINT": {
+          "const": 0
+        }
+      }
+    },
+    "logs_exported": {
+      "const": false
+    },
+    "migration_id": {
+      "const": "ead5992d-fea7-4efb-b4c5-cedb1d7e8d12"
+    },
+    "old_after_claims": {
+      "const": 1
+    },
+    "old_after_status": {
+      "const": "PASS"
+    },
+    "original_formal_status": {
+      "const": "WAITING_RECONCILIATION"
+    },
+    "private_values_or_digests_exported": {
+      "const": false
+    },
+    "read_only_guard_active": {
+      "const": true
+    },
+    "retained_bytes_equal": {
+      "const": true
+    },
+    "retained_materials": {
+      "const": 96
+    },
+    "root_cause": {
+      "const": "UNKNOWN"
+    },
+    "run_id": {
+      "const": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af"
+    },
+    "runtime": {
+      "const": 0
+    },
+    "schema": {
+      "const": "cwk.rt055.amendment11-diagnostic.v1"
+    },
+    "source_bytes_equal": {
+      "const": true
+    },
+    "source_commit": {
+      "const": "43207eefbe30557b53d556055fa5438c8afe47ee"
+    },
+    "status": {
+      "const": "PASS"
+    },
+    "task_processes": {
+      "const": 0
+    },
+    "terminal": {
+      "const": "INVALID_CLOSED"
+    },
+    "verifier_runs": {
+      "const": 1
+    },
+    "window_id": {
+      "const": "be3ab168-0568-4d39-a06e-824b4cd26a58"
+    },
+    "confirmed_public_defect": {
+      "const": "NATIVE_FINALIZING_REJECTED_AS_REQUEST_FAILED"
+    },
+    "old_failure_causal_attribution": {
+      "const": "UNKNOWN"
+    },
+    "new_window_retry_old_attempt": {
+      "const": false
+    }
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "decision",
+    "deferred_libraries",
+    "error_code",
+    "participating_libraries",
+    "production_candidate_libraries",
+    "run_id",
+    "schema",
+    "selected",
+    "status",
+    "window_id"
+  ],
+  "properties": {
+    "decision": {
+      "const": "INVALID"
+    },
+    "deferred_libraries": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 0,
+      "items": false
+    },
+    "error_code": {
+      "const": "PUBLIC_PRIVACY_EXTERNAL_SOCKET_OBSERVATION"
+    },
+    "participating_libraries": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "prefixItems": [
+        {
+          "const": "cwork-3m"
+        },
+        {
+          "const": "docdb-touqian"
+        },
+        {
+          "const": "spbp-2027"
+        }
+      ],
+      "items": false
+    },
+    "production_candidate_libraries": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 0,
+      "items": false
+    },
+    "run_id": {
+      "const": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af"
+    },
+    "schema": {
+      "const": "cwk.rt055.retrieval-decision.result.v3"
+    },
+    "selected": {
+      "const": null
+    },
+    "status": {
+      "const": "INVALID"
+    },
+    "window_id": {
+      "const": "3330a46e-bfdd-4639-bb0c-ea5c1b3df622"
+    }
+  }
+}

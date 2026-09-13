@@ -1,0 +1,44 @@
+{
+  "schema": "cwk.rt055.scoring-input-root-cause.v1",
+  "status": "CONFIRMED",
+  "reason": "CASE_DROPPED_ORDINAL_QUERY_MISTAKEN_FOR_TRIAL_IDENTITY",
+  "failure_boundary": "ARMED_BEFORE_EXPOSURE_AND_FIRST_PRIVATE_SEARCH",
+  "classification": {
+    "cwork-3m": {
+      "all_pairs": true,
+      "bad_input_rows": 0,
+      "category_ordinal_valid_unique": true,
+      "cross_category": true,
+      "duplicate_extra_rows": 4,
+      "duplicate_groups": 4,
+      "ordinal_valid_unique": true,
+      "same_semantics": true,
+      "total_count": 42
+    },
+    "docdb-touqian": {
+      "all_pairs": true,
+      "bad_input_rows": 0,
+      "category_ordinal_valid_unique": true,
+      "cross_category": true,
+      "duplicate_extra_rows": 4,
+      "duplicate_groups": 4,
+      "ordinal_valid_unique": true,
+      "same_semantics": true,
+      "total_count": 31
+    },
+    "spbp-2027": {
+      "all_pairs": true,
+      "bad_input_rows": 0,
+      "category_ordinal_valid_unique": true,
+      "cross_category": true,
+      "duplicate_extra_rows": 5,
+      "duplicate_groups": 5,
+      "ordinal_valid_unique": true,
+      "same_semantics": true,
+      "total_count": 42
+    }
+  },
+  "private_values_or_hashes_exported": false,
+  "classification_readonly": true,
+  "classification_query_calls": 0
+}

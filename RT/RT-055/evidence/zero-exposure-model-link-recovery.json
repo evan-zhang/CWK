@@ -1,0 +1,34 @@
+{
+  "schema": "cwk.rt055.public-model-link-recovery.v1",
+  "data_class": "PUBLIC_SYNTHETIC_AND_OPS_COUNTS_ONLY",
+  "rejected_gate": "FROZEN_PUBLIC_MODEL_CACHE_LINK_FALSE_REJECTION",
+  "old_dependency_digests_recomputed": true,
+  "old_freeze_recomputed": true,
+  "frozen_internal_model_links": 22,
+  "void_created_before_fix": false,
+  "formal_queries": 0,
+  "archive_reused_without_rewrite": true,
+  "red": {
+    "tests": 15,
+    "failures": 0,
+    "errors": 3,
+    "skipped": 0,
+    "exit_code": 1
+  },
+  "green": {
+    "tests": 157,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exit_code": 0
+  },
+  "restored_green": {
+    "tests": 157,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exit_code": 0
+  },
+  "behavior_mutations_detected": 14,
+  "private_or_escaped_links_allowed": false
+}

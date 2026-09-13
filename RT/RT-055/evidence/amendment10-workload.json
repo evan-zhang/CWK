@@ -1,0 +1,114 @@
+{
+  "candidates": {
+    "a": {
+      "caps_pass": true,
+      "closed_all": true,
+      "eof_all": true,
+      "firewall_errors": 0,
+      "firewall_streams": 3,
+      "firewall_verified": true,
+      "input_bytes": 339505,
+      "libraries": {
+        "cwork-3m": {
+          "build_seconds": 1.939,
+          "completed": 42,
+          "failed": 0,
+          "imported": 42,
+          "pending": 0
+        },
+        "docdb-touqian": {
+          "build_seconds": 1.705,
+          "completed": 31,
+          "failed": 0,
+          "imported": 31,
+          "pending": 0
+        },
+        "spbp-2027": {
+          "build_seconds": 2.07,
+          "completed": 42,
+          "failed": 0,
+          "imported": 42,
+          "pending": 0
+        }
+      },
+      "output_bytes": 339613,
+      "post_scan_hits": 0,
+      "redactions": 18,
+      "searches": 3
+    },
+    "b": {
+      "caps_pass": true,
+      "closed_all": true,
+      "eof_all": true,
+      "firewall_errors": 0,
+      "firewall_streams": 6,
+      "firewall_verified": true,
+      "input_bytes": 18237,
+      "libraries": {
+        "cwork-3m": {
+          "build_seconds": 63.173,
+          "completed": 42,
+          "completed_before_next_post": 41,
+          "failed": 0,
+          "imported": 42,
+          "max_inflight": 1,
+          "pending": 0,
+          "post_count": 42
+        },
+        "docdb-touqian": {
+          "build_seconds": 54.577,
+          "completed": 31,
+          "completed_before_next_post": 30,
+          "failed": 0,
+          "imported": 31,
+          "max_inflight": 1,
+          "pending": 0,
+          "post_count": 31
+        },
+        "spbp-2027": {
+          "build_seconds": 63.073,
+          "completed": 42,
+          "completed_before_next_post": 41,
+          "failed": 0,
+          "imported": 42,
+          "max_inflight": 1,
+          "pending": 0,
+          "post_count": 42
+        }
+      },
+      "native_sql_sanitized_observed": true,
+      "output_bytes": 18048,
+      "post_scan_hits": 0,
+      "redactions": 18,
+      "searches": 3,
+      "sql_canary_redactions": 18
+    }
+  },
+  "cleanup_failures": 0,
+  "counts": {
+    "cwork-3m": 42,
+    "docdb-touqian": 31,
+    "spbp-2027": 42
+  },
+  "data_class": "PUBLIC_SYNTHETIC_ONLY_NOT_FORMAL_SCORES",
+  "document_byte_upper_bound": 524288,
+  "finished_at": 1789200237.1550238,
+  "formal_attempts": 0,
+  "formal_queries": 0,
+  "migration_id": "ead5992d-fea7-4efb-b4c5-cedb1d7e8d12",
+  "native_sql_errorpath_injected": true,
+  "ordinary_document_bytes": 8192,
+  "phase": "COMPLETE",
+  "private_reads": 0,
+  "remaining_runtime": 0,
+  "schema": "cwk.rt055.public-workload.v2",
+  "source_commit": "43207eefbe30557b53d556055fa5438c8afe47ee",
+  "started_at": 1789199977.5202692,
+  "status": "PASS",
+  "timeout_seconds": 7200,
+  "trial_counts": {
+    "cwork-3m": 42,
+    "docdb-touqian": 31,
+    "spbp-2027": 42
+  }
+}

@@ -1,0 +1,88 @@
+{
+  "build_error": "REQUEST_FAILED",
+  "builder_runs": 1,
+  "candidate_attempts": {
+    "a": 0,
+    "b": 1
+  },
+  "candidate_error": "CandidateError",
+  "candidate_firewall_verified": true,
+  "candidate_log_files": 6,
+  "candidate_log_hit_files": 0,
+  "controller_checks": [
+    {
+      "error": "CHILD_NONZERO",
+      "post_scan_hits": 0,
+      "verified": false
+    }
+  ],
+  "deadline_exhausted": false,
+  "deadline_phase": "IMPORT",
+  "first_library_counts": {
+    "completed": 29,
+    "failed": 0,
+    "imported": 30,
+    "pending": 1
+  },
+  "global_exposure": 0,
+  "health": [
+    {
+      "http_status": 200,
+      "ok": true,
+      "read_only": true
+    },
+    {
+      "http_status": 200,
+      "ok": true,
+      "read_only": true
+    },
+    {
+      "http_status": 200,
+      "ok": true,
+      "read_only": true
+    }
+  ],
+  "log_marker_counts": {
+    "COMPLETED_LITERAL": 0,
+    "DEADLINE": 0,
+    "FINALIZING_LITERAL": 0,
+    "FINALIZING_SQL_ASSIGNMENT": 0,
+    "INGESTION_FAILED": 0,
+    "INVALID_JSON": 0,
+    "INVALID_NATIVE_STATE": 0,
+    "INVALID_RECEIPT": 0,
+    "INVALID_UTF8": 0,
+    "MISSING_TABLE": 3,
+    "NATIVE_REQUEST_FAILED": 0,
+    "PANIC": 0,
+    "REDIRECT_REFUSED": 0,
+    "REQUEST_TOO_LARGE": 0,
+    "RESPONSE_SIZE": 0,
+    "SQLITE_BUSY": 0,
+    "TRANSPORT_RESET": 0,
+    "UNIQUE_CONSTRAINT": 0
+  },
+  "logs_exported": false,
+  "migration_id": "ead5992d-fea7-4efb-b4c5-cedb1d7e8d12",
+  "old_after_claims": 1,
+  "old_after_status": "PASS",
+  "original_formal_status": "WAITING_RECONCILIATION",
+  "private_values_or_digests_exported": false,
+  "read_only_guard_active": true,
+  "retained_bytes_equal": true,
+  "retained_materials": 96,
+  "root_cause": "UNKNOWN",
+  "run_id": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af",
+  "runtime": 0,
+  "schema": "cwk.rt055.amendment11-diagnostic.v1",
+  "source_bytes_equal": true,
+  "source_commit": "43207eefbe30557b53d556055fa5438c8afe47ee",
+  "status": "PASS",
+  "task_processes": 0,
+  "terminal": "INVALID_CLOSED",
+  "verifier_runs": 1,
+  "window_id": "be3ab168-0568-4d39-a06e-824b4cd26a58",
+  "confirmed_public_defect": "NATIVE_FINALIZING_REJECTED_AS_REQUEST_FAILED",
+  "old_failure_causal_attribution": "UNKNOWN",
+  "new_window_retry_old_attempt": false
+}

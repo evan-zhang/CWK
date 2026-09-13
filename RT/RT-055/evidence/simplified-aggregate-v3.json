@@ -1,0 +1,439 @@
+{
+  "PRIVACY_MODE": "SIMPLIFIED",
+  "candidates": {
+    "cwk-opensearch-dual-channel-v1": {
+      "freeze_receipt": {
+        "artifact_digests_verified_on_ops": true,
+        "candidate_artifacts_distinct_on_ops": true,
+        "candidate_id": "cwk-opensearch-dual-channel-v1",
+        "frozen_before_run": true,
+        "ops_artifacts_verified": true,
+        "receipt_id": "ops-rt055-freeze-candidate-a",
+        "window_id": "c47feba6-dbb3-4061-8067-245530ae3d76"
+      },
+      "gateway_readiness": {
+        "https_query_api": true,
+        "kb_grants_server_side": true,
+        "no_direct_nas_or_search_credentials": true,
+        "per_gateway_identity": true
+      },
+      "identity": {
+        "doc_collapse": true,
+        "exact_resolver": "deterministic_v1",
+        "kind": "opensearch_dual_channel",
+        "lexical_analyzer": "analysis_icu",
+        "parent_expand": true,
+        "rerank_in_primary": false
+      },
+      "libraries": {
+        "cwork-3m": {
+          "answerable_count": 37,
+          "answerable_system_error_count": 0,
+          "build_seconds": null,
+          "exact": 1.0,
+          "exact_count": 8,
+          "exact_hits": 8,
+          "exact_system_error_count": 0,
+          "index_bytes": null,
+          "leak_count": 0,
+          "no_answer": 1.0,
+          "no_answer_correct": 5,
+          "no_answer_count": 5,
+          "no_answer_system_error_count": 0,
+          "p95_ms": 9.251249954104424,
+          "peak_rss_bytes": null,
+          "recall_at_10": 0.918918918918919,
+          "recall_hits_at_10": 34,
+          "system_error_count": 0,
+          "timeout_count": 0,
+          "total_count": 42
+        },
+        "docdb-touqian": {
+          "answerable_count": 26,
+          "answerable_system_error_count": 0,
+          "build_seconds": null,
+          "exact": 1.0,
+          "exact_count": 3,
+          "exact_hits": 3,
+          "exact_system_error_count": 0,
+          "index_bytes": null,
+          "leak_count": 0,
+          "no_answer": 1.0,
+          "no_answer_correct": 5,
+          "no_answer_count": 5,
+          "no_answer_system_error_count": 0,
+          "p95_ms": 8.54820804670453,
+          "peak_rss_bytes": null,
+          "recall_at_10": 1.0,
+          "recall_hits_at_10": 26,
+          "system_error_count": 0,
+          "timeout_count": 0,
+          "total_count": 31
+        },
+        "spbp-2027": {
+          "answerable_count": 37,
+          "answerable_system_error_count": 0,
+          "build_seconds": null,
+          "exact": 1.0,
+          "exact_count": 8,
+          "exact_hits": 8,
+          "exact_system_error_count": 0,
+          "index_bytes": null,
+          "leak_count": 0,
+          "no_answer": 1.0,
+          "no_answer_correct": 5,
+          "no_answer_count": 5,
+          "no_answer_system_error_count": 0,
+          "p95_ms": 6.593375001102686,
+          "peak_rss_bytes": null,
+          "recall_at_10": 1.0,
+          "recall_hits_at_10": 37,
+          "system_error_count": 0,
+          "timeout_count": 0,
+          "total_count": 42
+        }
+      },
+      "operations": {
+        "backup_restore_steps_count": 4,
+        "components_count": 1,
+        "upgrade_steps_count": 6
+      }
+    },
+    "weknora-native-8d7298fb5d759973cb1e481cadc5ecdf16dca599": {
+      "freeze_receipt": {
+        "artifact_digests_verified_on_ops": true,
+        "candidate_artifacts_distinct_on_ops": true,
+        "candidate_id": "weknora-native-8d7298fb5d759973cb1e481cadc5ecdf16dca599",
+        "frozen_before_run": true,
+        "head_matches_commit": true,
+        "native_config": true,
+        "ops_artifacts_verified": true,
+        "receipt_id": "ops-rt055-freeze-candidate-b",
+        "tree_clean": true,
+        "upstream_receipt": {
+          "commit": "8d7298fb5d759973cb1e481cadc5ecdf16dca599",
+          "commit_reachable": true,
+          "receipt_id": "ops-rt055-weknora-upstream",
+          "repository_id": "github.com/Tencent/WeKnora",
+          "verified_on_ops": true
+        },
+        "window_id": "c47feba6-dbb3-4061-8067-245530ae3d76"
+      },
+      "gateway_readiness": {
+        "https_query_api": true,
+        "kb_grants_server_side": true,
+        "no_direct_nas_or_search_credentials": true,
+        "per_gateway_identity": true
+      },
+      "identity": {
+        "commit": "8d7298fb5d759973cb1e481cadc5ecdf16dca599",
+        "core_modified": false,
+        "kind": "weknora",
+        "native_pipeline": true
+      },
+      "libraries": {
+        "cwork-3m": {
+          "answerable_count": 37,
+          "answerable_system_error_count": 0,
+          "build_seconds": 4600.468380665872,
+          "exact": 0.0,
+          "exact_count": 8,
+          "exact_hits": 0,
+          "exact_system_error_count": 0,
+          "index_bytes": 142390344,
+          "leak_count": 0,
+          "no_answer": 0.0,
+          "no_answer_correct": 0,
+          "no_answer_count": 5,
+          "no_answer_system_error_count": 0,
+          "p95_ms": 105.63295893371105,
+          "peak_rss_bytes": 13010763776,
+          "recall_at_10": 0.6216216216216216,
+          "recall_hits_at_10": 23,
+          "system_error_count": 0,
+          "timeout_count": 0,
+          "total_count": 42
+        },
+        "docdb-touqian": {
+          "answerable_count": 26,
+          "answerable_system_error_count": 0,
+          "build_seconds": 168.5778079170268,
+          "exact": 1.0,
+          "exact_count": 3,
+          "exact_hits": 3,
+          "exact_system_error_count": 0,
+          "index_bytes": 28322872,
+          "leak_count": 0,
+          "no_answer": 0.0,
+          "no_answer_correct": 0,
+          "no_answer_count": 5,
+          "no_answer_system_error_count": 0,
+          "p95_ms": 63.31937504000962,
+          "peak_rss_bytes": 4603314176,
+          "recall_at_10": 0.8461538461538461,
+          "recall_hits_at_10": 22,
+          "system_error_count": 0,
+          "timeout_count": 0,
+          "total_count": 31
+        },
+        "spbp-2027": {
+          "answerable_count": 37,
+          "answerable_system_error_count": 0,
+          "build_seconds": 364.47033683396876,
+          "exact": 0.875,
+          "exact_count": 8,
+          "exact_hits": 7,
+          "exact_system_error_count": 0,
+          "index_bytes": 71212984,
+          "leak_count": 0,
+          "no_answer": 0.0,
+          "no_answer_correct": 0,
+          "no_answer_count": 5,
+          "no_answer_system_error_count": 0,
+          "p95_ms": 94.66262487694621,
+          "peak_rss_bytes": 3685761024,
+          "recall_at_10": 0.7837837837837838,
+          "recall_hits_at_10": 29,
+          "system_error_count": 0,
+          "timeout_count": 0,
+          "total_count": 42
+        }
+      },
+      "operations": {
+        "backup_restore_steps_count": 3,
+        "components_count": 2,
+        "upgrade_steps_count": 7
+      }
+    }
+  },
+  "caveats": [
+    "A_ALREADY_CONSUMED_RECONCILED_NO_REPLAY",
+    "A_RESOURCE_MEASUREMENTS_MISSING",
+    "B_ONLY_FRESH_RESOURCES",
+    "NO_ANSWER_TO_CONFLICT_DEFAULT_PRESERVES_SINGLE_USE",
+    "SIMPLIFIED_REPLACES_AMENDMENT_CONTROLS",
+    "PER_TRIAL_RESPONSES_NOT_RETAINED_IDENTITY_AND_COUNTER_RECONCILIATION_ONLY",
+    "FULL_NAS_AND_EXISTING_INDEX_INVARIANTS_UNMEASURED"
+  ],
+  "cleanup": {
+    "cleanup_failures": 0,
+    "private_holdout_retained_on_ops": true,
+    "temporary_containers_zero": true,
+    "temporary_indices_zero": true,
+    "temporary_services_zero": true
+  },
+  "deferred_libraries": [],
+  "environment": {
+    "corpus_snapshot_version": "ops-rt055-frozen-corpus-v1",
+    "hardware_class": "ops-rt055-equivalent-a",
+    "run_order_randomized": true,
+    "same_corpus": true,
+    "same_hardware_class": true,
+    "same_timeout_budget": true,
+    "same_top_k": true,
+    "top_k": 10
+  },
+  "formal_window": {
+    "canonical_freeze_window_id": "c47feba6-dbb3-4061-8067-245530ae3d76",
+    "five_digests_verified": true,
+    "new_a_trial_count": 0,
+    "new_b_trial_count": 115,
+    "reconciled_a_trial_count": 115,
+    "run_order": [
+      "a",
+      "b"
+    ],
+    "same_frozen_paper": true,
+    "window_id": "54d87603-feb4-473a-a741-adfc85fb77af"
+  },
+  "holdout_contract": {
+    "aggregate_only_export": true,
+    "created_after_rt054": true,
+    "libraries": [
+      "cwork-3m",
+      "docdb-touqian",
+      "spbp-2027"
+    ],
+    "private_artifacts_retained_on_ops": true,
+    "rt054_final_holdout_reused": false,
+    "single_use_frozen_before_candidate_runs": true,
+    "version": "ops-rt055-confidential-v1"
+  },
+  "library_validity": {
+    "cwork-3m": {
+      "category_counts": {
+        "body_only_rare_phrase": 10,
+        "exact_identifier_date": 8,
+        "near_neighbour": 5,
+        "no_answer_mutation": 5,
+        "table_row": 4,
+        "title_filename": 10
+      },
+      "complete_pool_verified": true,
+      "floors": {
+        "body_only_rare_phrase": 3,
+        "exact_identifier_date": 2,
+        "near_neighbour": 3,
+        "no_answer_mutation": 3,
+        "table_row": 3,
+        "title_filename": 3
+      },
+      "same_build_and_seed": true,
+      "status": "PARTICIPATING",
+      "targets": {
+        "body_only_rare_phrase": 10,
+        "exact_identifier_date": 8,
+        "near_neighbour": 5,
+        "no_answer_mutation": 5,
+        "table_row": 4,
+        "title_filename": 10
+      },
+      "tier": "T3",
+      "total_count": 42,
+      "total_floor": 16,
+      "trace": [
+        {
+          "category_counts": {
+            "body_only_rare_phrase": 10,
+            "exact_identifier_date": 8,
+            "near_neighbour": 5,
+            "no_answer_mutation": 5,
+            "table_row": 4,
+            "title_filename": 10
+          },
+          "floor_pass": true,
+          "tier": "T3",
+          "total_count": 42
+        }
+      ]
+    },
+    "docdb-touqian": {
+      "category_counts": {
+        "body_only_rare_phrase": 5,
+        "exact_identifier_date": 3,
+        "near_neighbour": 5,
+        "no_answer_mutation": 5,
+        "table_row": 3,
+        "title_filename": 10
+      },
+      "complete_pool_verified": true,
+      "floors": {
+        "body_only_rare_phrase": 3,
+        "exact_identifier_date": 2,
+        "near_neighbour": 3,
+        "no_answer_mutation": 3,
+        "table_row": 3,
+        "title_filename": 3
+      },
+      "same_build_and_seed": true,
+      "status": "PARTICIPATING",
+      "targets": {
+        "body_only_rare_phrase": 10,
+        "exact_identifier_date": 8,
+        "near_neighbour": 5,
+        "no_answer_mutation": 5,
+        "table_row": 4,
+        "title_filename": 10
+      },
+      "tier": "T3",
+      "total_count": 31,
+      "total_floor": 16,
+      "trace": [
+        {
+          "category_counts": {
+            "body_only_rare_phrase": 5,
+            "exact_identifier_date": 3,
+            "near_neighbour": 5,
+            "no_answer_mutation": 5,
+            "table_row": 3,
+            "title_filename": 10
+          },
+          "floor_pass": true,
+          "tier": "T3",
+          "total_count": 31
+        }
+      ]
+    },
+    "spbp-2027": {
+      "category_counts": {
+        "body_only_rare_phrase": 10,
+        "exact_identifier_date": 8,
+        "near_neighbour": 5,
+        "no_answer_mutation": 5,
+        "table_row": 4,
+        "title_filename": 10
+      },
+      "complete_pool_verified": true,
+      "floors": {
+        "body_only_rare_phrase": 3,
+        "exact_identifier_date": 2,
+        "near_neighbour": 3,
+        "no_answer_mutation": 3,
+        "table_row": 3,
+        "title_filename": 3
+      },
+      "same_build_and_seed": true,
+      "status": "PARTICIPATING",
+      "targets": {
+        "body_only_rare_phrase": 10,
+        "exact_identifier_date": 8,
+        "near_neighbour": 5,
+        "no_answer_mutation": 5,
+        "table_row": 4,
+        "title_filename": 10
+      },
+      "tier": "T2",
+      "total_count": 42,
+      "total_floor": 16,
+      "trace": [
+        {
+          "category_counts": {
+            "body_only_rare_phrase": 3,
+            "exact_identifier_date": 1,
+            "near_neighbour": 3,
+            "no_answer_mutation": 3,
+            "table_row": 3,
+            "title_filename": 3
+          },
+          "floor_pass": false,
+          "tier": "T3",
+          "total_count": 16
+        },
+        {
+          "category_counts": {
+            "body_only_rare_phrase": 10,
+            "exact_identifier_date": 8,
+            "near_neighbour": 5,
+            "no_answer_mutation": 5,
+            "table_row": 4,
+            "title_filename": 10
+          },
+          "floor_pass": true,
+          "tier": "T2",
+          "total_count": 42
+        }
+      ]
+    }
+  },
+  "participating_libraries": [
+    "cwork-3m",
+    "docdb-touqian",
+    "spbp-2027"
+  ],
+  "privacy_check": "SIMPLIFIED_SPOT_PASS",
+  "production_invariants": {
+    "existing_indices_unchanged": null,
+    "gateway_unchanged": true,
+    "nas_unchanged": null,
+    "production_config_unchanged": false
+  },
+  "run_id": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af",
+  "schema": "cwk.rt055.retrieval-decision.aggregate.v3",
+  "verifier_attestations": {
+    "aggregate_only_verified": true,
+    "category_coverage_verified": true,
+    "input_disjoint_verified": true,
+    "no_private_digest_exported": true,
+    "rt054_pool_excluded": true
+  }
+}

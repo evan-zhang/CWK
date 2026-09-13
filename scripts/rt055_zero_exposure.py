@@ -1,0 +1,359 @@
+"""OPS-only Amendment 4 void verifier. No holdout parsing or candidate queries.
+
+Only the known, frozen unconditional prequery defect is eligible. Archive and
+hash original evidence before deployment; preserve every old claim/window byte.
+A void is not a quality judgement, and an exposure is never voidable.
+"""
+from __future__ import annotations
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import time
+import rt055_opslib as ops
+import rt055_window as window
+
+REASON='PER_LIBRARY_RUNNER_VS_ALL_LIBRARY_SCORER_PREQUERY_CONFLICT'
+BASIS='FROZEN_CONTROL_FLOW_UNCONDITIONAL_PREQUERY_REJECTION_FOR_SINGLE_LIBRARY'
+# Public source digests from 1af1362, not private input/evidence digests.
+LEGACY_PUBLIC_SOURCES={
+    'kb_retrieval_candidates.py':'523c6d8e300acf6d54ea16719ff71f2ee52a9e5faf3952e0ac46c3d3549234ba',
+    'rt055_run_a.py':'64c8cf093ac57a92be0eb1a9648cdb7eb3a23187a13cba2c6563434e2fa98c8b',
+    'rt055_run_b.py':'e8ac4f930c181cccdbe7a257db6c32134a7d0b240e05fcfa564c9133f9916c13'}
+
+
+def _need(condition):
+    if not condition:raise RuntimeError('zero_exposure_evidence_invalid_no_replay')
+
+
+def _checked_path(root,*parts):
+    p=root.joinpath(*parts)
+    for node in (p,*p.parents):
+        _need(not node.is_symlink())
+        if node==root:break
+    _need(p.is_relative_to(root))
+    return p
+
+
+def _write_once(path,value):
+    window.write_once(path,value)
+    fd=os.open(path.parent,os.O_RDONLY)
+    try:os.fsync(fd)
+    finally:os.close(fd)
+
+
+def _path(root,relative):
+    _need(isinstance(relative,str) and relative and not Path(relative).is_absolute() and '..' not in Path(relative).parts)
+    return _checked_path(root,relative)
+
+
+def _dependency_path(root,relative):
+    # HuggingFace snapshot files are links to immutable local blobs. Preserve
+    # their original relative identity and byte hash, but permit no cache escape.
+    p=root/relative
+    if (isinstance(relative,str) and relative.startswith('sidecar/hf/')
+            and not Path(relative).is_absolute() and '..' not in Path(relative).parts
+            and p.is_symlink()):
+        cache=_checked_path(root,'sidecar','hf')
+        _checked_path(root,str(p.parent.relative_to(root)))
+        resolved=p.resolve(strict=True)
+        _need(resolved.is_relative_to(cache) and resolved.is_file())
+        return p
+    return _path(root,relative)
+
+
+def _files(base):
+    paths=[]
+    for p in base.rglob('*'):
+        _need(not p.is_symlink())
+        if p.is_file():paths.append(p)
+    return sorted(paths)
+
+
+def _counts(root,wid):
+    w=window.directory(root,wid)
+    return {key:{'claims':len(_files(root/'consumption'/key)),
+                 'attempts':len(list((w/('run-'+key)/'attempts').glob('*/claim.json'))),
+                 'scores':len(_files(w/('run-'+key)/'scores')),
+                 'results':len(list((w/('run-'+key)).glob('*.json')))} for key in ('a','b')}
+
+
+def _no_processes(root):
+    lines=subprocess.check_output(['/bin/ps','-axo','pid=,command='],text=True).splitlines()
+    terms=('org.opensearch.bootstrap.OpenSearch','weknora-server','rt055_embed_sidecar.py',
+           'rt055_formal_coordinator.py','rt055_run_a.py --mode run','rt055_run_b.py --mode run')
+    return not any(str(root) in line and any(x in line for x in terms) for line in lines)
+
+
+def _raw_report(value):
+    _need(value.get('reason')==REASON and value.get('zero_calls_basis')==BASIS
+          and value.get('window_decision')=='INVALID'
+          and type(value.get('formal_query_calls')) is int and value['formal_query_calls']==0
+          and type(value.get('formal_score_receipts')) is int and value['formal_score_receipts']==0
+          and value.get('private_holdout_reopened_for_diagnosis') is False
+          and value.get('freeze_source_recomputed') is True
+          and value.get('privacy_source_binding_recomputed') is True
+          and value.get('candidate_attempts')=={'a':1,'b':0}
+          and value.get('consumption_claims')=={'a':1,'b':0})
+
+
+def _reconciliation(value):
+    _need(value.get('classification')==REASON and value.get('zero_calls_basis')==BASIS
+          and value.get('actual_private_holdout_reopened_for_probe') is False
+          and type(value.get('formal_candidate_search_calls')) is int and value['formal_candidate_search_calls']==0
+          and type(value.get('score_receipts')) is int and value['score_receipts']==0
+          and value.get('frozen_source_recomputed') is True and value.get('privacy_binding_recomputed') is True
+          and value.get('candidate_b_started') is False and value.get('candidate_processes_remaining')==0)
+
+
+def _proof(archive):
+    """Execute only the hash-pinned public scoring closure, in this interpreter.
+
+    No archived module import, sys.path mutation, subprocess or private input.
+    Literal dependencies are checked, not executed. The closure has no I/O
+    builtins; every synthetic trial must reject for the original category gate.
+    Historical evidence/void bytes and the outer no-Popen guard stay unchanged.
+    """
+    import ast
+    import __future__
+    import builtins
+    import math
+    from types import SimpleNamespace
+    source = _path(archive, 'impl/kb_retrieval_candidates.py')
+    source_bytes = source.read_bytes()
+    _need(ops.sha_bytes(source_bytes) == LEGACY_PUBLIC_SOURCES[source.name])
+    tree = ast.parse(source_bytes.decode('utf-8'))
+    dependency = ast.parse(_path(archive, 'impl/kb_retrieval_decision.py').read_text())
+    literals = {}
+    for node in dependency.body:
+        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            if node.targets[0].id in ('LIBRARIES', 'COUNT_FIELDS'):
+                _need(node.targets[0].id not in literals)
+                literals[node.targets[0].id] = ast.literal_eval(node.value)
+    _need(literals.get('LIBRARIES') == ops.LIBRARIES)
+    _need(literals.get('COUNT_FIELDS') == {
+        'total_count', 'answerable_count', 'recall_hits_at_10', 'exact_count',
+        'exact_hits', 'no_answer_count', 'no_answer_correct', 'system_error_count',
+        'answerable_system_error_count', 'exact_system_error_count',
+        'no_answer_system_error_count', 'timeout_count', 'leak_count'})
+    names = {'CandidateError', 'CandidateTimeout', 'CandidateLeak', 'Deadline',
+             '_query_scope', 'score_cases'}
+    nodes = [n for n in tree.body if isinstance(n, (ast.ClassDef, ast.FunctionDef)) and n.name in names]
+    _need(len({n.name for n in nodes}) == len(nodes) and {'CandidateError', 'score_cases'} <= {n.name for n in nodes})
+    # Full source digest above authenticates these exact definitions. Exclude
+    # module imports/initializers and deny I/O capabilities even in the closure.
+    safe_names = ('__build_class__', 'object', 'RuntimeError', 'Exception',
+                  'TimeoutError', 'isinstance', 'type', 'bool', 'int', 'float',
+                  'str', 'frozenset', 'set', 'dict', 'list', 'all', 'any',
+                  'min', 'max', 'len', 'round', 'sorted')
+    namespace = {'__builtins__': {n: getattr(builtins, n) for n in safe_names},
+                 '__name__': 'rt055_legacy_public_proof',
+                 'decision': SimpleNamespace(**literals),
+                 'math': SimpleNamespace(isfinite=math.isfinite),
+                 'time': SimpleNamespace(monotonic=time.monotonic),
+                 'MAX_QUERY_CHARS': 4096, 'TOP_K': 10}
+    code = compile(ast.Module(body=nodes, type_ignores=[]), '<rt055-public-proof>',
+                   'exec', flags=__future__.annotations.compiler_flag, dont_inherit=True)
+    exec(code, namespace)
+    rows = []
+    for kb in ops.LIBRARIES:
+        class Candidate:
+            calls = 0
+            def search(self, *args, **kwargs):
+                self.calls += 1
+                raise RuntimeError('unreachable')
+        candidate = Candidate()
+        cases = [SimpleNamespace(kb_id=kb, query='public exact', expected=frozenset({'public-doc'}), exact=True),
+                 SimpleNamespace(kb_id=kb, query='public no answer', expected=frozenset(), exact=False)]
+        failure = None
+        try:
+            namespace['score_cases'](candidate, cases)
+        except namespace['CandidateError'] as exc:
+            _need(str(exc) == 'missing scoring category')
+            failure = 'CandidateError'
+        except Exception:
+            raise RuntimeError('zero_exposure_evidence_invalid_no_replay') from None
+        _need(candidate.calls == 0 and failure == 'CandidateError')
+        rows.append({'calls': candidate.calls, 'failure': failure})
+    return {'rows': rows, 'forbidden_reads': 0}
+
+
+def capture(root,wid,migration_id):
+    """Call with old deployed source still intact; writes only a new OPS archive."""
+    import rt055_freeze as freeze
+    import rt055_runtime as runtime
+    window.identifier(migration_id);w=window.directory(root,wid)
+    _need(_no_processes(root) and not any((root/n).exists() for n in ('data-run','data-smoke')))
+    _need(freeze.verify_artifacts(root,wid) and runtime.privacy_passed(root,window.receipt(root,wid)['privacy_migration_id']))
+    _need(ops.read_json(w/'status/formal.json')['status']=='INVALID')
+    window.baseline(root,wid,'after');window.comparison(root,wid)
+    counts=_counts(root,wid)
+    _need(counts=={'a':{'claims':1,'attempts':1,'scores':0,'results':0},'b':{'claims':0,'attempts':0,'scores':0,'results':0}})
+    _need(not _files(root/'exposure'))
+    claims=list((root/'consumption/a').glob('*.claim'));_need(len(claims)==1)
+    claim_path=claims[0];claim=ops.read_json(claim_path);kb=claim.get('library')
+    _need(kb in ops.LIBRARIES and claim_path.name==kb+'.claim' and claim.get('candidate')=='a' and claim.get('window_id')==wid)
+    attempts=list((w/'run-a/attempts').glob('*/claim.json'));attempt=attempts[0].parent.name
+    _need(ops.read_json(attempts[0].parent/'failure.json').get('error')=='CandidateError')
+    reports=[p for p in (w/'audit').glob('*.json') if ops.read_json(p).get('reason')==REASON and 'formal_query_calls' in ops.read_json(p)]
+    reconciliations=[p for p in (w/'audit').glob('*.json') if ops.read_json(p).get('classification')==REASON and 'formal_candidate_search_calls' in ops.read_json(p)]
+    _need(len(reports)==len(reconciliations)==1)
+    _raw_report(ops.read_json(reports[0]));_reconciliation(ops.read_json(reconciliations[0]))
+    retained=[]
+    for p in (root/'audit').glob('*.json'):
+        v=ops.read_json(p)
+        if isinstance(v,dict) and len(v)==96 and all(isinstance(h,str) and len(h)==64 for h in v.values()):retained.append(p)
+    _need(len(retained)==1)
+    materials=ops.read_json(retained[0]);_need(all(ops.sha_file(_path(root,p))==h for p,h in materials.items()))
+    m=_checked_path(root,'zero-exposure-migrations',migration_id);m.mkdir(parents=True,mode=0o700,exist_ok=False)
+    receipt=window.receipt(root,wid);mid=receipt['privacy_migration_id'];pm=runtime.migration_directory(root,mid)
+    binding=ops.read_json(pm/'privacy-receipt.json');deployment=ops.read_json(pm/'deployment.json')
+    selected=set(_files(w)+_files(root/'consumption'))
+    selected.update(_path(root,p) for p in materials)
+    selected.update(_path(root,p) for p in receipt['private_files'])
+    selected.update(root/'impl'/n for n in deployment['source_files'])
+    selected.update([retained[0],pm/'deployment.json',pm/'privacy-receipt.json',root/'audit/confidentiality-recovery.json',root/'impl/rt055_runbooks.json'])
+    t=pm/('rt055-synthetic-%03d'%binding['attempt'])
+    selected.update(t/'impl'/n for n in deployment['source_files'])
+    selected.update(t/p for p in ('audit/confidentiality-observations.json','status/confidentiality.json','audit/synthetic-cleanup.json'))
+    selected.update(root/'status'/(role+'.json') for role in ('builder','verifier','impl'))
+    manifest={}
+    for p in sorted(selected):
+        relative=str(p.relative_to(root));dest=_path(m/'archive',relative);dest.parent.mkdir(mode=0o700,parents=True,exist_ok=True)
+        with dest.open('xb') as f:f.write(p.read_bytes());f.flush();os.fsync(f.fileno())
+        os.chmod(dest,0o600);manifest[relative]=ops.sha_file(p)
+        _need(ops.sha_file(dest)==manifest[relative])
+    value={'schema':'cwk.rt055.zero-exposure-private-evidence.v1','run_id':receipt['run_id'],
+           'old_window_id':wid,'migration_id':migration_id,'candidate':'a','library':kb,'attempt_id':attempt,
+           'claim_path':str(claim_path.relative_to(root)),'report_path':str(reports[0].relative_to(root)),
+           'reconciliation_path':str(reconciliations[0].relative_to(root)),
+           'retention_path':str(retained[0].relative_to(root)),'archive_files':manifest,
+           'proof':_proof(m/'archive'),'observed_counts':counts,'created_at':time.time()}
+    _write_once(m/'evidence.json',value)
+    validate_evidence(root,m,value,live_source=True)
+    return m
+
+
+
+def historical_privacy_evaluate(source,expected_digest,observations):
+    """Evaluate only the hash-bound archived pure predicate, never its module.
+
+    This validates an immutable prequery-void proof under its original contract;
+    it cannot admit a current migration or change a historical FAIL/UNKNOWN.
+    """
+    import ast
+    body=source.read_bytes();_need(ops.sha_bytes(body)==expected_digest)
+    tree=ast.parse(body)
+    functions=[n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='evaluate']
+    kinds=[n for n in tree.body if isinstance(n,ast.Assign) and len(n.targets)==1
+           and isinstance(n.targets[0],ast.Name) and n.targets[0].id=='KINDS']
+    _need(len(functions)==len(kinds)==1)
+    fn=functions[0];allowed_kinds=ast.literal_eval(kinds[0].value)
+    _need(allowed_kinds=={'search','native','sidecar'})
+    _need(not fn.decorator_list and not fn.args.defaults and not fn.args.kw_defaults
+          and not fn.args.vararg and not fn.args.kwarg and not fn.args.kwonlyargs
+          and not fn.args.posonlyargs and len(fn.args.args)==1 and fn.args.args[0].arg=='o')
+    allowed=(ast.FunctionDef,ast.arguments,ast.arg,ast.Expr,ast.Constant,ast.Assign,
+             ast.Name,ast.Store,ast.Load,ast.BoolOp,ast.And,ast.Or,ast.Compare,
+             ast.Eq,ast.Is,ast.IsNot,ast.Gt,ast.GtE,ast.Lt,ast.LtE,ast.In,
+             ast.List,ast.Tuple,ast.Set,ast.Dict,ast.Call,ast.Attribute,
+             ast.GeneratorExp,ast.comprehension,ast.Subscript,ast.Return,ast.UnaryOp,ast.Not)
+    for node in ast.walk(fn):
+        _need(isinstance(node,allowed))
+        if isinstance(node,ast.Attribute):
+            _need(isinstance(node.value,ast.Name) and (node.value.id,node.attr) in (('o','get'),('result','values')))
+        if isinstance(node,ast.Call):
+            _need((isinstance(node.func,ast.Name) and node.func.id in ('all','set'))
+                  or isinstance(node.func,ast.Attribute))
+    namespace={'__builtins__':{'all':all,'set':set},'KINDS':allowed_kinds}
+    exec(compile(ast.Module(body=[fn],type_ignores=[]),'<archived-public-privacy-predicate>','exec'),namespace)
+    result=namespace['evaluate'](observations)
+    _need(isinstance(result,dict) and bool(result) and all(type(v)is bool for v in result.values()))
+    return result
+
+def validate_evidence(root,m,e,live_source=False):
+    _need(e.get('schema')=='cwk.rt055.zero-exposure-private-evidence.v1' and e.get('run_id')==root.name.removeprefix('rt055-'))
+    wid=e['old_window_id'];w=window.directory(root,wid);a=m/'archive';aw=window.directory(a,wid)
+    _need(e['candidate']=='a' and e['library'] in ops.LIBRARIES and e['migration_id']==m.name)
+    _need(e['observed_counts']=={'a':{'claims':1,'attempts':1,'scores':0,'results':0},'b':{'claims':0,'attempts':0,'scores':0,'results':0}})
+    _need(e['proof']=={'rows':[{'calls':0,'failure':'CandidateError'}]*3,'forbidden_reads':0})
+    _need(_counts(root,wid)==e['observed_counts'])
+    # Exposure can NEVER be reclassified by a void. This check is for the old
+    # window; later replacement exposure remains globally irreversible.
+    for p in _files(root/'exposure'):
+        row=ops.read_json(p);_need(row.get('window_id')!=wid)
+    for relative,h in e['archive_files'].items():
+        archived=_path(a,relative);_need(archived.is_file() and ops.sha_file(archived)==h)
+        # Public impl changes are the purpose of migration. All historical
+        # windows, claims, private bytes and old privacy evidence remain exact.
+        if live_source or not relative.startswith('impl/'):
+            _need(ops.sha_file(_path(root,relative))==h)
+    for name,digest in LEGACY_PUBLIC_SOURCES.items():_need(ops.sha_file(a/'impl'/name)==digest)
+    _need(_proof(a)==e['proof'])
+    report=ops.read_json(_path(a,e['report_path']));_raw_report(report)
+    recon=ops.read_json(_path(a,e['reconciliation_path']));_reconciliation(recon)
+    _need(report.get('window_id')==wid and recon.get('window_id')==wid)
+    claim=ops.read_json(_path(a,e['claim_path']));fr=ops.read_json(aw/'freeze/freeze-receipt.json')
+    _need(e['claim_path']==str(Path('consumption/a')/(e['library']+'.claim')))
+    _need(claim.get('candidate')=='a' and claim.get('library')==e['library'] and claim.get('window_id')==wid
+          and claim.get('receipt_sha256')==ops.sha_file(aw/'freeze/freeze-receipt.json'))
+    attempt=aw/'run-a/attempts'/window.identifier(e['attempt_id'])
+    ac=ops.read_json(attempt/'claim.json');failure=ops.read_json(attempt/'failure.json')
+    _need(ac.get('candidate')=='a' and ac.get('window_id')==wid and failure.get('error')=='CandidateError')
+    _need(ac['time']<=claim['time'] and ops.read_json(w/'status/formal.json').get('status')=='INVALID')
+    fv=ops.read_json(aw/'verifier/freeze-verification.json')
+    _need(fv.get('verified') is True and fv.get('verified_before_run') is True
+          and fv.get('receipt_sha256')==ops.sha_file(aw/'freeze/freeze-receipt.json'))
+    _need(fr.get('window_id')==wid and fr.get('run_id')==e['run_id'])
+    for p,h in fr['private_files'].items():_need(ops.sha_file(_path(a,p))==h and ops.sha_file(_path(root,p))==h)
+    for block in fr['candidates'].values():
+        _need(block['digests']['code_digest']==ops.file_manifest([_path(a,p) for p in block['code_files']],base=a))
+        for k,p in block['artifact_paths'].items():
+            source=_path(a,p) if p.startswith('formal-windows/') else _path(root,p)
+            _need(ops.sha_file(source)==block['digests'][k])
+        _need(block['digests']['dependency_digest']==ops.file_manifest([_dependency_path(root,p) for p in block['dependency_paths']]+[root/'impl/rt055_runbooks.json'],base=root))
+    pm=Path('executioner-migrations')/fr['privacy_migration_id'];binding=ops.read_json(a/pm/'privacy-receipt.json')
+    dep=ops.read_json(a/pm/'deployment.json');t=pm/('rt055-synthetic-%03d'%binding['attempt'])
+    _need(dep['source_files']==binding['source_files'] and binding['deployment_sha256']==ops.sha_file(a/pm/'deployment.json'))
+    for n,h in binding['source_files'].items():_need(ops.sha_file(a/'impl'/n)==h and ops.sha_file(a/t/'impl'/n)==h)
+    for key,p in [('observations_sha256',t/'audit/confidentiality-observations.json'),('status_sha256',t/'status/confidentiality.json'),('cleanup_sha256',t/'audit/synthetic-cleanup.json'),('historical_recovery_sha256',Path('audit/confidentiality-recovery.json'))]:_need(binding[key]==ops.sha_file(a/p))
+    obs=ops.read_json(a/t/'audit/confidentiality-observations.json')
+    historical=historical_privacy_evaluate(_path(a,'impl/rt055_confidentiality.py'),dep['source_files']['rt055_confidentiality.py'],obs)
+    _need(historical['passed'] and not obs.get('cleanup_error') and 'execution_error_kind' not in obs)
+    _need(ops.read_json(a/t/'status/confidentiality.json').get('status')=='PASS')
+    _need(ops.read_json(a/t/'audit/synthetic-cleanup.json')=={'complete':True,'failures':0,'remaining_processes':0,'remaining_data_planes':0})
+    materials=ops.read_json(_path(a,e['retention_path']));_need(len(materials)==96)
+    _need(all(ops.sha_file(_path(root,p))==h for p,h in materials.items()))
+    _need(len(list((root/'builder').glob('single-build-claim*')))==len(list((root/'verifier').glob('single-verify-claim*')))==1)
+    return True
+
+
+def append_void(root,m):
+    e=ops.read_json(m/'evidence.json');validate_evidence(root,m,e,live_source=True)
+    _need(_no_processes(root) and not _files(root/'exposure'))
+    receipt={'schema':'cwk.rt055.zero-exposure-void.v1','status':'VOID_PREQUERY_NO_EXPOSURE',
+             'run_id':e['run_id'],'old_window_id':e['old_window_id'],'candidate':e['candidate'],'library':e['library'],
+             'attempt_id':e['attempt_id'],'migration_id':e['migration_id'],
+             'claim_sha256':ops.sha_file(_path(root,e['claim_path'])),
+             'freeze_sha256':ops.sha_file(window.directory(root,e['old_window_id'])/'freeze/freeze-receipt.json'),
+             'evidence_sha256':ops.sha_file(m/'evidence.json'),'voided_at':time.time()}
+    _write_once(_checked_path(root,'void-prequery',e['candidate'],e['library']+'.json'),receipt)
+    validate_void(root,e['candidate'],e['library'])
+    return receipt
+
+
+def validate_void(root,key,kb):
+    try:
+        p=_checked_path(root,'void-prequery',key,kb+'.json');v=ops.read_json(p)
+        _need(v.get('schema')=='cwk.rt055.zero-exposure-void.v1' and v.get('status')=='VOID_PREQUERY_NO_EXPOSURE'
+              and v.get('candidate')==key and v.get('library')==kb and v.get('run_id')==root.name.removeprefix('rt055-'))
+        m=_checked_path(root,'zero-exposure-migrations',window.identifier(v['migration_id']))
+        e=ops.read_json(m/'evidence.json');_need(v['evidence_sha256']==ops.sha_file(m/'evidence.json'))
+        _need(all(v[k]==e[k] for k in ('old_window_id','candidate','library','attempt_id','migration_id')))
+        _need(v['claim_sha256']==ops.sha_file(_path(root,e['claim_path']))
+              and v['freeze_sha256']==ops.sha_file(window.directory(root,e['old_window_id'])/'freeze/freeze-receipt.json'))
+        validate_evidence(root,m,e)
+        return v
+    except (OSError,ValueError,KeyError,TypeError) as exc:
+        raise RuntimeError('strict_zero_exposure_void_missing_or_invalid') from exc

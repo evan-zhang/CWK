@@ -1,0 +1,225 @@
+{
+  "schema": "cwk.rt055.ops4-privacy-recovery.v1",
+  "run_id": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af",
+  "status": "READY_TO_FREEZE",
+  "result_kind": "PREFREEZE_RECOVERY_NOT_AB_RESULT",
+  "previous_commit": "cab41c7612303451f8e33208f2cad7d55444cdd3",
+  "historical_json_files_unchanged": 12,
+  "protected_contract_files_unchanged": 7,
+  "fault_class": "RECOVERABLE_EXECUTIONER_FAILURE",
+  "production_cutovers": "PAUSED",
+  "baseline_limitations": "PRIOR_FALSE_UNKNOWN_UNCHANGED",
+  "attempts": [
+    {
+      "attempt": 1,
+      "outcome": "FAILED",
+      "reason": "SEARCH_TEMP_OUTSIDE_SCOPE",
+      "forbidden_reads": 0
+    },
+    {
+      "attempt": 2,
+      "outcome": "FAILED",
+      "reason": "PUBLIC_EMBEDDING_CACHE_MISSING",
+      "forbidden_reads": 0
+    },
+    {
+      "attempt": 3,
+      "outcome": "FAILED",
+      "reason": "PINNED_JIEBA_DICTIONARIES_MISSING",
+      "forbidden_reads": 0
+    },
+    {
+      "attempt": 4,
+      "outcome": "PASS",
+      "reason": "REAL_NATIVE_PRIVACY_VERIFIED",
+      "forbidden_reads": 0
+    }
+  ],
+  "proof": {
+    "search_started": true,
+    "native_started": true,
+    "sidecar_started": true,
+    "search_normal_calls": 1,
+    "native_normal_calls": 1,
+    "authenticated_session_verified": true,
+    "authenticated_query_error_code": 400,
+    "authenticated_title_error_code": 400,
+    "embedding_calls": 3,
+    "embedding_successes": 3,
+    "trace_header_observations": 0,
+    "native_trace_response_headers": 0,
+    "runtime_environment_verified": true,
+    "observed_kinds": [
+      "native",
+      "search",
+      "sidecar"
+    ],
+    "loopback_listener_kinds": [
+      "native",
+      "search",
+      "sidecar"
+    ],
+    "socket_samples": 112,
+    "external_socket_observations": 0,
+    "observer_errors": 0,
+    "model_endpoint_verified": true,
+    "nonloopback_model_rejected": true,
+    "network_policy_verified": true,
+    "java_bind_and_egress_probe": true,
+    "sidecar_external_errno": 1,
+    "external_probes_denied": true,
+    "log_files_scanned": 13,
+    "log_canary_hits": 0,
+    "forbidden_reads": 0,
+    "denial_probes": 1
+  },
+  "gates": {
+    "authenticated_error_canaries": true,
+    "external_egress_denied": true,
+    "forbidden_reads_zero": true,
+    "langfuse_runtime_disabled": true,
+    "loopback_models_only": true,
+    "native_log_canary_absent": true,
+    "normal_native_canary": true,
+    "otel_runtime_disabled": true,
+    "passed": true
+  },
+  "closeout": {
+    "builder_runs": 1,
+    "cleanup_failures": 0,
+    "consumptions": 0,
+    "dictionary_files": 5,
+    "dictionary_go_sum_verified": true,
+    "exact_uuid_containers": 0,
+    "exact_uuid_image_tags": 0,
+    "exact_uuid_networks": 0,
+    "exact_uuid_services": 0,
+    "exact_uuid_volumes": 0,
+    "executor_files_changed": 7,
+    "finalizer_still_alive": false,
+    "forbidden_reads": 0,
+    "formal_a_results": 0,
+    "formal_b_results": 0,
+    "freeze_receipts": 0,
+    "gateway_http_200_count": 3,
+    "independent_gate_binding_recheck": true,
+    "independent_retention_recheck": true,
+    "independent_zero_consumption_recheck": true,
+    "native_binary_identity_verified": true,
+    "native_checkout_pinned_clean": true,
+    "old_executor_sources_archived": true,
+    "prior_baseline_artifacts_unchanged": true,
+    "prior_failed_synthetic_attempts": 3,
+    "private_role_modes_preserved": true,
+    "public_dependencies_ready": true,
+    "public_source_binding_files": 10,
+    "public_source_binding_verified": true,
+    "related_processes": 0,
+    "retained_bytes_equal": true,
+    "retained_files": 96,
+    "role_forbidden_reads": 0,
+    "successful_synthetic_attempt": 4,
+    "synthetic_data_planes_remaining": 0,
+    "synthetic_tool_subtrees_removed": 37,
+    "verifier_runs": 1
+  },
+  "tests": {
+    "scope": "RT055_AND_SYNTHETIC_PRIVACY_NOT_FULL_CI",
+    "initial_red": {
+      "tests": 9,
+      "failures": 2,
+      "errors": 7,
+      "skipped": 0,
+      "exit_code": 1
+    },
+    "test_fixture_correction": "SIDECAR_FAKE_VECTOR_SHAPE_FIXED",
+    "green": {
+      "tests": 123,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 0
+    },
+    "mutations": [
+      {
+        "mutation": "JVM_IPV4_INJECTION_REMOVED",
+        "tests": 18,
+        "failures": 1,
+        "errors": 0,
+        "skipped": 0,
+        "exit_code": 1,
+        "rejected": true
+      },
+      {
+        "mutation": "SEARCH_OUTBOUND_POLICY_RELAXED",
+        "tests": 18,
+        "failures": 1,
+        "errors": 0,
+        "skipped": 0,
+        "exit_code": 1,
+        "rejected": true
+      },
+      {
+        "mutation": "LOOPBACK_ENDPOINT_GUARD_REMOVED",
+        "tests": 18,
+        "failures": 1,
+        "errors": 1,
+        "skipped": 0,
+        "exit_code": 1,
+        "rejected": true
+      },
+      {
+        "mutation": "TELEMETRY_ENV_GUARD_REMOVED",
+        "tests": 18,
+        "failures": 1,
+        "errors": 0,
+        "skipped": 0,
+        "exit_code": 1,
+        "rejected": true
+      },
+      {
+        "mutation": "CANARY_LOG_LEAK_IGNORED",
+        "tests": 18,
+        "failures": 1,
+        "errors": 0,
+        "skipped": 0,
+        "exit_code": 1,
+        "rejected": true
+      },
+      {
+        "mutation": "AUTHENTICATED_ERROR_GUARD_REMOVED",
+        "tests": 18,
+        "failures": 1,
+        "errors": 0,
+        "skipped": 0,
+        "exit_code": 1,
+        "rejected": true
+      },
+      {
+        "mutation": "SIDECAR_TRACE_OBSERVER_REMOVED",
+        "tests": 18,
+        "failures": 1,
+        "errors": 0,
+        "skipped": 0,
+        "exit_code": 1,
+        "rejected": true
+      },
+      {
+        "mutation": "RECOVERY_SOURCE_DRIFT_GUARD_REMOVED",
+        "tests": 18,
+        "failures": 1,
+        "errors": 0,
+        "skipped": 0,
+        "exit_code": 1,
+        "rejected": true
+      }
+    ],
+    "restored_green": {
+      "tests": 123,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 0
+    }
+  }
+}

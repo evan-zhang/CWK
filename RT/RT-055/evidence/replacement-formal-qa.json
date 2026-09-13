@@ -1,0 +1,178 @@
+{
+  "abort_rejected_by_v3_aggregate_schema": true,
+  "added_secret_pattern_hits": 0,
+  "anchors": 14,
+  "aodw_pass": true,
+  "aodw_rt_count": 53,
+  "changed_public_files_scanned": 6,
+  "data_class": "PUBLIC_OPS_PROJECTION_AND_SYNTHETIC_TESTS",
+  "decision": "INVALID",
+  "deferred_libraries": [],
+  "existing_host_skill_warning_count": 1,
+  "frozen_scripts_byte_equal": true,
+  "full_repository_ci_claimed": false,
+  "git_cached_diff_check_pass": true,
+  "git_diff_check_pass": true,
+  "governance_pass": true,
+  "governance_tracked_files": 855,
+  "historical_document_prefixes_equal": 2,
+  "historical_inputs_byte_equal": 32,
+  "host_configuration_changed": false,
+  "independent_ops_terminal": {
+    "active_experiment_and_projection_processes": 0,
+    "candidate_attempts": {
+      "a": 0,
+      "b": 1
+    },
+    "comparison_binding_equal": true,
+    "decision": "INVALID",
+    "formal_after_claims": 1,
+    "formal_results": 0,
+    "frozen_source_bytes_equal": true,
+    "gateway_http_200_count": 3,
+    "global_exposure": 0,
+    "independent_check": "PASS",
+    "new_arms": 0,
+    "public_abort_schema_valid": true,
+    "retained_bytes_equal": true,
+    "retained_files": 96,
+    "runtime_policy_bytes_equal": true,
+    "terminal_status": "INVALID"
+  },
+  "local_decision_exit_code": 2,
+  "ops_after_claims": 1,
+  "ops_candidate_attempts": {
+    "a": 0,
+    "b": 1
+  },
+  "ops_cleanup_failures": 0,
+  "ops_decision_exit_code": 2,
+  "ops_formal_queries": 0,
+  "ops_global_exposure": 0,
+  "ops_local_decision_identical": true,
+  "ops_readonly_independent_closeout_verified": true,
+  "production_cutover_allowed": false,
+  "public_abort_schema_valid": true,
+  "public_projection_recovery": {
+    "classification": "PUBLIC_SCHEMA_B_BACKUP_STEP_COUNT_CORRECTED_FROM_4_TO_3",
+    "failed_public_projection_preserved": true,
+    "frozen_scripts_changed": false,
+    "ops_before_after_repeated": false,
+    "ops_candidate_restarts": 0
+  },
+  "py_compile_files": 36,
+  "recursive_export_private_digest_hits": 0,
+  "recursive_export_private_field_hits": 0,
+  "recursive_export_string_values_checked": 39,
+  "regression": {
+    "errors": 0,
+    "exit_code": 0,
+    "failures": 0,
+    "py_compile_files": 36,
+    "skipped": 0,
+    "tests": 159
+  },
+  "relative_links": 89,
+  "schema": "cwk.rt055.replacement-formal-qa.v1",
+  "schema_negative_tests": [
+    {
+      "case": "FORBIDDEN_TOP_QUERY",
+      "rejected": true
+    },
+    {
+      "case": "FORBIDDEN_TOP_TITLE",
+      "rejected": true
+    },
+    {
+      "case": "FORBIDDEN_TOP_FILENAME",
+      "rejected": true
+    },
+    {
+      "case": "FORBIDDEN_TOP_PATH",
+      "rejected": true
+    },
+    {
+      "case": "FORBIDDEN_TOP_DOC_ID",
+      "rejected": true
+    },
+    {
+      "case": "FORBIDDEN_TOP_LOCATOR",
+      "rejected": true
+    },
+    {
+      "case": "FORBIDDEN_TOP_BODY",
+      "rejected": true
+    },
+    {
+      "case": "FORBIDDEN_TOP_EXPECTED",
+      "rejected": true
+    },
+    {
+      "case": "FORBIDDEN_TOP_QUERY_HASH",
+      "rejected": true
+    },
+    {
+      "case": "FORBIDDEN_TOP_PRIVATE_DIGEST",
+      "rejected": true
+    },
+    {
+      "case": "NESTED_PRIVATE_BODY",
+      "rejected": true
+    },
+    {
+      "case": "NESTED_PRIVATE_HASH",
+      "rejected": true
+    },
+    {
+      "case": "FORGED_MEASUREMENT",
+      "rejected": true
+    },
+    {
+      "case": "MISSING_METRIC",
+      "rejected": true
+    },
+    {
+      "case": "FALSE_ZERO_MEASUREMENT",
+      "rejected": true
+    },
+    {
+      "case": "WRONG_RUN_ORDER",
+      "rejected": true
+    },
+    {
+      "case": "WRONG_WINDOW",
+      "rejected": true
+    },
+    {
+      "case": "WRONG_SOURCE",
+      "rejected": true
+    },
+    {
+      "case": "FORGED_A_ATTEMPT",
+      "rejected": true
+    },
+    {
+      "case": "HIDDEN_EXPOSURE",
+      "rejected": true
+    },
+    {
+      "case": "FALSE_FORMAL_COMPLETE",
+      "rejected": true
+    },
+    {
+      "case": "FALSE_V3_AVAILABLE",
+      "rejected": true
+    },
+    {
+      "case": "INCORRECT_RUNBOOK_COUNT",
+      "rejected": true
+    },
+    {
+      "case": "ALTERED_DEFERRED",
+      "rejected": true
+    }
+  ],
+  "schema_negative_tests_rejected": 24,
+  "schema_valid_v3_formal_aggregate_available": false,
+  "staged_files": 6
+}

@@ -1,0 +1,52 @@
+{
+  "canary_causal_attribution": "UNKNOWN",
+  "candidate_processes_zero": true,
+  "external_data_transfer_proven": null,
+  "external_event_phase_binding_available": false,
+  "external_event_pid_binding_available": false,
+  "external_event_state_binding_available": false,
+  "external_event_target_binding_available": false,
+  "external_event_transfer_measurement_available": false,
+  "external_probes_denied": true,
+  "external_socket_observations": 1,
+  "failure_code": "HISTORICAL_SOCKET_ATTRIBUTION_UNKNOWN",
+  "global_exposure": 0,
+  "hard_gate_passed": false,
+  "java_bind_and_egress_probe": true,
+  "log_checks": [
+    {
+      "all_streams_verified": true,
+      "firewall_verified": true,
+      "independent_hit_files": 0,
+      "postscan_hit_files": 0,
+      "postscan_passed": true,
+      "streams": 1
+    },
+    {
+      "all_streams_verified": true,
+      "firewall_verified": true,
+      "independent_hit_files": 0,
+      "postscan_hit_files": 0,
+      "postscan_passed": true,
+      "streams": 2
+    }
+  ],
+  "network_policy_verified": true,
+  "network_probe_passed": true,
+  "observer_errors": 0,
+  "observer_persists_per_pid_rows": false,
+  "old_migration_id": "aee2e2eb-4cd7-4f97-a864-5ce6c3782529",
+  "old_observation_waived": false,
+  "old_terminal": "INVALID_CLOSED",
+  "old_window_id": "3330a46e-bfdd-4639-bb0c-ea5c1b3df622",
+  "other_external_connection_excluded": false,
+  "private_values_or_digests_exported": false,
+  "process_receipts": 3,
+  "readonly_guard_active": true,
+  "retained_synthetic_json_receipts": 17,
+  "schema": "cwk.rt055.amendment12-diagnostic.v1",
+  "sidecar_denied_errno": 1,
+  "socket_samples": 108,
+  "status": "READONLY_DIAGNOSIS_COMPLETE",
+  "structured_socket_evidence_keys_found": 0
+}

@@ -1,0 +1,45 @@
+{
+  "schema": "cwk.rt055.ops-runbooks.v1",
+  "note": "Mechanical complexity vector source. Production-deployment runbooks frozen before any candidate run; counts are computed from the step arrays, never self-asserted. Experiment harness process counts are reported separately and do not enter this vector.",
+  "cwk-opensearch-dual-channel-v1": {
+    "runbook": "Production: one OpenSearch 3.3.x cluster (analysis-icu), dual-channel indices, kb_gateway integration.",
+    "components": [
+      "opensearch-cluster-node"
+    ],
+    "upgrade_steps": [
+      "verify new official distribution digest against pinned manifest",
+      "snapshot index settings and mappings",
+      "stop search write traffic (gateway maintenance flag)",
+      "replace distribution binaries",
+      "start node and wait green",
+      "verify runtime version and plugin versions, re-open indices"
+    ],
+    "backup_restore_steps": [
+      "register snapshot repository on pinned storage path",
+      "create snapshot of all rt055 indices",
+      "restore snapshot into empty index set",
+      "verify doc counts and probe query against expected counts"
+    ]
+  },
+  "weknora-native-8d7298fb5d759973cb1e481cadc5ecdf16dca599": {
+    "runbook": "Production: one WeKnora server (sqlite engine, Lite mode) plus one local OpenAI-compatible embedding service; no external model egress.",
+    "components": [
+      "weknora-server",
+      "embedding-model-service"
+    ],
+    "upgrade_steps": [
+      "verify new commit reachable from upstream and tree clean",
+      "build server binary from pinned commit",
+      "stop weknora-server",
+      "replace binary and run schema migration on startup",
+      "start embedding model service and wait health",
+      "start server, verify health and KB list",
+      "smoke one manual knowledge ingest and one hybrid-search"
+    ],
+    "backup_restore_steps": [
+      "stop server, copy sqlite database file set (db, wal, shm) to backup path",
+      "restore file set into empty data path",
+      "start server and verify knowledge counts and one hybrid-search probe"
+    ]
+  }
+}

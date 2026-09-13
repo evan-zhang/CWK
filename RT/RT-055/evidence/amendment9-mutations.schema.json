@@ -1,0 +1,523 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "data_class",
+    "mutations",
+    "restored_green"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.amendment9-mutations.v1"
+    },
+    "data_class": {
+      "const": "PUBLIC_SYNTHETIC_ONLY"
+    },
+    "mutations": {
+      "type": "array",
+      "minItems": 13,
+      "maxItems": 13,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "detected",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "RAW_BYPASS"
+            },
+            "detected": {
+              "const": true
+            },
+            "tests": {
+              "const": 13
+            },
+            "failures": {
+              "const": 2
+            },
+            "errors": {
+              "const": 1
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "detected",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "NO_TAIL"
+            },
+            "detected": {
+              "const": true
+            },
+            "tests": {
+              "const": 13
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "detected",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "NO_CAP"
+            },
+            "detected": {
+              "const": true
+            },
+            "tests": {
+              "const": 13
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 1
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "detected",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "MISSING_EOF_PASS"
+            },
+            "detected": {
+              "const": true
+            },
+            "tests": {
+              "const": 13
+            },
+            "failures": {
+              "const": 5
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "detected",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "BYPASS_VERIFICATION"
+            },
+            "detected": {
+              "const": true
+            },
+            "tests": {
+              "const": 13
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "detected",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "TERMINAL_AS_PENDING"
+            },
+            "detected": {
+              "const": true
+            },
+            "tests": {
+              "const": 9
+            },
+            "failures": {
+              "const": 0
+            },
+            "errors": {
+              "const": 1
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "detected",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "SWALLOW_TERMINAL"
+            },
+            "detected": {
+              "const": true
+            },
+            "tests": {
+              "const": 9
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "detected",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "EARLY_NEXT_POST"
+            },
+            "detected": {
+              "const": true
+            },
+            "tests": {
+              "const": 12
+            },
+            "failures": {
+              "const": 2
+            },
+            "errors": {
+              "const": 2
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "detected",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "TRANSPORT_PENDING_BYPASS"
+            },
+            "detected": {
+              "const": true
+            },
+            "tests": {
+              "const": 12
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "detected",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "DUPLICATE_POST_BYPASS"
+            },
+            "detected": {
+              "const": true
+            },
+            "tests": {
+              "const": 12
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 1
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "detected",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "FIREWALL_PREIO_BYPASS"
+            },
+            "detected": {
+              "const": true
+            },
+            "tests": {
+              "const": 12
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "detected",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "DEADLINE_PER_DOC_RESET"
+            },
+            "detected": {
+              "const": true
+            },
+            "tests": {
+              "const": 12
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "detected",
+            "tests",
+            "failures",
+            "errors",
+            "skipped",
+            "exit_code"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "COORDINATOR_CORE_CHECK_BYPASS"
+            },
+            "detected": {
+              "const": true
+            },
+            "tests": {
+              "const": 19
+            },
+            "failures": {
+              "const": 1
+            },
+            "errors": {
+              "const": 0
+            },
+            "skipped": {
+              "const": 0
+            },
+            "exit_code": {
+              "const": 1
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "restored_green": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tests",
+        "failures",
+        "errors",
+        "skipped",
+        "exit_code"
+      ],
+      "properties": {
+        "tests": {
+          "const": 254
+        },
+        "failures": {
+          "const": 0
+        },
+        "errors": {
+          "const": 0
+        },
+        "skipped": {
+          "const": 0
+        },
+        "exit_code": {
+          "const": 0
+        }
+      }
+    }
+  }
+}

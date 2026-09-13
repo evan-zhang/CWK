@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "regression_tests",
+    "failures",
+    "errors",
+    "skipped",
+    "initial_red_errors",
+    "behavior_mutations",
+    "restored_green",
+    "credential_hits",
+    "archived_module_imported",
+    "archived_initializer_executed",
+    "archive_digest_required",
+    "historical_failure_waived",
+    "current_gate_weakened",
+    "original_deployment_precheck_failure_preserved",
+    "source_installs_before_resolution",
+    "current_privacy_invocations_before_resolution"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.amendment13-history-source-qa.v1"
+    },
+    "status": {
+      "const": "PASS"
+    },
+    "regression_tests": {
+      "const": 280
+    },
+    "failures": {
+      "const": 0
+    },
+    "errors": {
+      "const": 0
+    },
+    "skipped": {
+      "const": 0
+    },
+    "initial_red_errors": {
+      "const": 2
+    },
+    "behavior_mutations": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "ARCHIVED_HASH_BINDING_REMOVED"
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "HISTORICAL_CURRENT_GATE_SUBSTITUTED"
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "HISTORICAL_FAILURE_WAIVED"
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        }
+      ]
+    },
+    "restored_green": {
+      "const": true
+    },
+    "credential_hits": {
+      "const": 0
+    },
+    "archived_module_imported": {
+      "const": false
+    },
+    "archived_initializer_executed": {
+      "const": false
+    },
+    "archive_digest_required": {
+      "const": true
+    },
+    "historical_failure_waived": {
+      "const": false
+    },
+    "current_gate_weakened": {
+      "const": false
+    },
+    "original_deployment_precheck_failure_preserved": {
+      "const": true
+    },
+    "source_installs_before_resolution": {
+      "const": 0
+    },
+    "current_privacy_invocations_before_resolution": {
+      "const": 0
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "builder_runs": 1,
+  "executioner_migration_id": "89edbd10-2905-41f1-9037-62b502890856",
+  "formal_query_calls": 0,
+  "global_exposure": 0,
+  "historical_bytes_equal": true,
+  "new_archive_files": 194848,
+  "new_window_id": "7652dbee-3679-4886-a391-ffcf871e712c",
+  "old_after_closed": true,
+  "old_arms": 0,
+  "old_attempts": {
+    "a": 0,
+    "b": 1
+  },
+  "old_window_id": "d408cfab-40f7-41d3-8ccb-75fb0aaa2b65",
+  "old_window_status": "INVALID",
+  "previous_archive_bytes_equal": true,
+  "previous_archived_files": 97376,
+  "retained_bytes_equal": true,
+  "retained_files": 96,
+  "run_id": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af",
+  "scoring_archive_id": "1b9f56b2-688f-4b94-a95d-e1fa55d074c5",
+  "source_commit": "6b32584023cd27096e7c2167c0c28f47b380f922",
+  "status": "ARCHIVED_AND_DEPLOYED",
+  "verifier_runs": 1
+}

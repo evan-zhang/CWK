@@ -1,0 +1,595 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "data_class",
+    "status",
+    "reason",
+    "run_id",
+    "old_window_id",
+    "executioner_migration_id",
+    "new_window_id",
+    "policy_archive_id",
+    "source_commit",
+    "old_window_status",
+    "old_after_closed",
+    "old_a_attempts",
+    "old_b_attempts",
+    "old_process_records",
+    "old_arms",
+    "old_exposure",
+    "old_query_calls",
+    "old_scores",
+    "old_results",
+    "old_claims_retained",
+    "old_void_valid",
+    "historical_bytes_equal",
+    "archived_original_files",
+    "old_policy_and_network_receipt_bytes_equal",
+    "retained_files",
+    "retained_bytes_equal",
+    "builder_runs",
+    "verifier_runs",
+    "pool",
+    "deferred_libraries",
+    "runtime_policy_readiness",
+    "privacy_readiness",
+    "runtime_policy_version_matches_window",
+    "runtime_policy_files",
+    "protected_scope_count",
+    "readiness_claims",
+    "source_binding_recomputed",
+    "policy_text_recomputed",
+    "network_gate_recomputed",
+    "external_egress_denied",
+    "loopback_allowed",
+    "search_outbound_denied",
+    "readiness_before_baseline_start",
+    "fresh_before_verified",
+    "fresh_before_claims",
+    "freeze_verified",
+    "freeze_claims",
+    "freeze_verifier_claims",
+    "freeze_binds_readiness",
+    "run_order",
+    "random_order_newly_sampled",
+    "spawn_precheck_without_popen",
+    "global_exposure",
+    "new_arms",
+    "new_candidate_attempts",
+    "formal_query_calls",
+    "formal_results",
+    "formal_after_claims",
+    "gateway_http_200_count",
+    "synthetic_processes",
+    "synthetic_data_planes",
+    "candidate_processes",
+    "temporary_data_planes",
+    "cleanup_failures",
+    "native_upstream_verified",
+    "private_holdout_opened_for_diagnosis",
+    "formal_evaluation_complete",
+    "production_cutover_allowed",
+    "generation_chronology_proven",
+    "full_nas_index_invariance",
+    "historical_drift_cleared",
+    "independent_verification",
+    "privacy_observations"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.runtime-policy-ready.v1"
+    },
+    "data_class": {
+      "const": "OPS_PUBLIC_READINESS_NO_FORMAL_EVALUATION"
+    },
+    "status": {
+      "const": "READY_TO_RUN"
+    },
+    "reason": {
+      "const": "FORMAL_RUNTIME_POLICY_PRESPAWN_GAP_RECOVERED"
+    },
+    "run_id": {
+      "const": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af"
+    },
+    "old_window_id": {
+      "const": "0155202c-b6a0-40c6-a779-48aff0ab57fe"
+    },
+    "executioner_migration_id": {
+      "const": "e5a11f4d-445c-4c05-90b1-2c7e1fbeb0b0"
+    },
+    "new_window_id": {
+      "const": "835c5188-0f29-4f41-8fe6-119b61917e2d"
+    },
+    "policy_archive_id": {
+      "const": "4845680c-366e-4f75-88b0-5355b4153bcc"
+    },
+    "source_commit": {
+      "const": "58951f92656e7a29b334461c7aa6d1148fec4e8f"
+    },
+    "old_window_status": {
+      "const": "INVALID"
+    },
+    "old_after_closed": {
+      "const": true
+    },
+    "old_a_attempts": {
+      "const": 0
+    },
+    "old_b_attempts": {
+      "const": 1
+    },
+    "old_process_records": {
+      "const": 0
+    },
+    "old_arms": {
+      "const": 0
+    },
+    "old_exposure": {
+      "const": 0
+    },
+    "old_query_calls": {
+      "const": 0
+    },
+    "old_scores": {
+      "const": 0
+    },
+    "old_results": {
+      "const": 0
+    },
+    "old_claims_retained": {
+      "const": 1
+    },
+    "old_void_valid": {
+      "const": true
+    },
+    "historical_bytes_equal": {
+      "const": true
+    },
+    "archived_original_files": {
+      "const": 1222
+    },
+    "old_policy_and_network_receipt_bytes_equal": {
+      "const": true
+    },
+    "retained_files": {
+      "const": 96
+    },
+    "retained_bytes_equal": {
+      "const": true
+    },
+    "builder_runs": {
+      "const": 1
+    },
+    "verifier_runs": {
+      "const": 1
+    },
+    "pool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cwork-3m",
+        "docdb-touqian",
+        "spbp-2027"
+      ],
+      "properties": {
+        "cwork-3m": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "total_count",
+            "tier"
+          ],
+          "properties": {
+            "total_count": {
+              "const": 42
+            },
+            "tier": {
+              "const": "T3"
+            }
+          }
+        },
+        "docdb-touqian": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "total_count",
+            "tier"
+          ],
+          "properties": {
+            "total_count": {
+              "const": 31
+            },
+            "tier": {
+              "const": "T3"
+            }
+          }
+        },
+        "spbp-2027": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "total_count",
+            "tier"
+          ],
+          "properties": {
+            "total_count": {
+              "const": 42
+            },
+            "tier": {
+              "const": "T2"
+            }
+          }
+        }
+      }
+    },
+    "deferred_libraries": {
+      "const": []
+    },
+    "runtime_policy_readiness": {
+      "const": "PASS"
+    },
+    "privacy_readiness": {
+      "const": "PASS"
+    },
+    "runtime_policy_version_matches_window": {
+      "const": true
+    },
+    "runtime_policy_files": {
+      "const": 2
+    },
+    "protected_scope_count": {
+      "const": 8
+    },
+    "readiness_claims": {
+      "const": 1
+    },
+    "source_binding_recomputed": {
+      "const": true
+    },
+    "policy_text_recomputed": {
+      "const": true
+    },
+    "network_gate_recomputed": {
+      "const": true
+    },
+    "external_egress_denied": {
+      "const": true
+    },
+    "loopback_allowed": {
+      "const": true
+    },
+    "search_outbound_denied": {
+      "const": true
+    },
+    "readiness_before_baseline_start": {
+      "const": true
+    },
+    "fresh_before_verified": {
+      "const": true
+    },
+    "fresh_before_claims": {
+      "const": 1
+    },
+    "freeze_verified": {
+      "const": true
+    },
+    "freeze_claims": {
+      "const": 1
+    },
+    "freeze_verifier_claims": {
+      "const": 1
+    },
+    "freeze_binds_readiness": {
+      "const": true
+    },
+    "run_order": {
+      "enum": [
+        [
+          "a",
+          "b"
+        ],
+        [
+          "b",
+          "a"
+        ]
+      ]
+    },
+    "random_order_newly_sampled": {
+      "const": true
+    },
+    "spawn_precheck_without_popen": {
+      "const": "PASS"
+    },
+    "global_exposure": {
+      "const": 0
+    },
+    "new_arms": {
+      "const": 0
+    },
+    "new_candidate_attempts": {
+      "const": 0
+    },
+    "formal_query_calls": {
+      "const": 0
+    },
+    "formal_results": {
+      "const": 0
+    },
+    "formal_after_claims": {
+      "const": 0
+    },
+    "gateway_http_200_count": {
+      "const": 3
+    },
+    "synthetic_processes": {
+      "const": 0
+    },
+    "synthetic_data_planes": {
+      "const": 0
+    },
+    "candidate_processes": {
+      "const": 0
+    },
+    "temporary_data_planes": {
+      "const": 0
+    },
+    "cleanup_failures": {
+      "const": 0
+    },
+    "native_upstream_verified": {
+      "const": true
+    },
+    "private_holdout_opened_for_diagnosis": {
+      "const": false
+    },
+    "formal_evaluation_complete": {
+      "const": false
+    },
+    "production_cutover_allowed": {
+      "const": false
+    },
+    "generation_chronology_proven": {
+      "const": false
+    },
+    "full_nas_index_invariance": {
+      "const": null
+    },
+    "historical_drift_cleared": {
+      "const": false
+    },
+    "independent_verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "freeze_recomputed",
+        "privacy_recomputed",
+        "runtime_readiness_recomputed",
+        "spawn_prechecks_passed_without_popen",
+        "readiness_before_before_before_freeze",
+        "old_window_original_bytes_equal",
+        "all_archived_originals_equal",
+        "original_materials",
+        "original_materials_equal",
+        "old_claim_and_void_unchanged",
+        "old_policy_and_network_receipt_unchanged",
+        "main_resource_records_added",
+        "global_exposure",
+        "all_formal_arms",
+        "formal_query_calls",
+        "formal_results",
+        "new_attempts",
+        "new_scores",
+        "new_after_claims",
+        "old_b_attempts",
+        "old_a_attempts",
+        "builder_runs",
+        "verifier_runs",
+        "gateway_http_200_count",
+        "candidate_processes",
+        "synthetic_processes",
+        "controller_processes",
+        "temporary_data_planes",
+        "temporary_files_added",
+        "gateway_tls_files",
+        "synthetic_resource_directories",
+        "uuid_resources"
+      ],
+      "properties": {
+        "freeze_recomputed": {
+          "const": true
+        },
+        "privacy_recomputed": {
+          "const": true
+        },
+        "runtime_readiness_recomputed": {
+          "const": true
+        },
+        "spawn_prechecks_passed_without_popen": {
+          "const": 2
+        },
+        "readiness_before_before_before_freeze": {
+          "const": true
+        },
+        "old_window_original_bytes_equal": {
+          "const": true
+        },
+        "all_archived_originals_equal": {
+          "const": true
+        },
+        "original_materials": {
+          "const": 96
+        },
+        "original_materials_equal": {
+          "const": true
+        },
+        "old_claim_and_void_unchanged": {
+          "const": true
+        },
+        "old_policy_and_network_receipt_unchanged": {
+          "const": true
+        },
+        "main_resource_records_added": {
+          "const": 0
+        },
+        "global_exposure": {
+          "const": 0
+        },
+        "all_formal_arms": {
+          "const": 0
+        },
+        "formal_query_calls": {
+          "const": 0
+        },
+        "formal_results": {
+          "const": 0
+        },
+        "new_attempts": {
+          "const": 0
+        },
+        "new_scores": {
+          "const": 0
+        },
+        "new_after_claims": {
+          "const": 0
+        },
+        "old_b_attempts": {
+          "const": 1
+        },
+        "old_a_attempts": {
+          "const": 0
+        },
+        "builder_runs": {
+          "const": 1
+        },
+        "verifier_runs": {
+          "const": 1
+        },
+        "gateway_http_200_count": {
+          "const": 3
+        },
+        "candidate_processes": {
+          "const": 0
+        },
+        "synthetic_processes": {
+          "const": 0
+        },
+        "controller_processes": {
+          "const": 0
+        },
+        "temporary_data_planes": {
+          "const": 0
+        },
+        "temporary_files_added": {
+          "const": 0
+        },
+        "gateway_tls_files": {
+          "const": 0
+        },
+        "synthetic_resource_directories": {
+          "const": 0
+        },
+        "uuid_resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "containers",
+            "volumes",
+            "networks",
+            "image_tags",
+            "services"
+          ],
+          "properties": {
+            "containers": {
+              "const": 0
+            },
+            "volumes": {
+              "const": 0
+            },
+            "networks": {
+              "const": 0
+            },
+            "image_tags": {
+              "const": 0
+            },
+            "services": {
+              "const": 0
+            }
+          }
+        }
+      }
+    },
+    "privacy_observations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "search_normal_calls",
+        "native_normal_calls",
+        "authenticated_query_error_code",
+        "authenticated_title_error_code",
+        "embedding_calls",
+        "embedding_successes",
+        "log_files_scanned",
+        "log_canary_hits",
+        "trace_header_observations",
+        "native_trace_response_headers",
+        "socket_samples",
+        "external_socket_observations",
+        "forbidden_reads",
+        "observer_errors"
+      ],
+      "properties": {
+        "search_normal_calls": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "native_normal_calls": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "authenticated_query_error_code": {
+          "const": 400
+        },
+        "authenticated_title_error_code": {
+          "const": 400
+        },
+        "embedding_calls": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "embedding_successes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "log_files_scanned": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "log_canary_hits": {
+          "const": 0
+        },
+        "trace_header_observations": {
+          "const": 0
+        },
+        "native_trace_response_headers": {
+          "const": 0
+        },
+        "socket_samples": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "external_socket_observations": {
+          "const": 0
+        },
+        "forbidden_reads": {
+          "const": 0
+        },
+        "observer_errors": {
+          "const": 0
+        }
+      }
+    }
+  }
+}

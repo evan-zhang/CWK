@@ -1,0 +1,157 @@
+{
+  "schema": "cwk.rt055.zero-exposure-scorer-tests.v1",
+  "data_class": "PUBLIC_SYNTHETIC_ONLY_NOT_OPS",
+  "baseline_commit": "1af1362b57e639de87a35a9e5c2ce1af7f296da1",
+  "red": {
+    "tests": 10,
+    "failures": 1,
+    "errors": 8,
+    "skipped": 0,
+    "exit_code": 1
+  },
+  "green": {
+    "tests": 156,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exit_code": 0
+  },
+  "mutations": [
+    {
+      "mutation": "SINGLE_LIBRARY_SCOPE_DISCONNECTED",
+      "tests": 14,
+      "failures": 1,
+      "errors": 2,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "MISSING_CATEGORY_ACCEPTED",
+      "tests": 14,
+      "failures": 0,
+      "errors": 3,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "EXPOSURE_HOOK_DISCONNECTED",
+      "tests": 14,
+      "failures": 2,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "LEGACY_VOID_GUARD_DISCONNECTED",
+      "tests": 14,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "EXPOSURE_WRITE_DISCONNECTED",
+      "tests": 14,
+      "failures": 3,
+      "errors": 1,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "INCOMPLETE_EXPOSURE_REPLAY_ALLOWED",
+      "tests": 14,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "CLOSED_WINDOW_REOPENED",
+      "tests": 14,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "RESULT_CHAIN_DISCONNECTED",
+      "tests": 14,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "ONE_QUERY_VOID_ALLOWED",
+      "tests": 14,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "ONE_SCORE_VOID_ALLOWED",
+      "tests": 14,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "OPENED_HOLDOUT_VOID_ALLOWED",
+      "tests": 14,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "RAW_CALL_RECONCILIATION_IGNORED",
+      "tests": 14,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "LIBRARY_RESULT_COUNT_IGNORED",
+      "tests": 14,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    },
+    {
+      "mutation": "ARCHIVE_DIGEST_BINDING_IGNORED",
+      "tests": 14,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1,
+      "detected": true
+    }
+  ],
+  "formal_queries": 0,
+  "builder_runs": 0,
+  "verifier_runs": 0,
+  "restored_green": {
+    "tests": 156,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exit_code": 0
+  }
+}

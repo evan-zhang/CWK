@@ -1,0 +1,130 @@
+{
+  "schema": "cwk.rt055.amendment9-mutations.v1",
+  "data_class": "PUBLIC_SYNTHETIC_ONLY",
+  "mutations": [
+    {
+      "mutation": "RAW_BYPASS",
+      "detected": true,
+      "tests": 13,
+      "failures": 2,
+      "errors": 1,
+      "skipped": 0,
+      "exit_code": 1
+    },
+    {
+      "mutation": "NO_TAIL",
+      "detected": true,
+      "tests": 13,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1
+    },
+    {
+      "mutation": "NO_CAP",
+      "detected": true,
+      "tests": 13,
+      "failures": 1,
+      "errors": 1,
+      "skipped": 0,
+      "exit_code": 1
+    },
+    {
+      "mutation": "MISSING_EOF_PASS",
+      "detected": true,
+      "tests": 13,
+      "failures": 5,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1
+    },
+    {
+      "mutation": "BYPASS_VERIFICATION",
+      "detected": true,
+      "tests": 13,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1
+    },
+    {
+      "mutation": "TERMINAL_AS_PENDING",
+      "detected": true,
+      "tests": 9,
+      "failures": 0,
+      "errors": 1,
+      "skipped": 0,
+      "exit_code": 1
+    },
+    {
+      "mutation": "SWALLOW_TERMINAL",
+      "detected": true,
+      "tests": 9,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1
+    },
+    {
+      "mutation": "EARLY_NEXT_POST",
+      "detected": true,
+      "tests": 12,
+      "failures": 2,
+      "errors": 2,
+      "skipped": 0,
+      "exit_code": 1
+    },
+    {
+      "mutation": "TRANSPORT_PENDING_BYPASS",
+      "detected": true,
+      "tests": 12,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1
+    },
+    {
+      "mutation": "DUPLICATE_POST_BYPASS",
+      "detected": true,
+      "tests": 12,
+      "failures": 1,
+      "errors": 1,
+      "skipped": 0,
+      "exit_code": 1
+    },
+    {
+      "mutation": "FIREWALL_PREIO_BYPASS",
+      "detected": true,
+      "tests": 12,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1
+    },
+    {
+      "mutation": "DEADLINE_PER_DOC_RESET",
+      "detected": true,
+      "tests": 12,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1
+    },
+    {
+      "mutation": "COORDINATOR_CORE_CHECK_BYPASS",
+      "detected": true,
+      "tests": 19,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 1
+    }
+  ],
+  "restored_green": {
+    "tests": 254,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exit_code": 0
+  }
+}

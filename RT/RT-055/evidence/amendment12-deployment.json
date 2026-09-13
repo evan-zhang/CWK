@@ -1,0 +1,30 @@
+{
+  "schema": "cwk.rt055.amendment12-deployment.v1",
+  "archived_source_files": 27,
+  "builder_runs": 1,
+  "executioner_migration_id": "7f3a28e9-195f-4d5e-a4f0-5451b10fdb43",
+  "global_exposure": 0,
+  "historical_bytes_equal": true,
+  "historical_prior_files_verified": 390079,
+  "history_files_verified": 390197,
+  "new_window_id": "999c334f-5018-4d83-b571-b406f49fe605",
+  "old_after_retried": false,
+  "old_after_status": "FAIL",
+  "old_window_id": "3330a46e-bfdd-4639-bb0c-ea5c1b3df622",
+  "previous_archive_bytes_equal": true,
+  "previous_archived_files": 27,
+  "retained_bytes_equal": true,
+  "retained_files": 96,
+  "run_id": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af",
+  "scoring_archive_id": "5677597f-1963-4bee-a5b8-939b1844da17",
+  "source_commit": "6c524bc10369464f0a8cf50d1380504deb64f9aa",
+  "source_files_changed": [
+    "rt055_runtime.py",
+    "rt055_confidentiality.py",
+    "rt055_embed_sidecar.py"
+  ],
+  "status": "ARCHIVED_AND_DEPLOYED",
+  "verifier_runs": 1,
+  "workload_authorized_runs": 0,
+  "workload_reason": "HISTORICAL_SOCKET_ATTRIBUTION_UNKNOWN"
+}

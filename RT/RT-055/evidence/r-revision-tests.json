@@ -1,0 +1,54 @@
+{
+  "schema": "cwk.rt055.r-revision-tests.v1",
+  "authority_version": "rt055-current-snapshot-exclusion-r-v1",
+  "data_class": "synthetic_only",
+  "new_holdout_builds_at_revision": 0,
+  "formal_candidate_runs_at_revision": 0,
+  "red": {
+    "tests": 14,
+    "failures": 10,
+    "exit_code": 1
+  },
+  "green": {
+    "tests": 14,
+    "failures": 0,
+    "exit_code": 0
+  },
+  "rt055_regression": {
+    "tests": 58,
+    "failures": 0,
+    "exit_code": 0
+  },
+  "mutations": [
+    {
+      "mutation": "builder_exclusion_disconnected",
+      "exit_code": 1,
+      "rejected": true
+    },
+    {
+      "mutation": "verifier_exclusion_bypassed",
+      "exit_code": 1,
+      "rejected": true
+    }
+  ],
+  "restored_green": true,
+  "checks": {
+    "privacy": true,
+    "relative_links": true,
+    "governance": true,
+    "aodw": true,
+    "diff": true
+  },
+  "isolated_fast_lane": {
+    "initial_tests": 2572,
+    "initial_failures": 3,
+    "initial_errors": 1,
+    "skipped": 12,
+    "initial_exit_code": 2,
+    "failure_reason": "isolated_git_index_missing",
+    "recovered_affected_tests": 10,
+    "recovered_exit_code": 0,
+    "remaining_smoke_and_gates_exit_code": 0,
+    "full_ci_command_repeated": false
+  }
+}

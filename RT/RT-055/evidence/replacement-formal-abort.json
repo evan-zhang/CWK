@@ -1,0 +1,368 @@
+{
+  "cleanup": {
+    "candidate_processes": 0,
+    "controller_processes": 0,
+    "failures": 0,
+    "gateway_http_200_count": 3,
+    "new_gateway_tls_files": 0,
+    "new_temporary_files": 0,
+    "private_holdout_retained": true,
+    "temporary_data_planes": 0,
+    "unknown_ownership_resources": 0,
+    "uuid_resources": {
+      "containers": 0,
+      "image_tags": 0,
+      "networks": 0,
+      "services": 0,
+      "volumes": 0
+    }
+  },
+  "closure": {
+    "after_claims": 1,
+    "after_file_counts": [
+      1248,
+      316,
+      317
+    ],
+    "after_libraries_measured": 3,
+    "before_after_same_window_verified": true,
+    "before_claims": 1,
+    "before_file_counts": [
+      1248,
+      316,
+      317
+    ],
+    "cleanup_claims": 1,
+    "comparison_recomputed": true,
+    "terminal_phase": "COMPLETE",
+    "terminal_status": "INVALID",
+    "window_closed_to_replay": true
+  },
+  "data_class": "OPS_PUBLIC_ABORT_NOT_FORMAL_AGGREGATE",
+  "deferred_libraries": [],
+  "execution": {
+    "candidate_attempts": {
+      "a": 0,
+      "b": 1
+    },
+    "candidate_results": 0,
+    "complete_libraries": {
+      "a": 0,
+      "b": 0
+    },
+    "diagnosis_reopened_private_holdout": false,
+    "failure_boundary": "RUNTIME_SPAWN_BEFORE_SUBPROCESS",
+    "failure_type": "RuntimeError",
+    "formal_query_calls": 0,
+    "global_exposure": 0,
+    "holdout_unexposed": true,
+    "new_arms": 0,
+    "new_process_records": 0,
+    "query_zero_basis": "NO_PROCESS_CREATED_NO_ARM_NO_EXPOSURE",
+    "runtime_policy_changed": false,
+    "runtime_policy_loopback_matches": false,
+    "runtime_policy_missing_new_ledger_protection": true,
+    "runtime_policy_search_matches": false,
+    "score_receipts": 0
+  },
+  "executioner_commit": "a4b3c64ebb609eee5d08a8c53dc594798f43ec58",
+  "executioner_migration_id": "a82157ee-324b-4806-ae01-3a4675b1f8d4",
+  "formal_metrics": {
+    "cwork-3m": {
+      "A": {
+        "answerable_count": null,
+        "answerable_system_error_count": null,
+        "build_seconds": null,
+        "exact": null,
+        "exact_count": null,
+        "exact_hits": null,
+        "exact_system_error_count": null,
+        "index_bytes": null,
+        "leak_count": null,
+        "no_answer": null,
+        "no_answer_correct": null,
+        "no_answer_count": null,
+        "no_answer_system_error_count": null,
+        "p95_ms": null,
+        "peak_rss_bytes": null,
+        "recall_at_10": null,
+        "recall_hits_at_10": null,
+        "status": "NOT_RUN_PREVIOUS_CANDIDATE_ABORT",
+        "system_error_count": null,
+        "timeout_count": null,
+        "total_count": null
+      },
+      "B": {
+        "answerable_count": null,
+        "answerable_system_error_count": null,
+        "build_seconds": null,
+        "exact": null,
+        "exact_count": null,
+        "exact_hits": null,
+        "exact_system_error_count": null,
+        "index_bytes": null,
+        "leak_count": null,
+        "no_answer": null,
+        "no_answer_correct": null,
+        "no_answer_count": null,
+        "no_answer_system_error_count": null,
+        "p95_ms": null,
+        "peak_rss_bytes": null,
+        "recall_at_10": null,
+        "recall_hits_at_10": null,
+        "status": "NOT_MEASURED_PRESPAWN_ABORT",
+        "system_error_count": null,
+        "timeout_count": null,
+        "total_count": null
+      }
+    },
+    "docdb-touqian": {
+      "A": {
+        "answerable_count": null,
+        "answerable_system_error_count": null,
+        "build_seconds": null,
+        "exact": null,
+        "exact_count": null,
+        "exact_hits": null,
+        "exact_system_error_count": null,
+        "index_bytes": null,
+        "leak_count": null,
+        "no_answer": null,
+        "no_answer_correct": null,
+        "no_answer_count": null,
+        "no_answer_system_error_count": null,
+        "p95_ms": null,
+        "peak_rss_bytes": null,
+        "recall_at_10": null,
+        "recall_hits_at_10": null,
+        "status": "NOT_RUN_PREVIOUS_CANDIDATE_ABORT",
+        "system_error_count": null,
+        "timeout_count": null,
+        "total_count": null
+      },
+      "B": {
+        "answerable_count": null,
+        "answerable_system_error_count": null,
+        "build_seconds": null,
+        "exact": null,
+        "exact_count": null,
+        "exact_hits": null,
+        "exact_system_error_count": null,
+        "index_bytes": null,
+        "leak_count": null,
+        "no_answer": null,
+        "no_answer_correct": null,
+        "no_answer_count": null,
+        "no_answer_system_error_count": null,
+        "p95_ms": null,
+        "peak_rss_bytes": null,
+        "recall_at_10": null,
+        "recall_hits_at_10": null,
+        "status": "NOT_MEASURED_PRESPAWN_ABORT",
+        "system_error_count": null,
+        "timeout_count": null,
+        "total_count": null
+      }
+    },
+    "spbp-2027": {
+      "A": {
+        "answerable_count": null,
+        "answerable_system_error_count": null,
+        "build_seconds": null,
+        "exact": null,
+        "exact_count": null,
+        "exact_hits": null,
+        "exact_system_error_count": null,
+        "index_bytes": null,
+        "leak_count": null,
+        "no_answer": null,
+        "no_answer_correct": null,
+        "no_answer_count": null,
+        "no_answer_system_error_count": null,
+        "p95_ms": null,
+        "peak_rss_bytes": null,
+        "recall_at_10": null,
+        "recall_hits_at_10": null,
+        "status": "NOT_RUN_PREVIOUS_CANDIDATE_ABORT",
+        "system_error_count": null,
+        "timeout_count": null,
+        "total_count": null
+      },
+      "B": {
+        "answerable_count": null,
+        "answerable_system_error_count": null,
+        "build_seconds": null,
+        "exact": null,
+        "exact_count": null,
+        "exact_hits": null,
+        "exact_system_error_count": null,
+        "index_bytes": null,
+        "leak_count": null,
+        "no_answer": null,
+        "no_answer_correct": null,
+        "no_answer_count": null,
+        "no_answer_system_error_count": null,
+        "p95_ms": null,
+        "peak_rss_bytes": null,
+        "recall_at_10": null,
+        "recall_hits_at_10": null,
+        "status": "NOT_MEASURED_PRESPAWN_ABORT",
+        "system_error_count": null,
+        "timeout_count": null,
+        "total_count": null
+      }
+    }
+  },
+  "freeze_privacy_roles": {
+    "builder_runs": 1,
+    "formal_runtime_policy_gate_passed": false,
+    "freeze_artifacts_recomputed": true,
+    "freeze_claims": 1,
+    "freeze_sequence_verified": true,
+    "freeze_verifier_claims": 1,
+    "fresh_before_claims": 1,
+    "historical_synthetic_privacy_pass": true,
+    "native_upstream_verified": true,
+    "privacy_receipt_binding_recomputed": true,
+    "role_separation_level": "PROCESS_LEVEL_SEPARATION_SINGLE_UID",
+    "roles_verified": true,
+    "verifier_runs": 1
+  },
+  "gateway_readiness": {
+    "A": {
+      "https_query_api": null,
+      "kb_grants_server_side": null,
+      "no_direct_nas_or_search_credentials": null,
+      "per_gateway_identity": null
+    },
+    "B": {
+      "https_query_api": null,
+      "kb_grants_server_side": null,
+      "no_direct_nas_or_search_credentials": null,
+      "per_gateway_identity": null
+    }
+  },
+  "limits": {
+    "formal_evaluation_complete": false,
+    "full_production_invariance_proven": false,
+    "historical_drift_cleared": false,
+    "private_data_or_digests_exported": false,
+    "production_cutover_allowed": false,
+    "runtime_source_or_configuration_repaired": false,
+    "schema_valid_v3_aggregate_available": false,
+    "synthetic_scores_used_as_formal": false
+  },
+  "mechanical_complexity": {
+    "A": {
+      "backup_restore_steps_count": 4,
+      "components_count": 1,
+      "upgrade_steps_count": 6
+    },
+    "B": {
+      "backup_restore_steps_count": 3,
+      "components_count": 2,
+      "upgrade_steps_count": 7
+    },
+    "basis": "FROZEN_RUNBOOK_STEP_COUNTS_NOT_FORMAL_PERFORMANCE"
+  },
+  "old_window_id": "7bed2d1c-4943-4da6-b6d2-a23aab5c195f",
+  "participating_libraries": [
+    "cwork-3m",
+    "docdb-touqian",
+    "spbp-2027"
+  ],
+  "pool": {
+    "cwork-3m": {
+      "tier": "T3",
+      "total_count": 42
+    },
+    "docdb-touqian": {
+      "tier": "T3",
+      "total_count": 31
+    },
+    "spbp-2027": {
+      "tier": "T2",
+      "total_count": 42
+    }
+  },
+  "precheck": {
+    "builder_runs": 1,
+    "deferred_libraries": 0,
+    "formal_after_claims": 0,
+    "formal_query_calls": 0,
+    "formal_results": 0,
+    "freeze_binding_verified": true,
+    "freeze_claims": 1,
+    "freeze_sequence_verified": true,
+    "freeze_verifier_claims": 1,
+    "fresh_before_claims": 1,
+    "fresh_before_verified": true,
+    "gateway_http_200_count": 3,
+    "global_exposure": 0,
+    "holdout_unexposed": true,
+    "live_other_controllers": 0,
+    "native_upstream_verified": true,
+    "new_arms": 0,
+    "new_attempts": 0,
+    "new_scores": 0,
+    "no_active_candidate_or_controller": true,
+    "old_a_attempts": 1,
+    "old_b_attempts": 0,
+    "old_claim_retained": true,
+    "old_original_bytes_equal": true,
+    "old_query_calls": 0,
+    "old_results": 0,
+    "old_scores": 0,
+    "old_void_status": "VOID_PREQUERY_NO_EXPOSURE",
+    "old_void_valid": true,
+    "old_window_invalid": true,
+    "participating_libraries": 3,
+    "pool_counts_tiers_match": true,
+    "privacy_binding_verified": true,
+    "retained_bytes_equal": true,
+    "retained_files": 96,
+    "role_audit_verified": true,
+    "role_separation_level": "PROCESS_LEVEL_SEPARATION_SINGLE_UID",
+    "run_order": "B_THEN_A",
+    "source_commit_matches": true,
+    "status": "PASS",
+    "temporary_data_planes": 0,
+    "verifier_runs": 1
+  },
+  "production_comparison": {
+    "all_items_measured": false,
+    "containers_unchanged": true,
+    "existing_indices_unchanged": null,
+    "existing_indices_unchanged_measured_projection": true,
+    "gateway_health_content_unchanged": true,
+    "gateway_unchanged": true,
+    "nas_unchanged": null,
+    "nas_unchanged_measured_projection": true,
+    "production_config_unchanged": false,
+    "production_config_unchanged_measured_projection": true,
+    "services_unchanged": false,
+    "three_gateways_healthy": true,
+    "volumes_unchanged": true
+  },
+  "reason": "FROZEN_RUNTIME_POLICY_DRIFT_PRESPAWN",
+  "retention": {
+    "frozen_source_unchanged": true,
+    "holdout_freeze_audit_history_retained": true,
+    "old_void_status": "VOID_PREQUERY_NO_EXPOSURE",
+    "old_void_strictly_valid": true,
+    "old_window_claim_freeze_bytes_equal": true,
+    "old_window_invalid": true,
+    "original_materials": 96,
+    "original_materials_bytes_equal": true,
+    "runtime_policy_bytes_unchanged": true
+  },
+  "run_id": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af",
+  "run_order": [
+    "b",
+    "a"
+  ],
+  "schema": "cwk.rt055.replacement-runtime-policy-abort.v1",
+  "window_decision": "INVALID",
+  "window_id": "0155202c-b6a0-40c6-a779-48aff0ab57fe",
+  "zero_exposure_migration_id": "5e3c6265-8cfd-42b9-a2eb-bef592e171cf"
+}

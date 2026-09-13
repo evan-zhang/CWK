@@ -1,0 +1,77 @@
+{
+  "schema": "cwk.rt055.amendment8-final-qa.v1",
+  "data_class": "PUBLIC_SYNTHETIC_AND_COUNT_ONLY",
+  "status": "PASS",
+  "readiness": "BLOCKED",
+  "source_commit": "a475b048c235b2f4a8b92d845760462b4879c83c",
+  "source_tests_reused_unchanged": true,
+  "local": {
+    "schema": "cwk.rt055.amendment8-local.v1",
+    "data_class": "PUBLIC_SYNTHETIC_ONLY",
+    "red": {
+      "tests": 1,
+      "failures": 1,
+      "raw_canary_on_disk": true
+    },
+    "green": {
+      "tests": 241,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "exit_code": 0
+    },
+    "compiled_files": 141,
+    "historical_public_files_unchanged": 82,
+    "builder_verifier_window_quality_search_unchanged": true,
+    "formal_queries": 0,
+    "ops_candidate_runs": 0
+  },
+  "behavior_mutations_detected": 7,
+  "restored_green": {
+    "tests": 241,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "exit_code": 0
+  },
+  "initial_final_audit": {
+    "status": "FINAL_AUDIT_FAILED",
+    "phase": "POOL_HEALTH",
+    "error_kind": "AssertionError"
+  },
+  "audit_failure_classification": "ONE_GATEWAY_HEALTH_READ_ONLY_FIELD_MISSING_POOL_UNCHANGED",
+  "blocked_audit_reconciled": true,
+  "ready_health_gate_not_relaxed": true,
+  "native_core_and_resources": {
+    "status": "PASS",
+    "native_upstream_verified": true,
+    "native_core_unchanged": true,
+    "frozen_images_unchanged": true,
+    "frozen_dependencies_unchanged": true,
+    "run_scoped_resources": {
+      "containers": 0,
+      "volumes": 0,
+      "networks": 0,
+      "images": 0,
+      "services": 0
+    },
+    "private_values_exported": false
+  },
+  "aodw_pass": true,
+  "governance_pass": true,
+  "existing_host_skill_warnings": 1,
+  "full_repository_ci_claimed": false,
+  "formal_candidate_runs": 0,
+  "formal_queries": 0,
+  "new_window_created": false,
+  "push_performed": false,
+  "mechanical_checks": {
+    "schemas": 9,
+    "schema_negative_rejections_minimum": 1000,
+    "private_field_or_digest_hits": 0,
+    "secret_hits": 0,
+    "historical_public_files_unchanged": 82,
+    "document_prefixes_unchanged": 3,
+    "pool_tier_seed_quality_algorithm_exposure_unchanged": true
+  }
+}

@@ -1,0 +1,251 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "source_commit",
+    "regression",
+    "behavior_mutations_detected",
+    "schemas_validated",
+    "schema_negative_rejections",
+    "compiled",
+    "privacy_hits",
+    "historical_public_files_unchanged",
+    "document_prefixes_unchanged",
+    "links",
+    "anchors",
+    "candidate_algorithms_scorer_pool_tiers_seed_models_core_unchanged",
+    "source_files_unchanged_since_ops_deploy",
+    "necessary_public_contract_tests_added",
+    "behavior_mutations_reused_not_rerun",
+    "formal_queries_executed",
+    "full_repository_ci_claimed",
+    "independent_verification_status",
+    "independent_reread_exactly_equal",
+    "verifier_scope_regression",
+    "verifier_original_assertions",
+    "verifier_original_evaluations",
+    "verifier_original_failures",
+    "verifier_root_cause",
+    "diagnostic_null_device_guard_corrected",
+    "schema_empty_prefix_items_generator_corrected",
+    "aodw_status",
+    "aodw_framework_fixtures",
+    "aodw_managed_rts",
+    "known_host_skill_warnings",
+    "governance_status",
+    "public_file_secret_scan_hits",
+    "readonly_ops_writes",
+    "finalizer_replayed",
+    "ops_workers_replayed",
+    "privacy_replayed",
+    "main_startup_replayed",
+    "before_replayed",
+    "freeze_replayed",
+    "interrupted_failure_and_finalizer_claim_preserved",
+    "all_preexisting_public_evidence_files_unchanged",
+    "governance_tracked_files",
+    "aodw_roster_rts",
+    "final_public_scan_files",
+    "finalized_public_schemas_validated",
+    "finalized_schema_negative_rejections"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.candidate-workspace-ready-qa.v1"
+    },
+    "status": {
+      "const": "PASS"
+    },
+    "source_commit": {
+      "const": "ad7d6b6e282ed8a674f25924830c4c5df71137ed"
+    },
+    "regression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tests",
+        "failures",
+        "errors",
+        "skipped",
+        "exit_code"
+      ],
+      "properties": {
+        "tests": {
+          "const": 201
+        },
+        "failures": {
+          "const": 0
+        },
+        "errors": {
+          "const": 0
+        },
+        "skipped": {
+          "const": 0
+        },
+        "exit_code": {
+          "const": 0
+        }
+      }
+    },
+    "behavior_mutations_detected": {
+      "const": 11
+    },
+    "schemas_validated": {
+      "const": 9
+    },
+    "schema_negative_rejections": {
+      "const": 127
+    },
+    "compiled": {
+      "const": 133
+    },
+    "privacy_hits": {
+      "const": 0
+    },
+    "historical_public_files_unchanged": {
+      "const": 47
+    },
+    "document_prefixes_unchanged": {
+      "const": 3
+    },
+    "links": {
+      "const": 150
+    },
+    "anchors": {
+      "const": 23
+    },
+    "candidate_algorithms_scorer_pool_tiers_seed_models_core_unchanged": {
+      "const": true
+    },
+    "source_files_unchanged_since_ops_deploy": {
+      "const": true
+    },
+    "necessary_public_contract_tests_added": {
+      "const": 8
+    },
+    "behavior_mutations_reused_not_rerun": {
+      "const": true
+    },
+    "formal_queries_executed": {
+      "const": 0
+    },
+    "full_repository_ci_claimed": {
+      "const": false
+    },
+    "independent_verification_status": {
+      "const": "PASS"
+    },
+    "independent_reread_exactly_equal": {
+      "const": true
+    },
+    "verifier_scope_regression": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "stale_assertion_reproduced",
+        "retained_global_claim_new_window_zero_accepted",
+        "nonzero_window_counterexamples_rejected",
+        "ops_calls"
+      ],
+      "properties": {
+        "status": {
+          "const": "PASS"
+        },
+        "stale_assertion_reproduced": {
+          "const": true
+        },
+        "retained_global_claim_new_window_zero_accepted": {
+          "const": true
+        },
+        "nonzero_window_counterexamples_rejected": {
+          "const": 6
+        },
+        "ops_calls": {
+          "const": 0
+        }
+      }
+    },
+    "verifier_original_assertions": {
+      "const": 34
+    },
+    "verifier_original_evaluations": {
+      "const": 57
+    },
+    "verifier_original_failures": {
+      "const": 1
+    },
+    "verifier_root_cause": {
+      "const": "GLOBAL_LEGACY_CONSUMPTION_CLAIM_COUNTED_AS_NEW_WINDOW"
+    },
+    "diagnostic_null_device_guard_corrected": {
+      "const": true
+    },
+    "schema_empty_prefix_items_generator_corrected": {
+      "const": true
+    },
+    "aodw_status": {
+      "const": "PASS"
+    },
+    "aodw_framework_fixtures": {
+      "const": 79
+    },
+    "aodw_managed_rts": {
+      "const": 28
+    },
+    "known_host_skill_warnings": {
+      "const": 1
+    },
+    "governance_status": {
+      "const": "PASS"
+    },
+    "public_file_secret_scan_hits": {
+      "const": 0
+    },
+    "readonly_ops_writes": {
+      "const": 0
+    },
+    "finalizer_replayed": {
+      "const": false
+    },
+    "ops_workers_replayed": {
+      "const": 0
+    },
+    "privacy_replayed": {
+      "const": false
+    },
+    "main_startup_replayed": {
+      "const": false
+    },
+    "before_replayed": {
+      "const": false
+    },
+    "freeze_replayed": {
+      "const": false
+    },
+    "interrupted_failure_and_finalizer_claim_preserved": {
+      "const": true
+    },
+    "all_preexisting_public_evidence_files_unchanged": {
+      "const": 58
+    },
+    "governance_tracked_files": {
+      "const": 890
+    },
+    "aodw_roster_rts": {
+      "const": 53
+    },
+    "final_public_scan_files": {
+      "const": 8
+    },
+    "finalized_public_schemas_validated": {
+      "const": 2
+    },
+    "finalized_schema_negative_rejections": {
+      "const": 144
+    }
+  }
+}

@@ -1,0 +1,375 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "data_class",
+    "status",
+    "source_commit",
+    "migration_id",
+    "window_created",
+    "formal_queries",
+    "formal_exposure",
+    "reason",
+    "native_manual_character_limit",
+    "private_frozen_documents_within_character_contract",
+    "private_lengths_or_values_exported",
+    "firewall_verified",
+    "post_scan_hits",
+    "cleanup",
+    "workload"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.amendment8-migration3.v1"
+    },
+    "data_class": {
+      "const": "PUBLIC_SYNTHETIC_FAILED_READINESS"
+    },
+    "status": {
+      "const": "BLOCKED"
+    },
+    "source_commit": {
+      "const": "321e5071a8e0946d40ed25d059a976b363a6b07e"
+    },
+    "migration_id": {
+      "const": "872e90f2-2944-4857-97ec-1d7bfe19590f"
+    },
+    "window_created": {
+      "const": false
+    },
+    "formal_queries": {
+      "const": 0
+    },
+    "formal_exposure": {
+      "const": 0
+    },
+    "reason": {
+      "const": "PUBLIC_ASCII_BYTE_BOUND_EXCEEDED_NATIVE_CHARACTER_CONTRACT"
+    },
+    "native_manual_character_limit": {
+      "const": 200000
+    },
+    "private_frozen_documents_within_character_contract": {
+      "const": true
+    },
+    "private_lengths_or_values_exported": {
+      "const": false
+    },
+    "firewall_verified": {
+      "const": true
+    },
+    "post_scan_hits": {
+      "const": 0
+    },
+    "cleanup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "complete",
+        "failures",
+        "remaining_data_planes",
+        "remaining_processes"
+      ],
+      "properties": {
+        "complete": {
+          "const": true
+        },
+        "failures": {
+          "const": 0
+        },
+        "remaining_data_planes": {
+          "const": 0
+        },
+        "remaining_processes": {
+          "const": 0
+        }
+      }
+    },
+    "workload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "data_class",
+        "status",
+        "migration_id",
+        "source_commit",
+        "counts",
+        "trial_counts",
+        "timeout_seconds",
+        "document_byte_upper_bound",
+        "ordinary_document_bytes",
+        "private_reads",
+        "formal_queries",
+        "formal_attempts",
+        "cleanup_failures",
+        "remaining_runtime",
+        "native_sql_errorpath_injected",
+        "candidates",
+        "started_at",
+        "finished_at",
+        "phase",
+        "error",
+        "error_kind"
+      ],
+      "properties": {
+        "schema": {
+          "const": "cwk.rt055.public-workload.v1"
+        },
+        "data_class": {
+          "const": "PUBLIC_SYNTHETIC_ONLY_NOT_FORMAL_SCORES"
+        },
+        "status": {
+          "const": "BLOCKED"
+        },
+        "migration_id": {
+          "const": "872e90f2-2944-4857-97ec-1d7bfe19590f"
+        },
+        "source_commit": {
+          "const": "321e5071a8e0946d40ed25d059a976b363a6b07e"
+        },
+        "counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cwork-3m",
+            "docdb-touqian",
+            "spbp-2027"
+          ],
+          "properties": {
+            "cwork-3m": {
+              "const": 42
+            },
+            "docdb-touqian": {
+              "const": 31
+            },
+            "spbp-2027": {
+              "const": 42
+            }
+          }
+        },
+        "trial_counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cwork-3m",
+            "docdb-touqian",
+            "spbp-2027"
+          ],
+          "properties": {
+            "cwork-3m": {
+              "const": 42
+            },
+            "docdb-touqian": {
+              "const": 31
+            },
+            "spbp-2027": {
+              "const": 42
+            }
+          }
+        },
+        "timeout_seconds": {
+          "const": 7200
+        },
+        "document_byte_upper_bound": {
+          "const": 524288
+        },
+        "ordinary_document_bytes": {
+          "const": 8192
+        },
+        "private_reads": {
+          "const": 0
+        },
+        "formal_queries": {
+          "const": 0
+        },
+        "formal_attempts": {
+          "const": 0
+        },
+        "cleanup_failures": {
+          "const": 0
+        },
+        "remaining_runtime": {
+          "const": 0
+        },
+        "native_sql_errorpath_injected": {
+          "const": false
+        },
+        "candidates": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "a",
+            "b"
+          ],
+          "properties": {
+            "a": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "firewall_verified",
+                "libraries",
+                "post_scan_hits",
+                "redactions",
+                "searches"
+              ],
+              "properties": {
+                "firewall_verified": {
+                  "const": true
+                },
+                "libraries": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "cwork-3m",
+                    "docdb-touqian",
+                    "spbp-2027"
+                  ],
+                  "properties": {
+                    "cwork-3m": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "build_seconds",
+                        "completed",
+                        "failed",
+                        "imported",
+                        "pending"
+                      ],
+                      "properties": {
+                        "build_seconds": {
+                          "const": 1.984
+                        },
+                        "completed": {
+                          "const": 42
+                        },
+                        "failed": {
+                          "const": 0
+                        },
+                        "imported": {
+                          "const": 42
+                        },
+                        "pending": {
+                          "const": 0
+                        }
+                      }
+                    },
+                    "docdb-touqian": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "build_seconds",
+                        "completed",
+                        "failed",
+                        "imported",
+                        "pending"
+                      ],
+                      "properties": {
+                        "build_seconds": {
+                          "const": 1.512
+                        },
+                        "completed": {
+                          "const": 31
+                        },
+                        "failed": {
+                          "const": 0
+                        },
+                        "imported": {
+                          "const": 31
+                        },
+                        "pending": {
+                          "const": 0
+                        }
+                      }
+                    },
+                    "spbp-2027": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "build_seconds",
+                        "completed",
+                        "failed",
+                        "imported",
+                        "pending"
+                      ],
+                      "properties": {
+                        "build_seconds": {
+                          "const": 1.785
+                        },
+                        "completed": {
+                          "const": 42
+                        },
+                        "failed": {
+                          "const": 0
+                        },
+                        "imported": {
+                          "const": 42
+                        },
+                        "pending": {
+                          "const": 0
+                        }
+                      }
+                    }
+                  }
+                },
+                "post_scan_hits": {
+                  "const": 0
+                },
+                "redactions": {
+                  "const": 18
+                },
+                "searches": {
+                  "const": 3
+                }
+              }
+            },
+            "b": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "firewall_verified",
+                "libraries",
+                "post_scan_hits",
+                "searches"
+              ],
+              "properties": {
+                "firewall_verified": {
+                  "const": false
+                },
+                "libraries": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [],
+                  "properties": {}
+                },
+                "post_scan_hits": {
+                  "const": 0
+                },
+                "searches": {
+                  "const": 0
+                }
+              }
+            }
+          }
+        },
+        "started_at": {
+          "const": 1789192059.698122
+        },
+        "finished_at": {
+          "const": 1789192120.679976
+        },
+        "phase": {
+          "const": "COMPLETE"
+        },
+        "error": {
+          "const": "REQUEST_FAILED"
+        },
+        "error_kind": {
+          "const": "CandidateError"
+        }
+      }
+    }
+  }
+}

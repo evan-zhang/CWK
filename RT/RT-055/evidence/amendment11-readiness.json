@@ -1,0 +1,76 @@
+{
+  "schema": "cwk.rt055.amendment11-readiness.v1",
+  "status": "BLOCKED_INVALID_CLOSED",
+  "run_id": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af",
+  "old_window_id": "be3ab168-0568-4d39-a06e-824b4cd26a58",
+  "executioner_migration_id": "aee2e2eb-4cd7-4f97-a864-5ce6c3782529",
+  "new_window_id": "3330a46e-bfdd-4639-bb0c-ea5c1b3df622",
+  "scoring_archive_id": "feb9590b-8322-43ef-8567-808d14e2cd21",
+  "source_commit": "fdfcfb6dfef57862cf5efd478e88820419e7c322",
+  "ready_established": false,
+  "source_gate": "PASS",
+  "public_finalizing_red_green": "PASS",
+  "source_bound_public_privacy": "FAIL",
+  "privacy_gate_reason": "PUBLIC_PRIVACY_EXTERNAL_SOCKET_OBSERVATION",
+  "firewall_input_capacity": "PASS",
+  "workload_gate": "NOT_RUN",
+  "workload_invocations": 0,
+  "workload_authorized_runs": 1,
+  "workload_reason": "SOURCE_BINDING_REQUIRES_NEW_WORKLOAD",
+  "main_runtime_readiness": "NOT_RUN",
+  "main_workspace_readiness": "NOT_RUN",
+  "main_scoring_readiness": "NOT_RUN",
+  "formal_before": "NOT_RUN",
+  "freeze": "NOT_RUN",
+  "random_order_sampled": false,
+  "run_order": null,
+  "coordinator_no_popen_precheck": "NOT_RUN",
+  "formal_coordinator_invocations": 0,
+  "candidate_attempts": {
+    "a": 0,
+    "b": 0
+  },
+  "global_exposure": 0,
+  "queries": 0,
+  "scores": 0,
+  "complete": 0,
+  "results": 0,
+  "gateway_final_health": [
+    {
+      "http_status": 200,
+      "ok": true,
+      "read_only": true
+    },
+    {
+      "http_status": 200,
+      "ok": true,
+      "read_only": true
+    },
+    {
+      "http_status": 200,
+      "ok": true,
+      "read_only": true
+    }
+  ],
+  "cleanup": "PASS",
+  "after": "FAIL",
+  "after_claims": 1,
+  "after_reason": "FRESH_BEFORE_NOT_CREATED_PRIVACY_GATE_FAILED",
+  "after_libraries_measured": 0,
+  "terminal_only_window": true,
+  "abort": "INVALID",
+  "decision": "INVALID",
+  "builder_runs": 1,
+  "verifier_runs": 1,
+  "pool_counts": [
+    42,
+    31,
+    42
+  ],
+  "full_nas_index_invariance": null,
+  "new_before_after_comparison": null,
+  "historical_drift_cleared": false,
+  "production_changes_performed": false,
+  "old_private_failure_root_cause": "UNKNOWN",
+  "formal_private_values_exported": false
+}

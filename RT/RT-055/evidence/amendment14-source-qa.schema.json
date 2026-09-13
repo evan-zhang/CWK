@@ -1,0 +1,257 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "regression_tests",
+    "failures",
+    "errors",
+    "skipped",
+    "initial_red_failures",
+    "initial_red_errors",
+    "behavior_mutations",
+    "restored_green",
+    "compiled_python_files",
+    "credential_hits",
+    "private_values_received_locally",
+    "runner_changes_log_boundary_only",
+    "complete_bank_compiled_once_per_controller",
+    "private_bank_bytes_shared_across_streams",
+    "deny_socket_gate_ast_unchanged",
+    "candidate_algorithms_unchanged",
+    "pool_tiers_floors_timeouts_unchanged",
+    "weknora_core_patched",
+    "ops_current_privacy_executed_by_unit_tests",
+    "immutable_input_files",
+    "append_only_document_prefixes",
+    "full_make_ci_claimed",
+    "third_party_agent_review_claimed"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.amendment14-source-qa.v1"
+    },
+    "status": {
+      "const": "PASS"
+    },
+    "regression_tests": {
+      "const": 288
+    },
+    "failures": {
+      "const": 0
+    },
+    "errors": {
+      "const": 0
+    },
+    "skipped": {
+      "const": 0
+    },
+    "initial_red_failures": {
+      "const": 3
+    },
+    "initial_red_errors": {
+      "const": 4
+    },
+    "behavior_mutations": {
+      "type": "array",
+      "minItems": 9,
+      "maxItems": 9,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "raw_before_eof"
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "shortest_wins"
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "overlap_skipped"
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "full_comparison_removed"
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "per_stream_bank_copy"
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "independent_postscan_disabled"
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "json_escaping_removed"
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "full_bank_binding_disconnected"
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation",
+            "detected"
+          ],
+          "properties": {
+            "mutation": {
+              "const": "work_cap_waived"
+            },
+            "detected": {
+              "const": true
+            }
+          }
+        }
+      ]
+    },
+    "restored_green": {
+      "const": true
+    },
+    "compiled_python_files": {
+      "const": 143
+    },
+    "credential_hits": {
+      "const": 0
+    },
+    "private_values_received_locally": {
+      "const": false
+    },
+    "runner_changes_log_boundary_only": {
+      "const": true
+    },
+    "complete_bank_compiled_once_per_controller": {
+      "const": true
+    },
+    "private_bank_bytes_shared_across_streams": {
+      "const": true
+    },
+    "deny_socket_gate_ast_unchanged": {
+      "const": true
+    },
+    "candidate_algorithms_unchanged": {
+      "const": true
+    },
+    "pool_tiers_floors_timeouts_unchanged": {
+      "const": true
+    },
+    "weknora_core_patched": {
+      "const": false
+    },
+    "ops_current_privacy_executed_by_unit_tests": {
+      "const": false
+    },
+    "immutable_input_files": {
+      "const": 240
+    },
+    "append_only_document_prefixes": {
+      "const": 3
+    },
+    "full_make_ci_claimed": {
+      "const": false
+    },
+    "third_party_agent_review_claimed": {
+      "const": false
+    }
+  }
+}

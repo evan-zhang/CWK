@@ -1,0 +1,6 @@
+{
+  "decision": "INVALID",
+  "status": "INVALID",
+  "error_code": "AGGREGATE_CONTRACT_INVALID",
+  "deferred_libraries": []
+}

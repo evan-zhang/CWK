@@ -1075,7 +1075,7 @@ rtg_check_xref_doc_refs_resolve() { # 判据 10（G110）：RT 目录内 .md 交
   out="$(rtg_xref_scan "$root" "$rt_id" summary 0 "$exts")" || rc=$?
   if (( rc != 0 && rc != 10 )); then
     # 扫描器崩溃不是判据结果——与 rt-gates.yaml 不同步同类，fail-closed
-    rtg_die "交叉引用扫描器内部错误（rc=$rc，见上方 stderr）"
+    rtg_die "交叉引用扫描器内部错误（rc=${rc}，见上方 stderr）"
   fi
   printf '%s' "$out"
   (( rc == 0 )) && return 0
@@ -1234,7 +1234,7 @@ rtg_dispatch_check() { # $1=impl $2=root $3=RT-ID $4=param；未知 impl → die
     deferred.refs_resolve)     rtg_check_deferred_refs_resolve "$2" "$3" ;;
     deferred.claims_resolve)   rtg_check_deferred_claims_resolve "$2" "$3" ;;
     handoff.criteria_declared)  rtg_check_handoff_criteria_declared "$2" "$3" ;;
-    *) rtg_die "判据 impl 未实现: $impl（rt-gates.yaml 与脚本不同步，fail-closed）" ;;
+    *) rtg_die "判据 impl 未实现: ${impl}（rt-gates.yaml 与脚本不同步，fail-closed）" ;;
   esac
 }
 
@@ -1356,7 +1356,7 @@ rtg_run_scan_refs() {
   local rc=0
   rtg_xref_scan "$RTG_ROOT" "$RTG_RT" detail "$RTG_SCAN_RULES" "$exts" || rc=$?
   if (( rc != 0 && rc != 10 )); then
-    rtg_die "交叉引用扫描器内部错误（rc=$rc，见上方 stderr）"
+    rtg_die "交叉引用扫描器内部错误（rc=${rc}，见上方 stderr）"
   fi
   if (( rc == 10 )); then
     printf 'rt-guard: ⚠ 交叉引用存在悬空（G110 告警级不阻断，exit 0）\n' >&2

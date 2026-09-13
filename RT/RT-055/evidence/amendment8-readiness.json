@@ -1,0 +1,329 @@
+{
+  "schema": "cwk.rt055.amendment8-readiness.v1",
+  "data_class": "OPS_PUBLIC_READINESS_NO_FORMAL_EVALUATION",
+  "status": "BLOCKED",
+  "source_commit": "a475b048c235b2f4a8b92d845760462b4879c83c",
+  "run_id": "ac1ca0c7-6983-4f6e-91ce-8eb45e7673af",
+  "old_window_id": "d408cfab-40f7-41d3-8ccb-75fb0aaa2b65",
+  "executioner_migration_id": "387d6d9e-5ae4-4ebb-96b7-d993275b6111",
+  "new_window_id": "16e5d3f2-0963-4b70-a202-c197c3b8958a",
+  "scoring_archive_id": "42b7617e-3769-4eda-99df-b1f84032005c",
+  "window_created": false,
+  "run_order": null,
+  "formal_evaluation_complete": false,
+  "production_cutover_allowed": false,
+  "new_attempts": 0,
+  "new_arms": 0,
+  "new_exposure": 0,
+  "new_queries": 0,
+  "new_results": 0,
+  "new_after": 0,
+  "global_exposure": 0,
+  "formal_queries": 0,
+  "formal_results": 0,
+  "formal_coordinator_invocations": 0,
+  "old_window_status": "INVALID",
+  "old_after_closed": true,
+  "old_log_gate": "FAIL",
+  "old_attempts": {
+    "a": 0,
+    "b": 1
+  },
+  "old_arms": 0,
+  "builder_runs": 1,
+  "verifier_runs": 1,
+  "pool": {
+    "cwork-3m": {
+      "total_count": 42,
+      "tier": "T3"
+    },
+    "docdb-touqian": {
+      "total_count": 31,
+      "tier": "T3"
+    },
+    "spbp-2027": {
+      "total_count": 42,
+      "tier": "T2"
+    }
+  },
+  "gates": {
+    "source_bound_public_privacy_recomputed": "PASS",
+    "migration_privacy_binding_created": false,
+    "private_firewall_input": "PASS",
+    "public_workload": "BLOCKED",
+    "runtime_workspace_scoring_before_freeze": "NOT_RUN"
+  },
+  "firewall": {
+    "stream_input_cap_bytes": 67108864,
+    "stream_output_cap_bytes": 67108864,
+    "shared_pattern_cap_bytes": 134217728,
+    "max_leaf_bytes": 8388608,
+    "read_chunk_bytes": 65536,
+    "all_private_leaves_and_json_variants": true,
+    "raw_stdout_spool": false,
+    "fixed_placeholder": true,
+    "fail_closed": true,
+    "verified_before_scan": true,
+    "only_sanitized_logs_archived": true
+  },
+  "workload": {
+    "schema": "cwk.rt055.public-workload.v1",
+    "data_class": "PUBLIC_SYNTHETIC_ONLY_NOT_FORMAL_SCORES",
+    "status": "BLOCKED",
+    "migration_id": "387d6d9e-5ae4-4ebb-96b7-d993275b6111",
+    "source_commit": "a475b048c235b2f4a8b92d845760462b4879c83c",
+    "counts": {
+      "cwork-3m": 42,
+      "docdb-touqian": 31,
+      "spbp-2027": 42
+    },
+    "trial_counts": {
+      "cwork-3m": 42,
+      "docdb-touqian": 31,
+      "spbp-2027": 42
+    },
+    "timeout_seconds": 7200,
+    "document_byte_upper_bound": 524288,
+    "ordinary_document_bytes": 8192,
+    "private_reads": 0,
+    "formal_queries": 0,
+    "formal_attempts": 0,
+    "cleanup_failures": 0,
+    "remaining_runtime": 0,
+    "native_sql_errorpath_injected": true,
+    "candidates": {
+      "a": {
+        "firewall_verified": true,
+        "libraries": {
+          "cwork-3m": {
+            "build_seconds": 2.081,
+            "completed": 42,
+            "failed": 0,
+            "imported": 42,
+            "pending": 0
+          },
+          "docdb-touqian": {
+            "build_seconds": 1.541,
+            "completed": 31,
+            "failed": 0,
+            "imported": 31,
+            "pending": 0
+          },
+          "spbp-2027": {
+            "build_seconds": 1.947,
+            "completed": 42,
+            "failed": 0,
+            "imported": 42,
+            "pending": 0
+          }
+        },
+        "post_scan_hits": 0,
+        "redactions": 18,
+        "searches": 3
+      },
+      "b": {
+        "firewall_verified": false,
+        "libraries": {
+          "cwork-3m": {
+            "build_seconds": 56.203,
+            "completed": 42,
+            "failed": 0,
+            "imported": 42,
+            "pending": 0
+          }
+        },
+        "post_scan_hits": 0,
+        "searches": 1
+      }
+    },
+    "started_at": 1789192960.898962,
+    "finished_at": 1789193083.83134,
+    "phase": "COMPLETE",
+    "error": "NATIVE_TERMINAL_FAILED",
+    "error_kind": "CandidateBuildFailed"
+  },
+  "final_b_firewall_and_build_diagnostics": {
+    "firewall_verified": true,
+    "streams": 6,
+    "input_bytes": 34991,
+    "output_bytes": 34776,
+    "redactions": 20,
+    "overflow": false,
+    "errors": 0,
+    "eof_all": true,
+    "closed_all": true,
+    "post_scan_hits": 0,
+    "build_status": {
+      "candidate": "b",
+      "deadline_phase": "IMPORT",
+      "elapsed_seconds": 0.188,
+      "error": "NATIVE_TERMINAL_FAILED",
+      "libraries": {
+        "cwork-3m": {
+          "completed": 42,
+          "failed": 0,
+          "imported": 42,
+          "pending": 0
+        },
+        "docdb-touqian": {
+          "completed": 0,
+          "failed": 1,
+          "imported": 31,
+          "pending": 30
+        },
+        "spbp-2027": {
+          "completed": 0,
+          "failed": 0,
+          "imported": 0,
+          "pending": 0
+        }
+      },
+      "library": "docdb-touqian",
+      "schema": "cwk.rt055.build-status.v1",
+      "timeout_seconds": 7200.0
+    }
+  },
+  "public_native_markers_by_library": {
+    "cwork-3m": {
+      "SQLITE_BUSY": 1,
+      "SQLITE_LOCKED": 0,
+      "CONTENT_LIMIT": 0,
+      "TRANSACTION_CLOSED": 0,
+      "UNIQUE_CONSTRAINT": 0,
+      "NO_SUCH_TABLE": 0,
+      "SQL_SYNTAX": 0,
+      "DISK_FULL": 0
+    },
+    "docdb-touqian": {
+      "SQLITE_BUSY": 0,
+      "SQLITE_LOCKED": 0,
+      "CONTENT_LIMIT": 0,
+      "TRANSACTION_CLOSED": 0,
+      "UNIQUE_CONSTRAINT": 1,
+      "NO_SUCH_TABLE": 0,
+      "SQL_SYNTAX": 0,
+      "DISK_FULL": 0
+    },
+    "spbp-2027": {
+      "SQLITE_BUSY": 0,
+      "SQLITE_LOCKED": 0,
+      "CONTENT_LIMIT": 0,
+      "TRANSACTION_CLOSED": 0,
+      "UNIQUE_CONSTRAINT": 0,
+      "NO_SUCH_TABLE": 0,
+      "SQL_SYNTAX": 0,
+      "DISK_FULL": 0
+    }
+  },
+  "public_privacy": {
+    "status": "PASS",
+    "source_commit": "a475b048c235b2f4a8b92d845760462b4879c83c",
+    "public_privacy_recomputed": true,
+    "gates": {
+      "normal_native_canary": true,
+      "authenticated_error_canaries": true,
+      "native_log_canary_absent": true,
+      "langfuse_runtime_disabled": true,
+      "otel_runtime_disabled": true,
+      "loopback_models_only": true,
+      "external_egress_denied": true,
+      "forbidden_reads_zero": true,
+      "passed": true
+    },
+    "observations": {
+      "search_normal_calls": 1,
+      "native_normal_calls": 1,
+      "authenticated_query_error_code": 400,
+      "authenticated_title_error_code": 400,
+      "embedding_calls": 3,
+      "embedding_successes": 3,
+      "log_files_scanned": 3,
+      "log_canary_hits": 0,
+      "trace_header_observations": 0,
+      "native_trace_response_headers": 0,
+      "socket_samples": 107,
+      "external_socket_observations": 0,
+      "forbidden_reads": 0,
+      "observer_errors": 0
+    },
+    "private_input_receipt_recomputed": true,
+    "migration_privacy_binding_created": false,
+    "main_readiness_not_run": true,
+    "formal_queries": 0,
+    "private_values_or_digests_exported": false
+  },
+  "core_inventory": {
+    "status": "PASS",
+    "native_upstream_verified": true,
+    "native_core_unchanged": true,
+    "frozen_images_unchanged": true,
+    "frozen_dependencies_unchanged": true,
+    "run_scoped_resources": {
+      "containers": 0,
+      "volumes": 0,
+      "networks": 0,
+      "images": 0,
+      "services": 0
+    },
+    "private_values_exported": false
+  },
+  "source_commit_chain": [
+    "3b48e46c4ad1e959ca7c15f3d166f2026b00be0d",
+    "68ffbd67433b65c93f0614b640dbe7f5d67ca652",
+    "321e5071a8e0946d40ed25d059a976b363a6b07e",
+    "a475b048c235b2f4a8b92d845760462b4879c83c"
+  ],
+  "old_build_subtype": "UNPROVEN",
+  "timeout_changed": false,
+  "retained_files": 96,
+  "retained_bytes_equal": true,
+  "original_archive_files": 5938,
+  "original_archive_equal": true,
+  "historical_bytes_equal": true,
+  "current_archive_files": 97376,
+  "gateway_http_200_count": 3,
+  "gateway_read_only_contract_verified": false,
+  "gateway_health_observations": [
+    {
+      "http_status": 200,
+      "ok": true,
+      "read_only_asserted": false,
+      "read_only_field_present": false
+    },
+    {
+      "http_status": 200,
+      "ok": true,
+      "read_only_asserted": true,
+      "read_only_field_present": true
+    },
+    {
+      "http_status": 200,
+      "ok": true,
+      "read_only_asserted": true,
+      "read_only_field_present": true
+    }
+  ],
+  "cleanup": {
+    "complete": true,
+    "failures": 0,
+    "remaining_data_planes": 0,
+    "remaining_processes": 0
+  },
+  "candidate_processes": 0,
+  "remaining_runtime": 0,
+  "full_nas_index_invariance": null,
+  "private_values_or_digests_exported": false,
+  "predecessor_migrations": [
+    "1a63f8b1-9ade-4eb2-a870-3b746d61f7d6",
+    "bb049e96-1dbd-427d-adc6-7d7022b80ce0",
+    "872e90f2-2944-4857-97ec-1d7bfe19590f"
+  ],
+  "reason": "PUBLIC_B_NATIVE_TERMINAL_FAILED_NO_FREEZE",
+  "additional_blockers": [
+    "GATEWAY_READ_ONLY_HEALTH_CONTRACT_UNVERIFIED"
+  ],
+  "workload_receipt_discrepancy": "B_FIREWALL_FIELD_NOT_BACKFILLED_ON_FAILURE_SEPARATE_FINAL_RECEIPT_PASS",
+  "new_before": 0,
+  "new_freeze": 0,
+  "new_freeze_verifications": 0
+}

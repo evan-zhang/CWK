@@ -94,6 +94,25 @@ modules:
       - scripts/kb_ops.py
       - tests/test_rt052_discovery_ops.py
 
+  - name: rt054-lexical-snapshot-performance
+    path: RT/RT-054/rt-lite.md
+    root: scripts
+    related_files:
+      - scripts/kb_gateway.py
+      - scripts/kb_lexical.py
+      - scripts/kb_lexical_builder.py
+      - scripts/kb_stage_b_poc.py
+      - scripts/kb_stage_b_opensearch_benchmark.py
+      - scripts/kb_stage_b_ops_benchmark.py
+      - scripts/kb_stage_b_ops_cases.py
+      - scripts/kb_stage_b_ops_verify.py
+      - scripts/kb_storage.py
+      - tests/test_rt051_lexical_fusion.py
+      - tests/test_rt051_acceptance.py
+      - tests/test_rt054_stage_a_contracts.py
+      - tests/test_rt054_stage_b_poc.py
+      - tests/test_rt054_stage_b_opensearch_benchmark.py
+
   - name: kb-wizard-gateway
     path: RT/RT-044/references/CLI-SPEC.md
     root: scripts
@@ -103,3 +122,15 @@ modules:
       - tests/test_kb_wizard.py
       - tests/test_kb_gateway.py
       - RT/RT-044/references/KB-PARAMETERS.md
+
+  - name: rt055-retrieval-decision
+    path: RT/RT-055/rt-lite.md
+    root: scripts
+    related_files:
+      - scripts/kb_retrieval_decision.py
+      - scripts/kb_retrieval_candidates.py
+      - RT/RT-055/contracts/aggregate-report.schema.json
+      - RT/RT-055/experiment-protocol.md
+      - RT/RT-055/architecture-audit.md
+      - tests/test_rt055_retrieval_decision.py
+      - tests/test_rt055_retrieval_candidates.py

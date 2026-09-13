@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "candidate_processes",
+    "error_classes",
+    "formal_query_calls",
+    "formal_window_write_denial_present",
+    "global_exposure",
+    "old_after_closed",
+    "old_attempts",
+    "old_frozen_runner_log_path_conflict",
+    "old_log_files",
+    "old_protected_path_error_lines",
+    "old_window_terminal",
+    "private_holdout_opened",
+    "private_text_paths_digests_exported",
+    "public_synthetic_reproductions",
+    "results",
+    "status",
+    "synthetic_removed"
+  ],
+  "properties": {
+    "candidate_processes": {
+      "const": 0
+    },
+    "error_classes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ACCESS_DENIED",
+        "BOOTSTRAP_LOG_DIRECTORY",
+        "DIRECTORY_CREATION_FAILURE",
+        "LOG_CONFIGURATION_FAILURE"
+      ],
+      "properties": {
+        "ACCESS_DENIED": {
+          "const": 14
+        },
+        "BOOTSTRAP_LOG_DIRECTORY": {
+          "const": 40
+        },
+        "DIRECTORY_CREATION_FAILURE": {
+          "const": 2
+        },
+        "LOG_CONFIGURATION_FAILURE": {
+          "const": 480
+        }
+      }
+    },
+    "formal_query_calls": {
+      "const": 0
+    },
+    "formal_window_write_denial_present": {
+      "const": true
+    },
+    "global_exposure": {
+      "const": 0
+    },
+    "old_after_closed": {
+      "const": true
+    },
+    "old_attempts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "a",
+        "b"
+      ],
+      "properties": {
+        "a": {
+          "const": 1
+        },
+        "b": {
+          "const": 0
+        }
+      }
+    },
+    "old_frozen_runner_log_path_conflict": {
+      "const": true
+    },
+    "old_log_files": {
+      "const": 1
+    },
+    "old_protected_path_error_lines": {
+      "const": 43
+    },
+    "old_window_terminal": {
+      "const": "INVALID"
+    },
+    "private_holdout_opened": {
+      "const": false
+    },
+    "private_text_paths_digests_exported": {
+      "const": false
+    },
+    "public_synthetic_reproductions": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "errno",
+            "error_class",
+            "old_log_write_denied",
+            "policy",
+            "separate_runtime_write_allowed"
+          ],
+          "properties": {
+            "errno": {
+              "const": 1
+            },
+            "error_class": {
+              "const": "PermissionError"
+            },
+            "old_log_write_denied": {
+              "const": true
+            },
+            "policy": {
+              "const": "loopback"
+            },
+            "separate_runtime_write_allowed": {
+              "const": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "errno",
+            "error_class",
+            "old_log_write_denied",
+            "policy",
+            "separate_runtime_write_allowed"
+          ],
+          "properties": {
+            "errno": {
+              "const": 1
+            },
+            "error_class": {
+              "const": "PermissionError"
+            },
+            "old_log_write_denied": {
+              "const": true
+            },
+            "policy": {
+              "const": "inbound-only"
+            },
+            "separate_runtime_write_allowed": {
+              "const": true
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "results": {
+      "const": 0
+    },
+    "status": {
+      "const": "ROOT_CAUSE_REPRODUCED"
+    },
+    "synthetic_removed": {
+      "const": true
+    }
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "schema": "cwk.rt055.amendment10-root-cause.v1",
+  "status": "REPAIRED_AND_OPS_READONLY_VERIFIED",
+  "reason": "LEGACY_VOID_PUBLIC_PROOF_SPAWN_IN_PURE_VALIDATION",
+  "source_commit": "43207eefbe30557b53d556055fa5438c8afe47ee",
+  "chain": [
+    "coordinator_precheck",
+    "holdout_unexposed",
+    "void_paths",
+    "validate_void",
+    "validate_evidence",
+    "_proof"
+  ],
+  "new_proof": "HASH_AUTHENTICATED_FROZEN_DEFINITIONS_IN_RESTRICTED_CURRENT_PROCESS",
+  "proof_reads": "PUBLIC_ARCHIVED_SOURCES_ONLY",
+  "archive_module_imported": false,
+  "guard_relaxed": false,
+  "original_claim_void_freeze_modified": false,
+  "proof_checks_original_failure_reason": true,
+  "deployment_preflight": {
+    "status": "PASS",
+    "actual_legacy_void_in_process": "PASS",
+    "no_popen": "PASS",
+    "no_socket": "PASS",
+    "write_denial_active": true,
+    "legacy_claim_void_unchanged": true,
+    "private_values_exported": false
+  },
+  "workload_reexecution_reason": "SOURCE_BINDING_REQUIRES_NEW_WORKLOAD",
+  "new_workload_authorized_runs": 1,
+  "old_workload_retried": false,
+  "old_after_retried": false
+}

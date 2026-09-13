@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "status",
+    "first_audit_status",
+    "first_audit_phase",
+    "first_audit_error",
+    "first_audit_preserved",
+    "scopes_differ",
+    "historical_log_checks",
+    "matched_literals_count",
+    "matched_literal_also_exact_public_source_constant_count",
+    "unmatched_public_source_constant_count",
+    "private_literal_values_exported",
+    "private_leak_causal_attribution",
+    "expanded_scan_passed",
+    "original_scan_waived",
+    "new_privacy_or_candidate_executions"
+  ],
+  "properties": {
+    "schema": {
+      "const": "cwk.rt055.amendment12-audit-scan-diagnostic.v1"
+    },
+    "status": {
+      "const": "READONLY_CLASSIFIED"
+    },
+    "first_audit_status": {
+      "const": "AUDIT_FAILED"
+    },
+    "first_audit_phase": {
+      "const": "LOG_FIREWALL"
+    },
+    "first_audit_error": {
+      "const": "AssertionError"
+    },
+    "first_audit_preserved": {
+      "const": true
+    },
+    "scopes_differ": {
+      "const": true
+    },
+    "historical_log_checks": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "streams",
+            "firewall_verified",
+            "all_streams_verified",
+            "original_public_postscan_passed",
+            "original_public_postscan_hit_files",
+            "independent_public_canary_hit_files",
+            "expanded_all_private_literal_hit_files"
+          ],
+          "properties": {
+            "streams": {
+              "const": 1
+            },
+            "firewall_verified": {
+              "const": true
+            },
+            "all_streams_verified": {
+              "const": true
+            },
+            "original_public_postscan_passed": {
+              "const": true
+            },
+            "original_public_postscan_hit_files": {
+              "const": 0
+            },
+            "independent_public_canary_hit_files": {
+              "const": 0
+            },
+            "expanded_all_private_literal_hit_files": {
+              "const": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "streams",
+            "firewall_verified",
+            "all_streams_verified",
+            "original_public_postscan_passed",
+            "original_public_postscan_hit_files",
+            "independent_public_canary_hit_files",
+            "expanded_all_private_literal_hit_files"
+          ],
+          "properties": {
+            "streams": {
+              "const": 2
+            },
+            "firewall_verified": {
+              "const": true
+            },
+            "all_streams_verified": {
+              "const": true
+            },
+            "original_public_postscan_passed": {
+              "const": true
+            },
+            "original_public_postscan_hit_files": {
+              "const": 0
+            },
+            "independent_public_canary_hit_files": {
+              "const": 0
+            },
+            "expanded_all_private_literal_hit_files": {
+              "const": 0
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "matched_literals_count": {
+      "const": 1
+    },
+    "matched_literal_also_exact_public_source_constant_count": {
+      "const": 1
+    },
+    "unmatched_public_source_constant_count": {
+      "const": 0
+    },
+    "private_literal_values_exported": {
+      "const": false
+    },
+    "private_leak_causal_attribution": {
+      "const": "UNKNOWN"
+    },
+    "expanded_scan_passed": {
+      "const": false
+    },
+    "original_scan_waived": {
+      "const": false
+    },
+    "new_privacy_or_candidate_executions": {
+      "const": 0
+    }
+  }
+}

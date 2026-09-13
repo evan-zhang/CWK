@@ -1,0 +1,67 @@
+{
+  "schema": "cwk.rt055.r-round-closeout-qa.v1",
+  "data_class": "PUBLIC_EVIDENCE_AND_SYNTHETIC_TESTS_ONLY",
+  "regression": {
+    "tests": 58,
+    "failures": 0,
+    "errors": 0,
+    "exit_code": 0
+  },
+  "json": {
+    "parsed_files": 6,
+    "abort_schema_valid": true,
+    "aggregate_schema_self_check": true,
+    "historical_aggregate_schema_valid": false,
+    "historical_rejections": {
+      "const": 22,
+      "type": 146
+    },
+    "historical_aggregate_and_decision_unchanged": true,
+    "current_ab_harness_run": false
+  },
+  "negative_checks": [
+    {
+      "mutation": "nested_private_key",
+      "rejected": true
+    },
+    {
+      "mutation": "free_reason",
+      "rejected": true
+    },
+    {
+      "mutation": "fabricated_formal_score",
+      "rejected": true
+    },
+    {
+      "mutation": "coverage_count_mismatch",
+      "rejected": true
+    }
+  ],
+  "privacy": {
+    "recursive_keys_checked": 1312,
+    "forbidden_key_findings": 0,
+    "secret_pattern_files_checked": 10,
+    "secret_pattern_findings": 0,
+    "private_digest_findings": 0
+  },
+  "links": {
+    "local_links_checked": 29,
+    "anchors_checked": 5,
+    "failures": 0
+  },
+  "scope": {
+    "first_commit_scripts_and_tests_unchanged": true,
+    "staged_files": 6,
+    "staged_allowlist_valid": true,
+    "runs_or_handover_staged": false,
+    "diff_check": true
+  },
+  "gates": {
+    "aodw": "PASS",
+    "governance": "PASS",
+    "framework_fixtures_passed": 79,
+    "roster_entries": 53,
+    "governed_tracked_files": 800,
+    "known_host_skill_warning": true
+  }
+}
