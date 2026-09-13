@@ -108,6 +108,7 @@ class OllamaLLM:
         self.base = os.getenv("RAG_LLM_URL", "http://127.0.0.1:11434/v1/chat/completions")
         self.model = os.getenv("RAG_LLM_MODEL", "")
         self.timeout = float(os.getenv("RAG_LLM_TIMEOUT_SECONDS", "10"))
+        self.api_key = os.getenv("RAG_LLM_API_KEY", "")
 
     def generate(self, query: str, contexts: list[str]) -> str:
         if not self.model:
@@ -120,10 +121,13 @@ class OllamaLLM:
             }],
             "stream": False,
         }
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = "Bearer " + self.api_key
         req = urllib.request.Request(
             self.base,
             json.dumps(body).encode(),
-            {"Content-Type": "application/json"},
+            headers,
         )
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as response:

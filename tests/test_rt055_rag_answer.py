@@ -12,6 +12,7 @@ import threading
 import urllib.error
 import urllib.request
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -19,7 +20,12 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from adapters.rag_answer import server as rag_server
-from adapters.rag_answer.pipeline import LexicalRetriever, RAGError, RAGPipeline
+from adapters.rag_answer.pipeline import (
+    LexicalRetriever,
+    OllamaLLM,
+    RAGError,
+    RAGPipeline,
+)
 from adapters.rag_answer.resolver import DocResolver
 
 
@@ -217,6 +223,44 @@ class AnswerHTTPContractTests(unittest.TestCase):
         status, payload = self.request("POST", "/answer", {"query": "synthetic HTTP fact"})
         self.assertEqual(status, 503)
         self.assertEqual(payload, {"error": "synthetic model failure"})
+class _HeaderCaptureHandler(BaseHTTPRequestHandler):
+    captured = {}
+
+    def do_POST(self) -> None:
+        length = int(self.headers.get("Content-Length", "0"))
+        self.rfile.read(length)
+        _HeaderCaptureHandler.captured["auth"] = self.headers.get("Authorization")
+        body = json.dumps({"choices": [{"message": {"content": "synthetic llm ok"}}]}).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *args) -> None:
+        pass
+
+
+class OllamaLLMBearerTokenTest(unittest.TestCase):
+    def test_llm_sends_bearer_token_when_api_key_set(self) -> None:
+        _HeaderCaptureHandler.captured = {}
+        stub = ThreadingHTTPServer(("127.0.0.1", 0), _HeaderCaptureHandler)
+        port = stub.server_address[1]
+        thread = threading.Thread(target=stub.serve_forever, daemon=True)
+        thread.start()
+        try:
+            llm = OllamaLLM()
+            llm.base = f"http://127.0.0.1:{port}/v1/chat/completions"
+            llm.api_key = "synthetic-key-123"
+            out = llm.generate("synthetic question", ["synthetic context"])
+            self.assertEqual(out, "synthetic llm ok")
+            self.assertEqual(
+                _HeaderCaptureHandler.captured.get("auth"),
+                "Bearer synthetic-key-123",
+            )
+        finally:
+            stub.shutdown()
+            stub.server_close()
 
 
 if __name__ == "__main__":
