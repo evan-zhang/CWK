@@ -42,6 +42,9 @@ _COPY_DIRS = (
     "config",
     "references",
     "skill/templates",
+    # RT-055 deployment assets are a governed runtime prefix; keep one real
+    # representative in synthetic repositories so stale-rule checks stay meaningful.
+    "deploy",
     ".aodw-next/06-project/governance",
 )
 _COPY_FILES = (
@@ -110,6 +113,7 @@ _REPRESENTATIVE_TRACKED = (
     "skills/cwk-kb-create/SKILL.md",
     "skills/cwk-kb-query/SKILL.md",
     "scripts/cwk_wiki_batch_driver.sh",
+    "deploy/README.md",
     "config/entity-family-registry.json",
     "references/relation-gold-v1.json",
     "skill/templates/CONFIG.example.json",
