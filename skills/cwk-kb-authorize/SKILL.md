@@ -1,70 +1,61 @@
 ---
 name: "cwk-kb-authorize"
-description: "知识库授权：生成/轮换/撤销单库共享授权文件；仅供具备 OPS token registry 写权限的管理 Agent"
+description: "知识库授权与 RT-055 新栈 per-Agent token 设计草案；灰度阶段实施"
+status: draft-pending-gray-gate
+date: 2026-09-14
+diff_from_v2: "保留旧网关单库共享授权流程；新增 /query、/answer、/read 的 per-Agent token 中间件设计，当前不启用"
 ---
 
-# cwk-kb-authorize — 单库共享授权
+# cwk-kb-authorize v3（草稿待灰度拍板）
 
-为一个既有知识库生成可分发的共享授权文件，或整体轮换、撤销该文件的所有副本。
+**灰度阶段实施，不激活。** 当前 RT-055 新服务仍是 OPS loopback 无鉴权面；本稿是把
+RT-047/053 的 per-Agent token 机制移植到三个端点的设计，不是生产配置变更。
 
-## 启用边界
+## 目标与边界
 
-- 只在**已具备 OPS token registry 写权限**的管理 Agent 上启用；能写登记表就是 MVP 的管理员边界。
-- 不读取或判断 `kb.json.owner_ref`，不声称验证了创建者。生产三库的 `owner_ref=pending` 保持不变。
-- 不操作真实 IM，不替用户发送附件；只在本机生成文件并回报路径、库 ID、token_id 和代际。
-- 不启动、不修改查询 Gateway。Gateway 继续只有 GET 只读面。
-- 不在消息、日志、命令参数或回执中显示 token；授权文件本身含明文 bearer secret，按敏感附件处理。
+- `/query`、`/answer`、`/read` 在同一个服务边界接入统一 bearer 校验；`/healthz` 可继续免鉴权，
+  但不得由健康探针读取正文。
+- token 只代表 Agent 身份与 bank scope，不把管理 Key 下发给 Agent；registry 仍在 OPS。
+- 不改变旧网关授权流程；旧 8787 的单库共享授权文件、绑定 token、管理通道在双轨期继续有效。
+- 不自动发送授权文件、不读取 owner_ref、不操作真实 IM、不启动/修改 Gateway。
 
-## 生成
+## 设计草案
 
-确认目标 `kb_id`、Gateway URL 和本机输出路径后运行：
+中间件放在 HTTP 请求解析之后、进入 query/answer/read handler 之前，且早于 bank/doc_id
+解析和任何 source/index 读取。它只读取 `Authorization: Bearer <token>`，失败响应不回显
+token、URL、bank 挂载面或本地路径。建议统一响应：
 
-```bash
-cd <CWK仓库>
-python3 scripts/kb_access_file.py export \
-  --registry <OPS登记表路径> \
-  --kb-id <单个kb_id> \
-  --gateway-url <Gateway基础URL> \
-  --out <私有输出目录>/<文件名>.cwk-access.json \
-  --reason <授权理由>
-```
+- 缺失、格式错误、过期或 registry 吊销：401；
+- token 有效但 bank 不在 scope，或 doc_id 不属于 scope：403；
+- endpoint 不存在仍为 404；请求范围错误仍为 400/416；后端不可达仍为 503。
 
-成功只回报非秘密字段。文件为 0600，父目录为 0700。一份文件只含一个 `kb_id`。
-若该库已有有效共享 token，`export` 必须失败；不能通过重复导出找回旧明文。
+`/read` 必须按 token scope 先授权 doc_id，再让 `DocResolver` 做 index、路径 containment、
+大小上限和 UTF-8 校验；不能用“已知 doc_id”绕过 scope。`/answer` 的 bank 既要授权，也要
+传给检索器；不得只保护 query 而漏掉 bank。`/query` 的 bank 同理。
 
-把生成路径交给用户，由用户自行决定是否、向谁、通过何种 IM 分发。不要自动发送。
+## 签发、轮换、吊销
 
-## 轮换
+沿用 `scripts/kb_token.py`：操作者在有业务 Key 的机器上以 env 传入 verify key，按
+`agent-id` 与单个或明确的 bank scope `issue`；明文只在签发回执出现一次，随后写入 0600
+文件。registry 在 OPS，Gateway/新服务每请求重读或使用有明确 TTL 的安全缓存；吊销必须在
+验收中证明在下一请求生效。rotate 产生新代并使旧代失效；revoke 按 token_id 整体撤销。
 
-授权文件疑似泄露、丢失，或需要重新分发时：
+命令参数、日志、异常、回执都不打印 secret。禁止把 token 放进 URL、skill、测试 fixture、
+Git 或对话。管理 Key 派生必须使用 `printf '%s'`，不可把尾换行带入 SHA；绑定 token 不派生。
 
-```bash
-python3 scripts/kb_access_file.py rotate \
-  --registry <OPS登记表路径> \
-  --kb-id <单个kb_id> \
-  --gateway-url <Gateway基础URL> \
-  --out <新的私有输出路径> \
-  --reason <轮换理由>
-```
+## 灰度验收门
 
-若覆盖本机已有输出文件，额外加 `--replace`。成功后旧代全部在登记表中吊销；Gateway 每请求重读登记表，旧副本下一次查询返回 401。新文件仍由用户自行分发。
+1. 正常 token 能按 scope 调用三端点；跨 bank 的 query/answer/read 全部 403。
+2. 缺失、过期、吊销 token 为 401，且吊销在下一请求生效；无 token 的旧流程仍只走旧网关。
+3. `/read` 未授权的 doc_id 在任何 source/index 读取前被拒，响应不泄露存在性以外信息。
+4. registry 不可达、格式损坏、重复 token_id fail-closed 为 503/管理错误，不默认放行。
+5. 审计日志只留 agent_id、token_id（非 secret）、bank、endpoint、结果和耗时；不留 query、
+   answer、原文、Authorization header。
+6. 通过合成 fixture 的 replay、并发、轮换、吊销、路径穿越和日志泄露测试，再由 Evan 拍板
+   灰度启用。未过门前，新栈仍标无鉴权，仅限 loopback/隧道。
 
-## 撤销
+## 当前旧流程保留
 
-按非秘密句柄 `token_id` 整体撤销该共享授权：
-
-```bash
-python3 scripts/kb_access_file.py revoke \
-  --registry <OPS登记表路径> \
-  --token-id <tok-...> \
-  --reason <撤销理由>
-```
-
-撤销后所有该 token 的文件副本同时失效。MVP 不支持按接收人单独撤销。
-
-## 回执判定
-
-- 成功：JSON `ok=true`，并核对 `kb_id`、`token_id`、`generation`、`mode=0600`。
-- `conflict`：已有有效共享 token；需要新文件时改用 `rotate`，不要绕过。
-- `unsafe_path` / `invalid_access_file`：停止，不放宽权限或 schema。
-- 任何输出若意外出现 bearer token，停止分发并立即按 `token_id` 撤销；不要把泄露值复制到对话。
+旧 `kb_access_file.py export/rotate/revoke` 仍是单库共享授权入口：目录 0700、文件 0600、
+同库已有有效 token 时 export 必须 conflict；成功只回报 kb_id/token_id/generation/mode，
+授权文件由用户自行分发。401/403 语义及旧 Gateway v2 读链不因本草案改变。

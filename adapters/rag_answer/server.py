@@ -16,6 +16,8 @@ from .resolver import DocResolver
 
 MAX_BODY_BYTES = 100_000
 DEFAULT_TOP_K = 5
+DEFAULT_READ_LENGTH = 65_536
+MAX_READ_LENGTH = 65_536
 
 
 def _float_env(name: str, default: str) -> float:
@@ -60,7 +62,7 @@ class Handler(BaseHTTPRequestHandler):
         self._send(404, {"error": "not found"})
 
     def do_POST(self):  # noqa: N802 - stdlib HTTP handler contract
-        if self.path != "/answer":
+        if self.path not in ("/answer", "/read"):
             self._send(404, {"error": "not found"})
             return
         try:
@@ -75,8 +77,12 @@ class Handler(BaseHTTPRequestHandler):
         except (UnicodeDecodeError, json.JSONDecodeError):
             self._send(400, {"error": "invalid JSON request"})
             return
-        if not isinstance(data, dict) or set(data) - {"query", "top_k", "bank"}:
+        allowed = {"query", "top_k", "bank"} if self.path == "/answer" else {"doc_id", "offset", "length"}
+        if not isinstance(data, dict) or set(data) - allowed:
             self._send(400, {"error": "invalid JSON request"})
+            return
+        if self.path == "/read":
+            self._read(data)
             return
         query = data.get("query")
         top_k = data.get("top_k", DEFAULT_TOP_K)
@@ -96,6 +102,31 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             # Never turn a backend/programming failure into a misleading 400.
             self._send(503, {"error": "RAG service unavailable"})
+
+    def _read(self, data: dict[str, object]) -> None:
+        doc_id = data.get("doc_id")
+        offset = data.get("offset", 0)
+        length = data.get("length", DEFAULT_READ_LENGTH)
+        if not isinstance(doc_id, str) or not doc_id:
+            self._send(400, {"error": "doc_id is required"})
+            return
+        if (isinstance(offset, bool) or not isinstance(offset, int) or offset < 0 or
+                isinstance(length, bool) or not isinstance(length, int) or
+                length <= 0 or length > MAX_READ_LENGTH):
+            self._send(400, {"error": "invalid read range"})
+            return
+        if self.pipeline is None:
+            self._send(503, {"error": "RAG service unavailable"})
+            return
+        try:
+            self._send(200, self.pipeline.resolver.read(doc_id, offset=offset, length=length))
+        except KeyError:
+            self._send(404, {"error": "document not found"})
+        except ValueError:
+            self._send(416, {"error": "offset out of range"})
+        except Exception:
+            # Do not disclose local paths, index contents, or source text.
+            self._send(400, {"error": "document unavailable"})
 
     def log_message(self, *args):
         # Query paths and arguments may contain protected source text.

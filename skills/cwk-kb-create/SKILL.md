@@ -1,83 +1,56 @@
 ---
 name: "cwk-kb-create"
-description: "建库向导：「建知识库」「建库」触发；对话收集库名/源/窗口/路由，AI提议用户拍板，CWK引擎建库+摄取，doctor回执"
+description: "AI 提议、用户拍板的知识库建库向导；RT-055 新栈注册步骤草案"
+status: draft-pending-gray-gate
+date: 2026-09-14
+diff_from_v2: "原有 kb_wizard/kb_ingest/NAS 体检流程保留；摄取后增加 rag-sources、rag-index.json 与检索索引注册"
 ---
 
-# cwk-kb-create — AI 知识库建库向导
+# cwk-kb-create v3（草稿待灰度拍板）
 
-把用户的「帮我建一个 AI 知识库」变成 NAS 上的一个真库。引擎 = CWK 仓库的 `kb_wizard.py` + `kb_ingest.py`（已通过 RT-042/043/044 验收）。你是对话皮：信息你收集、建议你出、**拍板归用户**、执行归引擎。
+本 skill 是对话皮，不替用户拍板。库名、prefix、数据源、时间窗口、路由和是否注册新栈都
+先给建议，再等用户确认；建库与摄取由 CWK 引擎执行。新栈注册是快照发布，不把原文上传到
+第三方模型或 NAS 以外的服务；新栈仍仅供本机/隧道读取。
 
-## 硬约束
-- AI 提议、用户拍板：库名/前缀/窗口/路由每一项都给建议值并等用户确认，不许静默取默认直接跑
-- 凭据只走 env：先 `set -a; source ~/.openclaw/gateways/life/.env; set +a`（CWK_NAS_KB_*）；不回显、不进转录
-- 目的地不干净必拒（引擎自带保护）；raw 只增不改；CLI 输出全 JSON，逐条给用户念关键计数
-- 摄取前必须先出 plan 让用户看件数与 expected_status_counts，确认后才 run
+## 1. 收集并拍板
 
-## 已知锚点
-- CWK 仓库（所有命令在此跑）：`/Users/evan/.openclaw/gateways/life/state/workspace-life/projects/CWK`
-- cwork 镜像 raw：`/Users/evan/.openclaw/gateways/life/state/workspace-life/projects/CWK-20260708-001/knowledge/工作协同镜像/raw`
-- NAS：`/ai-knowledge/` share，prefix 即其下目录名
+给出库名与 prefix 建议；确认来源（cwork mirror、DocDB 或本地目录）、窗口、route mode、
+可见性，以及是否进入 RT-055 三库 bank。凭据只来自受控 env，不回显、不进转录。先运行
+`kb_ingest.py plan`，把件数、expected_status_counts、unidentified 念给用户；计划未获用户
+确认不得 run。目的地不干净、raw 非只增不改或存在未知文件时停止。
 
-## 第一步 收集（每项给建议值）
-1. **库名与 prefix**：建议库名口语化（「投前流程系统建设」），prefix 从库名派生小写短横线（touqian）；两者都让用户确认
-2. **数据源**（三选一）：
-   - cwork 工作协同镜像 → root=镜像 raw 目录（锚点见上），route 建议 `timeline`
-   - DocDB 知识库 → root=空间或子目录的 fileId（数字），route 建议 `classify`，建库时带 `--docdb-root <fileId>`
-   - 本地目录 → root=绝对路径（local 后端）
-3. **时间窗口**：cwork 建议 `--since`（近 3 个月=当天往前 90 天）；docdb 一般全量不传
-4. **类型/可见性**：默认 personal / private
+## 2. 既有 CWK 建库与摄取
 
-## 第二步 建库（用户确认后）
-```bash
-cd <CWK仓库> && set -a; source ~/.openclaw/gateways/life/.env; set +a
-python3 scripts/kb_wizard.py create --kb-root nas://<prefix> --backend nas --prefix <prefix> \
-  --name "<库名>" --source <cwork-mirror|docdb> --route-mode <timeline|classify> [--docdb-root <fileId>] --yes
-```
-完成判据：JSON `ok=true`；把 kb_code 前 16 位给用户。
+按旧流程用 `kb_wizard.py create` 建库，随后 `kb_ingest.py plan → 用户确认 → run`。大库可
+后台执行但要记录进度；完成后检查 status、reconcile 和 `kb_doctor.py verify --all`。
+counts.failed 必须为 0，raw/manifest/collection-state/changed-paths/tree 全绿。refresh 仍
+是快照增量入口：同字节 unchanged，变更升版本，源侧消失只报告不删库；计划为 0 或数量
+异常暴增必须人工确认。不要改旧网关或直连 NAS 读全文。
 
-## 第三步 计划 → 拍板 → 摄取
-```bash
-python3 scripts/kb_ingest.py plan --source <cwork-mirror|docdb> --root <root> \
-  --kb-root nas://<prefix> [--since YYYY-MM-DD] --backend nas --prefix <prefix> --out /tmp/<prefix>-plan.json
-```
-把 `item_count`、`expected_status_counts`、`unidentified` 条数念给用户；有 unidentified 要逐条说明（无稳定 ID 的文件不摄取但也不许消失）。用户点头后：
-```bash
-python3 scripts/kb_ingest.py run --plan /tmp/<prefix>-plan.json --backend nas --prefix <prefix> --yes
-```
-大库（>300 件）放后台跑并记日志，期间用 status 查进度（`kb_ingest.py status --kb-root nas://<prefix> --backend nas --prefix <prefix>`）。
+## 3. 新栈注册（新增，灰度前只允许 dry-run/合成验证）
 
-## 第四步 体检与回执
-```bash
-python3 scripts/kb_ingest.py status    --kb-root nas://<prefix> --backend nas --prefix <prefix>
-python3 scripts/kb_ingest.py reconcile --kb-root nas://<prefix> --backend nas --prefix <prefix>
-python3 scripts/kb_doctor.py verify --all --backend nas --prefix <prefix> --json
-```
-全绿判据：counts.failed=0、reconcile 各清单空、doctor 五项（raw/manifest/collection-state/changed-paths/tree）ok=true。有差异必须解释到件——参考 2026-09-05 Case 1 实例：基线 451 → 入库 453 = 月份目录 447 + unknown/ 目录 6 + 重复 ID 归并 − 3 件无日期 fail-closed 排除，差异全解释即零缺件。
-最后告诉用户：库已就绪，用 cwk-kb-query Skill 提问。
+在 CWK 摄取和 doctor 全绿后，追加以下注册检查；任何一步失败都不标“新栈已就绪”：
 
-## 库更新（增量，已验证可用 2026-09-06）
+1. 将已批准、可读的派生文本快照放入对应 `rag-sources/`；原文仍受本地快照权限保护，禁止
+   把真实语料放进测试、Git、日志或模型提示。
+2. 生成 `rag-index.json`，每个 doc_id 只映射到快照根目录下的相对路径；拒绝绝对路径、`..`
+   段、重复 doc_id、越界 symlink、非 UTF-8、超过 resolver 大小上限的文件。
+3. 在 OpenSearch 建立该 bank 的检索索引，确认 exact 通道覆盖编号/日期类查询，lexical
+   通道覆盖普通正文词；记录索引代、件数和构建时间，不记录正文。
+4. 通过 loopback `/query` 做合成或脱敏 smoke；命中结果的 doc_id 必须能被 `/read` 分页读出，
+   页片段拼接等于快照全文，eof/total_chars 正确；`/answer` 传 bank 并验证零命中体面拒答。
+5. 注册 bank 与快照索引元数据到 OPS 登记表；当前不注册 token，不激活新路由。把注册回执、
+   索引代和 doctor 结果交给用户拍板灰度。
 
-库是快照语义：源变了不会自动同步。**用户说「更新库/重新摄取」时，用 `refresh` 子命令**（比手搓 plan→run 少传一遍源参数，夜间定时也走它）：
-```bash
-python3 scripts/kb_ingest.py refresh --backend nas --prefix <prefix>            # 干跑：只出报告零写入
-python3 scripts/kb_ingest.py refresh --backend nas --prefix <prefix> --yes      # 执行
-# cwork 源需镜像目录：--cwork-mirror-root <路径> 或环境变量 CWK_MIRROR_ROOT
-# 例外时临时覆盖窗口：--since YYYY-MM-DD
-```
-引擎增量语义（spbp-2027 实战验证）：
-- 同字节件 → `unchanged` 跳过，零写入（originals 内容寻址，天然幂等）
-- 源变更件 → 自动升 v2/v3，raw 新版本落原位旁，索引/账本/引文链自动级联；classify 路由当前文件指向新版，timeline 路由新旧并存
-- 上次 failed 件 → 自动补跑（failed 非终态）；**已知失败不再报红，仅新失败报红**
-- 源删了的件 → 库里保留（快照语义，不逆向删除）；新增件 → 自动入册
-- **护栏**：计划 0 件而库非空、或件数超上次 3 倍+50 → 拒绝执行（像源故障/扫错目录，留人工确认）；护栏状态记在库内 `_system/refresh-state.json`
-- **源侧消失报告**：库里已有、源里已删的件 → 报告列在回执 `vanished`（只报告不删库，快照语义保原件；带时间窗的源不判定防误报）
-- 事后体检：doctor verify --all 全绿才交回执；网关无需重启，新版本立即可查
-- 夜间定时（OPS 23:30 launchd）也走同一入口，报告落 `~/CWK/ops/logs/kb-refresh-*.json`
-实战参考（spbp-2027 首次摄取当天重跑）：109 件 → 102 unchanged + 5 源变更升 v2 + 2 已知源侧空件；增量写入后 doctor 五项全绿、网关无重启查到 v2、引文 matches_index=true。
+## 4. 失败与回滚
 
-## 故障速查
-- FileStation code=400 且发生在建目录：DSM 拒「数字开头」目录名——引擎已自动加 `d-`/`c-` 前缀（commit 175d532 / 885d2fd）；复现说明有新形态，查 `kb_ingest.py` 的 `_device_safe_dir`
-- 502：DSM 对不存在文件回裸 502，引擎已消歧为 NotFound；持续 502=服务忙，等 30s 重试
-- plan 件数异常大：检查窗口（since）设置与是否扫进非源目录（`_system` 已排除）
-- 400 一次定位法：backend 构造后包**实例级** `_transport`（类级 monkeypatch 无效——`__init__` 绑定了实例属性），包装里解析 CreateFolder/Upload 的 folder_path、name 并给 `success:false` 响应打标；单件重跑 `execute_plan`（items 只留一件）即可看到肇事调用
-- plan 件数 ≠ 基线的对账法：取镜像文件名前 15+ 位数字 ID 与计划 stable_id 做集合差，差件按月份目录分桶——窗口前月份占大头=since 正常；其余三类逐一核：unknown/ 目录件（日期在窗口内应入）、同 ID 多文件（归并一条 lineage）、无 manifest 无日期件（fail-closed 排除，列出 ID）。差异全解释即零缺件
+`/query` 不通、索引缺失或 `/read` 404/503 时，新 bank 不得对外宣称可用；保留已完成的 CWK
+库和旧网关读链，修复后重跑注册检查。新栈是 snapshot-backed read，当前没有 NAS-backed
+SHA chain；需要 lineage/version/full SHA 校验的场景走旧 v2。新栈注册失败不删除源文件、不
+回滚或改动旧库，避免把快照故障误当摄取故障。
+
+## 5. 建库完成回执
+
+分别回报：CWK doctor 是否全绿；新栈 bank、快照索引代、检索 smoke、`/read` 分页 smoke、
+`/answer` 零命中 smoke；未注册/未激活项明确写出。只有用户拍板灰度后才进入授权移植和运行
+配置变更；本稿阶段不得部署、激活或关闭旧网关。
