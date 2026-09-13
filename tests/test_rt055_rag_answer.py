@@ -198,15 +198,16 @@ class AnswerHTTPContractTests(unittest.TestCase):
         self.assertEqual(status, 404)
         self.assertEqual(payload, {"error": "not found"})
 
-    def test_no_retrieval_result_is_503(self) -> None:
+    def test_no_retrieval_result_is_graceful_refusal(self) -> None:
         rag_server.Handler.pipeline = RAGPipeline(
             LexicalRetriever({}),
             self.httpd.RequestHandlerClass.pipeline.resolver,
             FakeLLM(),
         )
         status, payload = self.request("POST", "/answer", {"query": "missing synthetic fact"})
-        self.assertEqual(status, 503)
-        self.assertEqual(payload, {"error": "no retrieval result"})
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["answer"], "知识库中未找到相关内容。")
+        self.assertEqual(payload["citations"], [])
 
     def test_llm_failure_is_503(self) -> None:
         current = rag_server.Handler.pipeline

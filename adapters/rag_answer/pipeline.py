@@ -152,7 +152,12 @@ class RAGPipeline:
         except Exception as exc:
             raise RAGError("retrieval backend unavailable") from exc
         if not hits:
-            raise RAGError("no retrieval result", 503)
+            return {
+                "answer": "知识库中未找到相关内容。",
+                "citations": [],
+                "model": getattr(self.llm, "model", "local"),
+                "took_ms": int((time.monotonic() - started) * 1000),
+            }
         texts = []
         for hit in hits:
             try:
