@@ -142,7 +142,8 @@ class FakeSearchClient:
             }
         if path.endswith("/_mget"):
             docs = []
-            for parent_id in payload["ids"]:
+            for item in payload["docs"]:
+                parent_id = item["_id"]
                 docs.append({
                     "_id": parent_id,
                     "found": True,
@@ -180,6 +181,8 @@ class QueryEngineTests(unittest.TestCase):
         self.assertEqual([(hit.doc_id, hit.channel) for hit in result], [("doc-1", "hybrid")])
         self.assertEqual(len([call for call in client.calls if call[1].endswith("/_search")]), 2)
         self.assertEqual(client.calls[-1][1], "/idx/_mget")
+        self.assertIn("docs", client.calls[-1][2])
+        self.assertNotIn("ids", client.calls[-1][2])
 
     def test_exact_zero_does_not_fallback_to_lexical(self):
         client = FakeSearchClient(exact_hits=[], lexical_hits=raw_hit())
