@@ -16,6 +16,8 @@ from adapters.opensearch_retrieval.service import RetrievalApplication, create_s
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "rt055_retrieval_synthetic.json"
+COMPOSE = ROOT / "deploy" / "docker-compose.yml"
+OPENSEARCH_DOCKERFILE = ROOT / "deploy" / "opensearch.Dockerfile"
 
 
 class TemplateAndProjectionTests(unittest.TestCase):
@@ -76,6 +78,22 @@ class TemplateAndProjectionTests(unittest.TestCase):
         self.assertEqual(stats.child_count, 2)
         self.assertEqual(stats.batch_count, 1)
         self.assertTrue(any(call[0] == "PUT" for call in client.calls))
+
+
+class DeploymentContractTests(unittest.TestCase):
+    def test_compose_is_loopback_bound_and_forwards_only_env_credentials(self):
+        compose = COMPOSE.read_text(encoding="utf-8")
+        self.assertIn('"127.0.0.1:${OPENSEARCH_PORT:-9200}:9200"', compose)
+        self.assertIn('"127.0.0.1:${RETRIEVAL_PORT:-8787}:8787"', compose)
+        self.assertIn("CWK_OPENSEARCH_USERNAME: ${CWK_OPENSEARCH_USERNAME:-}", compose)
+        self.assertIn("CWK_OPENSEARCH_PASSWORD: ${CWK_OPENSEARCH_PASSWORD:-}", compose)
+        self.assertNotIn("username:", compose)
+        self.assertNotIn("password:", compose)
+
+    def test_opensearch_image_installs_icu_at_build_time(self):
+        dockerfile = OPENSEARCH_DOCKERFILE.read_text(encoding="utf-8")
+        self.assertIn("analysis-icu", dockerfile)
+        self.assertIn("opensearch-plugin install --batch", dockerfile)
 
 
 class ExactAndMergeTests(unittest.TestCase):
