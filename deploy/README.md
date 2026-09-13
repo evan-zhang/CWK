@@ -26,7 +26,10 @@ python3 -m adapters.opensearch_retrieval smoke-test --expect-doc-id synthetic-rt
 
 Docker Desktop 需要给 OpenSearch 足够内存；`docker compose ps`、
 `curl http://127.0.0.1:9200/_cluster/health` 和
-`curl http://127.0.0.1:8787/readyz` 是本机确认路径。
+`curl http://127.0.0.1:8787/readyz` 是本机确认路径。若需要登录即启动检索服务，Mac 可将
+同一条 `python3 -m adapters.opensearch_retrieval serve` 命令放入用户级 `launchd` plist，
+并把 `WorkingDirectory` 和环境变量指向本地私有配置；plist 不应进入仓库，本次交付不加载
+或重启任何 launchd 服务。
 
 ## Linux 路径（compose）
 
