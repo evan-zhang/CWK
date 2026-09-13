@@ -10,6 +10,7 @@ from typing import Any, Callable
 
 from ..client import BackendError
 from ..query import RetrievalQuery, UnknownBank
+from ...kb_auth import authorize
 from .contract import RequestError, error_response, parse_query_request, query_response
 
 
@@ -96,6 +97,11 @@ def make_handler(application: RetrievalApplication) -> type[BaseHTTPRequestHandl
                 payload = json.loads(self.rfile.read(length))
             except (UnicodeDecodeError, json.JSONDecodeError):
                 self._write(HTTPStatus.BAD_REQUEST, error_response("invalid_request", "invalid query request"))
+                return
+            bank = payload.get("bank") if isinstance(payload, dict) else ""
+            refusal = authorize(self.headers, bank or "")
+            if refusal:
+                self._write(*refusal)
                 return
             status, response = application.query(payload)
             self._write(status, response)
