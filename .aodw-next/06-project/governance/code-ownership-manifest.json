@@ -385,6 +385,17 @@
       "rationale": "RT-041 源适配器目录（契约见 docs/ADAPTER-CONTRACT.md）。前缀而非 exact：新增适配器是被鼓励的扩展行为，与 R-test-suite 同理；scripts/ 封闭命名空间不受影响（包装式接入，gwork 只 import 现有函数）。adapters/ 不在 exact_only_zones：它只放适配器代码，配套契约文档在 docs/、测试在 tests/，均有各自认领规则。"
     },
     {
+      "id": "R-runtime-rt055-production-retrieval",
+      "domain": "runtime",
+      "kind": "prefix",
+      "prefix": "deploy/",
+      "owner": "RT-055",
+      "management_domain": "cwk-governance-v1",
+      "change_entry": "RT-055 → rt-lite.md 记录理由 → 改动 → make governance-audit + RT-055 生产检索测试",
+      "evolution_path": "repo-standard-change",
+      "rationale": "RT-055 的可移植部署资产：OpenSearch ICU 镜像构建、检索服务镜像、loopback compose 和 shadow/灰度/回滚说明。部署工件只描述路径，不执行生产变更。"
+    },
+    {
       "id": "R-build-makefile",
       "domain": "build_ci",
       "kind": "exact",
