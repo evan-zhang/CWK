@@ -112,10 +112,11 @@ class RetrievalQuery:
     def _expand_parents(self, hits: Sequence[RetrievalHit], *, bank: str) -> list[RetrievalHit]:
         if not hits:
             return []
+        source_fields = ["tenant_id", "bank", "doc_id", "parent_id", "kind"]
         response = self.client.request(
             "POST",
             self._path("/_mget"),
-            {"ids": [hit.parent_id for hit in hits], "_source": ["tenant_id", "bank", "doc_id", "parent_id", "kind"]},
+            {"docs": [{"_id": hit.parent_id, "_source": source_fields} for hit in hits]},
         )
         docs = response.get("docs") if isinstance(response, dict) else None
         if not isinstance(docs, list) or len(docs) != len(hits):
