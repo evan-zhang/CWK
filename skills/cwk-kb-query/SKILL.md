@@ -1,134 +1,79 @@
 ---
 name: "cwk-kb-query"
-description: "知识库问答或导入 CWK 授权文件：按库选择本地 token；v2 读链 + 融合搜索，实时引文，无命中直说"
+description: "知识库检索、问答与原文读取；RT-055 新栈三端点草稿，待灰度拍板"
+status: draft-pending-gray-gate
+date: 2026-09-14
+diff_from_v2: "主路径从 8787 v2 读链迁至 loopback /query、/answer、/read；保留旧网关回退附录"
 ---
 
-# cwk-kb-query — 知识库问答（实时引文）
+# cwk-kb-query v3（草稿待灰度拍板）
 
-对已建知识库提问。铁律：**每个事实性回答必须带实时引文**——引文来自网关 v2 read 链（或 citation），sha256 是网关现场从存储后端拉字节算出来的；没有命中就直说没有，不许拿记忆或猜测作答。
+本 skill 只做知识库读取与回答，不写 CWork、不标已读、不发送消息。RT-055 新栈是本机
+或隧道可达的 OPS loopback：检索 `127.0.0.1:18887/query`，问答
+`127.0.0.1:8790/answer`，原文 `127.0.0.1:8790/read`。新栈当前**无鉴权**，只可在
+本机/受控隧道使用；语料是快照，不保证实时。
 
-## 网关拓扑（RT-049 合一，2026-09-06 起；RT-051 升级 1.2.0）
+## 能力矩阵与路由
 
-**8787 单进程多库网关（v1.3.0）**（192.168.91.72，launchd 常驻、开机自愈）：先用 discovery 取授权库，再以 `?kb=<kb_id>` 选库，kb_id 即 NAS prefix。
+| 需求 | 入口 | 关键规则 |
+|---|---|---|
+| 找文档/候选 | `POST /query` | `{bank, query, top_k}`；返回 hits、score、channel、no_answer、took_ms |
+| 形成 AI 结论 | `POST /answer` | `{query, top_k, bank?}`；当前模型通常约 38s；零命中必须原样体面拒答 |
+| 读原文 | `POST /read` | `{doc_id, offset?, length?}`，默认 offset=0、length=65536；分页单位是字符，返回 eof、total_chars |
 
-第 0 步（每次新接入或库变更后）：`GET /v2/kb/libraries`，携带绑定 token；只会返回该 token 的已挂载授权库。200 空列表不是越权，表示暂无交集；不再依赖本文的静态库清单。
+bank 只能使用已登记库：`cwork-3m`、`docdb-touqian`、`spbp-2027`。编号、日期、带连字符
+的短标识等查询优先看 `channel=exact`：它避免中文词法分词把编号拆散；普通自然语言和正文
+概念看 `channel=lexical`。`no_answer=true` 只表示本次快照检索没有命中，不能凭一次零命中
+断言库里没有；先换 2–3 个同义词、变体或日期格式。
 
-- `cwork-3m`（个人工作协同近 3 个月）→ `http://192.168.91.72:8787`（不带 kb 参数的默认库，v1 兼容）
-- `docdb-touqian`（投前流程系统建设）→ 同 8787 + `?kb=docdb-touqian`（8788 过渡期别名保留）
-- `spbp-2027`（2027集团SP&BP）→ 同 8787 + `?kb=spbp-2027`（8789 过渡期别名保留）
-- 新库不再开端口、不再写 plist：摄取 + 登记表一行后直接 `?kb=<prefix>` 查
+## 新栈操作顺序
 
-```bash
-curl -s -m 6 http://192.168.91.72:8787/health   # /health 免鉴权；ok=true 即用 OPS
-```
+1. 明确 bank 与问题；不要跨 bank 猜测或把默认库当作授权证明。
+2. 调 `/query` 找候选；记录 `doc_id`、score、channel 与 `no_answer`。连接拒绝表示 OPS 不通，
+   不直接读取 NAS。
+3. 需要 AI 归纳时调用 `/answer`，传同一 bank；零命中时说“知识库中未找到相关内容。”，
+   不用记忆补答案。当前约 38s，调用方应设置足够超时并避免重复轰炸。
+4. 需要原文核验时调用 `/read` 分页：下一页 offset = 上一页 offset + 返回文本长度，直到
+   `eof=true`。按 `total_chars` 校验没有跳页或重复；服务返回 416 就修正 offset，不静默前移。
+5. 每个事实结论都要绑定 citation 或 `/read` 原文页。引文自检不通过就标“未验证”，不得把
+   模型答案当作证据。
 
-语义要点（RT-049 定死，有单测钉住）：不带 kb = 主库 cwork-3m；kb 未挂载 → admin 见 404 `unknown_kb`（不回落主库、不回显挂载面），绑定 token 见 「03（scope 判定在挂载面之前）。
+## 错误、降级与边界
 
-## 鉴权（绝不打印 Key/token 本身）
+- 400：请求结构、bank/query、offset/length 不合法；修正请求，不重试原请求。
+- 401/403：新栈当前没有鉴权面；迁移后的对应语义分别是“未来 token 缺失/失效”和“未来
+  token 无该 bank scope”。旧网关仍按 401=过期/撤销/换代、403=跨库隔离处理。
+- 404：新 `/read` 的 doc_id 不存在；不要改写成“文档内容为空”。旧网关 unknown_kb 也是
+  404，但不能回落主库。
+- 416：`/read` offset 越界或范围不合法；重新以 `total_chars` 计算分页。
+- 503：检索/模型不可达或索引/源文件不可用；词法不可用时不能静默降级。新栈应先报告
+  loopback 不通/快照不可用；旧网关 lexical_unavailable 可显式 `allow_degraded=metadata`。
+- 新快照非 NAS 实时链：没有 lineage/raw_sha/full_sha_verified，不得声称做了旧 v2 的
+  SHA 现场复核。
+- SHA 派生旧授权 token 时严禁 `printenv` 带尾换行：用 `printf '%s'` 后再 sha256；否则会
+  伪装成 401。任何 token 不写日志、不放命令行、不回显。
+- placeholder 或不可读源只能如实说明“只存档未转正文”；不假装读过。
 
-**通道 1：单库共享授权文件（接收方默认）**。
+## 过渡期判定规则
 
-用户把 `.cwk-access.json` 附件交给 Agent 时，先本地导入，不读取或转述其中的 token：
+- 默认新栈：三库候选检索、常规问答、可接受快照延迟的短原文查看。
+- 暂走旧网关 v2：深度原文校验、需要 lineage/version/raw_sha256、`full_sha_verified=true`
+  或 candidate_spans 精确 byte 范围的场景；也包括新 `/read` 404/503 且不是明确新栈数据缺失的
+  故障排查。旧网关只读，不改其配置或服务。
+- 新旧结果冲突时，以能提供现场 SHA 链的旧 v2 为校验依据，并把差异记录为迁移缺口；不把
+  两套结果拼成一个无来源结论。
+- 退出双轨前必须完成本文“迁移决策点清单”中的读端点、鉴权、回退和一致性验收；未满足时
+  不得关闭旧网关。
 
-```bash
-cd <CWK仓库>
-python3 scripts/kb_access_file.py import --file <附件本地路径>
-```
+## 附录：旧网关 v2 回退路径
 
-- 本地权威目录是 `~/.openclaw/cwk/access/`（0700），每库一个 0600 文件；文件名由 `kb_id` 的 SHA-256 安全派生，不使用附件名或库名拼路径
-- 同库已有不同授权时默认拒绝；用户明确同意替换后才加 `--replace`
-- 导入成功后只对文件声明的 `kb_id` 执行一次 `capabilities --kb <kb_id>` 验证；不枚举或试探其他库
-- `kb_gateway_client.py` 在没有显式 `CWK_KB_GW_TOKEN` 时，按每次请求的 `--kb` 自动选择对应本地授权；不跨库回落
-- 401 表示文件已过期、撤销或换代；403 表示 token 有效但目标库不在其唯一授权面
+旧入口为 8787 `/v2/kb/*`，先用 `/v2/kb/libraries` discovery，再带绑定 token 与 `kb`。
+典型链路是 `search → resolve → read/continue`；document_ref 有 TTL，续读必须用
+`continue`，不能把 `read+cursor` 当作替代。read 返回 identity、lineage/version、
+`full_sha_verified=true`；citation 可取实时 SHA 与 excerpt。byte range 落在 UTF-8 码点中间
+必须接受 416，不静默前推；历史 version 非当前版返回 409；非法 UTF-8 返回 422。
 
-**通道 2：Agent 绑定 token（旧流程兼容）**——单 Gateway 多 Agent 的多租户通道。
-
-```bash
-set -a; source ~/.openclaw/cwk/kb-bind.env; set +a   # CWK_KB_BIND_TOKEN 在这里
-TOKEN=$CWK_KB_BIND_TOKEN
-```
-
-- 绑定 token 只能查 kb_ids 名单里的库，查别的库 → 403（跨库隔离，属正常）
-- 吊销即刻生效（网关每请求重读登记表）；过期/被吊销 → 401
-- 领 token：操作者在有业务 Key 的机器上 `python3 scripts/kb_token.py issue --verify-env <Key变量名> --agent-id <Agent标识> --kb-id <库>` 签发；token 明文只在签发回执出现一次，随后落 0600 文件
-
-**通道 3：管理 Key 模仿（运维/调试用）**：
-
-```bash
-set -a; source ~/.openclaw/gateways/life/.env; set +a   # CWK_KB_ADMIN_KEY 在这里
-TOKEN=$(printf '%s' "$CWK_KB_ADMIN_KEY" | shasum -a 256 | awk '{print $1}')
-```
-
-⚠️ 派生坑（实测）：`printenv` 带尾换行会算出错误 token（表现为 401 假象），必须 `printf '%s'` 无换行。派生后可查长度是否 64。（绑定 token 不需要派生，直接用）
-
-## v2 受控读链（1.2.0 起，正文可达的正式路径）
-
-八个操作全在 `/v2/kb/*` 路由：`capabilities / list / search / resolve / inspect / read / continue / renew`。POST 禁用，全 GET。合同详见 CWK 仓 `RT/RT-051/rt-lite.md` 的 C01–C06；参数表与易错点在本 skill `references/v2-read-chain.md`。
-
-**流程：搜到 → 拿句柄 → 分页读全文 → 每页带引文**。不透明 document_ref（15 分钟 TTL，renew 可续）→ read 三模式互斥（cursor 续读 / start+end byte 范围 / 行模式）→ 每页自带 identity（lineage/version/raw_sha256）+ full_sha_verified=true（每请求全读全 SHA 复核）→ 融合命中带 candidate_spans（raw 绝对字节坐标，直接喂给 read 的 start/end_byte）。
-
-**推荐入口：kb_wizard read-side 动词**（有 CWK 仓的机器；连接走环境变量，argv 零凭据，错误不带 URL，exit 0/1/2）：
-
-```bash
-cd <CWK仓库> && set -a; source ~/.openclaw/gateways/life/.env; set +a
-export CWK_KB_GW_URL=http://192.168.91.72:8787 CWK_KB_GW_TOKEN=<绑定token或派生token>
-python3 scripts/kb_wizard.py search --kb spbp-2027 --q 亿元 --retrieval-mode lexical_fusion_v1 --page-size 10
-python3 scripts/kb_wizard.py open --kb spbp-2027 --lineage docdb:2091816...   # = resolve，拿 document_ref
-python3 scripts/kb_wizard.py read --kb spbp-2027 --document-ref <ref> --max-bytes 65536
-python3 scripts/kb_wizard.py continue --kb spbp-2027 --document-ref <ref> --cursor <next_cursor>
-python3 scripts/kb_wizard.py inspect --kb spbp-2027 --document-ref <ref>
-python3 scripts/kb_wizard.py renew --kb spbp-2027 --document-ref <ref>
-```
-
-**直接 HTTP**（无 CWK 仓的机器）：
-
-```bash
-# 搜正文（推荐默认）：融合 = 元数据子串 + 正文 BM25，RRF 排序
-curl -s -m 300 -H "X-KB-Token: $TOKEN" \
-  'http://192.168.91.72:8787/v2/kb/search?kb=spbp-2027&q=亿元&retrieval_mode=lexical_fusion_v1&page_size=10'
-# 响应: items[].{lineage_id,document_ref,body_rank,metadata_rank,rrf_score,candidate_spans[]}
-
-# 已知 lineage 直取
-curl -s -m 300 -H "X-KB-Token: $TOKEN" \
-  'http://192.168.91.72:8787/v2/kb/resolve?kb=spbp-2027&lineage=docdb:2091816...'
-
-# 分页读正文
-curl -s -m 300 -H "X-KB-Token: $TOKEN" \
-  'http://192.168.91.72:8787/v2/kb/read?kb=spbp-2027&document_ref=<ref>&max_bytes=65536'
-# 响应: {identity, full_sha_verified, returned_bytes, text, eof, next_cursor}
-```
-
-## 融合搜索语义（RT-051 C07）
-
-- 两路并行：metadata 子串（标题/路径/lineage）+ 正文 BM25（中文 1/2/3-gram，ASCII 整词）；RRF=1/(60+rank) 融合，缺路 0
-- **正文-only 词**（如「亿元」只出现在正文、标题没有的）融合模式可召回；metadata_rank=null = 纯正文路命中
-- 编号查询是单一 ASCII 词项：查「017」不会命中「AB-017」
-- 词法代未建/过时 → 503 lexical_unavailable：显式传 `allow_degraded=metadata` 降级，或通知运维跑 builder。**不要静默降级**
-- 词法代与源同步：夜间 refresh（23:30）钩子自动重建；refresh 换代后旧候选自动失效
-- 融合查询对高频词在百件库上需 60s+（P1a 边界）：curl 超时给 300s；交互场景先 metadata 后融合
-- 零命中 ≠ 库里没有：换 2–3 个同义/变体词仍零才明说「库里没有」
-
-## 引文与自检
-
-- 每条引用的事实都要有 v2 read 页或 citation 支撑：核对 `full_sha_verified=true`（v2）或 `matches_index=true`（v1）；否则标「账本不一致」并停止引用该条
-- 回答格式：结论先行 + 每条证据一行（文件名、原文摘录、sha256 前 12 位）
-- citation（v1 兼容面保留）：`/citation?lineage=<id>&kb=<kb>` 实时全件 SHA + excerpt 前 500 字——短引文最省事
-- placeholder 占位件（readable=false 或 reason=placeholder）：如实说「只存档未转正文」，不假装读过
-- 401 = token 问题（管理通道先查尾换行坑）；403 = 跨库隔离；405 = 写动词被拒；503 lexical_unavailable = 词法代问题；连接被拒 = OPS 不通
-- OPS 不可达（内网隔离/维护窗）才**兜底本机起网关**（仅限本机装有 CWK 仓库与凭据时）：
-
-```bash
-cd <CWK仓库> && set -a; source ~/.openclaw/gateways/life/.env; set +a
-python3 scripts/kb_gateway.py --admin-key-env CWK_KB_ADMIN_KEY --backend nas \
-  --prefix <prefix> --host 127.0.0.1 --port <port> &
-```
-
-（Agent 不直连 NAS 读全文——RT-051 起 v2 read 链是唯一正文路径，凭据不出 OPS 的红线不变。）
-
-## 已知边界（如实交代，不冒充）
-
-- 历史版本不可读：resolve 带 version≠当前 → 409（RT-051 合同：仅当前版）
-- 非法 UTF-8 → 422；显式 end_byte 落码点中间 → 416 不静默前推
-- 续读必须用 continue 动词（read+cursor → 400 invalid_cursor）
-- cwork-3m / docdb-touqian 词法代**未建**（截至 2026-09-07）：融合查询 503，用 metadata 模式或找运维
-- A04 大档（32/128MiB）/累计带宽优化属 P1b 快照架构，未交付
+旧网关错误速查：401 token 过期/撤销/换代；403 scope/跨库；405 写动词被拒；503 lexical
+index 不可用；连接拒绝表示 OPS 不通。只有 OPS 不可达且本机确有 CWK 凭据时，才按旧 runbook
+临时起本机网关；Agent 不直连 NAS。旧融合检索在词法代未建库上可显式 metadata 降级，不能
+静默降级；高频词可能超过 60s，超时按 300s 设计。

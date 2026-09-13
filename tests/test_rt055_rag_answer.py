@@ -216,6 +216,50 @@ class AnswerHTTPContractTests(unittest.TestCase):
         self.assertEqual(payload["answer"], "知识库中未找到相关内容。")
         self.assertEqual(payload["citations"], [])
 
+    def test_read_pages_fixture_text_and_marks_eof(self) -> None:
+        status, first = self.request("POST", "/read", {
+            "doc_id": "synthetic-http-doc", "offset": 0, "length": 12,
+        })
+        self.assertEqual(status, 200)
+        self.assertEqual(first["text"], "synthetic HT")
+        self.assertEqual(first["offset"], 0)
+        self.assertFalse(first["eof"])
+        self.assertEqual(first["total_chars"], len("synthetic HTTP answer fact 99."))
+
+        status, last = self.request("POST", "/read", {
+            "doc_id": "synthetic-http-doc", "offset": 13, "length": 100,
+        })
+        self.assertEqual(status, 200)
+        self.assertEqual(last["text"], "P answer fact 99.")
+        self.assertTrue(last["eof"])
+
+    def test_read_rejects_out_of_range_and_unknown_documents(self) -> None:
+        status, payload = self.request("POST", "/read", {
+            "doc_id": "synthetic-http-doc", "offset": 10_000,
+        })
+        self.assertEqual((status, payload), (416, {"error": "offset out of range"}))
+        status, payload = self.request("POST", "/read", {"doc_id": "missing-doc"})
+        self.assertEqual((status, payload), (404, {"error": "document not found"}))
+
+    def test_read_rejects_unsafe_ids_and_ranges(self) -> None:
+        for doc_id in ("../answer.txt", "/etc/passwd"):
+            status, payload = self.request("POST", "/read", {"doc_id": doc_id})
+            self.assertEqual(status, 400)
+            self.assertEqual(payload, {"error": "document unavailable"})
+        for payload in (
+            {"doc_id": "synthetic-http-doc", "offset": -1},
+            {"doc_id": "synthetic-http-doc", "length": 0},
+            {"doc_id": "synthetic-http-doc", "length": 65_537},
+        ):
+            status, body = self.request("POST", "/read", payload)
+            self.assertEqual((status, body), (400, {"error": "invalid read range"}))
+
+    def test_read_reuses_resolver_containment_and_size_guards(self) -> None:
+        resolver = self.httpd.RequestHandlerClass.pipeline.resolver
+        resolver.index["synthetic-unsafe-index"] = "../answer.txt"
+        status, payload = self.request("POST", "/read", {"doc_id": "synthetic-unsafe-index"})
+        self.assertEqual((status, payload), (400, {"error": "document unavailable"}))
+
     def test_llm_failure_is_503(self) -> None:
         current = rag_server.Handler.pipeline
         rag_server.Handler.pipeline = RAGPipeline(

@@ -4,6 +4,12 @@ from pathlib import Path
 
 class ResolveError(Exception): pass
 class DocResolver:
+    """Resolve snapshot-backed documents from configured local roots.
+
+    This is a snapshot-backed read; NAS-backed SHA chain verification is a
+    later migration item. The existing index, containment, size, and UTF-8
+    checks still apply.
+    """
     def __init__(self, roots=None, index_path=None, max_bytes=2_000_000):
         self.roots=tuple(Path(x).resolve() for x in (roots if roots is not None else os.getenv('RAG_SOURCE_ROOTS','').split(os.pathsep) if os.getenv('RAG_SOURCE_ROOTS') else []))
         self.index_path=Path(index_path or os.getenv('RAG_DOC_INDEX','')).resolve() if (index_path or os.getenv('RAG_DOC_INDEX')) else None
@@ -32,3 +38,19 @@ class DocResolver:
             return candidates[0].read_text(encoding='utf-8')
         except FileNotFoundError: raise KeyError(doc_id)
         except (OSError,UnicodeError) as e: raise ResolveError('document unreadable') from e
+
+
+    def read(self, doc_id, *, offset=0, length=65536):
+        """Return a Unicode-character page from a resolved snapshot document."""
+        text = self.resolve(doc_id)
+        total_chars = len(text)
+        if offset < 0 or offset > total_chars:
+            raise ValueError("offset out of range")
+        page = text[offset:offset + length]
+        return {
+            "doc_id": doc_id,
+            "text": page,
+            "offset": offset,
+            "eof": offset + len(page) >= total_chars,
+            "total_chars": total_chars,
+        }
