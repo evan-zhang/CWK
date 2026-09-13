@@ -7,6 +7,7 @@ read only from the process environment and are never included in repr output.
 from __future__ import annotations
 
 import dataclasses
+import math
 import os
 import re
 import urllib.parse
@@ -16,6 +17,7 @@ from typing import Mapping
 
 DEFAULT_BANKS = ("cwork-3m", "docdb-touqian", "spbp-2027")
 _BANK_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
+_INDEX_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,180}$")
 
 
 class ConfigError(ValueError):
@@ -80,7 +82,7 @@ class Settings:
             timeout = float(env.get("CWK_OPENSEARCH_TIMEOUT", str(cls.request_timeout)))
         except ValueError as exc:
             raise ConfigError("CWK_OPENSEARCH_TIMEOUT must be a number") from exc
-        if timeout <= 0:
+        if not math.isfinite(timeout) or timeout <= 0:
             raise ConfigError("CWK_OPENSEARCH_TIMEOUT must be positive")
         username = env.get("CWK_OPENSEARCH_USERNAME") or None
         password = env.get("CWK_OPENSEARCH_PASSWORD") or None
@@ -97,13 +99,15 @@ class Settings:
             request_timeout=timeout,
             username=username,
             password=password,
-        )
+        ).with_overrides()
 
     def with_overrides(self, **changes: object) -> "Settings":
         """Return a validated copy for explicit CLI overrides."""
         result = dataclasses.replace(self, **changes)
         _endpoint(result.opensearch_url)
         _banks(",".join(result.banks))
+        if not _INDEX_RE.fullmatch(result.index_name) or not result.tenant_id or any(char.isspace() for char in result.tenant_id):
+            raise ConfigError("index and tenant identifiers are invalid")
         if not 1 <= result.port <= 65535 or not 1 <= result.top_k <= 100:
             raise ConfigError("CLI settings are outside the supported range")
         if not result.index_name or not result.tenant_id:
