@@ -252,6 +252,7 @@ class OllamaLLMBearerTokenTest(unittest.TestCase):
             llm = OllamaLLM()
             llm.base = f"http://127.0.0.1:{port}/v1/chat/completions"
             llm.api_key = "synthetic-key-123"
+            llm.model = "synthetic-model"
             out = llm.generate("synthetic question", ["synthetic context"])
             self.assertEqual(out, "synthetic llm ok")
             self.assertEqual(
