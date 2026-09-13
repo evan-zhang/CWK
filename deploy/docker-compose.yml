@@ -1,0 +1,46 @@
+services:
+  opensearch:
+    build:
+      context: ..
+      dockerfile: deploy/opensearch.Dockerfile
+    environment:
+      discovery.type: single-node
+      DISABLE_SECURITY_PLUGIN: "true"
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+      bootstrap.memory_lock: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms1g -Xmx1g"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - "127.0.0.1:${OPENSEARCH_PORT:-9200}:9200"
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9200/_cluster/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  retrieval:
+    build:
+      context: ..
+      dockerfile: deploy/retrieval.Dockerfile
+    environment:
+      CWK_OPENSEARCH_URL: http://opensearch:9200
+      CWK_OPENSEARCH_INDEX: ${CWK_OPENSEARCH_INDEX:-cwk-retrieval-v1}
+      CWK_OPENSEARCH_TIMEOUT: ${CWK_OPENSEARCH_TIMEOUT:-10}
+      CWK_RETRIEVAL_HOST: 0.0.0.0
+      CWK_RETRIEVAL_PORT: 8787
+      CWK_RETRIEVAL_TENANT: ${CWK_RETRIEVAL_TENANT:-default}
+      CWK_RETRIEVAL_BANKS: ${CWK_RETRIEVAL_BANKS:-cwork-3m,docdb-touqian,spbp-2027}
+      CWK_RETRIEVAL_TOP_K: ${CWK_RETRIEVAL_TOP_K:-10}
+    ports:
+      - "127.0.0.1:${RETRIEVAL_PORT:-8787}:8787"
+    depends_on:
+      opensearch:
+        condition: service_healthy
+
+volumes:
+  opensearch-data:
