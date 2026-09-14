@@ -75,7 +75,7 @@ class AdminHTTPTests(unittest.TestCase):
         for secret in ("SECRET-DIGEST", "SECRET-SALT", "SECRET-OWNER", "token_sha256", "owner_ref_salt", str(self.library_root), "logical-only"):
             self.assertNotIn(secret, rendered)
 
-    def test_services_health_timeout_is_bounded_and_audit_is_redacted(self):
+    def test_services_use_existing_health_routes_and_audit_is_redacted(self):
         status, payload = self.request("/api/services", key="unit-secret")
         self.assertEqual(status, 200)
         self.assertEqual({row["status"] for row in payload["services"]}, {"unhealthy"})

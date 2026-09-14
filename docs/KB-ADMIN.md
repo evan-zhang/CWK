@@ -5,9 +5,10 @@
 ## 运行
 
 ```bash
-KB_ADMIN_ENABLED=true \
-KB_ADMIN_KEY_ENV=KB_ADMIN_KEY \
-KB_ADMIN_KEY='只存在于受控环境的密钥' \
+export KB_ADMIN_ENABLED=true
+export KB_ADMIN_KEY_ENV=KB_ADMIN_KEY
+# 由受控环境/密钥管理器注入，不要在命令行或仓库中写出值
+export KB_ADMIN_KEY
 python3 scripts/kb_admin.py
 ```
 

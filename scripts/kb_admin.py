@@ -152,7 +152,7 @@ class AdminApp:
         except ValueError:
             timeout = 1.0
         results = []
-        for name, env_name, default in (("gateway", ENV_GATEWAY_URL, "http://127.0.0.1:8787/health"), ("ops", ENV_OPS_URL, "http://127.0.0.1:8790/health")):
+        for name, env_name, default in (("gateway", ENV_GATEWAY_URL, "http://127.0.0.1:8787/health"), ("rag_answer", ENV_OPS_URL, "http://127.0.0.1:8790/healthz")):
             url = self.env.get(env_name, default)
             try:
                 with urllib.request.urlopen(url, timeout=timeout) as response:
