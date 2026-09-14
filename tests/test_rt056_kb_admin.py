@@ -60,7 +60,10 @@ class AdminHTTPTests(unittest.TestCase):
         self.assertEqual(self.request("/api/overview", key="wrong")[0], 401)
         self.assertEqual(self.request("/healthz")[0], 200)
         disabled = kb_admin.AdminApp({"KB_ADMIN_ENABLED": "false"})
-        self.assertEqual(disabled.handle("GET", "/api/overview", {})[0], 503)
+        # Disabled is not an authentication bypass: every admin API remains
+        # an indistinguishable unauthorized surface.
+        self.assertEqual(disabled.handle("GET", "/api/overview", {})[0], 401)
+        self.assertEqual(disabled.handle("GET", "/api/audit", {})[0], 401)
         self.assertEqual(disabled.handle("GET", "/healthz", {})[0], 503)
 
     def test_overview_redacts_registry_and_reads_real_index(self):
@@ -90,6 +93,7 @@ class AdminHTTPTests(unittest.TestCase):
         self.assertEqual(self.request("/api/jobs/ingest", method="POST", key="unit-secret")[0], 501)
         after = sorted(str(path.relative_to(self.library_root)) for path in self.library_root.rglob("*"))
         self.assertEqual(before, after)
+        self.assertEqual(self.audit.stat().st_mode & 0o777, 0o600)
 
     def test_ui_is_native_html_and_unknown_errors_are_generic(self):
         req = urllib.request.Request(self.base + "/")

@@ -78,7 +78,9 @@ class AdminApp:
     def __init__(self, environ: Mapping[str, str] | None = None) -> None:
         self.env = dict(environ or os.environ)
         self.enabled = _enabled(self.env.get(ENV_ENABLED))
-        key_name = self.env.get(ENV_KEY_NAME, "KB_ADMIN_KEY")
+        # The indirection must be explicit: do not silently select a common
+        # ambient variable when the operator forgot the binding.
+        key_name = self.env.get(ENV_KEY_NAME, "")
         self.key_name = _safe_name(key_name)
         self.library_root = Path(self.env.get(ENV_LIBRARY_ROOT, str(Path.home() / "CWK" / "libraries")).strip()).expanduser()
         self.registry = Path(self.env.get(ENV_REGISTRY, str(Path.home() / "CWK" / "ops" / "tokens.json")).strip()).expanduser()
@@ -96,10 +98,19 @@ class AdminApp:
     def _audit(self, action: str, outcome: str, status: int) -> None:
         event = {"timestamp": _now(), "action": action, "outcome": outcome, "status": status}
         try:
-            self.audit_path.parent.mkdir(parents=True, exist_ok=True)
             line = _json_bytes(event) + b"\n"
-            with self._audit_lock, self.audit_path.open("ab") as handle:
-                handle.write(line)
+            with self._audit_lock:
+                self.audit_path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+                flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND
+                fd = os.open(self.audit_path, flags, 0o600)
+                try:
+                    os.fchmod(fd, 0o600)
+                    with os.fdopen(fd, "ab", closefd=True) as handle:
+                        handle.write(line)
+                    fd = -1
+                finally:
+                    if fd >= 0:
+                        os.close(fd)
         except (OSError, ValueError):
             pass
 
@@ -177,8 +188,6 @@ class AdminApp:
             return 200, {"html": _HTML}, {"Content-Type": "text/html; charset=utf-8"}
         if not route.startswith("/api/"):
             return 404, {"error": "not_found"}, {}
-        if not self.enabled:
-            return 503, {"error": "admin_disabled"}, {}
         if not self._authorized(headers):
             return 401, {"error": "unauthorized"}, {}
         if route == "/api/overview" and method == "GET":

@@ -11,7 +11,7 @@ KB_ADMIN_KEY='只存在于受控环境的密钥' \
 python3 scripts/kb_admin.py
 ```
 
-`KB_ADMIN_KEY_ENV` 和 `--key-env` 只能是环境变量名，不能放密钥值；不要把密钥写入命令行参数、仓库或日志。启动时不设置 `KB_ADMIN_ENABLED=true`，管理 API 返回不可用，不读取库配置。
+`KB_ADMIN_KEY_ENV` 和 `--key-env` 只能是环境变量名，不能放密钥值；不要把密钥写入命令行参数、仓库或日志。启动时不设置 `KB_ADMIN_ENABLED=true`，管理 API 仍统一返回 `401 unauthorized`，不读取库配置；仅 `/healthz` 返回禁用状态。
 
 可选配置：
 
@@ -20,7 +20,7 @@ python3 scripts/kb_admin.py
 - `KB_ADMIN_AUDIT_PATH`：管理审计 JSONL；默认 `~/CWK/ops/admin-audit.jsonl`，与 KB 内容树分离。
 - `KB_GATEWAY_URL` / `KB_OPS_URL`：8787/8790 健康探测地址。
 - `KB_ADMIN_SERVICE_TIMEOUT`：探测超时，最大 3 秒。
-- `KB_ADMIN_WRITE_ENABLED=true`：仅允许记录 create/ingest 的受控 `501 not_implemented` 占位；不启用时返回 `403`。两种情况下都不修改 KB。
+- `KB_ADMIN_WRITE_ENABLED=true`：仅允许记录 create/ingest 的受控 `501 not_implemented` 占位；不启用时返回 `403`。两种情况下都不修改 KB。审计文件目录按 `0700`、文件按 `0600` 创建。
 
 ## API 与安全边界
 
