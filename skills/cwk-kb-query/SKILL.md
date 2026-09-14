@@ -16,8 +16,8 @@ diff_from_v2: "主入口迁至 8787 /query、/answer、/read（强制 token 鉴�
 | 服务 | 正式入口（局域网） | OPS 本机 | 鉴权 |
 |---|---|---|---|
 | 检索 | `http://192.168.91.72:8787/query` | `127.0.0.1:18887/query` | X-KB-Token 必须 |
-| AI 问答 | 暂无外口 | `127.0.0.1:8790/answer`（远程先开隧道） | X-KB-Token 必须 |
-| 原文读取 | 暂无外口 | `127.0.0.1:8790/read`（远程先开隧道） | X-KB-Token 必须 |
+| AI 问答 | `http://192.168.91.72:8790/answer` | `127.0.0.1:8790/answer` | X-KB-Token 必须 |
+| 原文读取 | `http://192.168.91.72:8790/read` | `127.0.0.1:8790/read` | X-KB-Token 必须 |
 | 健康检查 | `http://192.168.91.72:8787/healthz` | 同左 | 免鉴权 |
 
 - 所有业务请求必须带 `X-KB-Token: <token>` 头；token 按 Agent 实例签发、按库授权 scope。
