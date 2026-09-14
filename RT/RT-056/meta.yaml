@@ -1,0 +1,16 @@
+id: RT-056
+title: AI 知识库管理台与管理 API MVP
+type: Feature
+profile: Spec-Lite
+execution_mode: collaborative
+status: in_progress
+modules: [kb-admin, kb-ops, kb-token]
+branch: feature/RT-056-kb-admin-mvp
+worktree: .claude/worktrees/RT-056-kb-admin-mvp
+owner: Evan
+created_at: 2026-09-15T00:35:00+08:00
+updated_at: 2026-09-15T00:35:00+08:00
+closed_at: null
+notes: >
+  新增独立内网管理台与只读/占位管理 API；不改动 8787/8790，不部署 OPS，
+  不向浏览器暴露任何明文凭据。管理写操作默认关闭并由独立管理密钥保护。
