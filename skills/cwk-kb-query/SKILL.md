@@ -21,7 +21,7 @@ diff_from_v2: "主入口迁至 8787 /query、/answer、/read（强制 token 鉴�
 | 健康检查 | `http://192.168.91.72:8787/healthz` | 同左 | 免鉴权 |
 
 - 所有业务请求必须带 `X-KB-Token: <token>` 头；token 按 Agent 实例签发、按库授权 scope。
-- **领 token**：找管理 Agent（cwk-kb-authorize）签发；token 明文只在签发回执出现一次。
+- **领 token**：已有 token 优先复用（Mac mini 会话直接用 gateway `.env` 的 `CWK_KB_TOKEN`，180 天三库 scope，禁止重复签发）；确需新签才走 cwk-kb-authorize，token 明文只在签发回执出现一次。管理面有每用户 5 token 上限。
 - 401 = token 缺失/过期/被吊销；403 = token 有效但目标 bank 不在其 scope（跨库隔离，正常）。
 
 ## 能力矩阵与路由
