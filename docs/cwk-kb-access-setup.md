@@ -1,114 +1,126 @@
-# CWK 知识库检索接入（cwk-kb-query）
+# CWK 知识库接入 Runbook（v3 · RT-055 新栈）
 
 > 本文件由知识库管理员（Evan）分发。把它整段发给你的 AI 助手即可。
 > 全程无秘密交换：本文件不含任何 token/密码；token 由管理员审核后单独下发。
+> 适用：与管理员 gateway 同一局域网、且以 OpenClaw 运行的 Agent。栈版本：RT-055（2026-09-14 灰度上线）。
 
-【任务】在本机 OpenClaw Agent 上接入 CWK 知识库检索（安装/升级 cwk-kb-query Skill，配置查询，完成验证）。按下面的阶段判断自动选择分支执行。
+## 服务坐标（只读备忘）
+
+| 能力 | 局域网入口 | 鉴权 |
+|---|---|---|
+| 健康检查 | `GET http://192.168.91.72:8787/healthz` | 免鉴权 |
+| 检索 | `POST http://192.168.91.72:8787/query` `{bank, query, top_k}` | X-KB-Token 必须 |
+| AI 问答 | `POST http://192.168.91.72:8790/answer` `{bank?, query, top_k?}`（约 25–45s，超时给 ≥120s） | X-KB-Token 必须 |
+| 读原文 | `POST http://192.168.91.72:8790/read` `{doc_id, offset?, length?}` | X-KB-Token 必须 |
+
+当前可用库（bank）：`cwork-3m`（工作协同近 3 月）、`docdb-touqian`（投前资料）、`spbp-2027`（2027 集团 SP&BP）。
+错误语义：401 = token 缺失/过期/被吊销（找管理员）；403 = token 有效但目标库不在其 scope（找管理员调 scope）；404 = doc_id 不存在；416 = offset 越界（按 total_chars 重算）。
 
 ## 阶段判断
 
-检查 `~/.openclaw/cwk/kb-bind.env`：
-- **不存在、为空、或 CWK_KB_BIND_TOKEN 不是 64 位十六进制** → 执行【阶段 A：安装 + 登记】
-- **存在且有效** → 执行【阶段 B：配置验证】
+检查 `~/.openclaw/cwk/kb.env`：
+- **不存在、为空、或 CWK_KB_TOKEN 不是 64 位十六进制** → 执行【阶段 A：安装 + 登记】
+- **存在且有效** → 执行【阶段 B：验证】
 
 ---
 
-## 阶段 A：安装 + 登记信息收集（无 token 时）
+## 阶段 A：安装 + 预检 + 登记（无 token 时）
 
 ### A1. 安装/升级 Skill（幂等，重复执行即升级）
 
-1. 拉取仓库（公开仓，无需凭据）：
-   ```bash
-   git clone --depth 1 https://github.com/evan-zhang/CWK.git /tmp/CWK 2>/dev/null || git -C /tmp/CWK pull --ff-only
-   ```
-2. 定位本网关工作区的 skills 目录（选自己网关对应的那个）：
-   ```bash
-   ls -d ~/.openclaw/gateways/*/state/workspace*/skills
-   ```
-   （多级工作区拿不准时，选当前 Agent 所在 gateway 的；仍不确定就列出全部让用户指认）
-3. 覆盖安装：
-   ```bash
-   rm -rf <skills目录>/cwk-kb-query && cp -R /tmp/CWK/skills/cwk-kb-query <skills目录>/cwk-kb-query
-   ```
-4. 校验：目标目录下应有 `SKILL.md` 和 `references/v2-read-chain.md`；通读 SKILL.md 后再继续。
+```bash
+git clone --depth 1 https://github.com/evan-zhang/CWK.git /tmp/CWK 2>/dev/null || git -C /tmp/CWK pull --ff-only
+ls -d ~/.openclaw/gateways/*/state/workspace*/skills   # 定位本网关工作区 skills 目录（多网关拿不准就列出全部让用户指认）
+rm -rf <skills目录>/cwk-kb-query && cp -R /tmp/CWK/skills/cwk-kb-query <skills目录>/cwk-kb-query
+```
 
-### A2. 收集登记信息（纯只读）
+校验：`SKILL.md` 存在，且内容含 `8787`、`8790`、`/read`（v3 特征），不含 `draft-pending-gray-gate`。
 
-1. 机器名：
-   - macOS：`scutil --get ComputerName && hostname`
-   - Linux：`hostname`
-2. 本 Gateway 的 agent-id：查 `~/.openclaw/` 下当前网关配置 agents 段的 id 字段，或运行 `openclaw agents list` 取默认聊天 Agent 的 id
-3. 网关可达性预检：
-   ```bash
-   curl -s -m 6 http://192.168.91.72:8787/health
-   ```
-   期望 `ok=true` 且 `version ≥ 1.2`（连不上也如实报，不要猜原因）
+### A2. 加入 Agent 可见白名单（装了 ≠ 看得见，必做）
 
-### A3. 回报（严格按模板，不附加其他内容）
+skill 目录就位只是文件层面；Agent 实际能否使用取决于该 agent 的 skills 白名单：
+
+1. 找到本网关配置文件（通常 `~/.openclaw/gateways/<网关名>/openclaw.json`），先备份。
+2. 在 `agents.entries.<本agent-id>.skills` 数组**末尾追加** `"cwk-kb-query"`（只加不删，保持既有条目不动）。
+3. 验证：`openclaw skills info cwk-kb-query` → 应显示 `Visible to model: yes`。
+4. 若显示 excluded/not visible：改完后让该 agent 新起一轮对话重载 skills；仍不行则回报登记信息，不要瞎改其他配置。
+
+### A3. 预检 + 收集登记信息（纯只读）
+
+```bash
+curl -s -m 6 http://192.168.91.72:8787/healthz        # 期望 {"status":"ok"}
+scutil --get ComputerName 2>/dev/null || hostname      # 机器名
+openclaw agents list 2>/dev/null | head                # 本网关 agent-id
+```
+
+### A4. 回报（严格按模板，不附加其他内容）
 
 ```
 --- CWK-KB 接入登记 ---
 机器名: <...>
 agent-id: <...>
-网关可达: <ok=true / 不可达 + 原始报错>
-申请库: <从下面勾选>
-  [ ] docdb-touqian（投前流程系统建设）
-  [x] spbp-2027（2027集团SP&BP）
+网关可达: <{"status":"ok"} / 不可达 + 原始报错>
+申请库（勾选）:
+  [ ] cwork-3m（工作协同近 3 月）
+  [ ] docdb-touqian（投前资料）
+  [ ] spbp-2027（2027 集团 SP&BP）
 Skill 安装: <成功/已升级 路径 / 失败原因>
+白名单可见: <Visible to model: yes / 未通过 + 现象>
 ---
 ```
 
-把以上内容发回给分发者（Evan）。等 token 下发后，重新执行本文件进入阶段 B。
+把以上内容发回分发者（Evan）。管理员签发 token 后会单独私发给你；拿到后重新执行本文件进入阶段 B。
 
-⚠️ 纪律：以上全是明文标签。不要在回复中附带任何 token、密码、业务 Key 或配置文件原文。
+⚠️ 纪律：全程明文标签，不附带任何 token、密码、业务 Key 或配置原文。
 
 ---
 
-## 阶段 B：配置 token + 四步验证（拿到 token 后）
+## 阶段 B：配置 token + 验证（拿到 token 后）
 
-### B1. 写入 token（token 值由 Evan 单独发给你，不经过群聊/仓库）
+### B1. 写入 token（值由 Evan 私发，不经过群聊/仓库/日志）
 
 ```bash
 mkdir -p ~/.openclaw/cwk
-cat > ~/.openclaw/cwk/kb-bind.env <<'EOF'
-CWK_KB_BIND_TOKEN=<Evan发给你的64位token>
+cat > ~/.openclaw/cwk/kb.env <<'EOF'
+CWK_KB_TOKEN=<Evan私发你的64位token>
 EOF
-chmod 600 ~/.openclaw/cwk/kb-bind.env
+chmod 600 ~/.openclaw/cwk/kb.env
+set -a; source ~/.openclaw/cwk/kb.env; set +a
 ```
 
-⚠️ 铁律：token 绝不打印到对话/日志，绝不进命令行参数（history 会留痕）或 git；绝不向任何人索要管理 Key（CWK_KB_ADMIN_KEY 不会下发）。
+⚠️ 铁律：token 绝不打印到对话/日志，绝不进命令行参数（history 留痕）或 git。签发/换发后等 ≥10 秒再验证（注册表同步有秒级延迟）。
 
-### B2. 第 0 步：先发现授权库
+### B2. 验证矩阵（全绿才算接入完成）
 
-不要再从本文复制库名。配置 token 后先运行：
+1. **服务健康**：`curl -s -m 6 http://192.168.91.72:8787/healthz` → `{"status":"ok"}`
+2. **检索**（用你申请的任一 bank）：
+   ```bash
+   curl -s -m 15 http://192.168.91.72:8787/query -X POST \
+     -H 'Content-Type: application/json' -H "X-KB-Token: $CWK_KB_TOKEN" \
+     -d '{"bank":"<你的bank>","query":"立项","top_k":3}'
+   ```
+   → HTTP 200，`hits` 数组含 `doc_id/score/channel`，`took_ms` 毫秒级
+3. **读原文**（拿第 2 步 top1 的 doc_id）：
+   ```bash
+   curl -s -m 15 http://192.168.91.72:8790/read -X POST \
+     -H 'Content-Type: application/json' -H "X-KB-Token: $CWK_KB_TOKEN" \
+     -d '{"doc_id":"<doc_id>","offset":0,"length":500}'
+   ```
+   → HTTP 200，返回 `text/eof/total_chars`
+4. **AI 问答**（可选，按需）：
+   ```bash
+   curl -s -m 120 http://192.168.91.72:8790/answer -X POST \
+     -H 'Content-Type: application/json' -H "X-KB-Token: $CWK_KB_TOKEN" \
+     -d '{"bank":"<你的bank>","query":"<问题>","top_k":3}'
+   ```
+   → HTTP 200，返回 `answer` + `citations`；约 25–45 秒属正常；库里没有的内容会体面拒答
 
-```bash
-curl -s -m 30 -H "X-KB-Token: $CWK_KB_BIND_TOKEN" http://192.168.91.72:8787/v2/kb/libraries
-```
+错误对照：401 → token 问题找 Evan 重签；403 → 该库不在你的 scope，找 Evan 调整。
 
-从返回的 `libraries[].kb_id` 选择后续查询目标。200 空列表表示 token 有效但当前没有已挂载授权库；401 才是 token 或登记表问题。
+### B3. 使用守则（日常）
 
-### B3. 四步验证（全绿才算接入完成）
-
-```bash
-set -a; source ~/.openclaw/cwk/kb-bind.env; set +a
-```
-
-1. **服务健康**：
-   `curl -s -m 6 http://192.168.91.72:8787/health` → `ok=true`
-2. **元数据查询（旧通道）**：
-   `curl -s -m 30 -H "X-KB-Token: $CWK_KB_BIND_TOKEN" 'http://192.168.91.72:8787/query?q=立项&kb=docdb-touqian'`
-   → HTTP 200（401=token 问题找 Evan；403=该库不在你的授权名单，找 Evan 调整）
-3. **融合正文搜索（新通道，超时必须给 300 秒）**：
-   `curl -s -m 300 -H "X-KB-Token: $CWK_KB_BIND_TOKEN" 'http://192.168.91.72:8787/v2/kb/search?kb=spbp-2027&q=亿元&retrieval_mode=lexical_fusion_v1&page_size=5'`
-   → 200，total ≥ 1，top1 带 body_rank 和 candidate_spans
-4. **引文链闭环**：拿第 3 步 top1 的 document_ref 与第一个 candidate_span 的 start_byte/end_byte：
-   `curl -s -m 300 -H "X-KB-Token: $CWK_KB_BIND_TOKEN" "http://192.168.91.72:8787/v2/kb/read?kb=spbp-2027&document_ref=<ref>&start_byte=<s>&end_byte=<e>"`
-   → `full_sha_verified=true` 且返回 text 含查询词
-
-### B3. 使用守则（日常使用）
-
-- 检索用法、参数表、易错点（64K 页上限 / span 是字节不是字 / 续读必须 continue）、错误码速查：以已安装的 `cwk-kb-query/SKILL.md` 和 `references/v2-read-chain.md` 为准
-- 每个事实性回答必须带实时引文；零命中先换 2–3 个同义词再下结论
-- 融合搜索单次可能 60 秒以上（正常），`503 lexical_unavailable` = 词法代问题，显式传 `allow_degraded=metadata` 降级或找运维
-- 完成验证后汇报：四步验证的输出摘要 + skill 安装路径
+- 检索用法、端点细节、易错点以已安装的 `cwk-kb-query/SKILL.md`（v3）为准；日常使用直接对 agent 说「用 cwk-kb-query skill 查/问 <bank> 库：<问题>」。
+- 每个事实性回答必须带 citation 或 `/read` 原文页；`no_answer` 或零命中先换 2–3 个同义/变体查询再下"库里没有"的结论。
+- 语料原文不要大段搬运到频道/群聊展示（引用与定位片段除外）。
+- token 是按 agent 实例签发的：不要复制给其他机器/agent 共用；怀疑泄露立即让 Evan 吊销重签。
+- 完成验证后汇报：验证矩阵各步 HTTP 状态摘要 + skill 安装路径 + 白名单可见状态。
