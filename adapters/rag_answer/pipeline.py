@@ -60,14 +60,17 @@ class RetrievalHTTPRetriever:
         self.url = url
         self.bank = bank
         self.timeout = timeout
+        # The loopback service token is deliberately separate from the caller's
+        # token: it is injected only when the deployment explicitly configures it.
+        self.auth_token = os.getenv("RAG_AUTH_TOKEN", "")
         self._opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
     def search(self, query: str, top_k: int = 5, bank: str | None = None, token: str = "") -> list[dict[str, object]]:
         validate_top_k(top_k)
         payload = {"bank": bank or self.bank, "query": query, "top_k": top_k}
         headers = {"Accept": "application/json", "Content-Type": "application/json"}
-        if token:
-            headers["X-KB-Token"] = token
+        if self.auth_token:
+            headers["X-KB-Token"] = self.auth_token
         request = urllib.request.Request(
             self.url,
             data=json.dumps(payload, separators=(",", ":")).encode("utf-8"),

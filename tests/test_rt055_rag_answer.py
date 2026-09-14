@@ -7,11 +7,13 @@ index, or copy repository knowledge-base material.
 from __future__ import annotations
 
 import json
+import os
 import sys
 import threading
 import urllib.error
 import urllib.request
 import unittest
+from unittest.mock import patch
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -269,6 +271,7 @@ class _RetrievalCaptureHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         length = int(self.headers.get("Content-Length", "0"))
         _RetrievalCaptureHandler.captured["body"] = json.loads(self.rfile.read(length))
+        _RetrievalCaptureHandler.captured["auth"] = self.headers.get("X-KB-Token")
         body = json.dumps({"hits": [{"doc_id": "synthetic-doc", "score": 1.0}]}).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -281,23 +284,31 @@ class _RetrievalCaptureHandler(BaseHTTPRequestHandler):
 
 
 class RetrievalBankRoutingTest(unittest.TestCase):
-    def test_retrieval_payload_carries_requested_bank(self) -> None:
+    def retrieve(self, env):
         _RetrievalCaptureHandler.captured = {}
         stub = ThreadingHTTPServer(("127.0.0.1", 0), _RetrievalCaptureHandler)
         port = stub.server_address[1]
         thread = threading.Thread(target=stub.serve_forever, daemon=True)
         thread.start()
         try:
-            retriever = RetrievalHTTPRetriever(
-                f"http://127.0.0.1:{port}/query", "cwork-3m"
-            )
-            retriever.search("synthetic question", top_k=2, bank="docdb-touqian")
-            self.assertEqual(
-                _RetrievalCaptureHandler.captured["body"]["bank"], "docdb-touqian"
-            )
+            with patch.dict(os.environ, env, clear=False):
+                retriever = RetrievalHTTPRetriever(
+                    f"http://127.0.0.1:{port}/query", "cwork-3m"
+                )
+                retriever.search("synthetic question", top_k=2, bank="docdb-touqian")
+            return _RetrievalCaptureHandler.captured
         finally:
             stub.shutdown()
             stub.server_close()
+
+    def test_retrieval_payload_carries_requested_bank(self) -> None:
+        captured = self.retrieve({"RAG_AUTH_TOKEN": ""})
+        self.assertEqual(captured["body"]["bank"], "docdb-touqian")
+        self.assertIsNone(captured["auth"])
+
+    def test_configured_service_token_is_sent_as_kb_header(self) -> None:
+        captured = self.retrieve({"RAG_AUTH_TOKEN": "synthetic-service-token"})
+        self.assertEqual(captured["auth"], "synthetic-service-token")
 
 
 if __name__ == "__main__":
