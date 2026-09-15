@@ -1,0 +1,20 @@
+id: RT-057
+title: 主线 CI 回归修复（治理夹具 + compose 绑定契约）
+type: Bugfix
+profile: Spec-Lite
+execution_mode: collaborative
+status: created
+modules: [governance-audit, rt055-retrieval-decision]
+branch: feature/RT-057-ci-repair
+worktree: .claude/worktrees/RT-057-ci-repair
+owner: Evan
+created_at: 2026-09-15T20:09:37+08:00
+updated_at: 2026-09-15T20:09:37+08:00
+closed_at: null
+notes: >
+  main 的 make ci 自 40c47fb（2026-09-13，RT-055 生产化合并）起连红 21 次，
+  最后一次绿是 09c8aff。本 RT 只修「代码改了、判据没跟着改」这一类真回归：
+  治理审计合成夹具缺两条新规则的目标文件（GA-STALE-RULE ×5），以及
+  compose 端口绑定改为可配置后未同步的部署契约断言 ×1。
+  只在本地与 CI 同时红的 6 个用例属于本次范围；仅 CI 红的 RT-055 台账族
+  13 个与仅本地红的 8 个另行诊断，不在本 RT 范围内。
