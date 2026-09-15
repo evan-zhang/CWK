@@ -83,8 +83,16 @@ class TemplateAndProjectionTests(unittest.TestCase):
 class DeploymentContractTests(unittest.TestCase):
     def test_compose_is_loopback_bound_and_forwards_only_env_credentials(self):
         compose = COMPOSE.read_text(encoding="utf-8")
+        # OpenSearch 永远写死回环：它不参与局域网暴露，没有可配置绑定地址。
         self.assertIn('"127.0.0.1:${OPENSEARCH_PORT:-9200}:9200"', compose)
-        self.assertIn('"127.0.0.1:${RETRIEVAL_PORT:-8787}:8787"', compose)
+        # 两个对外服务的绑定地址自 RT-055 起可配置（KB_BIND_ADDR），但契约是
+        # **默认必须回环**：不传变量时发布地址仍为 127.0.0.1。
+        self.assertIn('"${KB_BIND_ADDR:-127.0.0.1}:${RETRIEVAL_PORT:-8787}:8787"', compose)
+        self.assertIn('"${KB_BIND_ADDR:-127.0.0.1}:${RAG_PORT:-8790}:8790"', compose)
+        # 任何一处把默认值改成非回环，这条就会红——可配置不等于默认放开。
+        self.assertEqual(
+            compose.count("${KB_BIND_ADDR:-127.0.0.1}"), compose.count("${KB_BIND_ADDR"),
+        )
         self.assertIn("CWK_OPENSEARCH_USERNAME: ${CWK_OPENSEARCH_USERNAME:-}", compose)
         self.assertIn("CWK_OPENSEARCH_PASSWORD: ${CWK_OPENSEARCH_PASSWORD:-}", compose)
         self.assertNotIn("username:", compose)

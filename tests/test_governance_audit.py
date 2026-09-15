@@ -101,6 +101,9 @@ _REPRESENTATIVE_TRACKED = (
     "scripts/kb_wizard.py",
     "scripts/kb_gateway.py",
     "scripts/kb_ops.py",
+    # RT-056 管理台：scripts/ 是 exact-only 区，R-runtime-rt056-kb-admin 逐条登记，
+    # 这里必须有对应代表文件，否则规则在合成仓库里匹配 0 个文件 → GA-STALE-RULE。
+    "scripts/kb_admin.py",
     "scripts/kb_p0.py",
     "scripts/kb_p0_benchmark.py",
     "scripts/kb_gateway_client.py",
@@ -114,6 +117,9 @@ _REPRESENTATIVE_TRACKED = (
     "skills/cwk-kb-query/SKILL.md",
     "scripts/cwk_wiki_batch_driver.sh",
     "deploy/README.md",
+    # R-doc-rt055-auth-status 显式认领这份已跟踪的 runs/ 脱敏状态记录（runs/ 其余
+    # 内容不入库）。同样需要代表文件，否则该规则被判为失效。
+    "runs/rt055-auth/status.md",
     "config/entity-family-registry.json",
     "references/relation-gold-v1.json",
     "skill/templates/CONFIG.example.json",
