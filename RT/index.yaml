@@ -307,7 +307,7 @@ entries:
   created: 2026-09-07
 - id: RT-054
   title: 大库词法融合检索快照/预计算性能治理
-  status: intaking
+  status: in-progress
   profile: Spec-Lite
   created: 2026-09-07
 - id: RT-055
@@ -315,3 +315,8 @@ entries:
   status: in_progress
   profile: Spec-Lite
   created: 2026-09-10
+- id: RT-056
+  title: AI 知识库管理台与管理 API MVP
+  status: in_progress
+  profile: Spec-Lite
+  created: 2026-09-15
