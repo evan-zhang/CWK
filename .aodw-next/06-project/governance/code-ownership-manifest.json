@@ -715,6 +715,30 @@
       "change_entry": "RT → rt-lite.md 记录理由 → 改动 → make governance-audit + tests/test_kb_access_file.py + tests/test_kb_gateway.py + tests/test_rt051_wizard_readside.py",
       "evolution_path": "repo-standard-change",
       "rationale": "RT-053 单库共享授权文件的独立管理/导入工具与管理 Agent Skill。两者共同定义 export/import/revoke/rotate 文件合同；管理员边界是 OPS token registry 的写权限，不读取或冒充 kb.json.owner_ref 创建者验证。逐条 exact_set，避免把 scripts/ 或 skills/ 扩成宽泛授权。"
+    },
+    {
+      "id": "R-doc-rt055-auth-status",
+      "domain": "docs_governance",
+      "kind": "exact",
+      "path": "runs/rt055-auth/status.md",
+      "owner": "RT-055",
+      "management_domain": "rt055-auth-evidence",
+      "change_entry": "RT-055 运行状态记录 → 保持脱敏 → governance-audit",
+      "evolution_path": "repo-standard-change",
+      "rationale": "仓库中已跟踪的 RT-055 脱敏状态记录；显式登记以避免 runs/ 运行产物成为治理盲区。"
+    },
+    {
+      "id": "R-runtime-rt056-kb-admin",
+      "domain": "runtime",
+      "kind": "exact_set",
+      "paths": [
+        "scripts/kb_admin.py"
+      ],
+      "owner": "RT-056",
+      "management_domain": "cwk-governance-v1",
+      "change_entry": "RT → rt-lite.md 记录理由 → 改动 → make governance-audit + tests/test_rt056_kb_admin.py",
+      "evolution_path": "repo-standard-change",
+      "rationale": "RT-056 独立的、默认关闭的 stdlib-only 管理台与只读/占位 API。逐条 exact_set：scripts/ 是 exact-only 区，管理台不应被其它脚本规则隐式吸收。"
     }
   ],
   "exceptions": [
