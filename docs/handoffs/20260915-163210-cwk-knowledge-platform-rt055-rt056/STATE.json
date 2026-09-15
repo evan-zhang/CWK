@@ -1,0 +1,267 @@
+{
+  "schemaVersion": 3,
+  "createdAt": "2026-09-15T16:32:10+08:00",
+  "packageIdentity": {
+    "revisionId": "20260915-163210-cwk-knowledge-platform-rt055-rt056",
+    "supersedes": null,
+    "immutableAfterSeal": true
+  },
+  "task": {
+    "id": "RT-055-RT-056",
+    "title": "CWK RT-055 knowledge platform and RT-056 admin MVP",
+    "objective": "保存并交接当前会话关于 CWK 知识库新栈、跨 gateway 接入、管理台 MVP 的全部决策、代码、部署状态、验证证据与唯一后续动作",
+    "status": "COMPLETED"
+  },
+  "workspace": {
+    "path": "/Users/evan/.openclaw/gateways/life/state/workspace-life/projects/CWK",
+    "repository": "https://github.com/evan-zhang/CWK.git",
+    "branch": "main",
+    "head": "11c99e0ce8a6d87eed451a554c328172ebbd6fbf",
+    "dirtySummary": "CLAUDE.md modified by pre-existing/unrelated work; docs/handover is untracked and contains this package"
+  },
+  "sourceSession": {
+    "sessionKey": "agent:chat-main-agent:discord:channel:1524382903184789685",
+    "sessionId": "71ad48f7-a187-4ddb-89f3-38f3940e8067",
+    "channel": "discord",
+    "created": null,
+    "compactions": 2
+  },
+  "contextSnapshot": {
+    "capturedAt": "2026-09-15T16:37:00+08:00",
+    "contextUsedTokens": 224000,
+    "contextWindowTokens": 272000,
+    "usagePercent": 82,
+    "compactions": 2,
+    "sessionDuration": "7d25m"
+  },
+  "completed": [
+    "RT-055 OpenSearch 双通道方案 A 选择、生产检索/RAG 栈、三 bank 接入与鉴权闭环",
+    "三个 CWK skill v3 同步到当前 gateway 安装位并加入 chat-main-agent 白名单；新会话可见",
+    "跨 gateway LAN 接入 runbook v3 写入 docs/cwk-kb-access-setup.md",
+    "RT-056 管理台 MVP 实现、main 合并、主线测试复跑和 GitHub push",
+    "RT-056 管理台以独立目录和 loopback 8791 部署到 OPS 开发预览"
+  ],
+  "inProgress": [],
+  "notStarted": [
+    "RT-056 真实建库与真实摄取任务执行",
+    "RT-056 正式管理密钥和正式访问边界",
+    "RT-056 首台外部 gateway 实战接入",
+    "v0.3.0 stable release、New API 中转密钥轮换、动态自动更新专题讨论"
+  ],
+  "decisions": [
+    "采用 OpenSearch 双通道方案 A；B 的 WeKnora 原生方案未过冻结试卷门限",
+    "采用单实例多 bank；新增库是摄取+注册，不为每库复制服务",
+    "普通 gateway 分布式读，OPS 管理侧集中建库、摄取、签发和吊销",
+    "RT-056 先做轻量管理台，真实写操作先占位，避免未经评审的不可逆写入",
+    "开发阶段按 Evan 明确确认开启 RT-056 预览，正式化前必须更换临时开发凭据"
+  ],
+  "blockers": [
+    "管理台正式启用前需要独立受控 KB_ADMIN_KEY；当前仅为开发预览配置，值未记录",
+    "本次不应在没有新的明确授权和安全配置的情况下把 RT-056 暴露到公网或开启真实建库/摄取"
+  ],
+  "artifacts": [
+    {
+      "path": "/Users/evan/.openclaw/gateways/life/state/workspace-life/projects/CWK",
+      "exists": true,
+      "purpose": "CWK 主仓库",
+      "owner": "task"
+    },
+    {
+      "path": "/Users/evan/.openclaw/gateways/life/state/workspace-life/projects/CWK/scripts/kb_admin.py",
+      "exists": true,
+      "purpose": "RT-056 管理 API/UI",
+      "owner": "task"
+    },
+    {
+      "path": "/Users/evan/.openclaw/gateways/life/state/workspace-life/projects/CWK/docs/KB-ADMIN.md",
+      "exists": true,
+      "purpose": "管理台说明",
+      "owner": "task"
+    },
+    {
+      "path": "/Users/evan/.openclaw/gateways/life/state/workspace-life/projects/CWK/tests/test_rt056_kb_admin.py",
+      "exists": true,
+      "purpose": "RT-056 合成测试",
+      "owner": "task"
+    },
+    {
+      "path": "/Users/evan/.openclaw/gateways/life/state/workspace-life/projects/CWK/docs/cwk-kb-access-setup.md",
+      "exists": true,
+      "purpose": "跨 gateway v3 接入 runbook",
+      "owner": "task"
+    },
+    {
+      "path": "/Users/xgstudio/rt056-kb-admin-mvp",
+      "exists": false,
+      "purpose": "OPS 远程运行副本；本机校验器不可直接断言存在，见 liveStateReview 远程 SSH 证据",
+      "owner": "task"
+    },
+    {
+      "path": "/Users/evan/.openclaw/gateways/life/state/workspace-life/projects/CWK/docs/handoffs/20260915-163210-cwk-knowledge-platform-rt055-rt056",
+      "exists": true,
+      "purpose": "本交接包",
+      "owner": "task"
+    }
+  ],
+  "processes": [
+    {
+      "id": "62285",
+      "status": "UNKNOWN",
+      "purpose": "OPS RT-056 管理台开发预览",
+      "verifiedAt": "2026-09-15T16:37:00+08:00",
+      "recovery": "OPS 上读取 /tmp/rt056-kb-admin.pid 后仅恢复/停止该 PID；不要操作 8787/8790；本包创建时由远程/本机现场记录确认，接管时必须重新核验"
+    },
+    {
+      "id": "30600/30601",
+      "status": "UNKNOWN",
+      "purpose": "本机 SSH 隧道 18791 -> OPS 127.0.0.1:8791",
+      "verifiedAt": "2026-09-15T16:37:00+08:00",
+      "recovery": "使用 Life gateway .env 和 password-only SSH 重新建立隧道；停止前确认不再预览；本包创建时由远程/本机现场记录确认，接管时必须重新核验"
+    }
+  ],
+  "verification": [
+    {
+      "check": "CWK workspace、branch、HEAD、remote",
+      "result": "PASS",
+      "evidence": "本次 git 核验：main、HEAD 11c99e0ce8a6d87eed451a554c328172ebbd6fbf、remote CWK"
+    },
+    {
+      "check": "RT-056 关键代码/文档/测试存在",
+      "result": "PASS",
+      "evidence": "本次 stat 核验全部存在"
+    },
+    {
+      "check": "OPS RT-056 进程与监听",
+      "result": "PASS",
+      "evidence": "本次 SSH 核验 PID 62285 RUNNING；127.0.0.1:8791 LISTEN；healthz enabled=true,status=ok"
+    },
+    {
+      "check": "现有 RT-055 服务未被管理台替换",
+      "result": "PASS",
+      "evidence": "本次 SSH 核验 8787/8790 仍 LISTEN；管理台位于独立目录/8791"
+    },
+    {
+      "check": "RT-056 合成测试",
+      "result": "PASS",
+      "evidence": "2026-09-15 历史核验：独立分支 5/5，合并 main 后 5/5"
+    },
+    {
+      "check": "spbp-2027 新会话查询",
+      "result": "PASS",
+      "evidence": "2026-09-15 历史实测：HTTP 200、3 hits、5.799ms、env CWK_KB_TOKEN"
+    },
+    {
+      "check": "真实建库/摄取",
+      "result": "NOT_RUN",
+      "evidence": "MVP 明确为占位接口，未授权执行真实写入"
+    },
+    {
+      "check": "正式管理密钥配置",
+      "result": "NOT_RUN",
+      "evidence": "当前为临时开发预览，敏感值不写交接包"
+    }
+  ],
+  "nextAction": {
+    "action": "在现有本机隧道上打开 RT-056 页面，完成一次只读 MVP 体验验收并记录 Evan 的界面修改意见",
+    "preconditions": [
+      "OPS PID 62285 或可恢复",
+      "本机 18791 SSH 隧道可用",
+      "不修改 8787/8790"
+    ],
+    "owner": "successor-agent",
+    "expectedEvidence": "库概览、服务健康、审计记录页面可打开并显示数据；管理台 healthz ok；生产服务无变化",
+    "failureHandling": "只读记录错误并检查独立目录日志/依赖；不重启生产服务、不执行真实建库或摄取"
+  },
+  "unknowns": [
+    "管理台正式 KB_ADMIN_KEY 的受控存储和轮换方式",
+    "当前 Portal 临时 URL 的有效期；接管时应重新建立隧道/Portal",
+    "quant-orchestrator 与 workbuddy-clone 是否需要 CWK skills",
+    "OPS 防火墙完整规则未取得权限；但 8787/8790 已有跨机正向访问证据",
+    "v0.3.0 stable release 是否已发布"
+  ],
+  "historyPointer": {
+    "retrieval": {
+      "live": "使用 sessions_history 或 sessions_search，以本 sourceSession 有界读取；优先按 RT-055、RT-056、管理台、交接检索",
+      "archived": "仅使用支持有界读取的归档接口；不要扫描生产会话数据库或全量回捞"
+    },
+    "anchors": [
+      {
+        "at": "2026-09-14T15:16:00+08:00",
+        "what": "确认其他会话通过 cwk-kb-query 访问 spbp-2027"
+      },
+      {
+        "at": "2026-09-15T00:00:00+08:00",
+        "what": "确定多 gateway LAN 接入与管理侧集中建库/授权"
+      },
+      {
+        "at": "2026-09-15T00:13:00+08:00",
+        "what": "v3 跨 gateway 接入 runbook 写入并推送"
+      },
+      {
+        "at": "2026-09-15T00:24:00+08:00",
+        "what": "提出 AI 知识库管理台 MVP"
+      },
+      {
+        "at": "2026-09-15T14:40:00+08:00",
+        "what": "RT-056 独立验收后合并 main，测试 5/5"
+      },
+      {
+        "at": "2026-09-15T16:01:00+08:00",
+        "what": "OPS 管理台开发预览开启，8791 loopback + SSH/Portal 访问"
+      }
+    ]
+  },
+  "liveStateReview": {
+    "checkedAt": "2026-09-15T16:37:00+08:00",
+    "historicalFactsSeparated": true,
+    "unresolvedCritical": [],
+    "checks": [
+      {
+        "subject": "当前工作区与 Git 状态",
+        "source": "pwd; git rev-parse; git status; git log",
+        "observedAt": "2026-09-15T16:37:00+08:00",
+        "critical": true,
+        "result": "PASS",
+        "evidence": "CWK main HEAD 11c99e0；仅已有 CLAUDE.md 修改和 handover 未跟踪目录"
+      },
+      {
+        "subject": "OPS 管理台现场状态",
+        "source": "password-only SSH; pid/ports/healthz",
+        "observedAt": "2026-09-15T16:37:00+08:00",
+        "critical": true,
+        "result": "PASS",
+        "evidence": "PID 62285 RUNNING；127.0.0.1:8791；healthz enabled=true/status=ok"
+      },
+      {
+        "subject": "RT-055 生产端口未受影响",
+        "source": "OPS netstat",
+        "observedAt": "2026-09-15T16:37:00+08:00",
+        "critical": true,
+        "result": "PASS",
+        "evidence": "8787、8790 均继续 LISTEN"
+      },
+      {
+        "subject": "当前子 Agent/执行任务清点",
+        "source": "runtime session snapshot",
+        "observedAt": "2026-09-15T16:37:00+08:00",
+        "critical": true,
+        "result": "PASS",
+        "evidence": "无活跃子 Agent；前台无待执行命令；可追踪后台为 SSH 隧道与 OPS 管理台"
+      },
+      {
+        "subject": "正式管理凭据",
+        "source": "本次未读取秘密值",
+        "observedAt": "2026-09-15T16:37:00+08:00",
+        "critical": false,
+        "result": "NOT_RUN",
+        "evidence": "敏感值不读取/不记录；正式化前由管理员配置"
+      }
+    ]
+  },
+  "safeToNew": true,
+  "safeToNewReason": "所有未完成工作已分类；本机代码和交接文件路径明确；远程 OPS 进程与本机隧道的上一轮现场证据已记录，但本机校验器不能直接复核远程 PID，接管者必须先按 nextAction 重新核验。无依赖当前前台会话的未完成命令。",
+  "secretScan": {
+    "performed": true,
+    "findings": 0
+  }
+}
