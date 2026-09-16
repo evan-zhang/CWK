@@ -59,6 +59,17 @@ def _json_bytes(payload: Mapping[str, Any]) -> bytes:
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
 
 
+def _action_for(route: str) -> str:
+    """The audit name of an ``/api/...`` route: ``/api/jobs/create`` → ``jobs.create``.
+
+    Kept to a bounded shape so a crafted path cannot write an arbitrarily
+    long or newline-bearing token into the audit file.
+    """
+    tail = route[len("/api/"):].strip("/")
+    name = re.sub(r"[^a-z0-9_.]", "", tail.replace("/", ".").lower())[:64]
+    return name or "api"
+
+
 def _address(url: str) -> str:
     try:
         parsed = urllib.parse.urlsplit(url)
@@ -184,11 +195,16 @@ class AdminApp:
         route = urllib.parse.urlsplit(path).path
         if route == "/healthz":
             return (200 if self.enabled else 503), {"schema": "cwk.kb.admin.health.v1", "enabled": self.enabled, "status": "ok" if self.enabled else "disabled"}, {}
-        if route == "/":
+        if route in ("/", "/console"):
             return 200, {"html": _HTML}, {"Content-Type": "text/html; charset=utf-8"}
         if not route.startswith("/api/"):
             return 404, {"error": "not_found"}, {}
         if not self._authorized(headers):
+            # RT-058: a rejected attempt is the event an administrator most
+            # needs to see, and until now it was the one event not recorded —
+            # somebody guessing at the key left no trace at all.  Only the
+            # route is written; the supplied key never reaches the log.
+            self._audit(_action_for(route), "unauthorized", 401)
             return 401, {"error": "unauthorized"}, {}
         if route == "/api/overview" and method == "GET":
             self._audit("overview", "ok", 200)
@@ -197,6 +213,9 @@ class AdminApp:
             self._audit("services", "ok", 200)
             return 200, self._services(), {}
         if route == "/api/audit" and method == "GET":
+            # Reading the log is itself an administrative action; leaving it
+            # unrecorded made the log an unaudited read of an audit file.
+            self._audit("audit", "ok", 200)
             return 200, self._audit_read(), {}
         if route in ("/api/jobs/create", "/api/jobs/ingest") and method == "POST":
             action = route.rsplit("/", 1)[-1]
@@ -208,7 +227,207 @@ class AdminApp:
         return 404, {"error": "not_found"}, {}
 
 
-_HTML = """<!doctype html><html lang='zh-CN'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>KB Admin</title><style>body{font:16px system-ui,sans-serif;max-width:960px;margin:2rem auto;padding:0 1rem;background:#f6f7fb;color:#172033}main{background:#fff;border:1px solid #dde2ec;border-radius:12px;padding:1.5rem;box-shadow:0 2px 12px #18233a12}button{margin:.3rem;padding:.5rem .8rem;border:1px solid #9aa8bf;border-radius:6px;background:#fff;cursor:pointer}pre{white-space:pre-wrap;overflow:auto;background:#f0f3f8;padding:1rem;border-radius:8px}</style></head><body><main><h1>知识库管理台</h1><p>只读概览与服务健康检查；写入操作仍由受控后台流程负责。</p><p><button onclick="get('/api/overview')">库概览</button><button onclick="get('/api/services')">服务健康</button><button onclick="get('/api/audit')">审计记录</button></p><pre id='out'>请选择一个视图。</pre></main><script>async function get(p){const k=prompt('管理密钥（不会保存）');if(k===null)return;const r=await fetch(p,{headers:{'X-KB-Admin-Key':k}});document.getElementById('out').textContent=JSON.stringify(await r.json(),null,2)}</script></body></html>"""
+_HTML = """<!doctype html>
+<html lang='zh-CN'><head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width,initial-scale=1'>
+<title>知识库管理控制台</title>
+<style>
+:root{--bg:#f5f6fa;--card:#fff;--ink:#16202f;--muted:#5b6880;--line:#dfe4ee;--accent:#2b5bd7;--ok:#1a7f4b;--warn:#a86a00;--bad:#b3261e;--head:#eef1f7}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+.wrap{max-width:1040px;margin:0 auto;padding:1.5rem 1.25rem 3rem}
+h1{font-size:1.35rem;margin:0 0 .25rem}
+.env{color:var(--muted);font-size:.85rem;margin-bottom:1.25rem}
+.env code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.env .remote{color:var(--warn);font-weight:600}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem 1.15rem;margin-bottom:1.1rem}
+label{font-size:.9rem;color:var(--muted);display:block;margin-bottom:.35rem}
+input[type=password]{width:min(340px,100%);padding:.5rem .65rem;border:1px solid var(--line);border-radius:7px;font:inherit;background:var(--bg);color:var(--ink)}
+button{padding:.5rem .9rem;border:1px solid var(--line);border-radius:7px;background:var(--card);color:var(--ink);cursor:pointer;font:inherit}
+button:hover{border-color:var(--accent);color:var(--accent)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.primary:hover{opacity:.9;color:#fff}
+button[aria-selected=true]{border-color:var(--accent);color:var(--accent);font-weight:600}
+button:disabled{opacity:.45;cursor:not-allowed}
+.tabs{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem}
+table{width:100%;border-collapse:collapse;font-size:.9rem}
+th,td{text-align:left;padding:.5rem .6rem;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:var(--head);font-weight:600;color:var(--muted);font-size:.82rem;text-transform:none}
+td.mono,th.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85rem}
+.tag{display:inline-block;padding:.1rem .5rem;border-radius:99px;font-size:.78rem;font-weight:600}
+.tag.ok{background:#e6f4ec;color:var(--ok)} .tag.warn{background:#fdf1dd;color:var(--warn)} .tag.bad{background:#fbe9e7;color:var(--bad)} .tag.mute{background:var(--head);color:var(--muted)}
+h2{font-size:1rem;margin:1.25rem 0 .6rem}
+h2:first-child{margin-top:0}
+.msg{padding:.8rem 1rem;border-radius:8px;font-size:.9rem;margin-bottom:1rem}
+.msg.bad{background:#fbe9e7;color:var(--bad)} .msg.warn{background:#fdf1dd;color:var(--warn)} .msg.mute{background:var(--head);color:var(--muted)}
+.hint{color:var(--muted);font-size:.85rem;margin-top:.6rem}
+.scroll{overflow-x:auto}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#11151d;--card:#1a202b;--ink:#e6ebf4;--muted:#94a1b8;--line:#2a3342;--accent:#7aa2ff;--head:#222b39;--ok:#5fd39b;--warn:#e0b060;--bad:#ff8a80}
+  .tag.ok{background:#16301f} .tag.warn{background:#332715} .tag.bad{background:#3a1f1d} .msg.bad{background:#3a1f1d} .msg.warn{background:#332715}
+}
+</style></head>
+<body><div class='wrap'>
+
+<h1>知识库管理控制台</h1>
+<div class='env' id='env'></div>
+
+<div class='panel' id='lock'>
+  <label for='key'>管理密钥（只保存在当前页面内存里，刷新即失效）</label>
+  <div style='display:flex;gap:.5rem;flex-wrap:wrap'>
+    <input type='password' id='key' autocomplete='off' placeholder='输入后解锁三个视图'>
+    <button class='primary' id='unlock'>解锁</button>
+    <button id='relock' hidden>锁定</button>
+  </div>
+  <div class='hint'>解锁后三个视图共用这把密钥，不再逐次询问。关闭或刷新页面即清除。</div>
+</div>
+
+<div class='tabs' id='tabs' hidden>
+  <button data-view='overview' aria-selected='true'>库概览</button>
+  <button data-view='services'>服务健康</button>
+  <button data-view='audit'>审计记录</button>
+  <button id='refresh'>刷新</button>
+</div>
+
+<div id='msg'></div>
+<div id='body'></div>
+
+</div>
+<script>
+'use strict';
+// 密钥只活在这个变量里：不进任何浏览器存储、不进 cookie、不进 URL。
+// 页面源码里连这些 API 的名字都不该出现，测试按字面断言。
+let key = null;
+let view = 'overview';
+
+const $ = (id) => document.getElementById(id);
+const esc = (v) => String(v === null || v === undefined || v === '' ? '—' : v);
+
+function renderEnv(){
+  const host = location.host || '(file)';
+  const local = /^(127\\.0\\.0\\.1|localhost|\\[::1\\])(:\\d+)?$/.test(host);
+  $('env').innerHTML = '当前访问的是 <code>' + esc(host) + '</code>'
+    + (local ? '（本机回环）' : ' <span class="remote">（非本机地址，请确认你面对的是哪台服务器）</span>');
+}
+
+function message(kind, text){
+  $('msg').innerHTML = text ? '<div class="msg ' + kind + '">' + esc(text) + '</div>' : '';
+}
+
+function tag(value, kind){ return '<span class="tag ' + kind + '">' + esc(value) + '</span>'; }
+
+function statusTag(value){
+  const v = String(value || '').toLowerCase();
+  if (['ok','healthy','active','available','ready'].includes(v)) return tag(value, 'ok');
+  if (['revoked','unhealthy','unavailable','expired','error'].includes(v)) return tag(value, 'bad');
+  if (['unknown','stale','pending'].includes(v)) return tag(value, 'warn');
+  return tag(value, 'mute');
+}
+
+function table(columns, rows, render){
+  if (!rows || !rows.length) return '<p class="hint">没有数据。</p>';
+  const head = columns.map((c) => '<th' + (c.mono ? " class='mono'" : '') + '>' + c.label + '</th>').join('');
+  const body = rows.map((row) => '<tr>' + render(row).map((cell, i) =>
+    '<td' + (columns[i].mono ? " class='mono'" : '') + '>' + cell + '</td>').join('') + '</tr>').join('');
+  return '<div class="scroll"><table><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table></div>';
+}
+
+const views = {
+  overview(data){
+    const libs = table(
+      [{label:'知识库', mono:true},{label:'文档数'},{label:'可读'},{label:'词法索引'},{label:'是否最新'},{label:'异常'}],
+      data.libraries,
+      (r) => [esc(r.kb_id), esc(r.total), esc(r.readable_total), statusTag(r.lexical_status),
+              r.up_to_date === null || r.up_to_date === undefined ? '—' : (r.up_to_date ? tag('是','ok') : tag('否','warn')),
+              r.error ? tag(r.error,'bad') : '—']);
+    const tokens = table(
+      [{label:'令牌', mono:true},{label:'授权库', mono:true},{label:'状态'},{label:'签发'},{label:'到期'},{label:'剩余天数'}],
+      data.tokens,
+      (r) => [esc(r.token_id), (r.scope || []).map((s) => esc(s)).join('<br>') || '—', statusTag(r.status),
+              esc(r.created_at), esc(r.expires_at), esc(r.remaining_days)]);
+    const active = (data.tokens || []).filter((t) => t.status === 'active').length;
+    return '<div class="panel"><h2>知识库（' + (data.libraries || []).length + '）</h2>' + libs
+      + '<h2>访问令牌（有效 ' + active + ' / 共 ' + (data.tokens || []).length + '）</h2>' + tokens
+      + '<p class="hint">登记表状态：' + esc(data.registry_status)
+      + '；投影完整性：' + (data.complete ? '完整' : '不完整') + '。令牌只显示末位标识，不含明文或摘要。</p></div>';
+  },
+  services(data){
+    return '<div class="panel"><h2>服务健康</h2>' + table(
+      [{label:'服务'},{label:'地址', mono:true},{label:'状态'},{label:'HTTP'}],
+      data.services,
+      (r) => [esc(r.name), esc(r.address), statusTag(r.status), esc(r.http_status)])
+      + '<p class="hint">探测超时 ' + esc(data.timeout_seconds) + ' 秒；本页只做健康探测，不经过它们查询任何内容。</p></div>';
+  },
+  audit(data){
+    return '<div class="panel"><h2>管理审计（最近 ' + (data.events || []).length + ' 条）</h2>' + table(
+      [{label:'时间', mono:true},{label:'动作'},{label:'结果'},{label:'HTTP'}],
+      (data.events || []).slice().reverse(),
+      (r) => [esc(r.timestamp), esc(r.action), statusTag(r.outcome === 'ok' ? 'ok' : r.outcome), esc(r.status)])
+      + '<p class="hint">只记录时间、动作、结果和状态码，不记录密钥、参数或返回内容。</p></div>';
+  }
+};
+
+async function load(){
+  if (!key) return;
+  message('mute', '加载中…');
+  let response;
+  try {
+    response = await fetch('/api/' + view, {headers: {'X-KB-Admin-Key': key}, cache: 'no-store'});
+  } catch (err) {
+    message('bad', '连不上管理服务——进程可能没在运行，或者隧道断了。');
+    $('body').innerHTML = '';
+    return;
+  }
+  if (response.status === 401) {
+    message('bad', '密钥不对，或者管理台没有启用——服务对这两种情况返回同样的 401，请两个都查一下。');
+    $('body').innerHTML = '';
+    return;
+  }
+  if (response.status === 403) { message('warn', '这个操作被写开关拦住了（403）。'); $('body').innerHTML = ''; return; }
+  if (!response.ok) { message('bad', '服务返回 ' + response.status + '，不是鉴权问题。'); $('body').innerHTML = ''; return; }
+  let data;
+  try { data = await response.json(); } catch (err) { message('bad', '服务返回的不是合法 JSON。'); return; }
+  message('', '');
+  $('body').innerHTML = views[view](data);
+}
+
+$('unlock').addEventListener('click', () => {
+  const value = $('key').value;
+  if (!value) { message('warn', '先输入管理密钥。'); return; }
+  key = value;
+  $('key').value = '';
+  $('key').disabled = true;
+  $('unlock').disabled = true;
+  $('relock').hidden = false;
+  $('tabs').hidden = false;
+  load();
+});
+
+$('relock').addEventListener('click', () => {
+  key = null;
+  $('key').disabled = false;
+  $('unlock').disabled = false;
+  $('relock').hidden = true;
+  $('tabs').hidden = true;
+  $('body').innerHTML = '';
+  message('mute', '已锁定，密钥已从页面清除。');
+});
+
+$('key').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('unlock').click(); });
+
+$('tabs').addEventListener('click', (event) => {
+  const button = event.target.closest('button[data-view]');
+  if (!button) return;
+  view = button.dataset.view;
+  for (const other of $('tabs').querySelectorAll('button[data-view]')) {
+    other.setAttribute('aria-selected', String(other === button));
+  }
+  load();
+});
+
+$('refresh').addEventListener('click', load);
+renderEnv();
+</script></body></html>"""
 
 
 class _Handler(BaseHTTPRequestHandler):

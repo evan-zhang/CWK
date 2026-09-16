@@ -101,9 +101,11 @@ _REPRESENTATIVE_TRACKED = (
     "scripts/kb_wizard.py",
     "scripts/kb_gateway.py",
     "scripts/kb_ops.py",
-    # RT-056 管理台：scripts/ 是 exact-only 区，R-runtime-rt056-kb-admin 逐条登记，
-    # 这里必须有对应代表文件，否则规则在合成仓库里匹配 0 个文件 → GA-STALE-RULE。
+    # RT-056 管理台 / RT-058 门户：scripts/ 是 exact-only 区，两者各有一条 exact_set
+    # 规则（暴露面不同，故未合并），因此这里也必须各占一个代表文件，
+    # 否则规则在合成仓库里匹配 0 个文件 → GA-STALE-RULE。
     "scripts/kb_admin.py",
+    "scripts/kb_portal.py",
     "scripts/kb_p0.py",
     "scripts/kb_p0_benchmark.py",
     "scripts/kb_gateway_client.py",

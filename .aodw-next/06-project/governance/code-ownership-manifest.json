@@ -739,6 +739,19 @@
       "change_entry": "RT → rt-lite.md 记录理由 → 改动 → make governance-audit + tests/test_rt056_kb_admin.py",
       "evolution_path": "repo-standard-change",
       "rationale": "RT-056 独立的、默认关闭的 stdlib-only 管理台与只读/占位 API。逐条 exact_set：scripts/ 是 exact-only 区，管理台不应被其它脚本规则隐式吸收。"
+    },
+    {
+      "id": "R-runtime-rt058-kb-portal",
+      "domain": "runtime",
+      "kind": "exact_set",
+      "paths": [
+        "scripts/kb_portal.py"
+      ],
+      "owner": "RT-058",
+      "management_domain": "cwk-governance-v1",
+      "change_entry": "RT → rt-lite.md 记录理由 → 改动 → make governance-audit + tests/test_rt058_kb_console.py",
+      "evolution_path": "repo-standard-change",
+      "rationale": "RT-058 面向局域网的静态门户，与管理台分进程。逐条 exact_set 而不是被管理台规则吸收：两者的暴露面不同——门户可绑局域网且不导入任何数据模块，管理台默认回环且持有登记表与审计路径；规则合并会让这条边界在清单上消失。"
     }
   ],
   "exceptions": [
