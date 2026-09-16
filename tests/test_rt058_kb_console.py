@@ -68,7 +68,8 @@ class PortalAppTests(unittest.TestCase):
         page = body.decode("utf-8")
         for bank_id, _ in kb_portal.DEFAULT_BANKS:
             self.assertIn(bank_id, page)
-        self.assertIn("进入管理控制台", page)
+        # RT-059 改了按钮文案；这条判据守的是「站内有控制台入口」，不是某个字面串。
+        self.assertIn("管理控制台", page)
         self.assertIn(kb_portal.DEFAULT_CONSOLE_URL, page)
 
     def test_console_link_rejects_non_http_scheme(self):
