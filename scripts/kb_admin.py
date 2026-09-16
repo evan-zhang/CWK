@@ -38,9 +38,16 @@ ENV_AUDIT = "KB_ADMIN_AUDIT_PATH"
 ENV_GATEWAY_URL = "KB_GATEWAY_URL"
 ENV_OPS_URL = "KB_OPS_URL"
 ENV_SERVICE_TIMEOUT = "KB_ADMIN_SERVICE_TIMEOUT"
+ENV_SNAPSHOT_INDEX = "KB_SNAPSHOT_INDEX"
+ENV_SNAPSHOT_ROOT = "KB_SNAPSHOT_ROOT"
 ENV_NAME = re.compile(r"^[A-Z][A-Z0-9_]{0,127}$")
 MAX_AUDIT_EVENTS = 100
 MAX_BODY = 4096
+# The snapshot index is a plain doc_id -> "<bank>/<file>" map.  These bounds keep
+# one HTTP request from turning into an unbounded read or an unbounded number of
+# stat calls when a future bank is far larger than today's few hundred documents.
+MAX_SNAPSHOT_INDEX_BYTES = 64 * 1024 * 1024
+MAX_SNAPSHOT_STATS = 20000
 
 
 def _now() -> str:
@@ -97,6 +104,14 @@ class AdminApp:
         self.registry = Path(self.env.get(ENV_REGISTRY, str(Path.home() / "CWK" / "ops" / "tokens.json")).strip()).expanduser()
         self.audit_path = Path(self.env.get(ENV_AUDIT, str(Path.home() / "CWK" / "ops" / "admin-audit.jsonl")).strip()).expanduser()
         self.write_enabled = _enabled(self.env.get(ENV_WRITE_ENABLED))
+        # RT-058: production does not carry the RT-042 library tree — it stores a
+        # snapshot (a doc_id index plus one directory per bank).  Configuring these
+        # two lets the overview describe the libraries that actually exist there
+        # instead of reporting an empty list forever.
+        snapshot_index = (self.env.get(ENV_SNAPSHOT_INDEX) or "").strip()
+        snapshot_root = (self.env.get(ENV_SNAPSHOT_ROOT) or "").strip()
+        self.snapshot_index = Path(snapshot_index).expanduser() if snapshot_index else None
+        self.snapshot_root = Path(snapshot_root).expanduser() if snapshot_root else None
         self._audit_lock = threading.Lock()
 
     def _authorized(self, headers: Mapping[str, str]) -> bool:
@@ -125,6 +140,68 @@ class AdminApp:
         except (OSError, ValueError):
             pass
 
+    def _snapshot_libraries(self) -> list[dict[str, Any]]:
+        """Describe the banks of an RT-055 snapshot: an index plus one dir per bank.
+
+        ``total`` counts the documents the index claims; ``readable_total`` counts
+        the ones whose file is actually on disk.  Keeping them apart is the point —
+        a snapshot that lost files still reports a healthy-looking index, and the
+        gap between the two numbers is the only place that shows up.
+        """
+        if not self.snapshot_index:
+            return []
+        entry: dict[str, dict[str, Any]] = {}
+        try:
+            if self.snapshot_index.stat().st_size > MAX_SNAPSHOT_INDEX_BYTES:
+                raise ValueError("snapshot index too large")
+            index = json.loads(self.snapshot_index.read_text("utf-8"))
+            if not isinstance(index, dict):
+                raise ValueError("snapshot index is not a mapping")
+        except (OSError, ValueError, UnicodeError):
+            # Name the failure rather than rendering an empty library list: an
+            # unreadable index and an empty corpus must not look the same.
+            return [{"kb_id": "(快照索引)", "total": None, "readable_total": None,
+                     "lexical_status": None, "up_to_date": None, "source": "snapshot",
+                     "error": "索引不可读"}]
+        stats_left = MAX_SNAPSHOT_STATS
+        for relative in index.values():
+            text = str(relative or "").strip()
+            bank, _, remainder = text.partition("/")
+            if not bank or not remainder or bank.startswith("."):
+                continue
+            row = entry.setdefault(bank, {"total": 0, "readable": 0, "checked": 0})
+            row["total"] += 1
+            if self.snapshot_root is not None and stats_left > 0:
+                stats_left -= 1
+                row["checked"] += 1
+                # Re-anchor under the configured root so an index entry cannot
+                # point the existence check outside the snapshot directory.
+                candidate = (self.snapshot_root / text).resolve()
+                try:
+                    inside = candidate.is_relative_to(self.snapshot_root.resolve())
+                except (OSError, ValueError):
+                    inside = False
+                if inside and candidate.is_file():
+                    row["readable"] += 1
+        libraries = []
+        for bank in sorted(entry):
+            row = entry[bank]
+            partial = row["checked"] < row["total"]
+            missing = row["checked"] - row["readable"]
+            libraries.append({
+                "kb_id": bank,
+                "total": row["total"],
+                # Unverified is not the same as zero: say nothing rather than
+                # report a count the bound stopped us from establishing.
+                "readable_total": None if row["checked"] == 0 else row["readable"],
+                "lexical_status": None,
+                "up_to_date": None,
+                "source": "snapshot",
+                "error": (f"{missing} 个文件缺失" if missing > 0 else
+                          ("未逐一核对" if partial and row["checked"] else None)),
+            })
+        return libraries
+
     def _overview(self) -> dict[str, Any]:
         backends: dict[str, Any] = {}
         try:
@@ -140,16 +217,20 @@ class AdminApp:
                     "expires_at": row.get("expires_at", ""),
                     "remaining_days": row.get("remaining_days"),
                 })
+            tree = [dict(row, source="library-tree") for row in payload.get("libraries", [])]
             return {
                 "schema": "cwk.kb.admin.overview.v1",
                 "ok": bool(payload.get("ok")),
                 "complete": bool(payload.get("complete")),
                 "registry_status": payload.get("registry_status", "unavailable"),
-                "libraries": payload.get("libraries", []),
+                "libraries": tree + self._snapshot_libraries(),
                 "tokens": tokens,
             }
         except Exception:
-            return {"schema": "cwk.kb.admin.overview.v1", "ok": False, "complete": False, "registry_status": "unavailable", "libraries": [], "tokens": []}
+            # The registry read failed, but a snapshot listing needs neither the
+            # registry nor a backend — do not throw it away with the rest.
+            return {"schema": "cwk.kb.admin.overview.v1", "ok": False, "complete": False,
+                    "registry_status": "unavailable", "libraries": self._snapshot_libraries(), "tokens": []}
         finally:
             for backend in backends.values():
                 try:
@@ -334,10 +415,12 @@ function table(columns, rows, render){
 
 const views = {
   overview(data){
+    const sourceLabel = {snapshot: '快照', 'library-tree': '目录树'};
     const libs = table(
-      [{label:'知识库', mono:true},{label:'文档数'},{label:'可读'},{label:'词法索引'},{label:'是否最新'},{label:'异常'}],
+      [{label:'知识库', mono:true},{label:'来源'},{label:'文档数'},{label:'可读'},{label:'词法索引'},{label:'是否最新'},{label:'异常'}],
       data.libraries,
-      (r) => [esc(r.kb_id), esc(r.total), esc(r.readable_total), statusTag(r.lexical_status),
+      (r) => [esc(r.kb_id), tag(sourceLabel[r.source] || r.source || '—', 'mute'),
+              esc(r.total), esc(r.readable_total), statusTag(r.lexical_status),
               r.up_to_date === null || r.up_to_date === undefined ? '—' : (r.up_to_date ? tag('是','ok') : tag('否','warn')),
               r.error ? tag(r.error,'bad') : '—']);
     const tokens = table(
