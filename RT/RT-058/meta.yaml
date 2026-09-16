@@ -3,7 +3,7 @@ title: 知识库内网门户与管理控制台 v1（只读面 + 鉴权失败审�
 type: Feature
 profile: Spec-Lite
 execution_mode: collaborative
-status: created
+status: in-progress
 modules: [kb-admin, kb-ops]
 branch: feature/RT-058-kb-console-v1
 worktree: .claude/worktrees/RT-058-kb-console-v1
@@ -18,3 +18,5 @@ notes: >
   门户与控制台拆成两个进程：门户没有登记表和库目录的任何访问路径，因此即便绑到
   局域网也不可能泄露管理数据；控制台维持默认关闭 + 默认回环不变。
   真实建库、摄取、用户与授权管理不在本段范围，按已定的「邀请式」路线另立 RT。
+  2026-09-16：代码已合并 main 并验证，但按 Evan 定的交付标准，必须部署到 OPS 接真实
+  数据、给出局域网地址才算达成，故不在合并时关闭。

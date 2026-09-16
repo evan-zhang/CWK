@@ -327,6 +327,6 @@ entries:
   created: 2026-09-15
 - id: RT-058
   title: 知识库内网门户与管理控制台 v1（只读面 + 鉴权失败审计）
-  status: created
+  status: in-progress
   profile: Spec-Lite
   created: 2026-09-16
