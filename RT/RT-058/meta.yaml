@@ -1,0 +1,20 @@
+id: RT-058
+title: 知识库内网门户与管理控制台 v1（只读面 + 鉴权失败审计）
+type: Feature
+profile: Spec-Lite
+execution_mode: collaborative
+status: created
+modules: [kb-admin, kb-ops]
+branch: feature/RT-058-kb-console-v1
+worktree: .claude/worktrees/RT-058-kb-console-v1
+owner: Evan
+created_at: 2026-09-16T10:40:42+08:00
+updated_at: 2026-09-16T10:40:42+08:00
+closed_at: null
+notes: >
+  产品目标是「官网 + 管理控制台」，本 RT 只做第一段：内网门户（免鉴权、零数据访问、
+  可绑局域网）与管理控制台 v1（三个只读视图表格化、一次输密钥、错误态区分、
+  环境标识），外加补上鉴权失败不进审计的观测缺口。
+  门户与控制台拆成两个进程：门户没有登记表和库目录的任何访问路径，因此即便绑到
+  局域网也不可能泄露管理数据；控制台维持默认关闭 + 默认回环不变。
+  真实建库、摄取、用户与授权管理不在本段范围，按已定的「邀请式」路线另立 RT。
