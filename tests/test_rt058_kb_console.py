@@ -181,6 +181,95 @@ class ConsoleAuditTests(unittest.TestCase):
         self.assertEqual([e["outcome"] for e in self.events()], ["ok", "ok"])
 
 
+class SnapshotLibraryTests(unittest.TestCase):
+    """The shape production actually stores: a doc_id index plus one dir per bank."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.sources = self.root / "rag-sources"
+        for bank, count in (("cwork-3m", 3), ("spbp-2027", 2)):
+            (self.sources / bank).mkdir(parents=True)
+            for i in range(count):
+                (self.sources / bank / f"{i}.txt").write_text("x", encoding="utf-8")
+        self.index = self.root / "rag-index.json"
+        self.write_index({
+            "cwork:1": "cwork-3m/0.txt", "cwork:2": "cwork-3m/1.txt", "cwork:3": "cwork-3m/2.txt",
+            "sp:1": "spbp-2027/0.txt", "sp:2": "spbp-2027/1.txt",
+        })
+
+    def write_index(self, mapping) -> None:
+        self.index.write_text(json.dumps(mapping, ensure_ascii=False), encoding="utf-8")
+
+    def app(self, **extra):
+        env = {"KB_ADMIN_ENABLED": "true", "KB_SNAPSHOT_INDEX": str(self.index),
+               "KB_SNAPSHOT_ROOT": str(self.sources)}
+        env.update(extra)
+        return kb_admin.AdminApp(env)
+
+    def libraries(self, **extra):
+        return {row["kb_id"]: row for row in self.app(**extra)._snapshot_libraries()}
+
+    def test_banks_are_grouped_with_counts(self):
+        rows = self.libraries()
+        self.assertEqual(sorted(rows), ["cwork-3m", "spbp-2027"])
+        self.assertEqual((rows["cwork-3m"]["total"], rows["cwork-3m"]["readable_total"]), (3, 3))
+        self.assertEqual((rows["spbp-2027"]["total"], rows["spbp-2027"]["readable_total"]), (2, 2))
+        self.assertIsNone(rows["cwork-3m"]["error"])
+        self.assertEqual(rows["cwork-3m"]["source"], "snapshot")
+
+    def test_a_missing_file_is_reported_not_silently_counted(self):
+        """An index that outlived its files must not look healthy."""
+        (self.sources / "cwork-3m" / "1.txt").unlink()
+        rows = self.libraries()
+        self.assertEqual((rows["cwork-3m"]["total"], rows["cwork-3m"]["readable_total"]), (3, 2))
+        self.assertIn("缺失", rows["cwork-3m"]["error"])
+
+    def test_index_entries_cannot_point_outside_the_snapshot_root(self):
+        outside = self.root / "secret.txt"
+        outside.write_text("no", encoding="utf-8")
+        self.write_index({"a": "cwork-3m/../../secret.txt", "b": "cwork-3m/0.txt"})
+        rows = self.libraries()
+        # The traversal entry is counted under its declared bank but must never
+        # be confirmed readable — otherwise the index could probe the filesystem.
+        self.assertEqual(rows["cwork-3m"]["total"], 2)
+        self.assertEqual(rows["cwork-3m"]["readable_total"], 1)
+
+    def test_unreadable_index_is_named_not_rendered_as_empty(self):
+        self.index.write_text("{not json", encoding="utf-8")
+        rows = self.app()._snapshot_libraries()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["error"], "索引不可读")
+
+    def test_missing_index_configuration_yields_nothing(self):
+        self.assertEqual(kb_admin.AdminApp({"KB_ADMIN_ENABLED": "true"})._snapshot_libraries(), [])
+
+    def test_malformed_entries_are_skipped(self):
+        self.write_index({"a": "", "b": "no-slash", "c": "/absolute/x", "d": "cwork-3m/0.txt"})
+        rows = self.libraries()
+        self.assertEqual(list(rows), ["cwork-3m"])
+        self.assertEqual(rows["cwork-3m"]["total"], 1)
+
+    def test_existence_check_is_bounded(self):
+        """A far larger bank must not turn one request into unbounded stat calls."""
+        original = kb_admin.MAX_SNAPSHOT_STATS
+        kb_admin.MAX_SNAPSHOT_STATS = 2
+        self.addCleanup(setattr, kb_admin, "MAX_SNAPSHOT_STATS", original)
+        rows = self.libraries()
+        checked = sum(r["readable_total"] or 0 for r in rows.values())
+        self.assertLessEqual(checked, 2)
+        self.assertTrue(any(r["error"] == "未逐一核对" for r in rows.values()))
+
+    def test_overview_merges_snapshot_with_tree_and_survives_registry_failure(self):
+        app = self.app(KB_REGISTRY_PATH=str(self.root / "nope.json"),
+                       KB_LOCAL_LIBRARY_ROOT=str(self.root / "no-tree"))
+        payload = app._overview()
+        banks = [row["kb_id"] for row in payload["libraries"]]
+        self.assertIn("cwork-3m", banks)
+        self.assertIn("spbp-2027", banks)
+
+
 class ConsolePageTests(unittest.TestCase):
     def setUp(self) -> None:
         self.app = kb_admin.AdminApp({"KB_ADMIN_ENABLED": "true"})
