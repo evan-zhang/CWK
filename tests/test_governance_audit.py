@@ -101,6 +101,8 @@ _REPRESENTATIVE_TRACKED = (
     "scripts/kb_wizard.py",
     "scripts/kb_gateway.py",
     "scripts/kb_ops.py",
+    # RT-058 门户：与管理台分进程，规则也分条，代表文件同样要各占一条。
+    "scripts/kb_portal.py",
     "scripts/kb_p0.py",
     "scripts/kb_p0_benchmark.py",
     "scripts/kb_gateway_client.py",

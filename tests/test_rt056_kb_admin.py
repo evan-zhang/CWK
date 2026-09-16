@@ -99,9 +99,11 @@ class AdminHTTPTests(unittest.TestCase):
         req = urllib.request.Request(self.base + "/")
         with urllib.request.urlopen(req) as response:
             body = response.read().decode("utf-8")
-        self.assertIn("知识库管理台", body)
-        self.assertIn("/api/overview", body)
-        self.assertIn("fetch(p", body)
+        # RT-058 改名为「管理控制台」并把取数从 fetch(p) 换成按视图取数；
+        # 这条判据要守的是「页面是原生 HTML、数据靠 fetch 现取」，不是某个字面串。
+        self.assertIn("知识库管理控制台", body)
+        self.assertIn("/api/", body)
+        self.assertIn("fetch(", body)
         self.assertEqual(self.request("/not-a-route", key="unit-secret")[0], 404)
 
 
