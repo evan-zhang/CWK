@@ -322,7 +322,7 @@ entries:
   created: 2026-09-15
 - id: RT-057
   title: 主线 CI 回归修复（治理夹具 + compose 绑定契约）
-  status: created
+  status: done
   profile: Spec-Lite
   created: 2026-09-15
 - id: RT-058
