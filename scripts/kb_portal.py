@@ -924,9 +924,12 @@ _DOC_API = """
 <p>响应 <code>200</code> 含 <code>doc_id</code>、<code>text</code>、<code>offset</code>、
    <code>eof</code>、<code>total_chars</code>。翻下一页：
    <code>下一个 offset = 当前 offset + 本页 text 的长度</code>，直到 <code>eof</code> 为 <code>true</code>。</p>
+<p>这里不用传库名：服务端按编号查出这篇文档属于哪个库，再看你的令牌有没有那个库的权限。</p>
 <table>
   <tr><th>状态码</th><th>含义</th></tr>
   <tr><td><code>400</code></td><td>缺 <code>doc_id</code>，或 <code>offset</code>/<code>length</code> 不是合法整数</td></tr>
+  <tr><td><code>401</code></td><td>令牌缺失或无效——编号存不存在，都先回这个</td></tr>
+  <tr><td><code>403</code></td><td>令牌有效，但这篇文档所属的库不在它的授权范围内</td></tr>
   <tr><td><code>404</code></td><td>该编号不存在</td></tr>
   <tr><td><code>416</code></td><td><code>offset</code> 越界——按响应里的 <code>total_chars</code> 重算</td></tr>
   <tr><td><code>503</code></td><td>源文件暂时不可读</td></tr>

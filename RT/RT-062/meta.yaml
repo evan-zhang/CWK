@@ -3,7 +3,7 @@ title: 读原文接口鉴权补漏（POST /read 未鉴权 + GET /read 跨库）
 type: Bugfix
 profile: Spec-Lite
 execution_mode: collaborative
-status: created
+status: in_progress
 modules: [rt055-retrieval-decision]
 branch: feature/RT-062-read-authz
 worktree: .claude/worktrees/RT-062-read-authz

@@ -65,8 +65,9 @@ class Handler(BaseHTTPRequestHandler):
         if urllib.parse.urlsplit(self.path).path == "/read":
             params = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
             doc_id = params.get("doc_id", [""])[0]
-            bank = params.get("bank", [os.getenv("RAG_BANK", "cwork-3m")])[0]
-            refusal = authorize(self.headers, bank)
+            # A ``bank`` query parameter is deliberately not consulted: the
+            # document's own bank decides, whatever bank the caller names.
+            refusal = self._read_refusal(doc_id)
             if refusal:
                 self._send(*refusal)
                 return
@@ -128,6 +129,22 @@ class Handler(BaseHTTPRequestHandler):
             # Never turn a backend/programming failure into a misleading 400.
             self._send(503, {"error": "RAG service unavailable"})
 
+    def _read_refusal(self, doc_id: object) -> tuple[int, dict[str, object]] | None:
+        """Authorize a read against the bank that owns ``doc_id`` in the index.
+
+        doc_ids are global across the snapshot index, so a bank named by the
+        caller proves nothing about whose text comes back.  An id the index does
+        not know still needs a valid token, so an unauthenticated caller gets the
+        same 401 either way and cannot probe which ids exist; past that check an
+        unindexed id can only end in 404/400, because the resolver never reads it.
+        """
+        default_bank = os.getenv("RAG_BANK", "cwork-3m")
+        owning = self.pipeline.resolver.bank_of(doc_id, default_bank) if self.pipeline is not None else None
+        refusal = authorize(self.headers, owning or default_bank)
+        if refusal is None or (owning is None and refusal[0] != 401):
+            return None
+        return refusal
+
     def _read(self, data: dict[str, object]) -> None:
         doc_id = data.get("doc_id")
         offset = data.get("offset", 0)
@@ -139,6 +156,10 @@ class Handler(BaseHTTPRequestHandler):
                 isinstance(length, bool) or not isinstance(length, int) or
                 length <= 0 or length > MAX_READ_LENGTH):
             self._send(400, {"error": "invalid read range"})
+            return
+        refusal = self._read_refusal(doc_id)
+        if refusal:
+            self._send(*refusal)
             return
         if self.pipeline is None:
             self._send(503, {"error": "RAG service unavailable"})
