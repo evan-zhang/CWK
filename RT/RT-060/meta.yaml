@@ -1,0 +1,18 @@
+id: RT-060
+title: 文档中心与首页瘦身（快速开始 / 架构 / API 参考 / 扩展开发）
+type: Feature
+profile: Spec-Lite
+execution_mode: collaborative
+status: created
+modules: [kb-portal]
+branch: feature/RT-060-docs-center
+worktree: .claude/worktrees/RT-060-docs-center
+owner: Evan
+created_at: 2026-09-17T10:59:30+08:00
+updated_at: 2026-09-17T10:59:30+08:00
+closed_at: null
+notes: >
+  首页回归产品介绍（给没用过的人看），深度内容搬进文档中心：快速开始、架构与部署、
+  API 参考（/query、/answer、/read 的真实契约）、扩展开发（数据源适配器与 Agent 接入）、
+  常见问题。参照 DeepSeek/OpenAI 这类产品站的分层方式。
+  交付标准同前：部署到 OPS、局域网地址、真实浏览器验证。
