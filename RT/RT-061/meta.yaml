@@ -3,14 +3,14 @@ title: 库对象与自有授权模型（身份接入玄关、令牌与授权脱�
 type: Feature
 profile: Spec-Lite
 execution_mode: collaborative
-status: in_progress
+status: done
 modules: [kb-token, kb-admin, kb-platform-storage]
 branch: feature/RT-061-bank-authz
 worktree: .claude/worktrees/RT-061-bank-authz
 owner: Evan
 created_at: 2026-09-17T14:16:59+08:00
 updated_at: 2026-09-17T14:16:59+08:00
-closed_at: null
+closed_at: 2026-09-17T19:06:34+08:00
 notes: >
   把"库"提升为一等对象：自己的所有者、来源清单和授权表。授权完全由 CWK 自己管，
   不继承任何上游权限——因为一个库可以是多个来源里各取一部分的并集，上游权限表达不了。

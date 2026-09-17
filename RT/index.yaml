@@ -342,7 +342,7 @@ entries:
   created: 2026-09-17
 - id: RT-061
   title: 库对象与自有授权模型（身份接入玄关、令牌与授权脱钩）
-  status: in_progress
+  status: done
   profile: Spec-Lite
   created: 2026-09-17
 - id: RT-062

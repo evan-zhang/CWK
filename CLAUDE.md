@@ -112,6 +112,9 @@ python3 -m adapters.opensearch_retrieval smoke-test --expect-doc-id synthetic-rt
   按 bank 发 scope；registry 是 `cwk.kb.token-registry.v1`，只存 `token_sha256`。
   运行期由 `RAG_AUTH_ENABLED` / `RAG_AUTH_REGISTRY` 控制，registry 故障 fail-closed。
   **401 = token 缺失/过期/吊销；403 = token 有效但 bank 不在 scope（跨库隔离正常生效，不是 bug）。**
+  RT-061 起库有自己的成员表（`scripts/kb_authz.py`，`auth/registry/kb-authz.json`），身份只向玄关借
+  （`scripts/kb_identity.py`）；线上由 `RAG_AUTHZ_MODE=scope|grants` 选择判定方式，默认 `scope`。
+  迁移、切换与回退见 `docs/KB-AUTHZ.md`。
 - **检索/问答服务（`adapters/`，RT-055 新栈，2026-09-14 灰度上线）**：
   `opensearch_retrieval` 提供 `POST /query`（exact + lexical 双通道，编号/日期走 exact 不怕中文分词拆号）、
   `GET /healthz|/readyz`，默认 8787；`rag_answer` 提供 `POST /answer`（检索 → doc_id → 只读原文 → 本地
