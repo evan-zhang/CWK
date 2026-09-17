@@ -3,7 +3,7 @@ title: 门户顶部导航加管理控制台入口
 type: Feature
 profile: Spec-Lite
 execution_mode: collaborative
-status: created
+status: in_progress
 modules: [kb-portal]
 branch: feature/RT-063-console-nav
 worktree: .claude/worktrees/RT-063-console-nav
