@@ -350,3 +350,8 @@ entries:
   status: done
   profile: Spec-Lite
   created: 2026-09-17
+- id: RT-063
+  title: 门户顶部导航加管理控制台入口
+  status: created
+  profile: Spec-Lite
+  created: 2026-09-17
