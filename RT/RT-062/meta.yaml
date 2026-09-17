@@ -1,0 +1,18 @@
+id: RT-062
+title: 读原文接口鉴权补漏（POST /read 未鉴权 + GET /read 跨库）
+type: Bugfix
+profile: Spec-Lite
+execution_mode: collaborative
+status: created
+modules: [rt055-retrieval-decision]
+branch: feature/RT-062-read-authz
+worktree: .claude/worktrees/RT-062-read-authz
+owner: Evan
+created_at: 2026-09-17T17:36:23+08:00
+updated_at: 2026-09-17T17:36:23+08:00
+closed_at: null
+notes: >
+  线上 8790 的 POST /read 完全不做鉴权：不带令牌、带假令牌都能读原文（2026-09-17 状态码探测确认）。
+  GET /read 虽然鉴权，但校验的是调用方自报的 bank，读的却是全局索引里任意 doc_id，等于可以跨库读。
+  修法：按 doc_id 在索引里的真实归属库做鉴权；未知 doc_id 对未认证调用方一律 401，
+  不给"这个文档存不存在"的探测信号。
