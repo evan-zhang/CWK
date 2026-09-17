@@ -40,6 +40,8 @@ services:
       CWK_RETRIEVAL_TOP_K: ${CWK_RETRIEVAL_TOP_K:-10}
       RAG_AUTH_ENABLED: ${RAG_AUTH_ENABLED:-false}
       RAG_AUTH_REGISTRY: ${RAG_AUTH_REGISTRY:-}
+      RAG_AUTHZ_MODE: ${RAG_AUTHZ_MODE:-scope}
+      RAG_AUTHZ_PATH: ${RAG_AUTHZ_PATH:-}
     ports:
       - "${KB_BIND_ADDR:-127.0.0.1}:${RETRIEVAL_PORT:-8787}:8787"
     depends_on:
@@ -62,6 +64,8 @@ services:
       RAG_LLM_TIMEOUT_SECONDS: ${RAG_LLM_TIMEOUT_SECONDS:-60}
       RAG_AUTH_ENABLED: ${RAG_AUTH_ENABLED:-false}
       RAG_AUTH_REGISTRY: ${RAG_AUTH_REGISTRY:-}
+      RAG_AUTHZ_MODE: ${RAG_AUTHZ_MODE:-scope}
+      RAG_AUTHZ_PATH: ${RAG_AUTHZ_PATH:-}
     ports:
       - "${KB_BIND_ADDR:-127.0.0.1}:${RAG_PORT:-8790}:8790"
     volumes:
