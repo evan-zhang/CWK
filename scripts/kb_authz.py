@@ -48,6 +48,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import copy
 import fcntl
 import hashlib
 import os
@@ -1057,28 +1058,37 @@ def run(
         current = load_store(args.store) if Path(args.store).exists() else new_store(now=now)
         plan = plan_migration(registry, current, keys=keys, owner_env=args.owner_env, services=services, now=now)
         persons = {key.person.principal: key.person.name for key in keys}
-        if args.dry_run:
-            return {"schema": MIGRATE_SCHEMA, "ok": True, "dry_run": True, "plan": plan, "names": persons}, 0
+
+        def bind_all(target: dict) -> int:
+            return sum(
+                1 for token_id, principal in plan["bindings"].items()
+                if kb_token.bind_principal(target, token_id=token_id, principal=principal, now=now,
+                                           actor=audit["operator"] or MIGRATION_ACTOR,
+                                           reason=audit["reason"] or MIGRATION_ACTOR)
+            )
+
+        # Rehearse the whole migration in memory first.  Nothing reaches disk
+        # unless the rehearsed result is provably equivalent, so a failure
+        # anywhere — including in the check itself — leaves both files as
+        # they were.
+        trial_store, trial_registry = copy.deepcopy(current), copy.deepcopy(registry)
+        apply_migration(trial_store, plan, keys=keys, now=now, **audit)
+        bind_all(trial_registry)
+        trial = equivalence_report(trial_registry, trial_store, now=now)
+        base = {"schema": MIGRATE_SCHEMA, "plan": plan, "names": persons}
+        if args.dry_run or not trial["equivalent"]:
+            return (dict(base, ok=trial["equivalent"], dry_run=args.dry_run, written=False, equivalence=trial),
+                    0 if trial["equivalent"] else 3)
+
         data, summary = mutate(args.store, lambda d: apply_migration(
             d, plan, keys=keys, now=now, **audit), create=True, now=now)
-        bound = 0
-        for token_id, principal in plan["bindings"].items():
-            if kb_token.bind_principal(registry, token_id=token_id, principal=principal, now=now,
-                                       actor=audit["operator"] or MIGRATION_ACTOR, reason=audit["reason"] or MIGRATION_ACTOR):
-                bound += 1
+        registry = kb_token.load_registry(args.registry)
+        bound = bind_all(registry)
         if bound:
             kb_token.save_registry(args.registry, registry, now=now)
         report = equivalence_report(registry, data, now=now)
-        payload = {
-            "schema": MIGRATE_SCHEMA,
-            "ok": report["equivalent"],
-            "dry_run": False,
-            "plan": plan,
-            "names": persons,
-            "applied": dict(summary, tokens_bound=bound),
-            "equivalence": report,
-            "version": data["version"],
-        }
+        payload = dict(base, ok=report["equivalent"], dry_run=False, written=True,
+                       applied=dict(summary, tokens_bound=bound), equivalence=report, version=data["version"])
         return payload, 0 if report["equivalent"] else 3
 
     store_data = load_store(args.store)
@@ -1123,6 +1133,10 @@ def main(
     except (AuthzError, kb_token.TokenError) as exc:
         payload = {"schema": ERROR_SCHEMA, "ok": False, "error": {"kind": exc.kind, "message": str(exc)}}
         print(f"kb_authz 失败：{exc}", file=sys.stderr)
+        code = 2
+    except Exception as exc:  # noqa: BLE001 - CLI boundary; JSON either way
+        payload = {"schema": ERROR_SCHEMA, "ok": False, "error": {"kind": type(exc).__name__, "message": str(exc)}}
+        print(f"kb_authz 失败：{type(exc).__name__}", file=sys.stderr)
         code = 2
     sys.stdout.write(dumps(payload).decode("utf-8"))
     sys.stdout.flush()

@@ -119,11 +119,13 @@ class ProductionShapeTests(MigrationCase):
         self.assertEqual(payload["applied"]["grants_added"], 0)
         self.assertEqual(authz.load_store(self.store)["grants"], grants_before)
 
-    def test_dry_run_writes_nothing(self):
+    def test_dry_run_writes_nothing_but_still_proves_equivalence(self):
         registry_before = self.registry.read_bytes()
         code, payload = self.migrate("--dry-run")
         self.assertEqual(code, 0, payload)
         self.assertEqual(len(payload["plan"]["bindings"]), 2)
+        self.assertTrue(payload["equivalence"]["equivalent"])
+        self.assertFalse(payload["written"])
         self.assertFalse(self.store.exists())
         self.assertEqual(self.registry.read_bytes(), registry_before)
 
@@ -166,6 +168,45 @@ class PartialScopeTests(MigrationCase):
         store = authz.load_store(self.store)
         self.assertEqual(authz.role_of(store, "cwork-3m", OPS_OWNER.principal), "owner",
                          "这个人对 cwork-3m 有权限，但 narrow-agent 那支令牌依然读不了它")
+
+
+class NonEquivalentRehearsalTests(MigrationCase):
+    """成员表里已经有一条比令牌快照更宽的授权：切换会改变行为，所以一个字节都不写。"""
+
+    def customize(self, data):
+        identity = tokens.VerifiedIdentity(
+            owner_ref=tokens.derive_owner_ref(data["owner_ref_salt"], "ops-business-key"),
+            principal=OPS_OWNER.principal,
+        )
+        tokens.issue_token(data, identity=identity, raw_agent_id="new-style-agent", kb_ids=["cwork-3m"],
+                           authz="grants", now=NOW)
+
+    def test_rehearsal_failure_leaves_both_files_untouched(self):
+        store = authz.new_store(now=NOW)
+        authz.upsert_person(store, OPS_OWNER, now=NOW)
+        authz.create_bank(store, actor=authz.OPS_ADMIN, bank_id="docdb-touqian", name="投前", owner=OPS_OWNER.principal, now=NOW)
+        authz.save_store(self.store, store, now=NOW)
+        store_before, registry_before = self.store.read_bytes(), self.registry.read_bytes()
+        code, payload = self.migrate()
+        self.assertEqual(code, 3, payload)
+        self.assertFalse(payload["written"])
+        self.assertIn("docdb-touqian", {d["bank_id"] for d in payload["equivalence"]["differences"]})
+        self.assertEqual(self.store.read_bytes(), store_before)
+        self.assertEqual(self.registry.read_bytes(), registry_before)
+
+
+class UnexpectedFailureTests(MigrationCase):
+    def test_unexpected_exception_is_still_a_json_refusal(self):
+        registry_before = self.registry.read_bytes()
+        original = authz.equivalence_report
+        authz.equivalence_report = lambda *a, **k: (_ for _ in ()).throw(ImportError("synthetic"))
+        try:
+            code, payload = self.migrate()
+        finally:
+            authz.equivalence_report = original
+        self.assertEqual((code, payload["ok"], payload["error"]["kind"]), (2, False, "ImportError"))
+        self.assertFalse(self.store.exists())
+        self.assertEqual(self.registry.read_bytes(), registry_before)
 
 
 class AttributionRefusalTests(MigrationCase):
