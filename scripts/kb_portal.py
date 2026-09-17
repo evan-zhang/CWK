@@ -170,7 +170,8 @@ class PortalApp:
 
     def page(self) -> str:
         """首页：产品介绍，给没用过的人看。技术细节都在文档中心。"""
-        return _shell("CWK 知识库服务", self._fill(_HOME_BODY), active="home")
+        return _shell("CWK 知识库服务", self._fill(_HOME_BODY), active="home",
+                      console_url=self._safe_url(self.console_url))
 
     def docs_index(self) -> str:
         cards = "".join(
@@ -179,7 +180,8 @@ class PortalApp:
             for slug, title, desc in _DOC_NAV
         )
         body = _DOCS_INDEX_BODY.replace("{{DOC_CARDS}}", cards)
-        return _shell("文档中心 · CWK 知识库服务", self._fill(body), active="docs")
+        return _shell("文档中心 · CWK 知识库服务", self._fill(body), active="docs",
+                      console_url=self._safe_url(self.console_url))
 
     def doc(self, slug: str) -> str | None:
         """单个文档页；未知 slug 返回 None，由路由转成 404。"""
@@ -188,7 +190,8 @@ class PortalApp:
             return None
         title, sub = next((t, d) for s, t, d in _DOC_NAV if s == slug)
         rendered = _doc_page(slug, html.escape(title), html.escape(sub), self._fill(body))
-        return _shell(f"{title} · CWK 知识库服务", rendered, active="docs")
+        return _shell(f"{title} · CWK 知识库服务", rendered, active="docs",
+                      console_url=self._safe_url(self.console_url))
 
     def handle(self, method: str, path: str) -> tuple[int, str, bytes, dict[str, str]]:
         """Return ``(status, content_type, body, headers)``.
@@ -407,6 +410,11 @@ nav strong{font-size:.95rem;white-space:nowrap}
 nav a{color:var(--muted);text-decoration:none;font-size:.9rem;white-space:nowrap}
 nav a:hover{color:var(--accent)}
 nav .spacer{flex:1}
+/* 管理控制台入口：放在导航最右，所有页面都在首屏可见（RT-063）。
+   画成按钮而不是普通链接，因为它通往另一个应用，不是本站的一页。 */
+nav a.navcta{color:var(--accent);border:1px solid var(--accent);border-radius:8px;
+  padding:.3rem .8rem;font-weight:600;font-size:.86rem}
+nav a.navcta:hover{background:var(--accent);color:#fff}
 
 header{background:radial-gradient(1200px 400px at 15% -10%,#2b3f6b 0%,var(--deep) 60%);color:#fff;
   padding:4.5rem 0 4rem}
@@ -513,11 +521,15 @@ footer{padding:2rem 0 3rem;color:var(--muted);font-size:.85rem}
     --code-bg:#0a0f1c;--code-ink:#cfdaf0}
   :root{--line:#263146}
   nav{background:#0e1320f2}
+  nav a.navcta:hover{color:var(--bg)}
   .admin .cta.ghost{color:var(--accent)}
 }
 @media (max-width:640px){
   header h1{font-size:1.85rem}
   section{padding:2.5rem 0}
+  /* 导航在窄屏会横向滚动；让出次要链接，保证控制台按钮不被挤出首屏。 */
+  nav .wrap{gap:.8rem}
+  nav a.secondary{display:none}
 }
 
 /* 文档中心：侧栏 + 正文两栏，窄屏折成一栏 */
@@ -1036,10 +1048,18 @@ _DOC_BODIES = {
 }
 
 
-def _shell(title: str, body: str, *, active: str = "") -> str:
-    """站点外壳：所有页面共用同一套头尾，导航高亮由 active 决定。"""
+def _shell(title: str, body: str, *, active: str = "", console_url: str = "") -> str:
+    """站点外壳：所有页面共用同一套头尾，导航高亮由 active 决定。
+
+    ``console_url`` 必须是调用方已经过 ``PortalApp._safe_url`` 的地址；为空就不画入口，
+    而不是画一个点了没用的按钮——底部「管理员入口」一节会说明为什么没有。
+    """
     def mark(key: str) -> str:
         return " aria-current='page'" if active == key else ""
+    console = (
+        "  <a class='navcta' href='{}'>管理控制台</a>\n".format(html.escape(console_url, quote=True))
+        if console_url else ""
+    )
     return (
         "<!doctype html>\n<html lang='zh-CN'><head><meta charset='utf-8'>\n"
         "<meta name='viewport' content='width=device-width,initial-scale=1'>\n"
@@ -1049,7 +1069,8 @@ def _shell(title: str, body: str, *, active: str = "") -> str:
         f"  <a href='/'{mark('home')}>首页</a>\n"
         f"  <a href='/docs'{mark('docs')}>文档中心</a>\n"
         "  <span class='spacer'></span>\n"
-        "  <a href='/docs/quickstart'>快速开始</a>\n"
+        "  <a class='secondary' href='/docs/quickstart'>快速开始</a>\n"
+        f"{console}"
         "</div></nav>\n"
         f"{body}\n"
         "<footer><div class='wrap'>CWK 知识库服务 · 内部使用 · "
