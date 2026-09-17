@@ -126,3 +126,65 @@ class SitePresentationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DiagramTests(unittest.TestCase):
+    """部署图与流转图：内容要对得上现实，且不能把图变成数据面。"""
+
+    def setUp(self) -> None:
+        self.page = kb_portal.PortalApp({}).page()
+
+    def test_both_diagrams_are_inline_svg(self):
+        """内联而非外链：图要跟着主题变色，也不该再发一次网络请求。"""
+        self.assertEqual(self.page.count("<svg"), 2)
+        self.assertNotIn("<img", self.page)
+
+    def test_diagrams_use_theme_variables_not_hard_coded_colors(self):
+        for svg in (kb_portal._DEPLOY_SVG, kb_portal._FLOW_SVG):
+            self.assertNotRegex(svg, r"(fill|stroke)='#[0-9a-fA-F]{3,6}'",
+                                "图里写死了颜色，深色主题下会看不清")
+
+    def test_deployment_diagram_names_every_port_a_user_meets(self):
+        for port in (":8787", ":8790", ":8791", ":8792"):
+            self.assertIn(port, kb_portal._DEPLOY_SVG)
+
+    def test_deployment_diagram_marks_what_is_loopback_only(self):
+        """索引和模型只在服务器本机可达——这是图要传达的主要事实之一。"""
+        self.assertIn("仅本机", kb_portal._DEPLOY_SVG)
+        self.assertIn("局域网", kb_portal._DEPLOY_SVG)
+
+    def test_flow_diagram_covers_the_whole_chain_in_order(self):
+        marks = [kb_portal._FLOW_SVG.index(n) for n in "①②③④⑤⑥⑦⑧⑨"]
+        self.assertEqual(marks, sorted(marks), "步骤编号在源码里的顺序不是递增的")
+
+    def test_flow_diagram_states_where_the_token_is_checked(self):
+        self.assertIn("401", kb_portal._FLOW_SVG)
+        self.assertIn("403", kb_portal._FLOW_SVG)
+
+    def test_diagrams_are_accessible_and_scrollable(self):
+        for svg in (kb_portal._DEPLOY_SVG, kb_portal._FLOW_SVG):
+            self.assertIn("role='img'", svg)
+            self.assertIn("aria-label=", svg)
+        self.assertIn("class='figure'", self.page)
+
+
+class DataSourceHonestyTests(unittest.TestCase):
+    """承接能力必须与摄取管道的实际支持一致，否则同事照着试会撞墙。"""
+
+    def test_the_two_working_sources_are_described(self):
+        page = kb_portal.PortalApp({}).page()
+        self.assertIn("工作协同系统", page)
+        self.assertIn("云端文件库", page)
+
+    def test_the_unsupported_source_is_marked_as_unavailable(self):
+        """kb_ingest 的 --source 只认 cwork-mirror 与 docdb，第三类今天不存在。"""
+        page = kb_portal.PortalApp({}).page()
+        index = page.index("你自己上传的文件")
+        nearby = page[index - 400:index + 400]
+        self.assertIn("尚未开通", nearby)
+
+    def test_the_claim_matches_the_ingest_adapters_actually_registered(self):
+        """判据直接读 kb_ingest：将来加了适配器而官网没跟上，这里会红。"""
+        import kb_ingest
+        self.assertEqual(sorted(kb_ingest.ADAPTERS), ["cwork-mirror", "docdb"],
+                         "摄取适配器变了——官网的『能承接哪些数据』必须同步更新")
