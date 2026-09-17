@@ -347,6 +347,6 @@ entries:
   created: 2026-09-17
 - id: RT-062
   title: 读原文接口鉴权补漏（POST /read 未鉴权 + GET /read 跨库）
-  status: in_progress
+  status: done
   profile: Spec-Lite
   created: 2026-09-17
