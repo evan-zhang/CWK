@@ -21,6 +21,16 @@ class DocResolver:
         try: data=json.loads(self.index_path.read_text(encoding='utf-8'))
         except (OSError,UnicodeError,json.JSONDecodeError) as e: raise ResolveError('invalid index') from e
         return data if isinstance(data,dict) else (_ for _ in ()).throw(ResolveError('invalid index'))
+    def bank_of(self, doc_id, default):
+        """Return the bank that owns an indexed doc_id, or None when it is not indexed.
+
+        Snapshot paths are laid out as ``<bank>/<file>``.  A single-segment path
+        belongs to the deployment's default bank, matching a one-bank index.
+        """
+        rel=self.index.get(doc_id) if isinstance(doc_id,str) else None
+        if not isinstance(rel,str): return None
+        parts=Path(rel).parts
+        return parts[0] if len(parts)>1 else default
     def resolve(self, doc_id):
         if not isinstance(doc_id,str) or not doc_id or len(doc_id)>512 or doc_id.startswith(('/', '\\')) or '..' in Path(doc_id).parts: raise ResolveError('invalid doc_id')
         rel=self.index.get(doc_id)
