@@ -62,6 +62,23 @@
   API 参考写明 401/403。
 - **反向验证**：把同一份测试跑在修复前的 `server.py` 上，7 条失败，两个漏洞各自被抓到。
 - 既有 `test_rt055_rag_answer` / `test_rt055_auth` 等 121 条相关测试不改一行全部通过。
+- 完整快车道（排除 PR-001 安全族）：分支上 2956 条全部通过。主线目录同时跑有 8 条失败，
+  都是已知的本机环境问题（主线目录里有本地数据），分支没有新增失败。
+
+## 上线方案（需产品负责人批准后执行）
+
+- 已核对（2026-09-17）：线上问答服务从 `~/rt055-production/rag-overlay` 构建镜像，
+  不是直接从仓库构建；仓库、overlay、运行中容器三处的 `adapters/` 文件逐个哈希一致，没有分叉。
+- 步骤：
+  1. 合并到 `main` 并推送；OPS 上 `git fetch` + `git merge --ff-only origin/main`。
+  2. 给现有镜像打回滚标签 `rt055-production-rag-answer:pre-rt062`。
+  3. 把 `server.py`、`resolver.py` 两个文件同步进 `rag-overlay/adapters/rag_answer/`。
+  4. 只重建问答容器：`docker compose -p rt055-production -f docker-compose.yml
+     -f docker-compose.rag.yml -f docker-compose.auth.yml up -d --build rag-answer`。
+     检索 8787 和 OpenSearch 不动。
+  5. 重启门户 8792，让 API 参考的更新生效。
+- 影响：问答容器重建约十几秒，期间正在进行的问答请求会中断。
+- 回滚：把 overlay 里两个文件换回上一版，或直接用 `pre-rt062` 标签的镜像重启容器。
 - 上线后复测：重跑当初的状态码探测，`POST /read` 不带令牌与带假令牌都应为 401。
 
 ## 变更记录
