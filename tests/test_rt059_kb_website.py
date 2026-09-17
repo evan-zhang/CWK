@@ -24,11 +24,23 @@ sys.path.insert(0, str(PROJECT / "scripts"))
 import kb_portal
 
 
+def render(route: str, **env) -> str:
+    """取出某条路由的 HTML。
+
+    RT-060 把深度内容从首页搬进了文档中心，因此判据得指向内容实际所在的页面；
+    每条判据要守的东西没变，变的只是去哪儿找。
+    """
+    status, content_type, body, _ = kb_portal.PortalApp(env).handle("GET", route)
+    assert status == 200, f"{route} 返回了 {status}"
+    assert "html" in content_type
+    return body.decode("utf-8")
+
+
 class RunbookCompletenessTests(unittest.TestCase):
     """Every step a newcomer must perform has to be present and executable."""
 
     def setUp(self) -> None:
-        self.page = kb_portal.PortalApp({}).page()
+        self.page = render("/docs/quickstart")
 
     def test_all_five_steps_are_present(self):
         for heading in ("安装查询 Skill", "加进 Agent 白名单", "预检并收集登记信息",
@@ -45,20 +57,20 @@ class RunbookCompletenessTests(unittest.TestCase):
             self.assertIn(f"[ ] {bank_id}", self.page)
 
     def test_service_addresses_come_from_configuration(self):
-        page = kb_portal.PortalApp({
-            "KB_PORTAL_RETRIEVAL_BASE": "http://10.1.2.3:9999",
-            "KB_PORTAL_ANSWER_BASE": "http://10.1.2.3:9998",
-            "KB_PORTAL_REPO_URL": "https://git.example.internal/cwk.git",
-        }).page()
+        page = render("/docs/quickstart",
+                      KB_PORTAL_RETRIEVAL_BASE="http://10.1.2.3:9999",
+                      KB_PORTAL_ANSWER_BASE="http://10.1.2.3:9998",
+                      KB_PORTAL_REPO_URL="https://git.example.internal/cwk.git")
         self.assertIn("http://10.1.2.3:9999/healthz", page)
         self.assertIn("https://git.example.internal/cwk.git", page)
         self.assertNotIn(kb_portal.DEFAULT_RETRIEVAL_BASE, page)
 
     def test_error_semantics_are_explained_not_just_listed(self):
         """401 and 403 are the two things newcomers misread as an outage."""
-        self.assertIn("403", self.page)
-        self.assertIn("401", self.page)
-        self.assertIn("隔离", self.page)
+        faq = render("/docs/faq")
+        self.assertIn("403", faq)
+        self.assertIn("401", faq)
+        self.assertIn("隔离", faq)
 
     def test_copy_uses_the_non_secure_context_fallback(self):
         """The site is served over plain HTTP, where navigator.clipboard is absent."""
@@ -67,16 +79,28 @@ class RunbookCompletenessTests(unittest.TestCase):
 
 
 class NoCorpusDataTests(unittest.TestCase):
-    """A promotional page, not a dashboard: nothing from the real corpus."""
+    """A promotional site, not a dashboard: nothing from the real corpus.
+
+    RT-060 起判据覆盖每一个页面，而不只是首页——新增一页就得同样干净。
+    """
+
+    ROUTES = ("/", "/docs", "/docs/quickstart", "/docs/architecture",
+              "/docs/api", "/docs/extend", "/docs/faq")
 
     def setUp(self) -> None:
-        self.page = kb_portal.PortalApp({}).page()
+        self.page = "".join(render(route) for route in self.ROUTES)
 
     def test_page_reports_no_counts_or_status_of_real_libraries(self):
         """接口词汇（hits/took_ms）是手册必须讲的；这里禁的是「实际统计值」的呈现面。"""
         for leaked in ("文档数", "可读数", "readable_total", "registry_status",
                        "令牌总数", "有效令牌", "lexical_status"):
             self.assertNotIn(leaked, self.page, f"官网出现了库内/管理数据字段：{leaked}")
+
+    def test_every_page_avoids_data_fetching(self):
+        for route in self.ROUTES:
+            page = render(route)
+            for call in ("fetch(", "XMLHttpRequest", "X-KB-Admin-Key"):
+                self.assertNotIn(call, page, f"{route} 出现了取数调用：{call}")
 
     def test_bank_cards_carry_only_the_configured_name_and_description(self):
         """库名本就写在接入手册里；统计数字不是。
@@ -98,15 +122,14 @@ class NoCorpusDataTests(unittest.TestCase):
 
 class SitePresentationTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.page = kb_portal.PortalApp({}).page()
+        self.page = render("/")
 
-    def test_sections_are_anchored_for_the_nav(self):
-        for anchor in ("value", "features", "setup", "limits", "faq", "admin"):
+    def test_home_keeps_the_product_story_sections(self):
+        for anchor in ("value", "features", "banks", "trust", "next", "admin"):
             self.assertIn(f"id='{anchor}'", self.page)
-            self.assertIn(f"href='#{anchor}'", self.page)
 
     def test_contact_is_configurable_and_escaped(self):
-        page = kb_portal.PortalApp({"KB_PORTAL_CONTACT": "<b>老王</b>"}).page()
+        page = render("/docs/faq", KB_PORTAL_CONTACT="<b>老王</b>")
         self.assertNotIn("<b>老王</b>", page)
         self.assertIn("&lt;b&gt;老王&lt;/b&gt;", page)
 
@@ -114,12 +137,11 @@ class SitePresentationTests(unittest.TestCase):
         for promise in ("只读", "找不到就说找不到", "快照"):
             self.assertIn(promise, self.page)
 
-    def test_console_entry_appears_in_both_hero_and_admin_section(self):
-        console = kb_portal.DEFAULT_CONSOLE_URL
-        self.assertEqual(self.page.count(console), 2)
+    def test_console_entry_is_present_on_the_home_page(self):
+        self.assertIn(kb_portal.DEFAULT_CONSOLE_URL, self.page)
 
     def test_console_entry_still_rejects_a_non_http_scheme(self):
-        page = kb_portal.PortalApp({"KB_PORTAL_CONSOLE_URL": "javascript:alert(1)"}).page()
+        page = render("/", KB_PORTAL_CONSOLE_URL="javascript:alert(1)")
         self.assertNotIn("javascript:", page)
         self.assertIn("管理控制台未配置", page)
 
@@ -132,12 +154,13 @@ class DiagramTests(unittest.TestCase):
     """部署图与流转图：内容要对得上现实，且不能把图变成数据面。"""
 
     def setUp(self) -> None:
-        self.page = kb_portal.PortalApp({}).page()
+        self.page = render("/docs/architecture")
 
     def test_both_diagrams_are_inline_svg(self):
         """内联而非外链：图要跟着主题变色，也不该再发一次网络请求。"""
-        self.assertEqual(self.page.count("<svg"), 2)
-        self.assertNotIn("<img", self.page)
+        page = render("/docs/architecture")
+        self.assertEqual(page.count("<svg"), 2)
+        self.assertNotIn("<img", page)
 
     def test_diagrams_use_theme_variables_not_hard_coded_colors(self):
         for svg in (kb_portal._DEPLOY_SVG, kb_portal._FLOW_SVG):
@@ -165,20 +188,20 @@ class DiagramTests(unittest.TestCase):
         for svg in (kb_portal._DEPLOY_SVG, kb_portal._FLOW_SVG):
             self.assertIn("role='img'", svg)
             self.assertIn("aria-label=", svg)
-        self.assertIn("class='figure'", self.page)
+        self.assertIn("class='figure'", render("/docs/architecture"))
 
 
 class DataSourceHonestyTests(unittest.TestCase):
     """承接能力必须与摄取管道的实际支持一致，否则同事照着试会撞墙。"""
 
     def test_the_two_working_sources_are_described(self):
-        page = kb_portal.PortalApp({}).page()
+        page = render("/docs/architecture")
         self.assertIn("工作协同系统", page)
         self.assertIn("云端文件库", page)
 
     def test_the_unsupported_source_is_marked_as_unavailable(self):
         """kb_ingest 的 --source 只认 cwork-mirror 与 docdb，第三类今天不存在。"""
-        page = kb_portal.PortalApp({}).page()
+        page = render("/docs/architecture")
         index = page.index("你自己上传的文件")
         nearby = page[index - 400:index + 400]
         self.assertIn("尚未开通", nearby)
