@@ -163,6 +163,8 @@ class PortalApp:
             "{{RETRIEVAL}}": retrieval,
             "{{ANSWER}}": answer,
             "{{REPO}}": html.escape(self.repo_url),
+            "{{DEPLOY_SVG}}": _DEPLOY_SVG,
+            "{{FLOW_SVG}}": _FLOW_SVG,
         }
         page = _PAGE
         for marker, value in replacements.items():
@@ -189,6 +191,170 @@ class PortalApp:
 
 def _json(payload: Mapping[str, Any]) -> bytes:
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
+
+
+_ARROW_DEFS = """<defs>
+<marker id='dgar' viewBox='0 0 10 10' refX='9' refY='5' markerWidth='7' markerHeight='7'
+  orient='auto-start-reverse'><path d='M0,0 L10,5 L0,10 z' fill='currentColor'/></marker>
+</defs>"""
+
+# 部署拓扑：谁跑在哪台机器上、哪些端口对局域网开放、哪些只在服务器本机可达。
+# 坐标是手排的固定网格——三列的列心在 327/556/785，两列的在 385/727。
+_DEPLOY_SVG = """<svg viewBox='0 0 920 570' role='img'
+  aria-label='部署拓扑图：数据来源经摄取管道进入 OPS 服务器的存储层、服务层与门面层，局域网内的同事通过 Agent 访问'>
+""" + _ARROW_DEFS + """
+<g class='dg-zt'><text x='8' y='0'></text></g>
+
+<!-- 数据来源 -->
+<rect class='dg-box' x='8' y='8' width='284' height='62' rx='10'/>
+<text class='dg-t' x='150' y='34' text-anchor='middle'>工作协同系统</text>
+<text class='dg-s' x='150' y='54' text-anchor='middle'>汇报、待办、回复链</text>
+
+<rect class='dg-box' x='318' y='8' width='284' height='62' rx='10'/>
+<text class='dg-t' x='460' y='34' text-anchor='middle'>云端文件库</text>
+<text class='dg-s' x='460' y='54' text-anchor='middle'>投前资料这类已有文档库</text>
+
+<rect class='dg-box dash' x='628' y='8' width='284' height='62' rx='10'/>
+<text class='dg-t' x='770' y='34' text-anchor='middle'>你自己的文件</text>
+<text class='dg-s' x='770' y='54' text-anchor='middle'>尚未开通，见下方说明</text>
+
+<g class='dg-line' color='currentColor'>
+<path d='M150,70 L150,98' marker-end='url(#dgar)'/>
+<path d='M460,70 L460,98' marker-end='url(#dgar)'/>
+<path d='M770,70 L770,98' marker-end='url(#dgar)' stroke-dasharray='5 4'/>
+</g>
+
+<!-- 摄取 -->
+<rect class='dg-bar' x='8' y='100' width='904' height='48' rx='10'/>
+<text class='dg-t' x='460' y='122' text-anchor='middle'>摄取管道</text>
+<text class='dg-s' x='460' y='140' text-anchor='middle'>格式转换 → 原文快照 + 检索索引（离线执行，定期更新，原件只读不改）</text>
+<g class='dg-line strong' color='currentColor'><path d='M460,148 L460,172' marker-end='url(#dgar)'/></g>
+
+<!-- OPS 服务器 -->
+<rect class='dg-zone' x='200' y='176' width='712' height='340' rx='14'/>
+<text class='dg-zt' x='218' y='198'>OPS 服务器 · 192.168.91.72</text>
+
+<text class='dg-zt' x='220' y='230'>存储层</text>
+<rect class='dg-box' x='220' y='238' width='200' height='62' rx='9'/>
+<text class='dg-t' x='320' y='262' text-anchor='middle'>检索索引</text>
+<text class='dg-s' x='320' y='282' text-anchor='middle'>OpenSearch · 仅本机</text>
+<rect class='dg-box' x='448' y='238' width='200' height='62' rx='9'/>
+<text class='dg-t' x='548' y='262' text-anchor='middle'>原文快照</text>
+<text class='dg-s' x='548' y='282' text-anchor='middle'>只读，按库分目录</text>
+<rect class='dg-box' x='676' y='238' width='216' height='62' rx='9'/>
+<text class='dg-t' x='784' y='262' text-anchor='middle'>令牌登记表</text>
+<text class='dg-s' x='784' y='282' text-anchor='middle'>只存指纹，两个服务每次都查</text>
+
+<!-- 每列的箭头必须对得上真实依赖：索引喂检索、快照喂问答。
+     登记表被两个服务查、不喂任何单一组件，所以它没有竖箭头，改用文字说明——
+     画一条竖线到本机模型会变成「登记表喂模型」这种假话。 -->
+<g class='dg-line' color='currentColor'>
+<path d='M320,300 L320,330' marker-end='url(#dgar)'/>
+<path d='M548,300 L548,330' marker-end='url(#dgar)'/>
+</g>
+
+<text class='dg-zt' x='220' y='328'>服务层</text>
+<rect class='dg-box accent' x='220' y='336' width='200' height='62' rx='9'/>
+<text class='dg-t' x='320' y='360' text-anchor='middle'>检索服务</text>
+<text class='dg-p' x='320' y='380' text-anchor='middle'>:8787</text>
+<rect class='dg-box accent' x='448' y='336' width='200' height='62' rx='9'/>
+<text class='dg-t' x='548' y='360' text-anchor='middle'>问答 · 读原文</text>
+<text class='dg-p' x='548' y='380' text-anchor='middle'>:8790</text>
+<rect class='dg-box' x='676' y='336' width='216' height='62' rx='9'/>
+<text class='dg-t' x='784' y='360' text-anchor='middle'>本机模型</text>
+<text class='dg-s' x='784' y='380' text-anchor='middle'>仅本机，不出内网</text>
+<g class='dg-line' color='currentColor'><path d='M652,367 L672,367' marker-end='url(#dgar)'/></g>
+
+<text class='dg-zt' x='220' y='426'>门面层</text>
+<rect class='dg-box accent' x='220' y='434' width='328' height='62' rx='9'/>
+<text class='dg-t' x='384' y='458' text-anchor='middle'>官网</text>
+<text class='dg-s' x='384' y='478' text-anchor='middle'><tspan class='dg-p'>:8792</tspan> 免密码，就是你正在看的这页</text>
+<rect class='dg-box accent' x='560' y='434' width='332' height='62' rx='9'/>
+<text class='dg-t' x='726' y='458' text-anchor='middle'>管理控制台</text>
+<text class='dg-s' x='726' y='478' text-anchor='middle'><tspan class='dg-p'>:8791</tspan> 需要管理密码</text>
+
+<!-- 使用者 -->
+<rect class='dg-box accent' x='8' y='388' width='170' height='96' rx='10'/>
+<text class='dg-t' x='93' y='420' text-anchor='middle'>局域网里的你</text>
+<text class='dg-s' x='93' y='440' text-anchor='middle'>OpenClaw Agent</text>
+<text class='dg-s' x='93' y='458' text-anchor='middle'>装了查询 Skill</text>
+
+<g class='dg-line strong' color='currentColor'>
+<path d='M178,412 L214,376' marker-end='url(#dgar)'/>
+<path d='M178,452 L214,462' marker-end='url(#dgar)'/>
+</g>
+<text class='dg-s' x='196' y='356' text-anchor='middle'>带令牌</text>
+<text class='dg-s' x='150' y='502' text-anchor='middle'>浏览</text>
+
+<text class='dg-s' x='8' y='540'>实线＝局域网内可达；标「仅本机」的两项只在服务器自己身上可达，任何人从局域网都连不到。</text>
+</svg>"""
+
+
+# 一次提问的完整链路，画成时序图：四条泳道自左向右，时间自上向下。
+# 选时序图而不是流程框图，是因为要看清「谁在跟谁说话、令牌在哪一跳被校验」。
+_FLOW_SVG = """<svg viewBox='0 0 920 540' role='img'
+  aria-label='数据流转时序图：Agent 发起检索与问答请求，经令牌校验、双通道检索、读取原文快照与本机模型，返回结论与引用'>
+""" + _ARROW_DEFS + """
+<rect class='dg-box accent' x='20' y='8' width='180' height='46' rx='9'/>
+<text class='dg-t' x='110' y='30' text-anchor='middle'>你的 Agent</text>
+<text class='dg-s' x='110' y='46' text-anchor='middle'>在你自己的机器上</text>
+
+<rect class='dg-box accent' x='280' y='8' width='180' height='46' rx='9'/>
+<text class='dg-t' x='370' y='30' text-anchor='middle'>检索服务</text>
+<text class='dg-p' x='370' y='46' text-anchor='middle'>:8787</text>
+
+<rect class='dg-box accent' x='530' y='8' width='180' height='46' rx='9'/>
+<text class='dg-t' x='620' y='30' text-anchor='middle'>问答 · 读原文</text>
+<text class='dg-p' x='620' y='46' text-anchor='middle'>:8790</text>
+
+<rect class='dg-box' x='740' y='8' width='170' height='46' rx='9'/>
+<text class='dg-t' x='825' y='30' text-anchor='middle'>快照与本机模型</text>
+<text class='dg-s' x='825' y='46' text-anchor='middle'>都在服务器本机</text>
+
+<g class='dg-life'>
+<path d='M110,54 L110,506'/><path d='M370,54 L370,506'/>
+<path d='M620,54 L620,506'/><path d='M825,54 L825,506'/>
+</g>
+
+<g class='dg-line strong' color='currentColor'>
+<path d='M110,98 L366,98' marker-end='url(#dgar)'/>
+<path d='M370,140 L418,140 L418,164 L374,164' marker-end='url(#dgar)'/>
+<path d='M370,204 L418,204 L418,228 L374,228' marker-end='url(#dgar)'/>
+<path d='M366,268 L114,268' marker-end='url(#dgar)'/>
+<path d='M110,312 L616,312' marker-end='url(#dgar)'/>
+<path d='M620,354 L821,354' marker-end='url(#dgar)'/>
+<path d='M620,398 L821,398' marker-end='url(#dgar)'/>
+<path d='M616,442 L114,442' marker-end='url(#dgar)'/>
+<path d='M110,486 L616,486' marker-end='url(#dgar)' stroke-dasharray='5 4'/>
+</g>
+
+<text class='dg-n' x='118' y='90'>①</text>
+<text class='dg-s' x='138' y='90'>POST /query —— 请求头带上你的令牌</text>
+
+<text class='dg-n' x='430' y='146'>②</text>
+<text class='dg-s' x='450' y='146'>校验令牌：缺失或过期 401，库不在授权内 403</text>
+
+<text class='dg-n' x='430' y='210'>③</text>
+<text class='dg-s' x='450' y='210'>精确通道与语义通道并行，结果合并排序</text>
+
+<text class='dg-n' x='128' y='260'>④</text>
+<text class='dg-s' x='148' y='260'>返回候选文档编号，毫秒级</text>
+
+<text class='dg-n' x='118' y='304'>⑤</text>
+<text class='dg-s' x='138' y='304'>POST /answer —— 要一段带出处的结论</text>
+
+<text class='dg-n' x='628' y='346'>⑥</text>
+<text class='dg-s' x='648' y='346'>按编号取出原文，只在内存里用</text>
+
+<text class='dg-n' x='628' y='390'>⑦</text>
+<text class='dg-s' x='648' y='390'>交给本机模型归纳，原文不出这台机器</text>
+
+<text class='dg-n' x='128' y='434'>⑧</text>
+<text class='dg-s' x='148' y='434'>返回结论 + 引用编号，约 25–45 秒</text>
+
+<text class='dg-n' x='118' y='478'>⑨</text>
+<text class='dg-s' x='138' y='478'>可选：POST /read 逐页翻原文，亲自核对那句话</text>
+</svg>"""
 
 
 _PAGE = """<!doctype html>
@@ -287,6 +453,28 @@ details[open] summary::before{content:"－"}
 details .body{padding:0 1.1rem 1rem;color:var(--muted);font-size:.93rem}
 
 .note{color:var(--muted);font-size:.88rem}
+
+/* 图：用 CSS 变量着色，因此深浅色主题共用同一份 SVG。
+   外层 .figure 负责窄屏横向滚动——图本身不缩到看不清。 */
+.figure{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:1.25rem;margin:0 0 .8rem;overflow-x:auto}
+.figure svg{display:block;width:100%;min-width:720px;height:auto}
+.figcap{color:var(--muted);font-size:.86rem;margin:0 0 2rem}
+.dg-zone{fill:var(--accent-soft);stroke:var(--line)}
+.dg-box{fill:var(--card);stroke:var(--line);stroke-width:1.5}
+.dg-box.accent{stroke:var(--accent)}
+.dg-box.dash{stroke-dasharray:5 4}
+.dg-bar{fill:var(--accent);opacity:.12;stroke:var(--accent)}
+.dg-t{fill:var(--ink);font-size:14px;font-weight:600}
+.dg-s{fill:var(--muted);font-size:12px}
+.dg-p{fill:var(--accent);font-size:12px;font-weight:700;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.dg-zt{fill:var(--muted);font-size:12px;font-weight:700;letter-spacing:.08em}
+.dg-line{stroke:var(--muted);stroke-width:1.5;fill:none}
+.dg-line.strong{stroke:var(--accent);stroke-width:2}
+.dg-life{stroke:var(--line);stroke-width:1.5;stroke-dasharray:4 5}
+/* 圈码在 12px 下糊成一个点，认不出是几 */
+.dg-n{fill:var(--accent);font-size:16px;font-weight:700}
 .admin{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:1.5rem;
   display:flex;gap:1.2rem;align-items:center;flex-wrap:wrap;justify-content:space-between}
 .admin .cta.ghost{border-color:var(--line);color:var(--accent)}
@@ -313,6 +501,8 @@ footer{padding:2rem 0 3rem;color:var(--muted);font-size:.85rem}
   <strong>CWK 知识库</strong>
   <a href='#value'>能解决什么</a>
   <a href='#features'>功能</a>
+  <a href='#sources'>数据从哪来</a>
+  <a href='#deploy'>怎么部署的</a>
   <a href='#setup'>接入</a>
   <a href='#limits'>边界</a>
   <a href='#faq'>常见问题</a>
@@ -379,6 +569,50 @@ footer{padding:2rem 0 3rem;color:var(--muted);font-size:.85rem}
          这是隔离在生效，不是故障。</p>
     </div>
   </div>
+</div></section>
+
+<section id='sources'><div class='wrap'>
+  <h2>知识库能承接哪些数据</h2>
+  <p class='lede'>知识库本身不产生内容，它只是把别处已有的资料整理成可检索的样子。
+     目前接了两类来源，第三类还没开通。</p>
+  <div class='grid'>
+    <div class='card'>
+      <span class='k'>已接入</span>
+      <h3>工作协同系统</h3>
+      <p>日常的工作汇报、待办和回复链，按业务日期整理入库。这是目前量最大的一类，
+         适合回答"某件事当时是怎么推进的"。</p>
+    </div>
+    <div class='card'>
+      <span class='k'>已接入</span>
+      <h3>云端文件库</h3>
+      <p>已经存在公司云端文档库里的资料，按项目分类入库。Word、PDF、表格、纯文本
+         都会先经过格式转换再进索引。</p>
+    </div>
+    <div class='card'>
+      <span class='k' style='color:var(--muted)'>尚未开通</span>
+      <h3>你自己上传的文件</h3>
+      <p>目前还没有对应的接入通道——摄取管道只认上面两类来源。
+         确实需要把自己手里的一批资料建成库，先跟{{CONTACT}}说，
+         这需要单独开发一个入口。</p>
+    </div>
+  </div>
+  <p class='note' style='margin-top:1rem'>三类来源进库之后是一样的：原件只读、不被改写，
+     入库的是它的一份快照和索引。想加一个新库，由管理员执行摄取，不是自助操作。</p>
+</div></section>
+
+<section id='deploy'><div class='wrap'>
+  <h2>它是怎么部署的</h2>
+  <p class='lede'>全部跑在公司内网的一台服务器上。知道东西在哪、哪些端口开着、
+     哪些根本连不到，用起来心里有数。</p>
+  <div class='figure'>{{DEPLOY_SVG}}</div>
+  <p class='figcap'>你的机器只会碰到四个端口：官网、管理控制台、检索、问答。
+     检索索引和本机模型都只监听服务器自己，局域网里连不上——这不是配置疏漏，是有意如此。</p>
+
+  <h2 style='margin-top:2.5rem'>一次提问经过了什么</h2>
+  <p class='lede'>从你说出问题，到拿回一段带出处的结论，中间是这样一条链路。</p>
+  <div class='figure'>{{FLOW_SVG}}</div>
+  <p class='figcap'>三件值得记住的事：令牌在第一跳就被校验，越权在这里就被挡住；
+     原文只在服务器内存里经手，不出这台机器；服务本身不保存你的问题，也不保存生成的答案。</p>
 </div></section>
 
 <section id='banks'><div class='wrap'>
