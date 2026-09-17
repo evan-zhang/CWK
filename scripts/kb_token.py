@@ -54,6 +54,23 @@ the file on every single lookup.  ``membership_epoch`` is a registry-wide
 monotone counter bumped by every mutation, so a downstream cache (should one
 ever exist) can observe the change without diffing records.
 
+RT-061 (库对象与自有授权).  The probe now also says *who* the key belongs
+to: :func:`xuanguan_probe` resolves the person behind the key through 玄关
+(``kb_identity.py``), and the record carries that ``principal``.  Libraries
+then authorize principals through ``kb_authz.py``'s membership table instead
+of each token's own ``kb_ids``:
+
+- ``--authz grants`` tokens follow membership live; their ``kb_ids`` are kept
+  only as a rollback snapshot for readers that predate RT-061.
+- ``--authz listed`` (default) and every pre-RT-061 token stay bound to their
+  own ``kb_ids`` too, so membership can narrow them but never widen them.
+- the per-person ceiling and the Agent binding key on the principal, so one
+  person holding two business keys still gets one ceiling and one live token
+  per Agent;
+- ``issue-service`` / ``rotate-service`` mint tokens for services (the RAG
+  service calling retrieval) whose principal is ``service:<name>``: no
+  ceiling, and authority is write access to the registry, like shared tokens.
+
 Only stdlib, plus this repo's own ``kb_ledger`` / ``kb_storage`` helpers.
 Never touches ``.env``, never writes a KB, never calls a write verb on CWork.
 """
@@ -84,6 +101,7 @@ RECORD_SCHEMA = "cwk.kb.token-record.v1"
 RECEIPT_SCHEMA = "cwk.kb.token-receipt.v1"
 INIT_SCHEMA = "cwk.kb.token-init.v1"
 ISSUE_SCHEMA = "cwk.kb.token-issue.v1"
+SERVICE_ISSUE_SCHEMA = "cwk.kb.token-service-issue.v1"
 REISSUE_SCHEMA = "cwk.kb.token-reissue.v1"
 REVOKE_SCHEMA = "cwk.kb.token-revoke.v1"
 LIST_SCHEMA = "cwk.kb.token-list.v1"
@@ -146,8 +164,19 @@ STATUS_EXPIRED = "expired"
 
 TOKEN_KIND_AGENT = "agent"
 TOKEN_KIND_SHARED_KB = "shared_kb"
+TOKEN_KIND_SERVICE = "service"
+TOKEN_KINDS = (TOKEN_KIND_AGENT, TOKEN_KIND_SHARED_KB, TOKEN_KIND_SERVICE)
 SHARED_BINDING_PREFIX = "share:"
 SHARED_OWNER_REF_BASIS = "ops-token-registry-write-access"
+SERVICE_BINDING_PREFIX = "svc:"
+SERVICE_PRINCIPAL_PREFIX = "service:"
+
+#: RT-061: how a token's bank access is decided once membership is live.
+AUTHZ_LISTED = "listed"
+AUTHZ_GRANTS = "grants"
+AUTHZ_MODES = (AUTHZ_LISTED, AUTHZ_GRANTS)
+MAX_LABEL_CHARS = 64
+_SERVICE_NAME = re.compile(r"\A[a-z0-9][a-z0-9-]{0,62}\Z")
 
 
 # ── errors ──────────────────────────────────────────────────────────────────
@@ -247,6 +276,18 @@ def cwork_probe(app_key: str) -> str:
     return DEFAULT_PROBE_LABEL
 
 
+def xuanguan_probe(app_key: str):
+    """RT-061 default probe: prove the key *and* learn whose it is.
+
+    Two authenticated reads on 玄关 (``kb_identity.resolve_person``).  A key
+    玄关 rejects, or one whose owner cannot be pinned down unambiguously,
+    raises — which :func:`verify_business_key` turns into a refusal.
+    """
+    from kb_identity import resolve_person  # noqa: PLC0415 - network client, lazy
+
+    return resolve_person(app_key)
+
+
 @dataclass(frozen=True)
 class VerifiedIdentity:
     """What a passing probe establishes.  Never carries the key."""
@@ -255,6 +296,9 @@ class VerifiedIdentity:
     basis: str = OWNER_REF_BASIS
     probe: str = DEFAULT_PROBE_LABEL
     verified_at: str = ""
+    #: RT-061: ``person:<corp>:<id>`` when the probe could say who this is.
+    principal: str = ""
+    person_name: str = ""
 
 
 def derive_owner_ref(salt_hex: str, app_key: str) -> str:
@@ -269,6 +313,31 @@ def derive_owner_ref(salt_hex: str, app_key: str) -> str:
     """
     mac = hmac.new(_salt_bytes(salt_hex), f"owner|v1|{app_key}".encode("utf-8"), hashlib.sha256)
     return OWNER_REF_PREFIX + mac.hexdigest()[:DERIVED_ID_CHARS]
+
+
+def derive_agent_binding_id_v2(salt_hex: str, principal: str, raw_agent_id: str) -> str:
+    """RT-061 binding: HMAC(salt, person ‖ raw agent id).
+
+    Keyed on the person rather than the key, so the same person's second
+    business key cannot mint a second live token for the same Agent.  A
+    separate HMAC domain (``agent|v2``) keeps it from ever equalling a v1 id.
+    """
+    validate_agent_id(raw_agent_id)
+    mac = hmac.new(
+        _salt_bytes(salt_hex),
+        f"agent|v2|{principal}|{raw_agent_id}".encode("utf-8"),
+        hashlib.sha256,
+    )
+    return BINDING_PREFIX + mac.hexdigest()[:DERIVED_ID_CHARS]
+
+
+def binding_ids_for(salt_hex: str, identity: "VerifiedIdentity", raw_agent_id: str) -> List[str]:
+    """Every binding id this Agent may already hold tokens under, newest first."""
+    ids = []
+    if identity.principal:
+        ids.append(derive_agent_binding_id_v2(salt_hex, identity.principal, raw_agent_id))
+    ids.append(derive_agent_binding_id(salt_hex, identity.owner_ref, raw_agent_id))
+    return ids
 
 
 def derive_agent_binding_id(salt_hex: str, owner_ref: str, raw_agent_id: str) -> str:
@@ -302,7 +371,7 @@ def verify_business_key(
     *,
     salt_hex: str,
     env: Optional[Mapping[str, str]] = None,
-    probe: Callable[[str], str] = cwork_probe,
+    probe: Callable[[str], Any] = xuanguan_probe,
     now: Optional[datetime] = None,
 ) -> VerifiedIdentity:
     """Read the key from ``env[var_name]``, prove it, derive ``owner_ref``.
@@ -322,15 +391,26 @@ def verify_business_key(
             f"环境变量 {var_name} 未设置或为空——无法验证身份，拒绝签发。"
         )
     try:
-        label = probe(app_key)
+        result = probe(app_key)
     except Exception as exc:  # noqa: BLE001 - any probe failure is a refusal
         detail = redact(str(exc) or type(exc).__name__, app_key)
         raise IdentityError(f"业务 Key 未通过认证面校验，拒绝签发：{detail}") from None
+    principal = str(getattr(result, "principal", "") or "")
+    if principal:
+        from kb_identity import PROBE_LABEL  # noqa: PLC0415
+
+        label = PROBE_LABEL
+        person_name = str(getattr(result, "name", "") or "")
+    else:
+        label = str(result or DEFAULT_PROBE_LABEL)
+        person_name = ""
     return VerifiedIdentity(
         owner_ref=derive_owner_ref(salt_hex, app_key),
         basis=OWNER_REF_BASIS,
-        probe=str(label or DEFAULT_PROBE_LABEL),
+        probe=label,
         verified_at=iso(now or utc_now()),
+        principal=principal,
+        person_name=person_name,
     )
 
 
@@ -359,6 +439,26 @@ def validate_kb_ids(kb_ids: Sequence[str]) -> List[str]:
     if not cleaned:
         raise UsageError("--kb-id 至少给一个：token 的授权面就是这份名单")
     return cleaned
+
+
+def validate_authz(authz: object) -> str:
+    if authz not in AUTHZ_MODES:
+        raise UsageError(f"--authz 只能是 {' / '.join(AUTHZ_MODES)}")
+    return str(authz)
+
+
+def validate_label(label: object) -> str:
+    """A holder-chosen display name.  Optional; never derived from a hostname."""
+    text = str(label or "").strip()
+    if len(text) > MAX_LABEL_CHARS or any(ord(ch) < 32 for ch in text):
+        raise UsageError(f"--label 最长 {MAX_LABEL_CHARS} 字符，且不能含控制字符")
+    return text
+
+
+def validate_service_name(name: object) -> str:
+    if not isinstance(name, str) or not _SERVICE_NAME.match(name):
+        raise UsageError("--service 只能是小写字母数字开头、由小写字母数字与 - 组成的 1~63 字符串")
+    return name
 
 
 def validate_ttl_days(ttl_days: object) -> int:
@@ -529,7 +629,7 @@ def binding_records(data: Mapping[str, Any], agent_binding_id: str) -> List[dict
 def token_kind(record: Mapping[str, Any]) -> str:
     """Return the explicit kind, treating pre-RT-053 records as Agent tokens."""
     value = str(record.get("token_kind") or TOKEN_KIND_AGENT)
-    return value if value in (TOKEN_KIND_AGENT, TOKEN_KIND_SHARED_KB) else TOKEN_KIND_AGENT
+    return value if value in TOKEN_KINDS else TOKEN_KIND_AGENT
 
 
 def _bump_epoch(data: dict) -> int:
@@ -559,6 +659,7 @@ def _append_receipt(
         "reason": reason or "unspecified",
         "token_id": record.get("token_id", ""),
         "owner_ref": record.get("owner_ref", ""),
+        "principal": record.get("principal", ""),
         "agent_binding_id": record.get("agent_binding_id", ""),
         "kb_ids": list(record.get("kb_ids", [])),
         "generation": record.get("generation", 0),
@@ -579,6 +680,9 @@ def public_view(record: Mapping[str, Any], now: datetime) -> dict:
         "token_kind": token_kind(record),
         "owner_ref": record.get("owner_ref", ""),
         "owner_ref_basis": record.get("owner_ref_basis", OWNER_REF_BASIS),
+        "principal": record.get("principal", ""),
+        "authz": record.get("authz", AUTHZ_LISTED),
+        "label": record.get("label", ""),
         "agent_binding_id": record.get("agent_binding_id", ""),
         "kb_ids": list(record.get("kb_ids", [])),
         "generation": record.get("generation", 0),
@@ -602,6 +706,41 @@ def active_count_for_owner(data: Mapping[str, Any], owner_ref: str, now: datetim
     )
 
 
+def active_count_for_identity(data: Mapping[str, Any], identity: VerifiedIdentity, now: datetime) -> int:
+    """Live Agent tokens held by this person, across every key they own.
+
+    A row counts when it was issued under this very key (``owner_ref``) or
+    names the same person (``principal``).  Without the second clause a
+    person with two business keys would get two ceilings (RT-061 A3).
+    """
+    return sum(
+        1
+        for row in records(data)
+        if token_kind(row) == TOKEN_KIND_AGENT
+        and record_status(row, now) == STATUS_ACTIVE
+        and (
+            row.get("owner_ref") == identity.owner_ref
+            or (bool(identity.principal) and row.get("principal") == identity.principal)
+        )
+    )
+
+
+def _records_for_bindings(data: Mapping[str, Any], bindings: Sequence[str]) -> List[dict]:
+    wanted = set(bindings)
+    return [row for row in records(data) if row.get("agent_binding_id") in wanted]
+
+
+def _identity_fields(identity: VerifiedIdentity) -> Dict[str, Any]:
+    fields: Dict[str, Any] = {
+        "owner_ref": identity.owner_ref,
+        "owner_ref_basis": identity.basis,
+        "identity_probe": identity.probe,
+    }
+    if identity.principal:
+        fields["principal"] = identity.principal
+    return fields
+
+
 def issue_token(
     data: dict,
     *,
@@ -612,8 +751,10 @@ def issue_token(
     now: Optional[datetime] = None,
     actor: str = "",
     reason: str = "",
+    authz: str = AUTHZ_LISTED,
+    label: str = "",
 ) -> Tuple[dict, str]:
-    """Mint one token for ``(owner_ref, agent_binding_id)``.
+    """Mint one token for ``(person, Agent instance)``.
 
     Returns ``(record, plaintext_token)``.  The plaintext is the caller's
     only copy — this function does not keep it and neither does the
@@ -623,9 +764,14 @@ def issue_token(
     salt = str(data.get("owner_ref_salt") or "")
     scope = validate_kb_ids(kb_ids)
     days = validate_ttl_days(ttl_days)
-    binding = derive_agent_binding_id(salt, identity.owner_ref, raw_agent_id)
+    mode = validate_authz(authz)
+    display = validate_label(label)
+    if mode == AUTHZ_GRANTS and not identity.principal:
+        raise IdentityError("--authz grants 的令牌必须能解析出人员身份；本次认证没有给出，拒绝签发")
+    bindings = binding_ids_for(salt, identity, raw_agent_id)
+    prior = _records_for_bindings(data, bindings)
 
-    for row in binding_records(data, binding):
+    for row in prior:
         if record_status(row, moment) == STATUS_ACTIVE:
             raise ConflictError(
                 f"该 Agent 实例已有有效 token（{row.get('token_id')}）——"
@@ -633,12 +779,12 @@ def issue_token(
             )
 
     ceiling = int(data.get("max_active_per_owner", DEFAULT_MAX_ACTIVE_PER_OWNER))
-    if active_count_for_owner(data, identity.owner_ref, moment) >= ceiling:
+    if active_count_for_identity(data, identity, moment) >= ceiling:
         raise ConflictError(
             f"该用户跨 Agent 实例的有效 token 已达上限 {ceiling}——先 revoke 一个再签发"
         )
 
-    generation = max((int(row.get("generation", 0)) for row in binding_records(data, binding)), default=0) + 1
+    generation = max((int(row.get("generation", 0)) for row in prior), default=0) + 1
     plaintext = secrets.token_hex(TOKEN_BYTES)
     digest = token_digest(plaintext)
     epoch_before = int(data.get("membership_epoch", 0))
@@ -649,10 +795,9 @@ def issue_token(
         "token_kind": TOKEN_KIND_AGENT,
         "token_id": token_id_for(digest),
         "token_sha256": digest,
-        "owner_ref": identity.owner_ref,
-        "owner_ref_basis": identity.basis,
-        "identity_probe": identity.probe,
-        "agent_binding_id": binding,
+        **_identity_fields(identity),
+        "agent_binding_id": bindings[0],
+        "authz": mode,
         "kb_ids": scope,
         "generation": generation,
         "membership_epoch": epoch,
@@ -661,6 +806,8 @@ def issue_token(
         "revoked": False,
         "revoked_at": None,
     }
+    if display:
+        record["label"] = display
     data.setdefault("tokens", []).append(record)
     _append_receipt(
         data,
@@ -671,7 +818,7 @@ def issue_token(
         now=moment,
         epoch_before=epoch_before,
         epoch_after=epoch,
-        extra={"ttl_days": days},
+        extra={"ttl_days": days, "authz": mode},
     )
     return record, plaintext
 
@@ -849,6 +996,8 @@ def reissue_token(
     now: Optional[datetime] = None,
     actor: str = "",
     reason: str = "",
+    authz: Optional[str] = None,
+    label: Optional[str] = None,
 ) -> Tuple[dict, str, List[str]]:
     """Advance the generation for one Agent instance; kill every older one.
 
@@ -856,17 +1005,25 @@ def reissue_token(
     the caller writes the registry once, so a reader never sees generation
     *n* and *n+1* both live.  One epoch bump covers the pair, because it is
     one authorization event.
+
+    RT-061: generations issued under the pre-RT-061 key-based binding are
+    found and superseded too, and the new generation moves to the
+    person-based binding.  ``authz`` and ``label`` carry over unless given.
     """
     moment = now or utc_now()
     salt = str(data.get("owner_ref_salt") or "")
-    binding = derive_agent_binding_id(salt, identity.owner_ref, raw_agent_id)
-    prior = binding_records(data, binding)
+    bindings = binding_ids_for(salt, identity, raw_agent_id)
+    prior = _records_for_bindings(data, bindings)
     if not prior:
         raise NotFound("该 Agent 实例还没有 token——第一支请用 issue")
 
     latest = max(prior, key=lambda row: int(row.get("generation", 0)))
     scope = validate_kb_ids(kb_ids if kb_ids else latest.get("kb_ids", []))
     days = validate_ttl_days(ttl_days)
+    mode = validate_authz(authz if authz is not None else latest.get("authz", AUTHZ_LISTED))
+    display = validate_label(label if label is not None else latest.get("label", ""))
+    if mode == AUTHZ_GRANTS and not identity.principal:
+        raise IdentityError("--authz grants 的令牌必须能解析出人员身份；本次认证没有给出，拒绝换代")
 
     epoch_before = int(data.get("membership_epoch", 0))
     epoch = _bump_epoch(data)
@@ -882,7 +1039,7 @@ def reissue_token(
 
     generation = max(int(row.get("generation", 0)) for row in prior) + 1
     ceiling = int(data.get("max_active_per_owner", DEFAULT_MAX_ACTIVE_PER_OWNER))
-    if active_count_for_owner(data, identity.owner_ref, moment) >= ceiling:
+    if active_count_for_identity(data, identity, moment) >= ceiling:
         raise ConflictError(
             f"该用户跨 Agent 实例的有效 token 已达上限 {ceiling}——先 revoke 一个再换代"
         )
@@ -894,10 +1051,9 @@ def reissue_token(
         "token_kind": TOKEN_KIND_AGENT,
         "token_id": token_id_for(digest),
         "token_sha256": digest,
-        "owner_ref": identity.owner_ref,
-        "owner_ref_basis": identity.basis,
-        "identity_probe": identity.probe,
-        "agent_binding_id": binding,
+        **_identity_fields(identity),
+        "agent_binding_id": bindings[0],
+        "authz": mode,
         "kb_ids": scope,
         "generation": generation,
         "membership_epoch": epoch,
@@ -906,6 +1062,8 @@ def reissue_token(
         "revoked": False,
         "revoked_at": None,
     }
+    if display:
+        record["label"] = display
     data.setdefault("tokens", []).append(record)
     _append_receipt(
         data,
@@ -916,9 +1074,184 @@ def reissue_token(
         now=moment,
         epoch_before=epoch_before,
         epoch_after=epoch,
-        extra={"ttl_days": days, "superseded_token_ids": superseded},
+        extra={"ttl_days": days, "superseded_token_ids": superseded, "authz": mode},
     )
     return record, plaintext, superseded
+
+
+def _service_record(
+    *, service: str, scope: List[str], mode: str, generation: int, epoch: int, days: int, moment: datetime
+) -> Tuple[dict, str]:
+    plaintext = secrets.token_hex(TOKEN_BYTES)
+    digest = token_digest(plaintext)
+    record = {
+        "schema": RECORD_SCHEMA,
+        "token_kind": TOKEN_KIND_SERVICE,
+        "token_id": token_id_for(digest),
+        "token_sha256": digest,
+        "owner_ref": "",
+        "owner_ref_basis": SHARED_OWNER_REF_BASIS,
+        "identity_probe": "",
+        "principal": SERVICE_PRINCIPAL_PREFIX + service,
+        "agent_binding_id": SERVICE_BINDING_PREFIX + service,
+        "authz": mode,
+        "kb_ids": scope,
+        "generation": generation,
+        "membership_epoch": epoch,
+        "created_at": iso(moment),
+        "expires_at": iso(moment + timedelta(days=days)),
+        "revoked": False,
+        "revoked_at": None,
+    }
+    return record, plaintext
+
+
+def issue_service_token(
+    data: dict,
+    *,
+    service: str,
+    kb_ids: Sequence[str],
+    authz: str = AUTHZ_LISTED,
+    ttl_days: int = DEFAULT_TTL_DAYS,
+    now: Optional[datetime] = None,
+    actor: str = "",
+    reason: str = "",
+) -> Tuple[dict, str]:
+    """Mint the token a service uses to call another service (RT-061 Q8).
+
+    The principal is ``service:<name>``, never a person: a service token
+    parked under an administrator would stop every user's answers the day
+    that administrator lost access to a bank.  No per-person ceiling applies.
+    Authority is write access to the protected registry, as for shared tokens.
+    """
+    moment = now or utc_now()
+    name = validate_service_name(service)
+    scope = validate_kb_ids(kb_ids)
+    mode = validate_authz(authz)
+    days = validate_ttl_days(ttl_days)
+    prior = binding_records(data, SERVICE_BINDING_PREFIX + name)
+    for row in prior:
+        if record_status(row, moment) == STATUS_ACTIVE:
+            raise ConflictError(
+                f"服务 {name} 已有有效 token（{row.get('token_id')}）——换代请用 rotate-service"
+            )
+    generation = max((int(row.get("generation", 0)) for row in prior), default=0) + 1
+    epoch_before = int(data.get("membership_epoch", 0))
+    epoch = _bump_epoch(data)
+    record, plaintext = _service_record(
+        service=name, scope=scope, mode=mode, generation=generation, epoch=epoch, days=days, moment=moment
+    )
+    data.setdefault("tokens", []).append(record)
+    _append_receipt(
+        data,
+        action="issue_service",
+        record=record,
+        actor=actor,
+        reason=reason,
+        now=moment,
+        epoch_before=epoch_before,
+        epoch_after=epoch,
+        extra={"ttl_days": days, "token_kind": TOKEN_KIND_SERVICE, "authz": mode},
+    )
+    return record, plaintext
+
+
+def rotate_service_token(
+    data: dict,
+    *,
+    service: str,
+    kb_ids: Optional[Sequence[str]] = None,
+    authz: Optional[str] = None,
+    ttl_days: int = DEFAULT_TTL_DAYS,
+    now: Optional[datetime] = None,
+    actor: str = "",
+    reason: str = "",
+) -> Tuple[dict, str, List[str]]:
+    """Revoke every prior generation of a service token and mint one replacement."""
+    moment = now or utc_now()
+    name = validate_service_name(service)
+    prior = binding_records(data, SERVICE_BINDING_PREFIX + name)
+    if not prior:
+        raise NotFound(f"服务 {name} 还没有 token——第一支请用 issue-service")
+    if any(token_kind(row) != TOKEN_KIND_SERVICE for row in prior):
+        raise ConflictError("服务绑定标识与旧记录冲突，拒绝换代")
+    latest = max(prior, key=lambda row: int(row.get("generation", 0)))
+    scope = validate_kb_ids(kb_ids if kb_ids else latest.get("kb_ids", []))
+    mode = validate_authz(authz if authz is not None else latest.get("authz", AUTHZ_LISTED))
+    days = validate_ttl_days(ttl_days)
+    epoch_before = int(data.get("membership_epoch", 0))
+    epoch = _bump_epoch(data)
+    superseded: List[str] = []
+    for row in prior:
+        if bool(row.get("revoked")):
+            continue
+        row["revoked"] = True
+        row["revoked_at"] = iso(moment)
+        row["membership_epoch"] = epoch
+        superseded.append(str(row.get("token_id", "")))
+    generation = max(int(row.get("generation", 0)) for row in prior) + 1
+    record, plaintext = _service_record(
+        service=name, scope=scope, mode=mode, generation=generation, epoch=epoch, days=days, moment=moment
+    )
+    data.setdefault("tokens", []).append(record)
+    _append_receipt(
+        data,
+        action="rotate_service",
+        record=record,
+        actor=actor,
+        reason=reason,
+        now=moment,
+        epoch_before=epoch_before,
+        epoch_after=epoch,
+        extra={
+            "ttl_days": days,
+            "token_kind": TOKEN_KIND_SERVICE,
+            "authz": mode,
+            "superseded_token_ids": superseded,
+        },
+    )
+    return record, plaintext, superseded
+
+
+def bind_principal(
+    data: dict,
+    *,
+    token_id: str,
+    principal: str,
+    now: Optional[datetime] = None,
+    actor: str = "",
+    reason: str = "",
+) -> bool:
+    """Record who an already-issued token belongs to (RT-061 migration).
+
+    Only ``kb_authz.py migrate`` calls this, and only after it has proved the
+    link: the record's ``owner_ref`` re-derives from a key that passed the
+    identity probe (and, for a service, its binding re-derives from the
+    stated Agent id).  Nothing here takes a principal on anyone's word.
+    Returns False when the record already names this principal.
+    """
+    moment = now or utc_now()
+    record = find_record(data, token_id)
+    current = str(record.get("principal") or "")
+    if current == principal:
+        return False
+    if current:
+        raise ConflictError(f"{token_id} 已绑定 {current}，拒绝改绑为 {principal}")
+    epoch_before = int(data.get("membership_epoch", 0))
+    epoch = _bump_epoch(data)
+    record["principal"] = principal
+    record["membership_epoch"] = epoch
+    _append_receipt(
+        data,
+        action="bind_principal",
+        record=record,
+        actor=actor,
+        reason=reason,
+        now=moment,
+        epoch_before=epoch_before,
+        epoch_after=epoch,
+    )
+    return True
 
 
 # ── read side (this is what the gateway imports) ────────────────────────────
@@ -1104,6 +1437,19 @@ class TokenFile:
 # ── CLI ─────────────────────────────────────────────────────────────────────
 
 
+def _identity_view(identity: VerifiedIdentity) -> dict:
+    view = {
+        "owner_ref": identity.owner_ref,
+        "basis": identity.basis,
+        "probe": identity.probe,
+        "verified_at": identity.verified_at,
+    }
+    if identity.principal:
+        view["principal"] = identity.principal
+        view["person_name"] = identity.person_name
+    return view
+
+
 def error_payload(kind: str, message: str, **extra: object) -> dict:
     payload = {"schema": ERROR_SCHEMA, "ok": False, "error": {"kind": kind, "message": message}}
     payload.update(extra)
@@ -1112,7 +1458,7 @@ def error_payload(kind: str, message: str, **extra: object) -> dict:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="KB 绑定 token 登记表：init / issue / reissue / revoke / list（输出一律 JSON）"
+        description="KB 绑定 token 登记表：init / issue / reissue / issue-service / rotate-service / revoke / list（输出一律 JSON）"
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -1143,15 +1489,40 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"每用户跨 Agent 实例的有效 token 上限（默认 {DEFAULT_MAX_ACTIVE_PER_OWNER}）",
     )
 
+    authz_help = (
+        "listed=只认令牌自带的库（默认，与 RT-061 之前一致）；"
+        "grants=跟随成员表实时生效，--kb-id 只作回滚快照"
+    )
+
     issue = with_audit(with_identity(with_registry(sub.add_parser("issue", help="签发一支新 token"))))
     issue.add_argument("--kb-id", action="append", default=[], required=True, help="授权库标识，可重复")
     issue.add_argument("--ttl-days", type=int, default=DEFAULT_TTL_DAYS)
+    issue.add_argument("--authz", choices=AUTHZ_MODES, default=AUTHZ_LISTED, help=authz_help)
+    issue.add_argument("--label", default="", help="持有人自取的显示名（不要用主机名）")
 
     reissue = with_audit(
         with_identity(with_registry(sub.add_parser("reissue", help="代际递增：旧代全部失效")))
     )
     reissue.add_argument("--kb-id", action="append", default=[], help="不给则沿用上一代的授权面")
     reissue.add_argument("--ttl-days", type=int, default=DEFAULT_TTL_DAYS)
+    reissue.add_argument("--authz", choices=AUTHZ_MODES, default=None, help="不给则沿用上一代；" + authz_help)
+    reissue.add_argument("--label", default=None, help="不给则沿用上一代")
+
+    service_issue = with_audit(
+        with_registry(sub.add_parser("issue-service", help="签发服务间调用的 token（主体是服务，不是人）"))
+    )
+    service_issue.add_argument("--service", required=True, help="服务名，如 rag-answer")
+    service_issue.add_argument("--kb-id", action="append", default=[], required=True, help="授权库标识，可重复")
+    service_issue.add_argument("--ttl-days", type=int, default=DEFAULT_TTL_DAYS)
+    service_issue.add_argument("--authz", choices=AUTHZ_MODES, default=AUTHZ_LISTED, help=authz_help)
+
+    service_rotate = with_audit(
+        with_registry(sub.add_parser("rotate-service", help="服务 token 换代：旧代全部失效"))
+    )
+    service_rotate.add_argument("--service", required=True, help="服务名，如 rag-answer")
+    service_rotate.add_argument("--kb-id", action="append", default=[], help="不给则沿用上一代的授权面")
+    service_rotate.add_argument("--ttl-days", type=int, default=DEFAULT_TTL_DAYS)
+    service_rotate.add_argument("--authz", choices=AUTHZ_MODES, default=None, help="不给则沿用上一代")
 
     revoke = with_audit(with_registry(sub.add_parser("revoke", help="即刻吊销一支 token")))
     revoke.add_argument("--token-id", required=True, help="来自 list 的 token_id（指纹，不是 token）")
@@ -1170,7 +1541,7 @@ def _emit(payload: dict) -> None:
 def run(
     args: argparse.Namespace,
     *,
-    probe: Callable[[str], str],
+    probe: Callable[[str], Any],
     now: Optional[datetime] = None,
     env: Optional[Mapping[str, str]] = None,
 ) -> dict:
@@ -1209,6 +1580,8 @@ def run(
             now=moment,
             actor=args.actor,
             reason=args.reason,
+            authz=args.authz,
+            label=args.label,
         )
         save_registry(args.registry, data, now=moment)
         return {
@@ -1217,12 +1590,7 @@ def run(
             "token": plaintext,
             "token_shown_once": True,
             "note": "这是 token 唯一一次出现；登记表只存 sha256 摘要，丢了只能 reissue",
-            "identity": {
-                "owner_ref": identity.owner_ref,
-                "basis": identity.basis,
-                "probe": identity.probe,
-                "verified_at": identity.verified_at,
-            },
+            "identity": _identity_view(identity),
             "record": public_view(record, moment),
             "membership_epoch": data["membership_epoch"],
             "at": iso(moment),
@@ -1245,6 +1613,8 @@ def run(
             now=moment,
             actor=args.actor,
             reason=args.reason,
+            authz=args.authz,
+            label=args.label,
         )
         save_registry(args.registry, data, now=moment)
         return {
@@ -1253,12 +1623,44 @@ def run(
             "token": plaintext,
             "token_shown_once": True,
             "note": "旧代已在同一次写入里全部失效",
-            "identity": {
-                "owner_ref": identity.owner_ref,
-                "basis": identity.basis,
-                "probe": identity.probe,
-                "verified_at": identity.verified_at,
-            },
+            "identity": _identity_view(identity),
+            "record": public_view(record, moment),
+            "superseded_token_ids": superseded,
+            "membership_epoch": data["membership_epoch"],
+            "at": iso(moment),
+        }
+
+    if args.command in ("issue-service", "rotate-service"):
+        if args.command == "issue-service":
+            record, plaintext = issue_service_token(
+                data,
+                service=args.service,
+                kb_ids=args.kb_id,
+                authz=args.authz,
+                ttl_days=args.ttl_days,
+                now=moment,
+                actor=args.actor,
+                reason=args.reason,
+            )
+            superseded: List[str] = []
+        else:
+            record, plaintext, superseded = rotate_service_token(
+                data,
+                service=args.service,
+                kb_ids=args.kb_id or None,
+                authz=args.authz,
+                ttl_days=args.ttl_days,
+                now=moment,
+                actor=args.actor,
+                reason=args.reason,
+            )
+        save_registry(args.registry, data, now=moment)
+        return {
+            "schema": SERVICE_ISSUE_SCHEMA,
+            "ok": True,
+            "token": plaintext,
+            "token_shown_once": True,
+            "note": "这是 token 唯一一次出现；只配置给该服务，不要发给任何人",
             "record": public_view(record, moment),
             "superseded_token_ids": superseded,
             "membership_epoch": data["membership_epoch"],
@@ -1285,7 +1687,7 @@ def run(
             rows = [row for row in rows if args.kb_id in row["kb_ids"]]
         if args.status:
             rows = [row for row in rows if row["status"] == args.status]
-        rows.sort(key=lambda row: (row["owner_ref"], row["agent_binding_id"], row["generation"]))
+        rows.sort(key=lambda row: (row["owner_ref"], row["principal"], row["agent_binding_id"], row["generation"]))
         return {
             "schema": LIST_SCHEMA,
             "ok": True,
@@ -1305,7 +1707,7 @@ def run(
 def main(
     argv: Optional[Sequence[str]] = None,
     *,
-    probe: Callable[[str], str] = cwork_probe,
+    probe: Callable[[str], Any] = xuanguan_probe,
     now: Optional[datetime] = None,
     env: Optional[Mapping[str, str]] = None,
 ) -> int:
@@ -1328,6 +1730,15 @@ def main(
 
 
 __all__ = [
+    "AUTHZ_GRANTS",
+    "AUTHZ_LISTED",
+    "TOKEN_KIND_SERVICE",
+    "active_count_for_identity",
+    "bind_principal",
+    "derive_agent_binding_id_v2",
+    "issue_service_token",
+    "rotate_service_token",
+    "xuanguan_probe",
     "DEFAULT_MAX_ACTIVE_PER_OWNER",
     "DEFAULT_TTL_DAYS",
     "REGISTRY_SCHEMA",

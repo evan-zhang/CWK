@@ -3,7 +3,7 @@ title: 库对象与自有授权模型（身份接入玄关、令牌与授权脱�
 type: Feature
 profile: Spec-Lite
 execution_mode: collaborative
-status: created
+status: in_progress
 modules: [kb-token, kb-admin, kb-platform-storage]
 branch: feature/RT-061-bank-authz
 worktree: .claude/worktrees/RT-061-bank-authz
