@@ -1,0 +1,19 @@
+id: RT-061
+title: 库对象与自有授权模型（身份接入玄关、令牌与授权脱钩）
+type: Feature
+profile: Spec-Lite
+execution_mode: collaborative
+status: created
+modules: [kb-token, kb-admin, kb-platform-storage]
+branch: feature/RT-061-bank-authz
+worktree: .claude/worktrees/RT-061-bank-authz
+owner: Evan
+created_at: 2026-09-17T14:16:59+08:00
+updated_at: 2026-09-17T14:16:59+08:00
+closed_at: null
+notes: >
+  把"库"提升为一等对象：自己的所有者、来源清单和授权表。授权完全由 CWK 自己管，
+  不继承任何上游权限——因为一个库可以是多个来源里各取一部分的并集，上游权限表达不了。
+  只向玄关借身份（人员 ID 与真名），不借权限。
+  令牌改为只证明"你是谁"，能看什么由授权表决定，于是授权变更不再需要重签令牌。
+  本 RT 只做数据层与鉴权层，不含控制台界面、自助建库与上传。
