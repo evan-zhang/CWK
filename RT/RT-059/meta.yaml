@@ -3,14 +3,14 @@ title: 知识库服务官网 v1（产品站 + 站内控制台入口）
 type: Feature
 profile: Spec-Lite
 execution_mode: collaborative
-status: created
+status: done
 modules: [kb-portal, kb-admin]
 branch: feature/RT-059-kb-website
 worktree: .claude/worktrees/RT-059-kb-website
 owner: Evan
 created_at: 2026-09-16T19:51:57+08:00
 updated_at: 2026-09-16T19:51:57+08:00
-closed_at: null
+closed_at: 2026-09-17T11:00:00+08:00
 notes: >
   把 RT-058 的单页门户升级成真正的产品官网：多板块叙述、三个库的实况数字、
   接入指南与常见问题，并在站内保留控制台入口（点开需输入密码）。

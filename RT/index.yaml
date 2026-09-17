@@ -332,6 +332,6 @@ entries:
   created: 2026-09-16
 - id: RT-059
   title: 知识库服务官网 v1（产品站 + 站内控制台入口）
-  status: created
+  status: done
   profile: Spec-Lite
   created: 2026-09-16
