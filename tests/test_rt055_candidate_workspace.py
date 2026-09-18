@@ -79,6 +79,7 @@ class WorkspaceTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):cw.search_config(self.root,s,'a-public')
         with self.assertRaises(RuntimeError):cw.jvm_config(original,s,'../../foreign')
 
+    @unittest.skipUnless(sys.platform=='darwin' and Path('/usr/bin/sandbox-exec').exists(), 'macOS sandbox-exec')
     def test_actual_bash_here_string_denied_but_owned_stdin_passes(self):
         s=self.make();binary=self.root/'opensearch/bin/opensearch';binary.parent.mkdir(parents=True)
         source='/bin/cat <<<"$KEYSTORE_PASSWORD"; /bin/cat <<<"$KEYSTORE_PASSWORD"'
@@ -93,6 +94,7 @@ class WorkspaceTests(unittest.TestCase):
         stdin.write_text('FOREIGN')
         with self.assertRaises(RuntimeError):cw.search_launcher(self.root,s,'a-public')
 
+    @unittest.skipUnless(sys.platform=='darwin' and Path('/usr/bin/sandbox-exec').exists(), 'macOS sandbox-exec')
     def test_realpath_traversal_allowed_but_parent_listing_and_sibling_data_denied(self):
         s=self.make();other=self.make('b');target=cw.file(s,'data','public');target.write_text('PUBLIC')
         foreign=cw.file(other,'data','public');foreign.write_text('PUBLIC')
@@ -144,6 +146,7 @@ print(json.dumps(out))
         with patch.object(a,'ROOT',self.root),patch.object(rt,'spawn') as spawn:
             with self.assertRaises(RuntimeError):a.launch_opensearch('public',39101,self.root/'bad.log',window_id=self.wid)
             spawn.assert_not_called()
+    @unittest.skipUnless(sys.platform=='darwin' and Path('/usr/bin/sandbox-exec').exists(), 'macOS sandbox-exec')
     def test_real_sandbox_old_denied_new_write_and_ledger_isolation(self):
         s=self.make();other=self.make('b');protected=self.root/'formal-windows'/self.wid
         protected.mkdir(parents=True);(protected/'public-ledger').write_text('PUBLIC')
