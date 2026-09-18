@@ -3,16 +3,17 @@ title: 双通道 OpenSearch 与原版 WeKnora 检索决策实验
 type: Experiment
 profile: Spec-Lite
 execution_mode: collaborative
-status: in_progress
+status: done
 modules: [rt055-retrieval-decision, rt054-lexical-snapshot-performance, rt051-controlled-read-lexical]
 branch: openclaw/rt054-next-decision
 worktree: /Users/evan/.openclaw/gateways/life/state/worktrees/b7867e4d12d85382/rt054-next-decision
 tool: codex
 owner: Evan
 created_at: 2026-09-10T01:34:17Z
-updated_at: 2026-09-10T07:23:37Z
-closed_at: null
+updated_at: 2026-09-18T11:10:00+08:00
+closed_at: 2026-09-18T11:10:00+08:00
 notes: >
+  2026-09-18 关闭：双通道 OpenSearch 决策实验已完成，生产灰度与技能切换已落地。
   基于 f34918bb2158099f03eba99ffcc95e59714a15f2 建立。RT-054 的 NO-GO 只裁决
   当时 ICU v2 analyzer/mapping，不能外推为 OpenSearch 架构失败。本 RT 冻结两个候选并
   先完成仓库侧协议、聚合结果门与测试；OPS/NAS/生产保持不变。真正建立临时索引或部署

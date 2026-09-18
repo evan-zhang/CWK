@@ -307,17 +307,17 @@ entries:
   created: 2026-09-07
 - id: RT-054
   title: 大库词法融合检索快照/预计算性能治理
-  status: in-progress
+  status: done
   profile: Spec-Lite
   created: 2026-09-07
 - id: RT-055
   title: 双通道 OpenSearch 与原版 WeKnora 检索决策实验
-  status: in_progress
+  status: done
   profile: Spec-Lite
   created: 2026-09-10
 - id: RT-056
   title: AI 知识库管理台与管理 API MVP
-  status: in_progress
+  status: done
   profile: Spec-Lite
   created: 2026-09-15
 - id: RT-057
