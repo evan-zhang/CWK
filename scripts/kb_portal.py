@@ -532,10 +532,12 @@ footer{padding:2rem 0 3rem;color:var(--muted);font-size:.85rem}
   nav a.secondary{display:none}
 }
 
-/* 文档中心：侧栏 + 正文两栏，窄屏折成一栏 */
-.doclayout{display:grid;grid-template-columns:220px 1fr;gap:2.5rem;align-items:start;
-  max-width:1120px;margin:0 auto;padding:2rem 1.25rem 4rem}
-.sidebar{position:sticky;top:72px}
+/* 文档中心：侧栏 + 正文两栏，窄屏折成一栏。
+   列宽用 minmax(0,…)：默认的 1fr = minmax(auto,1fr)，子元素里一串长 URL / 代码
+   会把整页撑出视口，手机上只能左右滑。允许列缩到 0 后，溢出改由内部滚动容器吃掉。 */
+.doclayout{display:grid;grid-template-columns:minmax(0,220px) minmax(0,1fr);gap:2.5rem;align-items:start;
+  max-width:min(1120px,100%);margin:0 auto;padding:2rem 1.25rem 4rem;box-sizing:border-box}
+.sidebar{position:sticky;top:72px;min-width:0}
 .sidebar .sgroup{font-size:.75rem;letter-spacing:.1em;color:var(--muted);
   text-transform:uppercase;margin:0 0 .6rem;font-weight:700}
 .sidebar a{display:block;padding:.45rem .7rem;border-radius:7px;text-decoration:none;
@@ -543,35 +545,39 @@ footer{padding:2rem 0 3rem;color:var(--muted);font-size:.85rem}
 .sidebar a:hover{background:var(--accent-soft);color:var(--accent)}
 .sidebar a[aria-current=page]{color:var(--accent);font-weight:600;background:var(--accent-soft);
   border-left-color:var(--accent)}
+.doc{min-width:0;overflow-wrap:anywhere;word-wrap:break-word}
 .doc h1{font-size:1.75rem;margin:0 0 .5rem;letter-spacing:-.01em}
 .doc .sub{color:var(--muted);margin:0 0 2.5rem;font-size:1rem}
-.doc h2{font-size:1.25rem;margin:2.5rem 0 .8rem;padding-bottom:.5rem;border-bottom:1px solid var(--line)}
+.doc h2{font-size:1.25rem;margin:2.5rem 0 .8rem;padding-bottom:.5rem;border-bottom:1px solid var(--line);
+  overflow-wrap:anywhere}
 .doc h3{font-size:1rem;margin:1.8rem 0 .5rem}
 .doc p{margin:0 0 1rem}
 .doc ul,.doc ol{padding-left:1.3rem;margin:0 0 1rem}
 .doc li{margin-bottom:.45rem}
+.doc .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
 .doc table{width:100%;border-collapse:collapse;font-size:.9rem;margin:0 0 1.2rem}
-.doc th,.doc td{text-align:left;padding:.55rem .7rem;border-bottom:1px solid var(--line);vertical-align:top}
+.doc th,.doc td{text-align:left;padding:.55rem .7rem;border-bottom:1px solid var(--line);vertical-align:top;
+  overflow-wrap:anywhere}
 .doc th{background:var(--head,var(--accent-soft));font-weight:600;color:var(--muted);font-size:.82rem}
 .doc td code,.doc p code,.doc li code{background:var(--accent-soft);color:var(--accent);
   padding:.1rem .35rem;border-radius:4px;font-size:.86em;
-  font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-.doc .scroll{overflow-x:auto}
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere;word-break:break-all}
 .method{display:inline-block;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
   font-size:.78rem;font-weight:700;padding:.15rem .5rem;border-radius:5px;
   background:var(--accent);color:#fff;margin-right:.5rem}
-.endpoint{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.95rem;font-weight:600}
+.endpoint{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.95rem;font-weight:600;
+  overflow-wrap:anywhere;word-break:break-all}
 .callout{background:var(--accent-soft);border-left:3px solid var(--accent);
   border-radius:0 8px 8px 0;padding:.9rem 1.1rem;margin:0 0 1.2rem;font-size:.92rem}
 .callout b{display:block;margin-bottom:.2rem}
-.doccards{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+.doccards{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(min(250px,100%),1fr))}
 .doccards a{display:block;background:var(--card);border:1px solid var(--line);border-radius:12px;
   padding:1.2rem;text-decoration:none;color:inherit}
 .doccards a:hover{border-color:var(--accent)}
 .doccards h3{margin:0 0 .35rem;font-size:1rem;color:var(--accent)}
 .doccards p{margin:0;color:var(--muted);font-size:.9rem}
 @media (max-width:820px){
-  .doclayout{grid-template-columns:1fr;gap:1.5rem}
+  .doclayout{grid-template-columns:minmax(0,1fr);gap:1.5rem}
   .sidebar{position:static;display:flex;gap:.4rem;flex-wrap:wrap;
     border-bottom:1px solid var(--line);padding-bottom:1rem}
   .sidebar .sgroup{width:100%}
@@ -864,12 +870,12 @@ _DOC_API = """
 
 <h2>鉴权</h2>
 <p>所有业务端点都必须带 <code>X-KB-Token</code> 请求头。健康检查端点免鉴权。</p>
-<table>
+<div class='scroll'><table>
   <tr><th>状态码</th><th>含义</th><th>怎么办</th></tr>
   <tr><td><code>401</code></td><td>令牌缺失、过期或已被吊销</td><td>找{{CONTACT}}重签</td></tr>
   <tr><td><code>403</code></td><td>令牌有效，但目标库不在它的授权范围内</td>
       <td>这是库间隔离生效；确需该库请调整授权</td></tr>
-</table>
+</table></div>
 
 <h2><span class='method'>POST</span><span class='endpoint'>{{RETRIEVAL}}/query</span></h2>
 <p>检索候选文档。请求体<strong>只接受</strong>下面三个字段，多一个就是 <code>400</code>。</p>
@@ -898,12 +904,12 @@ _DOC_API = """
       它只代表这一次没命中，不代表全库没有。</li>
 </ul>
 <p>错误响应形如 <code>{"error":{"code":"...","message":"..."}}</code>：</p>
-<table>
+<div class='scroll'><table>
   <tr><th>状态码</th><th>code</th><th>含义</th></tr>
   <tr><td><code>400</code></td><td><code>invalid_request</code></td><td>字段缺失、类型不对或含未知字段</td></tr>
   <tr><td><code>404</code></td><td><code>bank_not_found</code></td><td>库未注册</td></tr>
   <tr><td><code>503</code></td><td><code>backend_unavailable</code></td><td>检索后端不可用</td></tr>
-</table>
+</table></div>
 <p class='note'>健康检查：<code>GET /healthz</code> 返回 <code>{"status":"ok"}</code>；
    <code>GET /readyz</code> 就绪时返回 <code>{"status":"ready"}</code>，
    否则 <code>503 not_ready</code>。</p>
@@ -937,7 +943,7 @@ _DOC_API = """
    <code>eof</code>、<code>total_chars</code>。翻下一页：
    <code>下一个 offset = 当前 offset + 本页 text 的长度</code>，直到 <code>eof</code> 为 <code>true</code>。</p>
 <p>这里不用传库名：服务端按编号查出这篇文档属于哪个库，再看你的令牌有没有那个库的权限。</p>
-<table>
+<div class='scroll'><table>
   <tr><th>状态码</th><th>含义</th></tr>
   <tr><td><code>400</code></td><td>缺 <code>doc_id</code>，或 <code>offset</code>/<code>length</code> 不是合法整数</td></tr>
   <tr><td><code>401</code></td><td>令牌缺失或无效——编号存不存在，都先回这个</td></tr>
@@ -945,7 +951,7 @@ _DOC_API = """
   <tr><td><code>404</code></td><td>该编号不存在</td></tr>
   <tr><td><code>416</code></td><td><code>offset</code> 越界——按响应里的 <code>total_chars</code> 重算</td></tr>
   <tr><td><code>503</code></td><td>源文件暂时不可读</td></tr>
-</table>
+</table></div>
 
 <h2>能不能开放给外部定制开发</h2>
 <p>这套接口只在公司内网可达，没有公网入口，也没有面向外部的令牌签发流程。
