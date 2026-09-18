@@ -25,12 +25,14 @@ python3 scripts/kb_admin.py
 
 ## API 与安全边界
 
-除 `/` 和 `/healthz` 外，API 均须在 `X-KB-Admin-Key` 头提供管理密钥（兼容 `X-KB-Token`）。无密钥或错误密钥统一返回 `401`。`/healthz` 只返回启用状态；界面不会保存密钥。
+`/register`、`/api/register`、`/api/session`、`/api/logout` 是自助注册面（见下节），不要求管理密钥。
+其余除 `/` 和 `/healthz` 外的管理 API 均须在 `X-KB-Admin-Key` 头提供管理密钥（兼容 `X-KB-Token`）。无密钥或错误密钥统一返回 `401`。`/healthz` 只返回启用状态；界面不会保存密钥。
 
 - `GET /api/overview`：复用 `kb_ops` 的只读状态投影，返回库计数、词法就绪状态和 token 的脱敏 id、scope、状态与时间。
 - `GET /api/services`：有界超时探测 8787/8790，只返回地址、健康状态和 HTTP 状态。
 - `GET /api/audit`：读取最近受控审计事件，仅返回时间、动作、结果、状态。
 - `POST /api/jobs/create`、`POST /api/jobs/ingest`：默认拒绝；显式打开写开关后也只记审计并返回 501。
+- `POST /api/register` / `GET /api/session` / `POST /api/logout`：自助注册与薄会话（RT-065）。
 
 响应不会返回 token 摘要、owner 引用/盐、token 明文、路径、`CWORK_APP_KEY` 或 SSH 信息。错误响应使用固定错误码，不回显异常文本。
 
@@ -40,3 +42,17 @@ python3 scripts/kb_admin.py
 python3 -m unittest tests.test_rt056_kb_admin
 python3 -m py_compile scripts/kb_admin.py
 ```
+
+## 用户自助注册（RT-065）
+
+开启后提供 `/register` 页面：用户粘贴本人工作协同 Key，服务经玄关核实后写入人员目录，并设置短时会话 Cookie。Key 不落盘、不进审计正文。
+
+必配环境变量：
+
+- `KB_REGISTER_ENABLED=true`
+- `KB_AUTHZ_STORE`：人员/成员授权表路径
+- `KB_REGISTER_SESSION_SECRET`：至少 16 字符的会话签名密钥
+
+生产必须经 HTTPS 反代访问；反代需传 `X-Forwarded-Proto: https`。仅本地联调可设 `KB_REGISTER_ALLOW_HTTP=true`。
+
+门户导航可通过 `KB_PORTAL_REGISTER_URL` 指向注册页；未配置时默认从控制台地址推导为同主机的 `/register`。

@@ -41,6 +41,7 @@ DEFAULT_PORT = 8792
 ENV_HOST = "KB_PORTAL_HOST"
 ENV_PORT = "KB_PORTAL_PORT"
 ENV_CONSOLE_URL = "KB_PORTAL_CONSOLE_URL"
+ENV_REGISTER_URL = "KB_PORTAL_REGISTER_URL"
 ENV_BANKS = "KB_PORTAL_BANKS"
 ENV_RUNBOOK_URL = "KB_PORTAL_RUNBOOK_URL"
 ENV_CONTACT = "KB_PORTAL_CONTACT"
@@ -98,6 +99,13 @@ class PortalApp:
         self.env = dict(environ if environ is not None else os.environ)
         self.banks = parse_banks(self.env.get(ENV_BANKS))
         self.console_url = (self.env.get(ENV_CONSOLE_URL) or DEFAULT_CONSOLE_URL).strip()
+        configured_register = (self.env.get(ENV_REGISTER_URL) or "").strip()
+        if configured_register:
+            self.register_url = configured_register
+        else:
+            # Default: same host as the console, path /register (RT-065).
+            base = self.console_url.rstrip("/")
+            self.register_url = (base[: -len("/console")] + "/register") if base.endswith("/console") else (base + "/register")
         self.runbook_url = (self.env.get(ENV_RUNBOOK_URL) or "").strip()
         self.contact = (self.env.get(ENV_CONTACT) or "知识库管理员").strip()
         self.retrieval_base = (self.env.get(ENV_RETRIEVAL_BASE) or DEFAULT_RETRIEVAL_BASE).strip().rstrip("/")
@@ -171,7 +179,8 @@ class PortalApp:
     def page(self) -> str:
         """首页：产品介绍，给没用过的人看。技术细节都在文档中心。"""
         return _shell("CWK 知识库服务", self._fill(_HOME_BODY), active="home",
-                      console_url=self._safe_url(self.console_url))
+                      console_url=self._safe_url(self.console_url),
+                      register_url=self._safe_url(self.register_url))
 
     def docs_index(self) -> str:
         cards = "".join(
@@ -181,7 +190,8 @@ class PortalApp:
         )
         body = _DOCS_INDEX_BODY.replace("{{DOC_CARDS}}", cards)
         return _shell("文档中心 · CWK 知识库服务", self._fill(body), active="docs",
-                      console_url=self._safe_url(self.console_url))
+                      console_url=self._safe_url(self.console_url),
+                      register_url=self._safe_url(self.register_url))
 
     def doc(self, slug: str) -> str | None:
         """单个文档页；未知 slug 返回 None，由路由转成 404。"""
@@ -191,7 +201,8 @@ class PortalApp:
         title, sub = next((t, d) for s, t, d in _DOC_NAV if s == slug)
         rendered = _doc_page(slug, html.escape(title), html.escape(sub), self._fill(body))
         return _shell(f"{title} · CWK 知识库服务", rendered, active="docs",
-                      console_url=self._safe_url(self.console_url))
+                      console_url=self._safe_url(self.console_url),
+                      register_url=self._safe_url(self.register_url))
 
     def handle(self, method: str, path: str) -> tuple[int, str, bytes, dict[str, str]]:
         """Return ``(status, content_type, body, headers)``.
@@ -1054,14 +1065,18 @@ _DOC_BODIES = {
 }
 
 
-def _shell(title: str, body: str, *, active: str = "", console_url: str = "") -> str:
+def _shell(title: str, body: str, *, active: str = "", console_url: str = "", register_url: str = "") -> str:
     """站点外壳：所有页面共用同一套头尾，导航高亮由 active 决定。
 
-    ``console_url`` 必须是调用方已经过 ``PortalApp._safe_url`` 的地址；为空就不画入口，
-    而不是画一个点了没用的按钮——底部「管理员入口」一节会说明为什么没有。
+    ``console_url`` / ``register_url`` 必须是调用方已经过 ``PortalApp._safe_url`` 的地址；
+    为空就不画入口，而不是画一个点了没用的按钮——底部「管理员入口」一节会说明为什么没有。
     """
     def mark(key: str) -> str:
         return " aria-current='page'" if active == key else ""
+    register = (
+        "  <a href='{}'>注册</a>\n".format(html.escape(register_url, quote=True))
+        if register_url else ""
+    )
     console = (
         "  <a class='navcta' href='{}'>管理控制台</a>\n".format(html.escape(console_url, quote=True))
         if console_url else ""
@@ -1076,6 +1091,7 @@ def _shell(title: str, body: str, *, active: str = "", console_url: str = "") ->
         f"  <a href='/docs'{mark('docs')}>文档中心</a>\n"
         "  <span class='spacer'></span>\n"
         "  <a class='secondary' href='/docs/quickstart'>快速开始</a>\n"
+        f"{register}"
         f"{console}"
         "</div></nav>\n"
         f"{body}\n"
