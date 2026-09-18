@@ -3,15 +3,16 @@ title: 主线 CI 假红收口（RT-055 台账族缺依赖 / 非 Mac 沙箱）
 type: Bugfix
 profile: Spec-Lite
 execution_mode: collaborative
-status: in-progress
+status: done
 modules: [rt055-retrieval-decision]
 branch: feature/RT-064-ci-green
 worktree: .claude/worktrees/RT-064-ci-green
 owner: Evan
 created_at: 2026-09-18T11:15:00+08:00
-updated_at: 2026-09-18T11:15:00+08:00
-closed_at: null
+updated_at: 2026-09-18T11:30:00+08:00
+closed_at: 2026-09-18T11:30:00+08:00
 notes: >
-  RT-057 已修掉 6 个判据滞后失败，仍留下约 13 个只在 CI 红的 RT-055 台账族用例：
-  缺 jsonschema、Linux 无 sandbox-exec、以及连锁的聚合退出码。本 RT 只改测试跳过条件，
-  不改产品行为、不加第三方依赖。
+  2026-09-18 关闭：CI 缺 jsonschema / 非 Mac sandbox-exec 时跳过 RT-055 台账族用例，
+  主线自动检查恢复可辨真假。RT-057 已修掉 6 个判据滞后失败，仍留下约 13 个只在 CI 红的
+  RT-055 台账族用例：缺 jsonschema、Linux 无 sandbox-exec、以及连锁的聚合退出码。
+  本 RT 只改测试跳过条件，不改产品行为、不加第三方依赖。
