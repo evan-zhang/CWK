@@ -355,3 +355,8 @@ entries:
   status: done
   profile: Spec-Lite
   created: 2026-09-17
+- id: RT-064
+  title: 主线 CI 假红收口（RT-055 台账族缺依赖 / 非 Mac 沙箱）
+  status: created
+  profile: Spec-Lite
+  created: 2026-09-18
