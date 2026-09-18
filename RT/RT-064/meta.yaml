@@ -3,7 +3,7 @@ title: 主线 CI 假红收口（RT-055 台账族缺依赖 / 非 Mac 沙箱）
 type: Bugfix
 profile: Spec-Lite
 execution_mode: collaborative
-status: created
+status: in-progress
 modules: [rt055-retrieval-decision]
 branch: feature/RT-064-ci-green
 worktree: .claude/worktrees/RT-064-ci-green

@@ -312,7 +312,10 @@ class WindowTests(unittest.TestCase):
     def test_v3_formal_binding_rejects_cross_window_missing_privacy_and_legacy(self):
         import test_rt055_retrieval_decision as fixture
         import kb_retrieval_decision as decision
-        import jsonschema
+        try:
+            import jsonschema
+        except ImportError:
+            self.skipTest('jsonschema unavailable')
         good=fixture.valid_report();decision.validate_report(good)
         schema=json.loads((Path(fixture.__file__).parents[1]/'RT/RT-055/contracts/aggregate-report.schema.json').read_text())
         for field in ('before_window_id','after_window_id','freeze_window_id','verification_window_id'):
@@ -444,6 +447,10 @@ class WindowTests(unittest.TestCase):
         import rt055_window as window
         import test_rt055_retrieval_decision as fixture
         import subprocess
+        try:
+            import jsonschema  # noqa: F401 — aggregate.main shells out to jsonschema.validate
+        except ImportError:
+            self.skipTest('jsonschema unavailable')
         self.input_fixture();public=fixture.valid_report()
         checks=runtime.ops.read_json(self.root/'verifier/case-verification.json')
         checks.update(library_validity=public['library_validity'])

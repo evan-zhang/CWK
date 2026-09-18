@@ -14,7 +14,10 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
-import jsonschema
+try:
+    import jsonschema
+except ImportError:  # CI stays stdlib-only; schema harnesses skip when absent.
+    jsonschema = None
 import kb_retrieval_decision as decision
 import rt055_builder as builder
 import rt055_verifier as verifier
@@ -34,6 +37,8 @@ def capacity_document(number):
 
 
 def validator():
+    if jsonschema is None:
+        raise unittest.SkipTest('jsonschema unavailable')
     return jsonschema.Draft202012Validator(json.loads(
         (ROOT / 'RT/RT-055/contracts/aggregate-report.schema.json').read_text()))
 
