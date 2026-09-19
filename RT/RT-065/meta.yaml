@@ -10,7 +10,7 @@ worktree: .claude/worktrees/RT-065-secure-enroll
 owner: Evan
 created_at: 2026-09-18T12:55:00+08:00
 updated_at: 2026-09-18T16:23:43+08:00
-closed_at: null
+closed_at: 2026-09-19T23:09:07+08:00
 notes: >
   放开一个加密注册页：用户自填工作协同 Key，经核实写入人员目录并建立薄登录态。
   不做用户名密码体系；Key 不落盘。为后续成员管理与自助建库铺路。
