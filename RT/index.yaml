@@ -377,6 +377,6 @@ entries:
   created: 2026-09-20
 - id: RT-068
   title: 成员管理页面（加密面 + 本人身份，不用共享密码）
-  status: created
+  status: done
   profile: Spec-Lite
   created: 2026-09-20
