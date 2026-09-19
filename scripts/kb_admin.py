@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import argparse
 import base64
+import collections
 import hashlib
 import hmac
 import json
 import os
 import re
+import ssl
 import threading
 import time
 import urllib.error
@@ -48,8 +50,22 @@ ENV_REGISTER_ENABLED = "KB_REGISTER_ENABLED"
 ENV_AUTHZ_STORE = "KB_AUTHZ_STORE"
 ENV_SESSION_SECRET = "KB_REGISTER_SESSION_SECRET"
 ENV_ALLOW_HTTP = "KB_REGISTER_ALLOW_HTTP"
+#: 只有显式信任反向代理时，才采信 X-Forwarded-Proto —— 那个头是客户端发的，
+#: 没有反代覆盖它时谁都能写 "https"，于是「必须加密」会变成一句空话。
+ENV_TRUST_PROXY = "KB_REGISTER_TRUST_PROXY"
+ENV_RATE_LIMIT = "KB_REGISTER_RATE_LIMIT"
+#: 两个面：管理面默认回环、要管理密钥；注册面可对局域网、不含任何管理接口。
+#: 进程只开一个面，边界由启动参数保证，而不是由「记得别点错」保证。
+ENV_FACE = "KB_ADMIN_FACE"
+FACE_ADMIN = "admin"
+FACE_REGISTER = "register"
+FACES = (FACE_ADMIN, FACE_REGISTER)
+ENV_TLS_CERT = "KB_TLS_CERT"
+ENV_TLS_KEY = "KB_TLS_KEY"
 SESSION_COOKIE = "cwk_session"
 SESSION_TTL_SECONDS = 12 * 60 * 60
+DEFAULT_RATE_LIMIT = 5
+RATE_WINDOW_SECONDS = 60
 ENV_NAME = re.compile(r"^[A-Z][A-Z0-9_]{0,127}$")
 MAX_AUDIT_EVENTS = 100
 MAX_BODY = 4096
@@ -101,12 +117,49 @@ def _address(url: str) -> str:
         return "configured"
 
 
-def _request_is_https(headers: Mapping[str, str]) -> bool:
-    """True when the client reached us over TLS (directly or via a reverse proxy)."""
-    forwarded = str(headers.get("X-Forwarded-Proto") or headers.get("Forwarded") or "").lower()
-    if "proto=https" in forwarded or forwarded.split(",")[0].strip() == "https":
+def _request_is_https(headers: Mapping[str, str], *, direct_tls: bool, trust_proxy: bool) -> bool:
+    """True when the client really reached us over TLS.
+
+    ``direct_tls`` is what the socket says and cannot be faked.  The forwarded
+    header is only consulted when the operator has declared that a reverse
+    proxy sits in front and rewrites it; otherwise any caller could set it and
+    walk their key through plaintext while the page tells them they are safe.
+    """
+    if direct_tls:
         return True
-    return False
+    if not trust_proxy:
+        return False
+    forwarded = str(headers.get("X-Forwarded-Proto") or headers.get("Forwarded") or "").lower()
+    return "proto=https" in forwarded or forwarded.split(",")[0].strip() == "https"
+
+
+class _RateLimiter:
+    """Per-client cap on a public endpoint.
+
+    Registration hands whatever it is given to 玄关, so without a cap it is a
+    free "is this key valid" oracle for anyone on the office network, and a way
+    to hammer 玄关 through us.
+    """
+
+    def __init__(self, limit: int, window: int = RATE_WINDOW_SECONDS) -> None:
+        self.limit = max(1, int(limit))
+        self.window = window
+        self._hits: dict[str, collections.deque] = {}
+        self._lock = threading.Lock()
+
+    def allow(self, client: str, *, now: float | None = None) -> bool:
+        moment = time.time() if now is None else now
+        with self._lock:
+            hits = self._hits.setdefault(client or "unknown", collections.deque())
+            while hits and hits[0] <= moment - self.window:
+                hits.popleft()
+            if len(hits) >= self.limit:
+                return False
+            hits.append(moment)
+            if len(self._hits) > 1024:  # bound the table; stale buckets are empty anyway
+                for key in [k for k, v in self._hits.items() if not v]:
+                    del self._hits[key]
+            return True
 
 
 def _parse_cookies(header: str) -> dict[str, str]:
@@ -204,6 +257,14 @@ class AdminApp:
         self.authz_store = Path(authz).expanduser() if authz else None
         self.session_secret = secret if self.register_enabled else ""
         self.allow_http_register = _enabled(self.env.get(ENV_ALLOW_HTTP))
+        self.trust_proxy = _enabled(self.env.get(ENV_TRUST_PROXY))
+        face = (self.env.get(ENV_FACE) or FACE_ADMIN).strip().lower()
+        self.face = face if face in FACES else FACE_ADMIN
+        try:
+            limit = int(self.env.get(ENV_RATE_LIMIT) or DEFAULT_RATE_LIMIT)
+        except ValueError:
+            limit = DEFAULT_RATE_LIMIT
+        self.rate_limiter = _RateLimiter(limit)
         # Tests inject a fake resolver; production resolves through 玄关.
         self.resolve_person: Callable[..., Any] | None = None
 
@@ -239,15 +300,20 @@ class AdminApp:
         cookies = _parse_cookies(str(headers.get("Cookie") or ""))
         return _open_session(self.session_secret, cookies.get(SESSION_COOKIE, ""))
 
-    def _register(self, headers: Mapping[str, str], body: bytes) -> tuple[int, dict[str, Any], dict[str, str]]:
+    def _register(
+        self, headers: Mapping[str, str], body: bytes, *, direct_tls: bool = False, client: str = ""
+    ) -> tuple[int, dict[str, Any], dict[str, str]]:
         """Self-serve enroll: business Key in body → person directory + session cookie."""
         if not self.register_enabled or self.authz_store is None:
             self._audit("register", "disabled", 404)
             return 404, {"error": "not_found"}, {}
-        secure = _request_is_https(headers)
+        secure = self._is_secure(headers, direct_tls)
         if not secure and not self.allow_http_register:
             self._audit("register", "https_required", 403)
             return 403, {"error": "https_required"}, {}
+        if not self.rate_limiter.allow(client):
+            self._audit("register", "rate_limited", 429)
+            return 429, {"error": "rate_limited"}, {"Retry-After": str(RATE_WINDOW_SECONDS)}
         try:
             payload = json.loads(body.decode("utf-8") if body else b"{}")
         except (UnicodeDecodeError, json.JSONDecodeError):
@@ -328,10 +394,13 @@ class AdminApp:
             {},
         )
 
-    def _logout(self, headers: Mapping[str, str]) -> tuple[int, dict[str, Any], dict[str, str]]:
+    def _is_secure(self, headers: Mapping[str, str], direct_tls: bool) -> bool:
+        return _request_is_https(headers, direct_tls=direct_tls, trust_proxy=self.trust_proxy)
+
+    def _logout(self, headers: Mapping[str, str], *, direct_tls: bool = False) -> tuple[int, dict[str, Any], dict[str, str]]:
         if not self.register_enabled:
             return 404, {"error": "not_found"}, {}
-        secure = _request_is_https(headers)
+        secure = self._is_secure(headers, direct_tls)
         self._audit("logout", "ok", 200)
         return 200, {"schema": "cwk.kb.logout.v1", "ok": True}, {
             "Set-Cookie": _clear_session_cookie(secure=secure)
@@ -467,24 +536,49 @@ class AdminApp:
             pass
         return {"schema": "cwk.kb.admin.audit.v1", "events": events}
 
-    def handle(self, method: str, path: str, headers: Mapping[str, str], body: bytes = b"") -> tuple[int, dict[str, Any], dict[str, str]]:
+    def handle(
+        self,
+        method: str,
+        path: str,
+        headers: Mapping[str, str],
+        body: bytes = b"",
+        *,
+        direct_tls: bool = False,
+        client: str = "",
+    ) -> tuple[int, dict[str, Any], dict[str, str]]:
         if method not in ("GET", "POST"):
             return 405, {"error": "method_not_allowed"}, {"Allow": "GET, POST"}
         route = urllib.parse.urlsplit(path).path
         if route == "/healthz":
-            return (200 if self.enabled else 503), {"schema": "cwk.kb.admin.health.v1", "enabled": self.enabled, "status": "ok" if self.enabled else "disabled"}, {}
+            live = self.enabled or self.face == FACE_REGISTER
+            return (200 if live else 503), {"schema": "cwk.kb.admin.health.v1", "enabled": self.enabled, "face": self.face, "status": "ok" if live else "disabled"}, {}
         # RT-065: registration is a public face (no admin key).  It still requires
-        # an explicit enable switch plus store + session secret.
-        if route == "/register" and method == "GET":
-            if not self.register_enabled:
-                return 404, {"error": "not_found"}, {}
-            return 200, {"html": _REGISTER_HTML}, {"Content-Type": "text/html; charset=utf-8"}
-        if route == "/api/register" and method == "POST":
-            return self._register(headers, body)
-        if route == "/api/session" and method == "GET":
-            return self._session_status(headers)
-        if route == "/api/logout" and method == "POST":
-            return self._logout(headers)
+        # an explicit enable switch plus store + session secret, and it lives only
+        # on the register face — the admin face keeps its loopback default.
+        if self.face == FACE_REGISTER:
+            if route == "/register" and method == "GET":
+                if not self.register_enabled:
+                    return 404, {"error": "not_found"}, {}
+                if not self._is_secure(headers, direct_tls) and not self.allow_http_register:
+                    # Refuse *before* the key is typed.  A form served over
+                    # plaintext that rejects the key afterwards has already let
+                    # it cross the network once.
+                    self._audit("register_page", "https_required", 403)
+                    return 403, {"html": _REGISTER_INSECURE_HTML}, {"Content-Type": "text/html; charset=utf-8"}
+                return 200, {"html": _REGISTER_HTML}, {"Content-Type": "text/html; charset=utf-8"}
+            if route == "/api/register" and method == "POST":
+                return self._register(headers, body, direct_tls=direct_tls, client=client)
+            if route == "/api/session" and method == "GET":
+                return self._session_status(headers)
+            if route == "/api/logout" and method == "POST":
+                return self._logout(headers, direct_tls=direct_tls)
+            # Nothing else exists on this face: no overview, no audit, no services.
+            return 404, {"error": "not_found"}, {}
+        # …and on the admin face the registration routes do not exist either,
+        # answered before the key check so the boundary reads the same way from
+        # both sides: registration lives on one face only.
+        if route in ("/register", "/api/register", "/api/session", "/api/logout"):
+            return 404, {"error": "not_found"}, {}
         if route in ("/", "/console"):
             return 200, {"html": _HTML}, {"Content-Type": "text/html; charset=utf-8"}
         if not route.startswith("/api/"):
@@ -515,6 +609,30 @@ class AdminApp:
             self._audit(action, "placeholder_not_implemented", 501)
             return 501, {"error": "not_implemented", "job": action, "recorded": True}, {}
         return 404, {"error": "not_found"}, {}
+
+
+_REGISTER_INSECURE_HTML = """<!doctype html>
+<html lang='zh-CN'><head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width,initial-scale=1'>
+<title>请用加密地址打开 · CWK 知识库</title>
+<style>
+body{margin:0;background:#f5f6fa;color:#16202f;font:15px/1.7 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+.wrap{max-width:520px;margin:0 auto;padding:3rem 1.25rem}
+h1{font-size:1.35rem;margin:0 0 .6rem}
+p{color:#5b6880;margin:0 0 .8rem}
+.box{background:#fdf1dd;border:1px solid #e7cd9b;color:#8a5600;border-radius:9px;padding:1rem 1.15rem}
+@media (prefers-color-scheme:dark){body{background:#11151d;color:#e6ebf4}p{color:#94a1b8}
+  .box{background:#332715;border-color:#5b4620;color:#e9bf6a}}
+</style></head>
+<body><div class='wrap'>
+<h1>请用加密地址打开本页</h1>
+<div class='box'>这一页要你填本人的工作协同 Key。现在这条连接没有加密，
+  Key 会以明文经过公司网络，所以这里<strong>不显示输入框</strong>。</div>
+<p>请把地址栏里的 <code>http://</code> 换成 <code>https://</code> 重新打开；
+   打不开或提示证书问题，找知识库管理员要正确的地址。</p>
+<p>管理员本机调试可以设置 <code>KB_REGISTER_ALLOW_HTTP=true</code> 临时放行，
+   生产环境不要开。</p>
+</div></body></html>"""
 
 
 _REGISTER_HTML = """<!doctype html>
@@ -852,7 +970,14 @@ class _Handler(BaseHTTPRequestHandler):
             length = 0
         body = self.rfile.read(length) if length else b""
         try:
-            status, payload, headers = self.server.app.handle(self.command, self.path, self.headers, body)
+            status, payload, headers = self.server.app.handle(
+                self.command,
+                self.path,
+                self.headers,
+                body,
+                direct_tls=isinstance(self.connection, ssl.SSLSocket),
+                client=str(self.client_address[0]) if self.client_address else "",
+            )
         except Exception:
             status, payload, headers = 500, {"error": "internal_error"}, {}
         self._reply(status, payload, headers)
@@ -865,9 +990,13 @@ class _Handler(BaseHTTPRequestHandler):
 
 
 class AdminHTTPServer(ThreadingHTTPServer):
-    def __init__(self, address: tuple[str, int], app: AdminApp):
+    def __init__(self, address: tuple[str, int], app: AdminApp, *, tls: ssl.SSLContext | None = None):
         self.app = app
         super().__init__(address, _Handler)
+        if tls is not None:
+            # Wrap after binding so a certificate problem fails at startup,
+            # not on the first person who tries to register.
+            self.socket = tls.wrap_socket(self.socket, server_side=True)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -875,6 +1004,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--host", default=DEFAULT_HOST)
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--key-env", default=None, help="环境变量名，不是密钥值")
+    parser.add_argument("--face", choices=FACES, default=None,
+                        help="admin=管理面（默认，回环）；register=注册面（可对局域网，不含任何管理接口）")
+    parser.add_argument("--tls-cert", default=None, help="证书文件路径（给注册面直接跑 https）")
+    parser.add_argument("--tls-key", default=None, help="私钥文件路径")
     return parser
 
 
@@ -885,8 +1018,21 @@ def main(argv: list[str] | None = None) -> int:
         if not _safe_name(args.key_env):
             parser.error("--key-env must be an environment variable name")
         os.environ[ENV_KEY_NAME] = args.key_env
+    if args.face is not None:
+        os.environ[ENV_FACE] = args.face
+    cert = args.tls_cert or os.environ.get(ENV_TLS_CERT) or ""
+    key = args.tls_key or os.environ.get(ENV_TLS_KEY) or ""
+    if bool(cert) != bool(key):
+        parser.error("--tls-cert 与 --tls-key 必须成对给出")
+    tls = None
+    if cert:
+        tls = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        tls.minimum_version = ssl.TLSVersion.TLSv1_2
+        tls.load_cert_chain(certfile=cert, keyfile=key)
     app = AdminApp()
-    server = AdminHTTPServer((args.host, args.port), app)
+    if app.face == FACE_REGISTER and tls is None and not app.allow_http_register:
+        parser.error("注册面必须给 --tls-cert/--tls-key；本机联调可设 KB_REGISTER_ALLOW_HTTP=true")
+    server = AdminHTTPServer((args.host, args.port), app, tls=tls)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

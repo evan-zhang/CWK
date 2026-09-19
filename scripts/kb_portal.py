@@ -99,13 +99,11 @@ class PortalApp:
         self.env = dict(environ if environ is not None else os.environ)
         self.banks = parse_banks(self.env.get(ENV_BANKS))
         self.console_url = (self.env.get(ENV_CONSOLE_URL) or DEFAULT_CONSOLE_URL).strip()
+        # 注册页必须是加密地址，而且它和控制台不在同一个端口上（注册面是独立进程），
+        # 所以这里不做任何推导：没配就不显示入口，配了但不是 https 也不显示——
+        # 门户上出现一个明文的「填 Key」链接，比没有链接危险得多。
         configured_register = (self.env.get(ENV_REGISTER_URL) or "").strip()
-        if configured_register:
-            self.register_url = configured_register
-        else:
-            # Default: same host as the console, path /register (RT-065).
-            base = self.console_url.rstrip("/")
-            self.register_url = (base[: -len("/console")] + "/register") if base.endswith("/console") else (base + "/register")
+        self.register_url = configured_register if configured_register.startswith("https://") else ""
         self.runbook_url = (self.env.get(ENV_RUNBOOK_URL) or "").strip()
         self.contact = (self.env.get(ENV_CONTACT) or "知识库管理员").strip()
         self.retrieval_base = (self.env.get(ENV_RETRIEVAL_BASE) or DEFAULT_RETRIEVAL_BASE).strip().rstrip("/")

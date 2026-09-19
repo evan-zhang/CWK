@@ -43,6 +43,7 @@ class RegisterHTTPTests(unittest.TestCase):
         self.audit = root / "audit.jsonl"
         self.env = {
             "KB_ADMIN_ENABLED": "false",
+            "KB_ADMIN_FACE": "register",
             "KB_REGISTER_ENABLED": "true",
             "KB_AUTHZ_STORE": str(self.store),
             "KB_REGISTER_SESSION_SECRET": "unit-test-session-secret-32b",
@@ -130,18 +131,29 @@ class RegisterHTTPTests(unittest.TestCase):
         status, payload, _ = self.request("/api/register", method="POST", body={"app_key": KEY})
         self.assertEqual(status, 403)
         self.assertEqual(payload["error"], "https_required")
-        # Reverse-proxy signal unlocks registration without ALLOW_HTTP.
-        status, payload, cookie = self.request(
-            "/api/register",
-            method="POST",
-            body={"app_key": KEY},
+
+    def test_a_forged_proxy_header_does_not_unlock_plaintext_registration(self):
+        """X-Forwarded-Proto 是客户端发的。没有反代覆盖它时，它什么也不证明。"""
+        self.app.allow_http_register = False
+        status, payload, _ = self.request(
+            "/api/register", method="POST", body={"app_key": KEY},
+            headers={"X-Forwarded-Proto": "https"},
+        )
+        self.assertEqual(status, 403)
+        self.assertEqual(payload["error"], "https_required")
+
+    def test_the_header_counts_only_when_a_proxy_is_declared(self):
+        self.app.allow_http_register = False
+        self.app.trust_proxy = True
+        status, _, cookie = self.request(
+            "/api/register", method="POST", body={"app_key": KEY},
             headers={"X-Forwarded-Proto": "https"},
         )
         self.assertEqual(status, 200)
         self.assertIn("Secure", cookie or "")
 
     def test_disabled_register_is_a_404(self):
-        app = kb_admin.AdminApp({"KB_ADMIN_ENABLED": "false"})
+        app = kb_admin.AdminApp({"KB_ADMIN_ENABLED": "false", "KB_ADMIN_FACE": "register"})
         self.assertFalse(app.register_enabled)
         self.assertEqual(app.handle("GET", "/register", {})[0], 404)
         self.assertEqual(app.handle("POST", "/api/register", {}, b'{"app_key":"x"}')[0], 404)
@@ -155,13 +167,16 @@ class RegisterHTTPTests(unittest.TestCase):
         # Client drops the cookie after Set-Cookie Max-Age=0; without it, session is gone.
         self.assertEqual(self.request("/api/session")[0], 401)
 
-    def test_portal_nav_links_to_register(self):
+    def test_portal_shows_the_register_link_only_for_a_configured_https_url(self):
         import kb_portal
-        html = kb_portal.PortalApp({
-            "KB_PORTAL_CONSOLE_URL": "http://192.168.91.72:8791/console",
-        }).page()
-        self.assertIn("href='http://192.168.91.72:8791/register'", html)
-        self.assertIn(">注册<", html)
+        console = {"KB_PORTAL_CONSOLE_URL": "http://192.168.91.72:8791/console"}
+        plain = kb_portal.PortalApp(console).page()
+        self.assertNotIn(">注册<", plain, "没配注册地址时不该猜一个出来")
+        insecure = kb_portal.PortalApp(dict(console, KB_PORTAL_REGISTER_URL="http://192.168.91.72:8793/register")).page()
+        self.assertNotIn(">注册<", insecure, "明文的注册链接不能出现在门户上")
+        secure = kb_portal.PortalApp(dict(console, KB_PORTAL_REGISTER_URL="https://192.168.91.72:8793/register")).page()
+        self.assertIn("href='https://192.168.91.72:8793/register'", secure)
+        self.assertIn(">注册<", secure)
 
 
 if __name__ == "__main__":

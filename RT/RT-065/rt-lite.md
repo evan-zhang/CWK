@@ -31,15 +31,37 @@
 
 - `kb_admin`：`/register` 单页表单；`POST /api/register` 调 `kb_identity` 核实后 `kb_authz.upsert_person`；HMAC 会话 Cookie；`GET /api/session` / `POST /api/logout`。
 - Key 只在请求内存中使用，不写 store、不进审计正文。
-- 默认要求 HTTPS（`X-Forwarded-Proto`）；本地联调用 `KB_REGISTER_ALLOW_HTTP=true`。
-- 门户导航增加「注册」链接（`KB_PORTAL_REGISTER_URL` 可覆盖）。
+- **面分离**：`--face admin|register`，一个进程只开一个面。注册面只有注册四个路由，
+  没有任何管理接口；管理面没有注册路由。面名拼错时退回 `admin`（不会误开公开面）。
+- **加密只认两种证据**：本连接是 TLS（`--tls-cert/--tls-key`，服务自带 https），
+  或显式声明了反代（`KB_REGISTER_TRUST_PROXY=true`）才采信 `X-Forwarded-Proto`。
+  注册面缺证书时启动即失败。明文访问 `/register` 返回 403 + 无输入框的说明页。
+- **限速**：按来源每分钟 `KB_REGISTER_RATE_LIMIT`（默认 5）次，超出 429 + `Retry-After`。
+- 门户的注册入口只认 `KB_PORTAL_REGISTER_URL` 且必须 `https://`，否则不显示。
+
+## 2026-09-19 复核（接手前的实测）
+
+三个洞，都已修复并有反向验证：
+
+| 问题 | 实测表现 | 修法 |
+|---|---|---|
+| 加密要求形同虚设 | 伪造 `X-Forwarded-Proto: https`，明文请求直接进入身份核实 | 默认不信任该头；只认真实 TLS 或显式声明的反代 |
+| 闸装在 Key 出门之后 | 明文下注册页照常给表单，用户填完提交才被 403——Key 已经过网 | 明文时页面不含输入框，先拒后说 |
+| 注册页挂在管理台 | 要给同事用就得把管理台端口开到局域网，而管理面只有一把共享密钥 | 拆成两个面，注册面不含任何管理接口 |
+| 注册接口无限速 | 连发 12 次全部受理，可当 Key 验证器、可借道压玄关 | 按来源限速 |
 
 ## 验证
 
-- 单元：`python3 -m unittest tests.test_rt065_register`（7 例通过）。
-- 假 Key / 空 Key / 未开注册 / 非 HTTPS → 对应 401/400/404/403。
-- 真路径（夹具）：写入人员目录 + Set-Cookie；logout 清 Cookie 后 session 无 Cookie。
-- 本机浏览器：`http://127.0.0.1:18791/register` 表单页可打开（ALLOW_HTTP 联调）。
+- `tests/test_rt065_register.py`（9 例）+ `tests/test_rt065_face_and_tls.py`（15 例）共 24 例通过：
+  - 面隔离：注册面上六条管理路由全 404；管理面上四条注册路由全 404；面名拼错退回管理面。
+  - 加密：伪造头（三种写法）一律不放行；声明反代后才放行；真实 TLS 无需任何头；
+    明文页面里没有 `<input`、没有提交入口。
+  - 限速：第 4 次 429（上限设 3），按来源分别计数，带 `Retry-After`。
+  - 真实 TLS 端到端：openssl 自签证书 → 真握手 → 注册成功 → 人员进目录 → Cookie 带 `Secure`；
+    授权表文件里搜不到那串 Key。
+  - 启动守卫：注册面缺证书、证书与私钥不成对，都是启动即失败。
+- **反向验证**：信任伪造头 → 5 条红；明文给表单 → 6 条红；注册面混入管理接口 → 6 条红；
+  去掉限速 → 2 条红。
 
 ## 变更记录
 
