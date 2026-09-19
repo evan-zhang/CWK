@@ -48,6 +48,9 @@ def build_pipeline() -> RAGPipeline:
 class Handler(BaseHTTPRequestHandler):
     pipeline: RAGPipeline | None = None
 
+    def _client(self) -> str:
+        return str(self.client_address[0]) if getattr(self, "client_address", None) else ""
+
     def _send(self, status: int, payload: dict[str, object]) -> None:
         raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode()
         self.send_response(status)
@@ -112,7 +115,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send(400, {"error": "invalid JSON request"})
             return
         bank_for_auth = bank or os.getenv("RAG_BANK", "cwork-3m")
-        refusal = authorize(self.headers, bank_for_auth)
+        refusal = authorize(self.headers, bank_for_auth, endpoint="answer", client=self._client())
         if refusal:
             self._send(*refusal)
             return
@@ -140,7 +143,9 @@ class Handler(BaseHTTPRequestHandler):
         """
         default_bank = os.getenv("RAG_BANK", "cwork-3m")
         owning = self.pipeline.resolver.bank_of(doc_id, default_bank) if self.pipeline is not None else None
-        refusal = authorize(self.headers, owning or default_bank)
+        # The audited endpoint is "read"; the doc id is deliberately not audited
+        # — the bank it belongs to is what an access record needs to say.
+        refusal = authorize(self.headers, owning or default_bank, endpoint="read", client=self._client())
         if refusal is None or (owning is None and refusal[0] != 401):
             return None
         return refusal
