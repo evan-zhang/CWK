@@ -134,6 +134,12 @@ class ConflictError(AuthzError):
     kind = "conflict"
 
 
+class VersionConflict(ConflictError):
+    """写入基于的版本已经过期——和「规则不允许」是两回事，别混成一句话。"""
+
+    kind = "version_conflict"
+
+
 # ── validation ──────────────────────────────────────────────────────────────
 
 
@@ -313,7 +319,7 @@ def mutate(
         else:
             data = load_store(target)
         if expect_version is not None and data["version"] != expect_version:
-            raise ConflictError(
+            raise VersionConflict(
                 f"授权表已被改动（当前版本 {data['version']}，你基于版本 {expect_version}）——请刷新后重试"
             )
         before = data["version"]

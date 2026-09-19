@@ -64,6 +64,9 @@ ENV_TLS_CERT = "KB_TLS_CERT"
 ENV_TLS_KEY = "KB_TLS_KEY"
 SESSION_COOKIE = "cwk_session"
 SESSION_TTL_SECONDS = 12 * 60 * 60
+#: RT-068: a header a cross-site form cannot add without triggering a preflight
+#: that we never answer.  Cheap second lock next to SameSite on the cookie.
+MEMBER_WRITE_HEADER = "X-CWK-Members"
 DEFAULT_RATE_LIMIT = 5
 RATE_WINDOW_SECONDS = 60
 ENV_NAME = re.compile(r"^[A-Z][A-Z0-9_]{0,127}$")
@@ -374,6 +377,116 @@ class AdminApp:
             {"Set-Cookie": _session_cookie(token, secure=secure, max_age=SESSION_TTL_SECONDS)},
         )
 
+    def _members_view(self, headers: Mapping[str, str]) -> tuple[int, dict[str, Any], dict[str, str]]:
+        """What the signed-in person may manage: their banks, members, and the directory.
+
+        No admin key anywhere near this: the actor is whoever the session says
+        it is, and what they may see follows the same rule that decides what
+        they may change — owner of that bank, or an administrator.
+        """
+        row = self._session_from_headers(headers)
+        if not row:
+            return 401, {"error": "unauthorized"}, {}
+        import kb_authz  # noqa: PLC0415
+
+        try:
+            data = kb_authz.load_store(self.authz_store)
+        except kb_authz.AuthzError as exc:
+            return 500, {"error": "store_unreadable", "message": str(exc)[:120]}, {}
+        actor = str(row["principal"])
+        admin = kb_authz.is_admin(data, actor)
+        banks = []
+        for bank_id, entry in sorted(data["banks"].items()):
+            if not isinstance(entry, dict) or entry.get("status") != kb_authz.BANK_ACTIVE:
+                continue
+            my_role = kb_authz.role_of(data, bank_id, actor)
+            if not (admin or my_role == kb_authz.ROLE_OWNER):
+                continue
+            banks.append({
+                "bank_id": bank_id,
+                "name": entry.get("name", bank_id),
+                "my_role": "admin" if admin and my_role is None else (my_role or ""),
+                "members": kb_authz.members_of(data, bank_id),
+            })
+        people = [
+            {"principal": principal, "name": person.get("name", "")}
+            for principal, person in sorted(data["persons"].items())
+            if isinstance(person, dict)
+        ] if banks else []
+        return 200, {
+            "schema": "cwk.kb.members.v1",
+            "version": data["version"],
+            "me": {"principal": actor, "name": row["name"], "admin": admin},
+            "banks": banks,
+            "persons": people,
+            "roles": list(kb_authz.ROLES),
+        }, {}
+
+    def _members_write(self, headers: Mapping[str, str], body: bytes) -> tuple[int, dict[str, Any], dict[str, str]]:
+        """Add, change or remove one member.  The rules live in kb_authz, not here."""
+        row = self._session_from_headers(headers)
+        if not row:
+            self._audit("members", "unauthorized", 401)
+            return 401, {"error": "unauthorized"}, {}
+        if not str(headers.get(MEMBER_WRITE_HEADER) or "").strip():
+            # A page of ours always sends it; a form on someone else's site cannot.
+            self._audit("members", "missing_marker", 400)
+            return 400, {"error": "invalid_request"}, {}
+        try:
+            payload = json.loads(body.decode("utf-8") if body else b"{}")
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self._audit("members", "invalid_json", 400)
+            return 400, {"error": "invalid_request"}, {}
+        if not isinstance(payload, dict):
+            self._audit("members", "invalid_json", 400)
+            return 400, {"error": "invalid_request"}, {}
+        bank_id = payload.get("bank_id")
+        principal = payload.get("principal")
+        role = payload.get("role")  # None / "" means remove
+        expect = payload.get("expect_version")
+        if not isinstance(bank_id, str) or not isinstance(principal, str):
+            self._audit("members", "invalid_request", 400)
+            return 400, {"error": "invalid_request"}, {}
+        if expect is not None and (isinstance(expect, bool) or not isinstance(expect, int)):
+            self._audit("members", "invalid_request", 400)
+            return 400, {"error": "invalid_request"}, {}
+
+        import kb_authz  # noqa: PLC0415
+
+        actor = str(row["principal"])
+        audit = {"operator": f"members-page:{actor}", "reason": "成员管理页面"}
+
+        def change(data: dict):
+            if role:
+                return kb_authz.set_member(data, actor=actor, bank_id=bank_id, principal=principal,
+                                           role=role, **audit)
+            kb_authz.remove_member(data, actor=actor, bank_id=bank_id, principal=principal, **audit)
+            return True
+
+        try:
+            data, _ = kb_authz.mutate(self.authz_store, change, expect_version=expect)
+        except kb_authz.Forbidden as exc:
+            self._audit("members", "forbidden", 403)
+            return 403, {"error": "forbidden", "message": str(exc)}, {}
+        except kb_authz.NotFound as exc:
+            self._audit("members", "not_found", 404)
+            return 404, {"error": "not_found", "message": str(exc)}, {}
+        except kb_authz.VersionConflict as exc:
+            # 别人刚改过：刷新重试就行。
+            self._audit("members", "version_conflict", 409)
+            return 409, {"error": "version_conflict", "message": str(exc)}, {}
+        except kb_authz.ConflictError as exc:
+            # 规则不允许（例如库至少要保留一位所有者）：重试多少次都一样，
+            # 必须把真正的原因原样交给用户。
+            self._audit("members", "conflict", 409)
+            return 409, {"error": "conflict", "message": str(exc)}, {}
+        except (kb_authz.UsageError, kb_authz.StoreError) as exc:
+            self._audit("members", "rejected", 400)
+            return 400, {"error": "rejected", "message": str(exc)}, {}
+        self._audit("members", "ok", 200)
+        return 200, {"schema": "cwk.kb.members-write.v1", "version": data["version"],
+                     "effective": "next_request"}, {}
+
     def _session_status(self, headers: Mapping[str, str]) -> tuple[int, dict[str, Any], dict[str, str]]:
         if not self.register_enabled:
             return 404, {"error": "not_found"}, {}
@@ -572,12 +685,23 @@ class AdminApp:
                 return self._session_status(headers)
             if route == "/api/logout" and method == "POST":
                 return self._logout(headers, direct_tls=direct_tls)
+            # RT-068 member management: same face, because it needs exactly what
+            # this face already has — TLS and a person behind the session.
+            if route == "/members" and method == "GET":
+                if not self._is_secure(headers, direct_tls) and not self.allow_http_register:
+                    return 403, {"html": _REGISTER_INSECURE_HTML}, {"Content-Type": "text/html; charset=utf-8"}
+                return 200, {"html": _MEMBERS_HTML}, {"Content-Type": "text/html; charset=utf-8"}
+            if route == "/api/members" and method == "GET":
+                return self._members_view(headers)
+            if route == "/api/members" and method == "POST":
+                return self._members_write(headers, body)
             # Nothing else exists on this face: no overview, no audit, no services.
             return 404, {"error": "not_found"}, {}
         # …and on the admin face the registration routes do not exist either,
         # answered before the key check so the boundary reads the same way from
         # both sides: registration lives on one face only.
-        if route in ("/register", "/api/register", "/api/session", "/api/logout"):
+        if route in ("/register", "/api/register", "/api/session", "/api/logout",
+                     "/members", "/api/members"):
             return 404, {"error": "not_found"}, {}
         if route in ("/", "/console"):
             return 200, {"html": _HTML}, {"Content-Type": "text/html; charset=utf-8"}
@@ -609,6 +733,187 @@ class AdminApp:
             self._audit(action, "placeholder_not_implemented", 501)
             return 501, {"error": "not_implemented", "job": action, "recorded": True}, {}
         return 404, {"error": "not_found"}, {}
+
+
+_MEMBERS_HTML = """<!doctype html>
+<html lang='zh-CN'><head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width,initial-scale=1'>
+<title>成员管理 · CWK 知识库</title>
+<style>
+:root{--bg:#f5f6fa;--card:#fff;--ink:#16202f;--muted:#5b6880;--line:#dfe4ee;--accent:#2b5bd7;
+  --ok:#1a7f4b;--bad:#b3261e;--warn:#a86a00;--owner:#2b5bd7;--writer:#0d7a68;--reader:#5d6a7e}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+.wrap{max-width:880px;margin:0 auto;padding:2rem 1.25rem 3rem}
+h1{font-size:1.4rem;margin:0 0 .3rem}
+.lede{color:var(--muted);margin:0 0 1.5rem;font-size:.92rem}
+.who{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;flex-wrap:wrap;
+  border-bottom:1px solid var(--line);padding-bottom:.8rem;margin-bottom:1.5rem}
+.who b{font-weight:600}
+.who a{color:var(--accent);text-decoration:none;font-size:.9rem}
+.banks{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.2rem}
+.banks button{border:1px solid var(--line);background:var(--card);border-radius:8px;padding:.45rem .9rem;
+  cursor:pointer;font:inherit;color:var(--muted)}
+.banks button[aria-pressed=true]{border-color:var(--accent);color:var(--accent);font-weight:600}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1.1rem 1.2rem;margin-bottom:1rem}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+th,td{text-align:left;padding:.55rem .5rem;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-size:.8rem;color:var(--muted);font-weight:600}
+.role{display:inline-block;border-radius:99px;padding:.1rem .6rem;font-size:.78rem;font-weight:600}
+.role.owner{background:#e7eefc;color:var(--owner)} .role.writer{background:#dff3ee;color:var(--writer)}
+.role.reader{background:#eaedf2;color:var(--reader)}
+select,button.act{font:inherit;padding:.3rem .5rem;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+button.act{cursor:pointer;background:var(--card)}
+button.act:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+button.act:disabled,select:disabled{opacity:.45;cursor:not-allowed}
+button.danger:hover:not(:disabled){border-color:var(--bad);color:var(--bad)}
+.add{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-top:1rem;padding-top:1rem;border-top:1px dashed var(--line)}
+.msg{padding:.75rem 1rem;border-radius:8px;font-size:.9rem;margin-bottom:1rem}
+.msg.bad{background:#fbe9e7;color:var(--bad)} .msg.ok{background:#e6f4ec;color:var(--ok)}
+.msg.warn{background:#fdf1dd;color:var(--warn)}
+.hint{color:var(--muted);font-size:.85rem;margin:.6rem 0 0}
+.svc{color:var(--muted);font-size:.82rem}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#11151d;--card:#1a202b;--ink:#e6ebf4;--muted:#94a1b8;--line:#2a3342;--accent:#7aa2ff}
+  .role.owner{background:#1c2a4a} .role.writer{background:#133a33} .role.reader{background:#232c3d}
+  .msg.bad{background:#3a1f1d} .msg.ok{background:#16301f} .msg.warn{background:#332715}
+}
+</style></head>
+<body><div class='wrap'>
+<h1>成员管理</h1>
+<p class='lede'>谁能查哪个库，在这里改。改完约十秒生效，不用重发令牌。</p>
+<div class='who'><span id='me'>正在确认身份…</span><a href='/register'>注册页</a></div>
+<div id='msg'></div>
+<div class='banks' id='banks'></div>
+<div id='panel'></div>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+const esc = (v) => String(v == null ? '' : v)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const ROLE_CN = {owner: '所有者', writer: '可写', reader: '只读'};
+let state = {version: 0, banks: [], persons: [], me: null, current: null};
+
+function message(kind, text){
+  $('msg').innerHTML = text ? '<div class="msg ' + kind + '">' + text + '</div>' : '';
+}
+
+async function load(keepMessage){
+  let response;
+  try { response = await fetch('/api/members', {cache: 'no-store'}); }
+  catch (err) { message('bad', '连不上服务，请稍后重试。'); return; }
+  if (response.status === 401){
+    $('me').textContent = '还没登录';
+    message('warn', '请先到<a href="/register">注册页</a>用本人工作协同 Key 登录，再回到这一页。');
+    return;
+  }
+  if (!response.ok){ message('bad', '读取失败（' + response.status + '）。'); return; }
+  const data = await response.json();
+  state.version = data.version;
+  state.banks = data.banks;
+  state.persons = data.persons;
+  state.me = data.me;
+  $('me').innerHTML = '当前身份：<b>' + esc(data.me.name) + '</b>' + (data.me.admin ? '（管理员）' : '');
+  if (!data.banks.length){
+    $('banks').innerHTML = '';
+    $('panel').innerHTML = "<div class='panel'>你目前不是任何库的所有者，没有可管理的库。</div>";
+    return;
+  }
+  if (!state.banks.some((b) => b.bank_id === state.current)) state.current = data.banks[0].bank_id;
+  $('banks').innerHTML = data.banks.map((b) =>
+    "<button type='button' data-bank='" + esc(b.bank_id) + "' aria-pressed='" + (b.bank_id === state.current) + "'>"
+    + esc(b.name) + '</button>').join('');
+  for (const button of $('banks').querySelectorAll('button')){
+    button.addEventListener('click', () => { state.current = button.dataset.bank; render(); });
+  }
+  if (!keepMessage) message('', '');
+  render();
+}
+
+function render(){
+  const bank = state.banks.find((b) => b.bank_id === state.current);
+  if (!bank) return;
+  for (const button of $('banks').querySelectorAll('button')){
+    button.setAttribute('aria-pressed', String(button.dataset.bank === state.current));
+  }
+  const admin = state.me.admin;
+  const rows = bank.members.map((m) => {
+    const service = String(m.principal).startsWith('service:');
+    const isOwner = m.role === 'owner';
+    const isMe = m.principal === state.me.principal;
+    // 所有者不能动别的所有者，只能降级自己；服务只有管理员能动。这两条由服务端强制，
+    // 这里只是不给按钮，省得点了再被拒。
+    const locked = (service && !admin) || (isOwner && !admin && !isMe);
+    const name = service ? "<span class='svc'>服务 · " + esc(m.principal.slice(8)) + '</span>' : esc(m.name || m.principal);
+    const options = ['owner','writer','reader'].map((r) =>
+      "<option value='" + r + "'" + (r === m.role ? ' selected' : '') + ">" + ROLE_CN[r] + '</option>').join('');
+    return '<tr><td>' + name + (isMe ? " <span class='svc'>（你）</span>" : '') + "</td>"
+      + "<td><span class='role " + esc(m.role) + "'>" + (ROLE_CN[m.role] || esc(m.role)) + '</span></td>'
+      + "<td><select data-p='" + esc(m.principal) + "'" + (locked ? ' disabled' : '') + '>' + options + '</select></td>'
+      + "<td><button class='act danger' data-remove='" + esc(m.principal) + "'" + (locked ? ' disabled' : '') + '>移除</button></td></tr>';
+  }).join('');
+  const existing = new Set(bank.members.map((m) => m.principal));
+  const choices = state.persons.filter((p) => !existing.has(p.principal))
+    .map((p) => "<option value='" + esc(p.principal) + "'>" + esc(p.name || p.principal) + '</option>').join('');
+  $('panel').innerHTML = "<div class='panel'>"
+    + '<table><thead><tr><th>成员</th><th>当前角色</th><th>改为</th><th></th></tr></thead><tbody>'
+    + rows + '</tbody></table>'
+    + (choices
+        ? "<div class='add'><select id='who'>" + choices + "</select>"
+          + "<select id='role'><option value='reader'>只读</option><option value='writer'>可写</option><option value='owner'>所有者</option></select>"
+          + "<button class='act' id='add'>加入这个库</button></div>"
+        : "<p class='hint'>人员目录里没有其他可加的人。让同事先到注册页用本人 Key 报到。</p>")
+    + "<p class='hint'>改动约十秒生效。所有者不能降级其他所有者；库至少要保留一位所有者。</p>"
+    + '</div>';
+  for (const select of $('panel').querySelectorAll('select[data-p]')){
+    select.addEventListener('change', () => write(select.dataset.p, select.value));
+  }
+  for (const button of $('panel').querySelectorAll('button[data-remove]')){
+    button.addEventListener('click', () => {
+      const principal = button.dataset.remove;
+      if (window.confirm('确定把这个人从「' + bank.name + '」移除吗？')) write(principal, null);
+    });
+  }
+  const add = $('add');
+  if (add) add.addEventListener('click', () => write($('who').value, $('role').value));
+}
+
+async function write(principal, role){
+  message('warn', '正在保存…');
+  let response;
+  try {
+    response = await fetch('/api/members', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CWK-Members': '1'},
+      body: JSON.stringify({bank_id: state.current, principal: principal, role: role,
+                            expect_version: state.version}),
+      cache: 'no-store'
+    });
+  } catch (err) { message('bad', '连不上服务，改动没有保存。'); return; }
+  let data = {};
+  try { data = await response.json(); } catch (err) {}
+  if (response.status === 409 && data.error === 'version_conflict'){
+    message('warn', '这份名单刚被别人改过，已为你刷新，请确认后重试。');
+    await load(true);
+    return;
+  }
+  if (response.status === 409){
+    // 规则不允许：重试无用，把服务端给的原因原样说清楚。
+    message('bad', esc(data.message || '这个改动不被允许。'));
+    await load(true);
+    return;
+  }
+  if (!response.ok){
+    message('bad', esc(data.message || '保存失败（' + response.status + '）。'));
+    await load(true);
+    return;
+  }
+  await load(true);
+  message('ok', role ? '已保存，约十秒后生效。' : '已移除，约十秒后生效。');
+}
+
+load();
+</script></body></html>"""
 
 
 _REGISTER_INSECURE_HTML = """<!doctype html>
