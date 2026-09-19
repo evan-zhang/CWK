@@ -1,0 +1,18 @@
+id: RT-068
+title: 成员管理页面（加密面 + 本人身份，不用共享密码）
+type: Feature
+profile: Spec-Lite
+execution_mode: collaborative
+status: created
+modules: [kb-admin, kb-authz]
+branch: feature/RT-068-member-page
+worktree: .claude/worktrees/RT-068-member-page
+owner: Evan
+created_at: 2026-09-20T06:54:53+08:00
+updated_at: 2026-09-20T06:54:53+08:00
+closed_at: null
+notes: >
+  加权限目前只能登服务器敲命令。做一个页面：看某个库有谁、加人、改角色、收回。
+  刻意不放在明文控制台上——那里是局域网可达 + 共享密码，给它写权限等于谁知道密码就能给自己开库。
+  放在已有 TLS 与本人登录态的注册面上，操作者就是登录的那个人，
+  权限判定直接用 RT-061 的角色规则（所有者管自己的库，管理员管所有库）。
