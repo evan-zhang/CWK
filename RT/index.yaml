@@ -370,3 +370,8 @@ entries:
   status: done
   profile: Spec-Lite
   created: 2026-09-19
+- id: RT-067
+  title: 检索与问答的访问审计（只记结果，不记内容）
+  status: created
+  profile: Spec-Lite
+  created: 2026-09-20
