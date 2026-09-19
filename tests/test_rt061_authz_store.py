@@ -304,7 +304,8 @@ class CliTests(unittest.TestCase):
         self.assertEqual([b["bank_id"] for b in shown["banks"]], ["bank-a"])
         code, stale = self.cli("grant", "--store", self.store, "--bank-id", "bank-a", "--principal", BOB.principal,
                                "--role", "writer", "--expect-version", str(created["version"]))
-        self.assertEqual((code, stale["error"]["kind"]), (2, "conflict"))
+        # RT-068 起，版本冲突有了自己的类型名：它重试有用，规则冲突重试无用。
+        self.assertEqual((code, stale["error"]["kind"]), (2, "version_conflict"))
 
     def test_refusals_are_json(self):
         self.cli("init", "--store", self.store)
