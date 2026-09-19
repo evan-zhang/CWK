@@ -130,9 +130,13 @@ python3 scripts/kb_authz.py check             --registry $R --store $S
 
 `check-equivalence` 调用的就是线上的判定代码（`adapters/kb_auth.py`）。它逐支有效令牌、逐个库，比对两种模式放行还是拒绝，任何一处不同都会列出来。
 
-## 切换到按成员表判定
+## 切换到按成员表判定（已于 2026-09-19 完成，RT-066）
 
-前提：迁移完成，两道核对都通过，并且已获得产品负责人批准。
+线上现在跑的就是这套判定：`RAG_AUTHZ_MODE=grants`，写在 OPS 的
+`deploy/docker-compose.auth.yml` 与 `docker-compose.production-auth.yml` 里。
+改一条成员记录，约 10 秒后生效（挂载同步延迟），令牌不用动。
+
+下面是当初的切换步骤，日后新增服务或重装时照此执行。前提：迁移完成、两道核对通过、已获批准。
 
 1. 在 OPS 的 `deploy/docker-compose.auth.yml` 里，给 `retrieval` 和 `rag-answer` 都加上：
    ```yaml
@@ -151,7 +155,9 @@ python3 scripts/kb_authz.py check             --registry $R --store $S
 
 ## 回退
 
-- **最快的回退**：把 `RAG_AUTHZ_MODE` 改回 `scope`（或删掉这一行），重建两个容器。立刻恢复成只认令牌自带的库。
+- **最快的回退**：把 `RAG_AUTHZ_MODE` 改回 `scope`（或删掉这一行），重建两个容器，
+  立刻恢复成只认令牌自带的库。切换前的两个 compose 覆盖文件备份在 OPS 的
+  `ops/backup-rt066/`，直接拷回去再重建即可。
 - **代价**：回退期间，成员表里的改动不生效。`--authz grants` 的新令牌会按签发时的 `--kb-id` 快照工作。
 - **代码回退**：退回 RT-061 之前的镜像也可以。登记表 schema 版本没变，新增字段旧代码会忽略，已签发的令牌照常可用。
 

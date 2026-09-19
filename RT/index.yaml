@@ -367,6 +367,6 @@ entries:
   created: 2026-09-18
 - id: RT-066
   title: 线上鉴权切换到成员表判定（scope → grants）
-  status: created
+  status: done
   profile: Spec-Lite
   created: 2026-09-19

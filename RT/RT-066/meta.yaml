@@ -3,14 +3,14 @@ title: 线上鉴权切换到成员表判定（scope → grants）
 type: Infrastructure
 profile: Spec-Lite
 execution_mode: collaborative
-status: created
+status: done
 modules: [rt055-retrieval-decision, kb-authz]
 branch: main
 worktree: (无：只改线上开关与验证，不改产品代码)
 owner: Evan
 created_at: 2026-09-19T23:18:01+08:00
 updated_at: 2026-09-19T23:18:01+08:00
-closed_at: null
+closed_at: 2026-09-19T23:29:26+08:00
 notes: >
   RT-061 已把成员表建好、令牌已绑定身份、等价性核对通过，但线上开关一直停在 scope。
   本 RT 只做切换与验证：把 8787/8790 的 RAG_AUTHZ_MODE 改成 grants，
