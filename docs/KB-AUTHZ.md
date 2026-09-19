@@ -161,6 +161,34 @@ python3 scripts/kb_authz.py check             --registry $R --store $S
 - **代价**：回退期间，成员表里的改动不生效。`--authz grants` 的新令牌会按签发时的 `--kb-id` 快照工作。
 - **代码回退**：退回 RT-061 之前的镜像也可以。登记表 schema 版本没变，新增字段旧代码会忽略，已签发的令牌照常可用。
 
+## 访问审计（RT-067）
+
+检索与问答默认什么都不记——请求路径和参数里可能带原文。配了 `RAG_AUTH_AUDIT_PATH`
+才开始写一行行的访问记录，**只记结果，不记内容**：
+
+| 记什么 | 不记什么 |
+|---|---|
+| 时间、端点（query/answer/read）、库、结果码、原因 | 查询词、文档编号、返回正文 |
+| 令牌 ID（指纹截断，不是令牌本身）、主体、来源 IP | 令牌明文、令牌摘要、任何凭据 |
+
+判据里有一条字段白名单：想"顺手加个查询词方便排查"，测试会红。
+
+- 文件按 `0600`、目录按 `0700` 创建；写不进去时请求照常放行，只在容器日志里提示一次。
+- 超过 `RAG_AUTH_AUDIT_MAX_BYTES`（默认 64 MiB）自动轮转一次，只保留一代 `.1`，不会把盘写满。
+- 线上路径：容器内 `/app/audit/access.jsonl`，对应 OPS 的 `ops/access-audit/`。
+
+查最近的拒绝记录：
+
+```bash
+tail -100 ops/access-audit/access.jsonl | python3 -c "
+import json,sys
+for line in sys.stdin:
+    r = json.loads(line)
+    if r['status'] != 200:
+        print(r['ts'], r['status'], r['reason'], r['endpoint'], r['bank'], r['token_id'], r['client'])
+"
+```
+
 ## 当前的边界
 
 - **同事报到已经可用（RT-065，2026-09-19 上线）。** 同事打开 `https://192.168.91.72:8793/register`，

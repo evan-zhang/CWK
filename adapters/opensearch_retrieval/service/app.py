@@ -99,7 +99,8 @@ def make_handler(application: RetrievalApplication) -> type[BaseHTTPRequestHandl
                 self._write(HTTPStatus.BAD_REQUEST, error_response("invalid_request", "invalid query request"))
                 return
             bank = payload.get("bank") if isinstance(payload, dict) else ""
-            refusal = authorize(self.headers, bank or "")
+            client = str(self.client_address[0]) if getattr(self, "client_address", None) else ""
+            refusal = authorize(self.headers, bank or "", endpoint="query", client=client)
             if refusal:
                 self._write(*refusal)
                 return
