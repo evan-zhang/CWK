@@ -1,6 +1,6 @@
 id: RT-066
 title: 线上鉴权切换到成员表判定（scope → grants）
-type: Change
+type: Infrastructure
 profile: Spec-Lite
 execution_mode: collaborative
 status: created
