@@ -3,7 +3,7 @@ title: 用户自助注册（填工作协同 Key）
 type: Feature
 profile: Spec-Lite
 execution_mode: collaborative
-status: in-progress
+status: done
 modules: [kb-authz, kb-admin, kb-identity]
 branch: feature/RT-065-secure-enroll
 worktree: .claude/worktrees/RT-065-secure-enroll
