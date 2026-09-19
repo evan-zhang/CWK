@@ -361,7 +361,7 @@ entries:
   profile: Spec-Lite
   created: 2026-09-18
 - id: RT-065
-  title: 同事安全报到与控制台薄登录态（业务 Key 绑定人员身份）
-  status: created
+  title: 用户自助注册（填工作协同 Key）
+  status: in_progress
   profile: Spec-Lite
   created: 2026-09-18

@@ -1,17 +1,16 @@
 id: RT-065
-title: 同事安全报到与控制台薄登录态（业务 Key 绑定人员身份）
+title: 用户自助注册（填工作协同 Key）
 type: Feature
 profile: Spec-Lite
 execution_mode: collaborative
-status: created
+status: in-progress
 modules: [kb-authz, kb-admin, kb-identity]
 branch: feature/RT-065-secure-enroll
 worktree: .claude/worktrees/RT-065-secure-enroll
 owner: Evan
 created_at: 2026-09-18T12:55:00+08:00
-updated_at: 2026-09-18T12:55:00+08:00
+updated_at: 2026-09-18T16:23:43+08:00
 closed_at: null
 notes: >
-  不做独立用户名密码体系。提供加密报到通道与很薄的控制台登录态：同事用本人业务 Key
-  经玄关核实后进入人员目录，浏览器会话绑定人员主体。为后续成员管理页、切 grants、
-  自助建库铺路。身份铁律不变——只认当场核实的 Key，禁止手填身份。
+  放开一个加密注册页：用户自填工作协同 Key，经核实写入人员目录并建立薄登录态。
+  不做用户名密码体系；Key 不落盘。为后续成员管理与自助建库铺路。

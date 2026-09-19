@@ -25,18 +25,78 @@ python3 scripts/kb_admin.py
 
 ## API 与安全边界
 
-除 `/` 和 `/healthz` 外，API 均须在 `X-KB-Admin-Key` 头提供管理密钥（兼容 `X-KB-Token`）。无密钥或错误密钥统一返回 `401`。`/healthz` 只返回启用状态；界面不会保存密钥。
+**一个进程只开一个面**（`--face` / `KB_ADMIN_FACE`，默认 `admin`）：
+
+- `admin`：管理面。保持回环绑定、要管理密钥。这里没有 `/register`，请求它一律 `404`。
+- `register`：注册面。只有 `/healthz`、`/register`、`/api/register`、`/api/session`、`/api/logout`，
+  **没有任何管理接口**——`/console`、`/api/overview`、`/api/audit`、`/api/services` 在这个面上都是 `404`。
+  注册面可以绑局域网，管理面不必跟着出去。配置写错（面名拼错）时退回 `admin`，不会误开公开面。
+
+管理面除 `/` 和 `/healthz` 外的管理 API 均须在 `X-KB-Admin-Key` 头提供管理密钥（兼容 `X-KB-Token`）。无密钥或错误密钥统一返回 `401`。`/healthz` 只返回启用状态；界面不会保存密钥。
 
 - `GET /api/overview`：复用 `kb_ops` 的只读状态投影，返回库计数、词法就绪状态和 token 的脱敏 id、scope、状态与时间。
 - `GET /api/services`：有界超时探测 8787/8790，只返回地址、健康状态和 HTTP 状态。
 - `GET /api/audit`：读取最近受控审计事件，仅返回时间、动作、结果、状态。
 - `POST /api/jobs/create`、`POST /api/jobs/ingest`：默认拒绝；显式打开写开关后也只记审计并返回 501。
+- `POST /api/register` / `GET /api/session` / `POST /api/logout`：自助注册与薄会话（RT-065）。
 
 响应不会返回 token 摘要、owner 引用/盐、token 明文、路径、`CWORK_APP_KEY` 或 SSH 信息。错误响应使用固定错误码，不回显异常文本。
 
 ## 验证
 
 ```bash
-python3 -m unittest tests.test_rt056_kb_admin
+python3 -m unittest tests.test_rt056_kb_admin tests.test_rt065_register tests.test_rt065_face_and_tls
 python3 -m py_compile scripts/kb_admin.py
 ```
+
+## 用户自助注册（RT-065）
+
+注册面提供 `/register` 页面：用户粘贴本人工作协同 Key，服务经玄关核实后写入人员目录，并设置短时会话 Cookie。Key 不落盘、不进审计正文。
+
+必配环境变量：
+
+- `KB_ADMIN_FACE=register`
+- `KB_REGISTER_ENABLED=true`
+- `KB_AUTHZ_STORE`：人员/成员授权表路径
+- `KB_REGISTER_SESSION_SECRET`：至少 16 字符的会话签名密钥
+
+### 加密是硬条件
+
+这一页要用户交出本人的 Key，所以它**必须跑在 https 上**，判定只认两种证据：
+
+1. **本连接就是 TLS**——给 `--tls-cert` / `--tls-key`（或 `KB_TLS_CERT` / `KB_TLS_KEY`），服务自己起 https，不需要反代。
+   注册面缺证书时**启动即失败**，不会悄悄以明文跑起来。
+2. **前面确实有反代**——只有显式设了 `KB_REGISTER_TRUST_PROXY=true` 才采信 `X-Forwarded-Proto`。
+   不设的话这个头一律忽略：它是客户端自己发的，没有反代覆盖时谁都能写 `https`。
+
+明文访问 `/register` 返回 `403` 和一张**没有输入框**的说明页。这一点是有意的：
+如果先给表单、等用户填完提交再拒绝，Key 已经明文过了一次网络，闸就白装了。
+
+`KB_REGISTER_ALLOW_HTTP=true` 只用于本机联调，生产不要开。
+
+### 防滥用
+
+注册接口会把收到的字符串拿去问玄关，因此按来源限速（`KB_REGISTER_RATE_LIMIT`，默认每分钟 5 次，
+超出返回 `429` 并带 `Retry-After`）。没有这道闸，它就是一个「这把 Key 有效吗」的免费验证器，
+也能被用来借道压玄关。
+
+### 生产启动示例（OPS）
+
+```bash
+# 证书一次性生成（自签，含服务器 IP），私钥 0600，不进仓库
+openssl req -x509 -newkey rsa:2048 -nodes -days 825 \
+  -subj "/CN=192.168.91.72" -addext "subjectAltName=IP:192.168.91.72" \
+  -keyout auth/tls/register-key.pem -out auth/tls/register-cert.pem
+
+KB_ADMIN_FACE=register KB_REGISTER_ENABLED=true \
+KB_AUTHZ_STORE=auth/registry/kb-authz.json \
+KB_REGISTER_SESSION_SECRET="$(cat auth/register-session.secret)" \
+python3 scripts/kb_admin.py --face register --host 0.0.0.0 --port 8793 \
+  --tls-cert auth/tls/register-cert.pem --tls-key auth/tls/register-key.pem
+```
+
+自签证书意味着同事首次打开会看到浏览器安全警告，需要手动继续或导入证书——
+这是自签方案的固有代价，加密本身是真的。
+
+门户导航的注册入口只认 `KB_PORTAL_REGISTER_URL`，而且**必须是 `https://` 开头**；
+没配或配成明文地址就不显示入口（门户上出现一个明文的「填 Key」链接，比没有链接更危险）。
