@@ -382,6 +382,6 @@ entries:
   created: 2026-09-20
 - id: RT-069
   title: 自助令牌页面（本人当场核实后签给自己）
-  status: created
+  status: done
   profile: Spec-Lite
   created: 2026-09-20

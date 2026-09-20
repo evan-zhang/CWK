@@ -3,14 +3,14 @@ title: 自助令牌页面（本人当场核实后签给自己）
 type: Feature
 profile: Spec-Lite
 execution_mode: collaborative
-status: created
+status: done
 modules: [kb-admin, kb-token]
 branch: feature/RT-069-token-page
 worktree: .claude/worktrees/RT-069-token-page
 owner: Evan
 created_at: 2026-09-20T08:11:48+08:00
 updated_at: 2026-09-20T08:11:48+08:00
-closed_at: null
+closed_at: 2026-09-20T08:22:17+08:00
 notes: >
   发令牌是试跑前最后一个还要敲命令的环节。页面化时守住 RT-047 的铁律：
   身份只能由当场核实的 Key 推导，所以不做"管理员替别人签"，而是本人登录后
