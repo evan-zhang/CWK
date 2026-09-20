@@ -387,6 +387,6 @@ entries:
   created: 2026-09-20
 - id: RT-070
   title: 内容同步流水线（NAS 为唯一事实源，OPS 不留副本）
-  status: created
+  status: done
   profile: Spec-Lite
   created: 2026-09-20
