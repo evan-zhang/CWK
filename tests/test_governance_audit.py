@@ -108,6 +108,7 @@ _REPRESENTATIVE_TRACKED = (
     "scripts/kb_portal.py",
     # RT-061：库与授权的写面和玄关身份解析共用一条 exact_set，取一个代表即可。
     "scripts/kb_authz.py",
+    "scripts/kb_snapshot.py",
     "scripts/kb_p0.py",
     "scripts/kb_p0_benchmark.py",
     "scripts/kb_gateway_client.py",
