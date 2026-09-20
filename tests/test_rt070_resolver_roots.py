@@ -75,5 +75,60 @@ class TwoRootsTests(unittest.TestCase):
         self.assertEqual(resolver.resolve("doc-new"), "NAS 上的正文")
 
 
+class IndexReloadTests(unittest.TestCase):
+    """映射表换掉之后，读原文必须跟着换，且不能靠重启服务。
+
+    真实事故：第一次内容同步完成、索引和映射表都更新了，但问答服务仍按
+    启动时那份旧表回答，新同步进来的 67 份文档一律 404。上线当天才发现。
+    """
+
+    def setUp(self) -> None:
+        self.tmp = TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.base = Path(self.tmp.name)
+        (self.base / "root" / "bank-a").mkdir(parents=True)
+        (self.base / "root" / "bank-a" / "old.md").write_text("旧正文", encoding="utf-8")
+        (self.base / "root" / "bank-a" / "new.md").write_text("新正文", encoding="utf-8")
+        self.index = self.base / "index.json"
+        self._write_index({"doc-old": "bank-a/old.md"})
+        self.resolver = DocResolver(roots=[self.base / "root"], index_path=self.index)
+
+    def _write_index(self, mapping) -> None:
+        """按同步流水线的写法落盘：先写临时文件再原子改名。"""
+        tmp = self.index.with_suffix(".tmp")
+        tmp.write_text(json.dumps(mapping), encoding="utf-8")
+        tmp.replace(self.index)
+
+    def test_new_document_is_readable_without_restart(self):
+        self.assertEqual(self.resolver.resolve("doc-old"), "旧正文")
+        with self.assertRaises(KeyError):
+            self.resolver.resolve("doc-new")
+        self._write_index({"doc-old": "bank-a/old.md", "doc-new": "bank-a/new.md"})
+        self.assertEqual(self.resolver.resolve("doc-new"), "新正文")
+
+    def test_bank_of_also_sees_the_new_index(self):
+        self.assertIsNone(self.resolver.bank_of("doc-new", "默认库"))
+        self._write_index({"doc-new": "bank-a/new.md"})
+        self.assertEqual(self.resolver.bank_of("doc-new", "默认库"), "bank-a")
+
+    def test_broken_new_index_keeps_serving_the_previous_one(self):
+        self.assertEqual(self.resolver.resolve("doc-old"), "旧正文")
+        self.index.write_text('{"doc-old": "bank-a/old', encoding="utf-8")
+        self.assertEqual(self.resolver.resolve("doc-old"), "旧正文")
+        self._write_index({"doc-old": "bank-a/old.md", "doc-new": "bank-a/new.md"})
+        self.assertEqual(self.resolver.resolve("doc-new"), "新正文")
+
+    def test_unchanged_index_is_not_reread_from_disk(self):
+        calls = []
+        original = self.resolver._load
+        self.resolver._load = lambda: (calls.append(1), original())[1]
+        for _ in range(3):
+            self.resolver.resolve("doc-old")
+        self.assertEqual(calls, [])
+        self._write_index({"doc-old": "bank-a/old.md"})
+        self.resolver.resolve("doc-old")
+        self.assertEqual(len(calls), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -14,25 +14,48 @@ class DocResolver:
         self.roots=tuple(Path(x).resolve() for x in (roots if roots is not None else os.getenv('RAG_SOURCE_ROOTS','').split(os.pathsep) if os.getenv('RAG_SOURCE_ROOTS') else []))
         self.index_path=Path(index_path or os.getenv('RAG_DOC_INDEX','')).resolve() if (index_path or os.getenv('RAG_DOC_INDEX')) else None
         self.max_bytes=max_bytes
+        self._stamp=None
         self.index=self._load()
+    def _read_stamp(self):
+        try: st=self.index_path.stat()
+        except OSError: return None
+        return (st.st_mtime_ns, st.st_size, st.st_ino)
     def _load(self):
         if not self.index_path: return {}
+        stamp=self._read_stamp()
         if not self.index_path.is_file() or self.index_path.stat().st_size>self.max_bytes: raise ResolveError('invalid index')
         try: data=json.loads(self.index_path.read_text(encoding='utf-8'))
         except (OSError,UnicodeError,json.JSONDecodeError) as e: raise ResolveError('invalid index') from e
-        return data if isinstance(data,dict) else (_ for _ in ()).throw(ResolveError('invalid index'))
+        if not isinstance(data,dict): raise ResolveError('invalid index')
+        self._stamp=stamp
+        return data
+    def _refresh(self):
+        """映射表被整体换掉之后，不重启服务也要能读到新内容。
+
+        内容同步每次都会重写映射表（原子改名落盘），而这份表原先只在启动时读一次，
+        于是同步完成后服务仍按旧表回答：新文档一律 404。判据取
+        (mtime, 大小, inode)，改名替换必然改变其中之一。
+
+        新表读坏了（半截、非 JSON、超限）就保留上一份继续服务：
+        宁可暂时是旧的，也不能让整条读链塌掉。下次调用会再试。
+        """
+        if not self.index_path or self._read_stamp()==self._stamp: return
+        try: self.index=self._load()
+        except ResolveError: pass
     def bank_of(self, doc_id, default):
         """Return the bank that owns an indexed doc_id, or None when it is not indexed.
 
         Snapshot paths are laid out as ``<bank>/<file>``.  A single-segment path
         belongs to the deployment's default bank, matching a one-bank index.
         """
+        self._refresh()
         rel=self.index.get(doc_id) if isinstance(doc_id,str) else None
         if not isinstance(rel,str): return None
         parts=Path(rel).parts
         return parts[0] if len(parts)>1 else default
     def resolve(self, doc_id):
         if not isinstance(doc_id,str) or not doc_id or len(doc_id)>512 or doc_id.startswith(('/', '\\')) or '..' in Path(doc_id).parts: raise ResolveError('invalid doc_id')
+        self._refresh()
         rel=self.index.get(doc_id)
         if not isinstance(rel,str): raise KeyError(doc_id)
         p=Path(rel)
