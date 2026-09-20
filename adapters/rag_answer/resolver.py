@@ -10,10 +10,14 @@ class DocResolver:
     later migration item. The existing index, containment, size, and UTF-8
     checks still apply.
     """
-    def __init__(self, roots=None, index_path=None, max_bytes=2_000_000):
+    def __init__(self, roots=None, index_path=None, max_bytes=2_000_000, max_doc_bytes=None):
         self.roots=tuple(Path(x).resolve() for x in (roots if roots is not None else os.getenv('RAG_SOURCE_ROOTS','').split(os.pathsep) if os.getenv('RAG_SOURCE_ROOTS') else []))
         self.index_path=Path(index_path or os.getenv('RAG_DOC_INDEX','')).resolve() if (index_path or os.getenv('RAG_DOC_INDEX')) else None
         self.max_bytes=max_bytes
+        # 映射表和文档是两件事，不该共用一条上限：映射表只有几十 KB，文档可能很大
+        # （NAS 上最大的一份 27MB）。原先共用 2MB，结果大文档搜得到、读原文 400。
+        # 这里和摄取侧对齐——kb_snapshot 的 MAX_DOC_BYTES 是 64MB。
+        self.max_doc_bytes=int(max_doc_bytes if max_doc_bytes is not None else os.getenv('RAG_MAX_DOC_BYTES') or 64*1024*1024)
         self._stamp=None
         self.index=self._load()
     def _read_stamp(self):
@@ -73,7 +77,7 @@ class DocResolver:
         if not candidates: raise KeyError(doc_id)
         if len(candidates)>1: raise ResolveError('document exists under more than one root')
         try:
-            if candidates[0].stat().st_size>self.max_bytes: raise ResolveError('document too large')
+            if candidates[0].stat().st_size>self.max_doc_bytes: raise ResolveError('document too large')
             return candidates[0].read_text(encoding='utf-8')
         except FileNotFoundError: raise KeyError(doc_id)
         except (OSError,UnicodeError) as e: raise ResolveError('document unreadable') from e

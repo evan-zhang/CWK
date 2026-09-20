@@ -130,5 +130,40 @@ class IndexReloadTests(unittest.TestCase):
         self.assertEqual(len(calls), 1)
 
 
+class DocumentSizeLimitTests(unittest.TestCase):
+    """大文档搜得到就必须读得到。
+
+    真实事故：映射表和文档共用一条 2MB 上限，NAS 上超过 2MB 的文档检索命中、
+    点开原文却是 400。摄取侧的上限是 64MB，读这侧原先只有 2MB，两边对不上。
+    """
+
+    def setUp(self) -> None:
+        self.tmp = TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        base = Path(self.tmp.name)
+        self.root = base / "root"
+        (self.root / "bank-a").mkdir(parents=True)
+        self.big = self.root / "bank-a" / "big.md"
+        self.big.write_text("大" * 1_200_000, encoding="utf-8")  # 约 3.4MB，超过映射表那条 2MB 上限
+        self.index = base / "index.json"
+        self.index.write_text(json.dumps({"doc-big": "bank-a/big.md"}), encoding="utf-8")
+
+    def test_a_document_larger_than_the_index_limit_is_still_readable(self):
+        resolver = DocResolver(roots=[self.root], index_path=self.index)
+        self.assertEqual(len(resolver.resolve("doc-big")), 1_200_000)
+
+    def test_the_document_limit_still_refuses_beyond_its_own_ceiling(self):
+        resolver = DocResolver(roots=[self.root], index_path=self.index, max_doc_bytes=1024)
+        with self.assertRaises(ResolveError):
+            resolver.resolve("doc-big")
+
+    def test_the_ceiling_can_be_set_from_the_environment(self):
+        import os
+        os.environ["RAG_MAX_DOC_BYTES"] = "1024"
+        self.addCleanup(os.environ.pop, "RAG_MAX_DOC_BYTES", None)
+        resolver = DocResolver(roots=[self.root], index_path=self.index)
+        self.assertEqual(resolver.max_doc_bytes, 1024)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -15,3 +15,6 @@ cwk-mirror.local.json
 .agent/skills/handover-pack
 /.claude/worktrees/
 .serena/
+
+# 浏览器验证时的截图和页面快照：是过程证据，不是交付物，可能带上界面上的敏感内容
+.playwright-mcp/
