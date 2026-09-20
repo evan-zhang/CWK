@@ -62,6 +62,14 @@ FACE_REGISTER = "register"
 FACES = (FACE_ADMIN, FACE_REGISTER)
 ENV_TLS_CERT = "KB_TLS_CERT"
 ENV_TLS_KEY = "KB_TLS_KEY"
+# RT-070: 内容同步——页面手工触发一次，和每晚自动跑的是同一条流水线。
+ENV_SYNC_ENABLED = "KB_SYNC_ENABLED"
+ENV_SYNC_META = "KB_SNAPSHOT_META"
+ENV_SYNC_SCRIPT = "KB_SYNC_SCRIPT"
+ENV_SYNC_NAS = "KB_NAS_MOUNT"
+ENV_SYNC_INDEX_MAP = "KB_SNAPSHOT_INDEX"
+#: 同步要读整个库再建索引，实测约一两分钟；给足余量，超时就当失败。
+SYNC_TIMEOUT_SECONDS = 15 * 60
 SESSION_COOKIE = "cwk_session"
 SESSION_TTL_SECONDS = 12 * 60 * 60
 #: RT-068: a header a cross-site form cannot add without triggering a preflight
@@ -269,6 +277,14 @@ class AdminApp:
         except ValueError:
             limit = DEFAULT_RATE_LIMIT
         self.rate_limiter = _RateLimiter(limit)
+        self.sync_enabled = _enabled(self.env.get(ENV_SYNC_ENABLED))
+        self.sync_script = (self.env.get(ENV_SYNC_SCRIPT) or "").strip()
+        self.sync_meta = Path((self.env.get(ENV_SYNC_META) or "").strip()).expanduser() \
+            if self.env.get(ENV_SYNC_META) else None
+        self.sync_nas = (self.env.get(ENV_SYNC_NAS) or "").strip()
+        self.sync_index_map = (self.env.get(ENV_SYNC_INDEX_MAP) or "").strip()
+        self._sync_lock = threading.Lock()
+        self._sync_running = False
         # Tests inject a fake resolver; production resolves through 玄关.
         self.resolve_person: Callable[..., Any] | None = None
 
@@ -654,6 +670,90 @@ class AdminApp:
         self._audit("token_revoke", "ok", 200)
         return 200, {"schema": "cwk.kb.token-revoked.v1", "token_id": token_id, "effective": "immediate"}, {}
 
+    def _require_admin(self, headers: Mapping[str, str]):
+        """同步动的是所有人查到的内容，所以只让管理员点。"""
+        row = self._session_from_headers(headers)
+        if not row:
+            return None, (401, {"error": "unauthorized"}, {})
+        import kb_authz  # noqa: PLC0415
+
+        try:
+            store = kb_authz.load_store(self.authz_store)
+        except kb_authz.AuthzError as exc:
+            return None, (500, {"error": "store_unreadable", "message": str(exc)[:120]}, {})
+        if not kb_authz.is_admin(store, row["principal"]):
+            return None, (403, {"error": "forbidden", "message": "只有管理员能触发同步"}, {})
+        return row, None
+
+    def _sync_status(self, headers: Mapping[str, str]) -> tuple[int, dict[str, Any], dict[str, str]]:
+        """线上这份内容是什么时候的、每个库多少条、有没有更新失败。"""
+        row, refusal = self._require_admin(headers)
+        if refusal:
+            return refusal
+        meta: dict[str, Any] = {}
+        if self.sync_meta:
+            try:
+                meta = json.loads(self.sync_meta.read_text(encoding="utf-8"))
+            except (OSError, UnicodeError, json.JSONDecodeError):
+                meta = {}
+        return 200, {
+            "schema": "cwk.kb.sync-status.v1",
+            "enabled": self.sync_enabled,
+            "running": self._sync_running,
+            "me": {"principal": row["principal"], "name": row["name"]},
+            "meta": meta or None,
+        }, {}
+
+    def _sync_run(self, headers: Mapping[str, str]) -> tuple[int, dict[str, Any], dict[str, str]]:
+        row, refusal = self._require_admin(headers)
+        if refusal:
+            self._audit("sync", "refused", refusal[0])
+            return refusal
+        if not str(headers.get(MEMBER_WRITE_HEADER) or "").strip():
+            return 400, {"error": "invalid_request"}, {}
+        if not (self.sync_enabled and self.sync_script and self.sync_nas and self.sync_index_map and self.sync_meta):
+            self._audit("sync", "not_configured", 404)
+            return 404, {"error": "not_found"}, {}
+        with self._sync_lock:
+            if self._sync_running:
+                # 两个人同时点，第二次直接拒绝：同一条流水线并发跑会互相覆盖索引。
+                self._audit("sync", "already_running", 409)
+                return 409, {"error": "already_running", "message": "已经有一次同步在跑，等它结束"}, {}
+            self._sync_running = True
+        started = time.time()
+        try:
+            import subprocess  # noqa: PLC0415
+
+            completed = subprocess.run(
+                [sys.executable, self.sync_script, "build",
+                 "--nas", self.sync_nas, "--index-map", self.sync_index_map,
+                 "--meta", str(self.sync_meta)],
+                capture_output=True, text=True, timeout=SYNC_TIMEOUT_SECONDS,
+                cwd=str(Path(self.sync_script).resolve().parents[1]),
+            )
+        except subprocess.TimeoutExpired:
+            self._audit("sync", "timeout", 504)
+            return 504, {"error": "timeout", "message": "同步超时，线上保持原样"}, {}
+        except OSError as exc:
+            self._audit("sync", "spawn_failed", 500)
+            return 500, {"error": "spawn_failed", "message": f"{type(exc).__name__}"}, {}
+        finally:
+            with self._sync_lock:
+                self._sync_running = False
+        try:
+            payload = json.loads(completed.stdout or "{}")
+        except json.JSONDecodeError:
+            payload = {}
+        elapsed = int(time.time() - started)
+        if completed.returncode != 0:
+            self._audit("sync", "failed", 500)
+            message = ((payload.get("error") or {}).get("message")
+                       or (completed.stderr or "").strip()[:160] or "同步失败")
+            return 500, {"error": "sync_failed", "message": message, "elapsed_seconds": elapsed}, {}
+        self._audit("sync", "ok", 200)
+        return 200, {"schema": "cwk.kb.sync-run.v1", "elapsed_seconds": elapsed,
+                     "result": payload}, {}
+
     def _session_status(self, headers: Mapping[str, str]) -> tuple[int, dict[str, Any], dict[str, str]]:
         if not self.register_enabled:
             return 404, {"error": "not_found"}, {}
@@ -873,13 +973,23 @@ class AdminApp:
                 return self._token_issue(headers, body)
             if route == "/api/tokens/revoke" and method == "POST":
                 return self._token_revoke(headers, body)
+            # RT-070 内容同步：页面上手工跑一次，和每晚自动跑的是同一条流水线。
+            if route == "/sync" and method == "GET":
+                if not self._is_secure(headers, direct_tls) and not self.allow_http_register:
+                    return 403, {"html": _REGISTER_INSECURE_HTML}, {"Content-Type": "text/html; charset=utf-8"}
+                return 200, {"html": _SYNC_HTML}, {"Content-Type": "text/html; charset=utf-8"}
+            if route == "/api/sync" and method == "GET":
+                return self._sync_status(headers)
+            if route == "/api/sync" and method == "POST":
+                return self._sync_run(headers)
             # Nothing else exists on this face: no overview, no audit, no services.
             return 404, {"error": "not_found"}, {}
         # …and on the admin face the registration routes do not exist either,
         # answered before the key check so the boundary reads the same way from
         # both sides: registration lives on one face only.
         if route in ("/register", "/api/register", "/api/session", "/api/logout",
-                     "/members", "/api/members", "/tokens", "/api/tokens", "/api/tokens/revoke"):
+                     "/members", "/api/members", "/tokens", "/api/tokens", "/api/tokens/revoke",
+                     "/sync", "/api/sync"):
             return 404, {"error": "not_found"}, {}
         if route in ("/", "/console"):
             return 200, {"html": _HTML}, {"Content-Type": "text/html; charset=utf-8"}
@@ -911,6 +1021,149 @@ class AdminApp:
             self._audit(action, "placeholder_not_implemented", 501)
             return 501, {"error": "not_implemented", "job": action, "recorded": True}, {}
         return 404, {"error": "not_found"}, {}
+
+
+_SYNC_HTML = """<!doctype html>
+<html lang='zh-CN'><head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width,initial-scale=1'>
+<title>内容同步 · CWK 知识库</title>
+<style>
+:root{--bg:#f5f6fa;--card:#fff;--ink:#16202f;--muted:#5b6880;--line:#dfe4ee;--accent:#2b5bd7;
+  --ok:#1a7f4b;--bad:#b3261e;--warn:#a86a00}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+.wrap{max-width:780px;margin:0 auto;padding:2rem 1.25rem 3rem}
+h1{font-size:1.4rem;margin:0 0 .3rem}
+.lede{color:var(--muted);margin:0 0 1.5rem;font-size:.92rem}
+.who{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;flex-wrap:wrap;
+  border-bottom:1px solid var(--line);padding-bottom:.8rem;margin-bottom:1.5rem}
+.who a{color:var(--accent);text-decoration:none;margin-left:1rem;font-size:.9rem}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1.1rem 1.2rem;margin-bottom:1rem}
+table{width:100%;border-collapse:collapse;font-size:.9rem}
+th,td{text-align:left;padding:.5rem .45rem;border-bottom:1px solid var(--line)}
+th{font-size:.78rem;color:var(--muted);font-weight:600}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+button{padding:.55rem 1.2rem;border:1px solid var(--accent);border-radius:7px;background:var(--accent);
+  color:#fff;cursor:pointer;font:inherit;font-weight:600}
+button:disabled{opacity:.45;cursor:not-allowed}
+.msg{padding:.75rem 1rem;border-radius:8px;font-size:.9rem;margin-bottom:1rem}
+.msg.bad{background:#fbe9e7;color:var(--bad)} .msg.ok{background:#e6f4ec;color:var(--ok)}
+.msg.warn{background:#fdf1dd;color:var(--warn)}
+.hint{color:var(--muted);font-size:.85rem;margin:.6rem 0 0}
+.stale{color:var(--warn);font-weight:600}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#11151d;--card:#1a202b;--ink:#e6ebf4;--muted:#94a1b8;--line:#2a3342;--accent:#7aa2ff}
+  .msg.bad{background:#3a1f1d} .msg.ok{background:#16301f} .msg.warn{background:#332715}
+}
+</style></head>
+<body><div class='wrap'>
+<h1>内容同步</h1>
+<p class='lede'>把 NAS 上各个库的当前内容同步成可检索的索引。每晚自动跑一次；需要立刻生效时在这里手工跑。</p>
+<div class='who'><span id='me'>正在确认身份…</span>
+  <span><a href='/members'>成员管理</a><a href='/tokens'>我的令牌</a></span></div>
+<div id='msg'></div>
+<div id='state'></div>
+<div class='panel'>
+  <button type='button' id='go'>立即同步</button>
+  <p class='hint'>大约一到两分钟。同步期间线上照常服务，新内容全部就绪并自检通过后才会切换；
+     中途任何一步失败都保持原样，不会出现只更新一半的情况。</p>
+</div>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+const esc = (v) => String(v == null ? '' : v)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+function message(kind, text){
+  $('msg').innerHTML = text ? '<div class="msg ' + kind + '">' + text + '</div>' : '';
+}
+
+function daysAgo(iso){
+  if (!iso) return '';
+  const days = Math.floor((Date.now() - Date.parse(iso)) / 86400000);
+  if (isNaN(days)) return '';
+  if (days <= 0) return '今天';
+  return days + ' 天前';
+}
+
+function render(meta){
+  if (!meta){
+    $('state').innerHTML = "<div class='panel'>还没有同步记录。点下面的按钮跑第一次。</div>";
+    return;
+  }
+  const banks = Object.values(meta.banks || {});
+  const rows = banks.map((b) => {
+    const ago = daysAgo(b.newest_update);
+    const stale = ago && ago !== '今天' && parseInt(ago, 10) >= 3;
+    return '<tr><td>' + esc(b.bank) + "</td><td class='num'>" + b.usable + '</td>'
+      + "<td class='num'>" + (b.skipped_unconverted || 0) + '</td>'
+      + '<td' + (stale ? " class='stale'" : '') + '>' + esc(b.newest_update ? b.newest_update.slice(0,10) : '—')
+      + (ago ? '（' + esc(ago) + '）' : '') + '</td></tr>';
+  }).join('');
+  $('state').innerHTML = "<div class='panel'>"
+    + '<table><thead><tr><th>库</th><th>已入库</th><th>待转换</th><th>内容截止</th></tr></thead>'
+    + '<tbody>' + rows + '</tbody></table>'
+    + "<p class='hint'>上次同步：" + esc((meta.generated_at || '').replace('T',' ').replace('Z',' UTC'))
+    + '｜合计 ' + (meta.total || 0) + " 条。「待转换」是还没转成文字的原件（图片、表格、PDF），不参与检索。</p>"
+    + '</div>';
+}
+
+async function load(){
+  let response;
+  try { response = await fetch('/api/sync', {cache: 'no-store'}); }
+  catch (err) { message('bad', '连不上服务。'); return; }
+  if (response.status === 401){
+    $('me').textContent = '还没登录';
+    message('warn', '请先到<a href="/register">注册页</a>用本人工作协同 Key 登录。');
+    $('go').disabled = true;
+    return;
+  }
+  if (response.status === 403){
+    $('me').textContent = '已登录';
+    message('warn', '只有管理员能触发同步。');
+    $('go').disabled = true;
+    return;
+  }
+  if (!response.ok){ message('bad', '读取状态失败（' + response.status + '）。'); return; }
+  const data = await response.json();
+  $('me').innerHTML = '当前身份：<b>' + esc(data.me.name) + '</b>（管理员）';
+  $('go').disabled = !data.enabled || data.running;
+  if (!data.enabled) message('warn', '同步功能没有启用（服务端未配置）。');
+  else if (data.running) message('warn', '已经有一次同步正在跑。');
+  render(data.meta);
+}
+
+$('go').addEventListener('click', async () => {
+  $('go').disabled = true;
+  message('warn', '正在同步，大约一到两分钟，请不要关闭页面…');
+  let response;
+  try {
+    response = await fetch('/api/sync', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CWK-Members': '1'},
+      cache: 'no-store'
+    });
+  } catch (err) {
+    $('go').disabled = false;
+    message('bad', '连接中断。线上内容保持原样；稍后看状态确认这次有没有生效。');
+    return;
+  }
+  let data = {};
+  try { data = await response.json(); } catch (err) {}
+  $('go').disabled = false;
+  if (!response.ok){
+    message('bad', esc(data.message || '同步失败（' + response.status + '）。') + ' 线上内容保持原样。');
+    await load();
+    return;
+  }
+  const result = data.result || {};
+  message('ok', '同步完成，用时 ' + (data.elapsed_seconds || 0) + ' 秒，共 '
+    + (result.total || 0) + ' 条已生效。');
+  await load();
+});
+
+load();
+</script></body></html>"""
 
 
 _TOKENS_HTML = """<!doctype html>

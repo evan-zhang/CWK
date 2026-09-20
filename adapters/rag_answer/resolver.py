@@ -40,9 +40,15 @@ class DocResolver:
         candidates=[]
         for root in self.roots:
             q=(root/p).resolve()
+            # 安全检查不变：解析后仍必须落在某个配置根的内部，否则跳过。
             if q==root or root not in q.parents: continue
-            candidates.append(q)
-        if len(candidates)!=1: raise ResolveError('path outside configured roots')
+            # 配了多个根时，只有真实存在的那个才算候选。RT-070 的过渡期里
+            # 「本地副本」和「NAS 挂载点」两个根并存，两种映射的相对路径形态不同，
+            # 各自只在自己的根下存在；原来按「恰好落在一个根内」判定，会把这种情况
+            # 一律判成越界，于是切换必须制造一段读不到原文的窗口。
+            if q.exists(): candidates.append(q)
+        if not candidates: raise KeyError(doc_id)
+        if len(candidates)>1: raise ResolveError('document exists under more than one root')
         try:
             if candidates[0].stat().st_size>self.max_bytes: raise ResolveError('document too large')
             return candidates[0].read_text(encoding='utf-8')

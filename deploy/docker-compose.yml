@@ -58,6 +58,8 @@ services:
       RAG_RETRIEVAL_URL: ${RAG_RETRIEVAL_URL:-http://host.docker.internal:18887/query}
       RAG_BANK: ${RAG_BANK:-cwork-3m}
       RAG_RETRIEVAL_TIMEOUT_SECONDS: ${RAG_RETRIEVAL_TIMEOUT_SECONDS:-10}
+      # RT-070：本地副本与 NAS 挂载点并存，切换期间读原文不中断；
+      # 稳定后本地副本会被移除，只剩 NAS。
       RAG_SOURCE_ROOTS: ${RAG_SOURCE_ROOTS:-/data/sources}
       RAG_DOC_INDEX: ${RAG_DOC_INDEX:-/data/index.json}
       RAG_LLM_URL: ${RAG_LLM_URL:-http://host.docker.internal:11434/v1/chat/completions}
