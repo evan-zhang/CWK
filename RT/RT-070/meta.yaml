@@ -1,0 +1,20 @@
+id: RT-070
+title: 内容同步流水线（NAS 为唯一事实源，OPS 不留副本）
+type: Feature
+profile: Spec-Lite
+execution_mode: collaborative
+status: created
+modules: [rt055-retrieval-decision, kb-platform-storage]
+branch: feature/RT-070-content-sync
+worktree: .claude/worktrees/RT-070-content-sync
+owner: Evan
+created_at: 2026-09-20T12:58:40+08:00
+updated_at: 2026-09-20T12:58:40+08:00
+closed_at: null
+notes: >
+  线上语料冻结在 2026-09-13：每晚刷新的是 NAS 上的库，对外服务读的却是 OPS 本地的一份
+  实验期快照副本，两者从未打通。本 RT 建立从 NAS 到检索服务的同步流水线，
+  并把读原文改为直接读 NAS——OPS 上不再保留知识库内容副本。
+  触发方式两种：每晚刷新后自动，以及页面上手工触发。
+  硬规则：以磁盘实际存在的文本为准（最后一次更新失败不等于文档不可用）；
+  先验后切、失败不切、只保留一代回滚。
