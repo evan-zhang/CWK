@@ -766,6 +766,19 @@
       "change_entry": "RT → rt-lite.md 记录理由 → 改动 → make governance-audit + tests/test_rt061_*.py + tests/test_kb_token.py + tests/test_rt055_auth.py",
       "evolution_path": "repo-standard-change",
       "rationale": "RT-061 库对象与自有授权：kb_authz.py 是库、来源、成员、人员目录四张表的写面与迁移/等价性核对，kb_identity.py 是向玄关借身份（只取人员 ID、组织与姓名）的只读解析。两者合为一条 exact_set：身份解析只服务于授权表与令牌签发，拆开会让「身份只借不信权限」这条边界在清单上看不出归属。不并入 R-runtime-rt047-kb-tokens：令牌签发与成员授权是两个面，改其一不必重审另一个的全部判据，但都必须连同线上读侧 adapters/kb_auth.py 的判据一起跑。"
+    },
+    {
+      "id": "R-runtime-rt070-kb-snapshot",
+      "domain": "runtime",
+      "kind": "exact_set",
+      "paths": [
+        "scripts/kb_snapshot.py"
+      ],
+      "owner": "RT-070",
+      "management_domain": "cwk-governance-v1",
+      "change_entry": "RT → rt-lite.md 记录理由 → 改动 → make governance-audit + tests/test_rt070_snapshot.py",
+      "evolution_path": "repo-standard-change",
+      "rationale": "RT-070 从 NAS 到检索索引的同步流水线：列（以摄取账本为清单，文本取 raw_path 而非原件）→ 建（新索引，老索引照常服务）→ 验（条数、抽样命中、防暴跌）→ 切（别名原子切换）。独立 exact_set 而非并入摄取或检索规则：它是两者之间原本缺失的一段，改它等于改「线上能查到什么」，必须连同 tests/test_rt070_snapshot.py 一起审。OPS 上只落 doc_id → NAS 路径的映射与元数据，正文一律回 NAS 读。"
     }
   ],
   "exceptions": [
