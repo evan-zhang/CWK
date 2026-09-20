@@ -67,6 +67,7 @@ SESSION_TTL_SECONDS = 12 * 60 * 60
 #: RT-068: a header a cross-site form cannot add without triggering a preflight
 #: that we never answer.  Cheap second lock next to SameSite on the cookie.
 MEMBER_WRITE_HEADER = "X-CWK-Members"
+DEFAULT_TOKEN_TTL_DAYS = 90
 DEFAULT_RATE_LIMIT = 5
 RATE_WINDOW_SECONDS = 60
 ENV_NAME = re.compile(r"^[A-Z][A-Z0-9_]{0,127}$")
@@ -487,6 +488,172 @@ class AdminApp:
         return 200, {"schema": "cwk.kb.members-write.v1", "version": data["version"],
                      "effective": "next_request"}, {}
 
+    def _token_identity(self, row: Mapping[str, Any], app_key: object):
+        """Re-verify the key at issue time and insist it is the signed-in person.
+
+        The session says who is here; RT-047's rule says a token's owner may
+        only be derived from a key that just proved itself.  Both must agree,
+        so a stolen session cannot mint a token and a valid key cannot mint one
+        for somebody else's session.
+        """
+        import kb_identity  # noqa: PLC0415
+        import kb_token  # noqa: PLC0415
+
+        if not isinstance(app_key, str) or not app_key.strip():
+            return None, (400, {"error": "missing_key"}, {})
+        app_key = app_key.strip()
+        if len(app_key) > MAX_APP_KEY_CHARS:
+            return None, (400, {"error": "invalid_request"}, {})
+        try:
+            data = kb_token.load_registry(self.registry)
+        except kb_token.TokenError as exc:
+            return None, (500, {"error": "registry_unreadable", "message": str(exc)[:120]}, {})
+        resolver = self.resolve_person or kb_identity.resolve_person
+        try:
+            identity = kb_token.verify_business_key(
+                "SESSION_KEY", salt_hex=str(data.get("owner_ref_salt") or ""),
+                env={"SESSION_KEY": app_key}, probe=lambda key: resolver(key),
+            )
+        except kb_token.IdentityError as exc:
+            return None, (401, {"error": "identity_refused",
+                                "message": kb_token.redact(str(exc), app_key)[:120]}, {})
+        if identity.principal != row["principal"]:
+            # 用别人的 Key 给自己签，或反过来——两边必须是同一个人。
+            self._audit("token_issue", "identity_mismatch", 403)
+            return None, (403, {"error": "identity_mismatch",
+                                "message": "这把 Key 属于另一个人，请用你本人登录时用的那把"}, {})
+        return (identity, data), None
+
+    def _token_rows(self, headers: Mapping[str, str]) -> tuple[int, dict[str, Any], dict[str, str]]:
+        """My tokens (metadata only).  Administrators additionally see everyone's."""
+        row = self._session_from_headers(headers)
+        if not row:
+            return 401, {"error": "unauthorized"}, {}
+        import kb_authz  # noqa: PLC0415
+        import kb_token  # noqa: PLC0415
+
+        try:
+            data = kb_token.load_registry(self.registry)
+            store = kb_authz.load_store(self.authz_store)
+        except (kb_token.TokenError, kb_authz.AuthzError) as exc:
+            return 500, {"error": "unreadable", "message": str(exc)[:120]}, {}
+        now = kb_token.utc_now()
+        admin = kb_authz.is_admin(store, row["principal"])
+        names = {p: entry.get("name", "") for p, entry in store["persons"].items() if isinstance(entry, dict)}
+        mine, others = [], []
+        for record in kb_token.records(data):
+            view = kb_token.public_view(record, now)
+            # 明文和摘要都不在 public_view 里；这里再把派生标识也去掉，
+            # 页面不需要它们，少一个字段就少一条泄露路径。
+            for field in ("owner_ref", "owner_ref_basis", "agent_binding_id", "membership_epoch"):
+                view.pop(field, None)
+            view["holder"] = names.get(view.get("principal", ""), "")
+            (mine if view.get("principal") == row["principal"] else others).append(view)
+        mine.sort(key=lambda v: (v["status"] != "active", v["created_at"]), reverse=False)
+        banks = [b["bank_id"] for b in kb_authz.list_banks(store, row["principal"])]
+        return 200, {
+            "schema": "cwk.kb.tokens.v1",
+            "me": {"principal": row["principal"], "name": row["name"], "admin": admin},
+            "tokens": mine,
+            "all_tokens": sorted(others, key=lambda v: v["created_at"]) if admin else [],
+            "my_banks": banks,
+            "max_active_per_owner": int(data.get("max_active_per_owner", 5)),
+            "default_ttl_days": DEFAULT_TOKEN_TTL_DAYS,
+        }, {}
+
+    def _token_issue(self, headers: Mapping[str, str], body: bytes) -> tuple[int, dict[str, Any], dict[str, str]]:
+        row = self._session_from_headers(headers)
+        if not row:
+            self._audit("token_issue", "unauthorized", 401)
+            return 401, {"error": "unauthorized"}, {}
+        if not str(headers.get(MEMBER_WRITE_HEADER) or "").strip():
+            return 400, {"error": "invalid_request"}, {}
+        try:
+            payload = json.loads(body.decode("utf-8") if body else b"{}")
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return 400, {"error": "invalid_request"}, {}
+        if not isinstance(payload, dict):
+            return 400, {"error": "invalid_request"}, {}
+
+        import kb_authz  # noqa: PLC0415
+        import kb_token  # noqa: PLC0415
+
+        verified, refusal = self._token_identity(row, payload.get("app_key"))
+        if refusal:
+            return refusal
+        identity, data = verified
+        try:
+            store = kb_authz.load_store(self.authz_store)
+        except kb_authz.AuthzError as exc:
+            return 500, {"error": "unreadable", "message": str(exc)[:120]}, {}
+        banks = [b["bank_id"] for b in kb_authz.list_banks(store, row["principal"])]
+        if not banks:
+            self._audit("token_issue", "no_banks", 409)
+            return 409, {"error": "no_banks",
+                         "message": "你还不是任何库的成员，先请管理员把你加进一个库再来签"}, {}
+        try:
+            record, plaintext = kb_token.issue_token(
+                data, identity=identity, raw_agent_id=str(payload.get("agent_id") or ""),
+                kb_ids=banks, ttl_days=DEFAULT_TOKEN_TTL_DAYS,
+                authz=kb_token.AUTHZ_GRANTS, label=str(payload.get("label") or ""),
+                actor=f"token-page:{row['principal']}", reason="自助签发",
+            )
+        except kb_token.ConflictError as exc:
+            self._audit("token_issue", "conflict", 409)
+            return 409, {"error": "conflict", "message": str(exc)}, {}
+        except kb_token.TokenError as exc:
+            self._audit("token_issue", "rejected", 400)
+            return 400, {"error": "rejected", "message": str(exc)}, {}
+        kb_token.save_registry(self.registry, data)
+        self._audit("token_issue", "ok", 200)
+        view = kb_token.public_view(record, kb_token.utc_now())
+        return 200, {
+            "schema": "cwk.kb.token-issued.v1",
+            "token": plaintext,
+            "token_id": view["token_id"],
+            "expires_at": view["expires_at"],
+            "banks": banks,
+        }, {}
+
+    def _token_revoke(self, headers: Mapping[str, str], body: bytes) -> tuple[int, dict[str, Any], dict[str, str]]:
+        row = self._session_from_headers(headers)
+        if not row:
+            self._audit("token_revoke", "unauthorized", 401)
+            return 401, {"error": "unauthorized"}, {}
+        if not str(headers.get(MEMBER_WRITE_HEADER) or "").strip():
+            return 400, {"error": "invalid_request"}, {}
+        try:
+            payload = json.loads(body.decode("utf-8") if body else b"{}")
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return 400, {"error": "invalid_request"}, {}
+        token_id = payload.get("token_id") if isinstance(payload, dict) else None
+        if not isinstance(token_id, str) or not token_id:
+            return 400, {"error": "invalid_request"}, {}
+
+        import kb_authz  # noqa: PLC0415
+        import kb_token  # noqa: PLC0415
+
+        try:
+            data = kb_token.load_registry(self.registry)
+            store = kb_authz.load_store(self.authz_store)
+            record = kb_token.find_record(data, token_id)
+        except kb_token.NotFound:
+            return 404, {"error": "not_found"}, {}
+        except (kb_token.TokenError, kb_authz.AuthzError) as exc:
+            return 500, {"error": "unreadable", "message": str(exc)[:120]}, {}
+        # 吊销是安全动作：自己的随时可以撤；别人的只有管理员能撤（例如人离职、令牌外泄）。
+        if record.get("principal") != row["principal"] and not kb_authz.is_admin(store, row["principal"]):
+            self._audit("token_revoke", "forbidden", 403)
+            return 403, {"error": "forbidden", "message": "只能吊销自己的令牌"}, {}
+        try:
+            kb_token.revoke_token(data, token_id=token_id,
+                                  actor=f"token-page:{row['principal']}", reason="页面吊销")
+        except kb_token.ConflictError as exc:
+            return 409, {"error": "conflict", "message": str(exc)}, {}
+        kb_token.save_registry(self.registry, data)
+        self._audit("token_revoke", "ok", 200)
+        return 200, {"schema": "cwk.kb.token-revoked.v1", "token_id": token_id, "effective": "immediate"}, {}
+
     def _session_status(self, headers: Mapping[str, str]) -> tuple[int, dict[str, Any], dict[str, str]]:
         if not self.register_enabled:
             return 404, {"error": "not_found"}, {}
@@ -695,13 +862,24 @@ class AdminApp:
                 return self._members_view(headers)
             if route == "/api/members" and method == "POST":
                 return self._members_write(headers, body)
+            # RT-069 自助令牌：同样只在这个面上，同样要本人身份。
+            if route == "/tokens" and method == "GET":
+                if not self._is_secure(headers, direct_tls) and not self.allow_http_register:
+                    return 403, {"html": _REGISTER_INSECURE_HTML}, {"Content-Type": "text/html; charset=utf-8"}
+                return 200, {"html": _TOKENS_HTML}, {"Content-Type": "text/html; charset=utf-8"}
+            if route == "/api/tokens" and method == "GET":
+                return self._token_rows(headers)
+            if route == "/api/tokens" and method == "POST":
+                return self._token_issue(headers, body)
+            if route == "/api/tokens/revoke" and method == "POST":
+                return self._token_revoke(headers, body)
             # Nothing else exists on this face: no overview, no audit, no services.
             return 404, {"error": "not_found"}, {}
         # …and on the admin face the registration routes do not exist either,
         # answered before the key check so the boundary reads the same way from
         # both sides: registration lives on one face only.
         if route in ("/register", "/api/register", "/api/session", "/api/logout",
-                     "/members", "/api/members"):
+                     "/members", "/api/members", "/tokens", "/api/tokens", "/api/tokens/revoke"):
             return 404, {"error": "not_found"}, {}
         if route in ("/", "/console"):
             return 200, {"html": _HTML}, {"Content-Type": "text/html; charset=utf-8"}
@@ -733,6 +911,174 @@ class AdminApp:
             self._audit(action, "placeholder_not_implemented", 501)
             return 501, {"error": "not_implemented", "job": action, "recorded": True}, {}
         return 404, {"error": "not_found"}, {}
+
+
+_TOKENS_HTML = """<!doctype html>
+<html lang='zh-CN'><head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width,initial-scale=1'>
+<title>我的令牌 · CWK 知识库</title>
+<style>
+:root{--bg:#f5f6fa;--card:#fff;--ink:#16202f;--muted:#5b6880;--line:#dfe4ee;--accent:#2b5bd7;
+  --ok:#1a7f4b;--bad:#b3261e;--warn:#a86a00;--code:#161d2e;--code-ink:#dde5f5}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+.wrap{max-width:820px;margin:0 auto;padding:2rem 1.25rem 3rem}
+h1{font-size:1.4rem;margin:0 0 .3rem}
+h2{font-size:1.05rem;margin:2rem 0 .6rem}
+.lede{color:var(--muted);margin:0 0 1.5rem;font-size:.92rem}
+.who{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;flex-wrap:wrap;
+  border-bottom:1px solid var(--line);padding-bottom:.8rem;margin-bottom:1.5rem}
+.who a{color:var(--accent);text-decoration:none;font-size:.9rem;margin-left:1rem}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1.1rem 1.2rem;margin-bottom:1rem}
+table{width:100%;border-collapse:collapse;font-size:.9rem}
+th,td{text-align:left;padding:.5rem .45rem;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-size:.78rem;color:var(--muted);font-weight:600}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85em}
+.tag{display:inline-block;border-radius:99px;padding:.1rem .55rem;font-size:.76rem;font-weight:600}
+.tag.active{background:#e6f4ec;color:var(--ok)} .tag.revoked{background:#fbe9e7;color:var(--bad)}
+.tag.expired{background:#eaedf2;color:var(--muted)}
+label{display:block;font-size:.88rem;color:var(--muted);margin:.7rem 0 .25rem}
+input{width:100%;padding:.55rem .7rem;border:1px solid var(--line);border-radius:7px;font:inherit;background:var(--bg);color:var(--ink)}
+button{padding:.5rem 1rem;border:1px solid var(--accent);border-radius:7px;background:var(--accent);
+  color:#fff;cursor:pointer;font:inherit;font-weight:600;margin-top:.9rem}
+button.ghost{background:var(--card);color:var(--muted);border-color:var(--line);font-weight:400;
+  margin:0;padding:.25rem .6rem;font-size:.85rem}
+button.ghost:hover:not(:disabled){border-color:var(--bad);color:var(--bad)}
+button:disabled{opacity:.45;cursor:not-allowed}
+.msg{padding:.75rem 1rem;border-radius:8px;font-size:.9rem;margin-bottom:1rem}
+.msg.bad{background:#fbe9e7;color:var(--bad)} .msg.ok{background:#e6f4ec;color:var(--ok)}
+.msg.warn{background:#fdf1dd;color:var(--warn)}
+.secret{background:var(--code);color:var(--code-ink);border-radius:9px;padding:1rem;margin:.8rem 0 0;
+  word-break:break-all;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.85rem}
+.hint{color:var(--muted);font-size:.85rem;margin:.6rem 0 0}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#11151d;--card:#1a202b;--ink:#e6ebf4;--muted:#94a1b8;--line:#2a3342;--accent:#7aa2ff}
+  .tag.active{background:#16301f} .tag.revoked{background:#3a1f1d} .tag.expired{background:#232c3d}
+  .msg.bad{background:#3a1f1d} .msg.ok{background:#16301f} .msg.warn{background:#332715}
+}
+</style></head>
+<body><div class='wrap'>
+<h1>我的令牌</h1>
+<p class='lede'>令牌代表"你是谁"。能查哪些库由成员表决定，加减权限不用重签。</p>
+<div class='who'><span id='me'>正在确认身份…</span>
+  <span><a href='/members'>成员管理</a><a href='/register'>注册页</a></span></div>
+<div id='msg'></div>
+<div id='mine'></div>
+<div class='panel' id='issue' hidden>
+  <h2 style='margin-top:0'>签一支新的</h2>
+  <p class='hint'>为了确认是你本人，这里要再粘一次你的工作协同 Key。它只用于当场核实，不会被保存。</p>
+  <label for='key'>工作协同 Key</label>
+  <input type='password' id='key' autocomplete='off' placeholder='粘贴后点签发'>
+  <label for='agent'>用途标识（英文，例如 my-mac、chat-agent）</label>
+  <input type='text' id='agent' autocomplete='off' placeholder='同一个用途同时只能有一支有效令牌'>
+  <label for='label'>备注名（可选）</label>
+  <input type='text' id='label' autocomplete='off' placeholder='方便你自己认，别写成主机名'>
+  <button type='button' id='go'>签发</button>
+</div>
+<div id='all'></div>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+const esc = (v) => String(v == null ? '' : v)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const STATUS_CN = {active: '有效', revoked: '已吊销', expired: '已过期'};
+let state = {me: null};
+
+function message(kind, text){
+  $('msg').innerHTML = text ? '<div class="msg ' + kind + '">' + text + '</div>' : '';
+}
+
+function rows(list, mine){
+  if (!list.length) return "<p class='hint'>（没有）</p>";
+  return '<table><thead><tr><th>用途 / 备注</th>' + (mine ? '' : '<th>持有人</th>')
+    + '<th>状态</th><th>到期</th><th>编号</th><th></th></tr></thead><tbody>'
+    + list.map((t) => {
+      const act = t.status === 'active';
+      return '<tr><td>' + esc(t.label || '—') + '</td>'
+        + (mine ? '' : '<td>' + esc(t.holder || t.principal || '—') + '</td>')
+        + "<td><span class='tag " + esc(t.status) + "'>" + (STATUS_CN[t.status] || esc(t.status)) + '</span></td>'
+        + '<td>' + esc((t.expires_at || '').slice(0, 10)) + '</td>'
+        + "<td class='mono'>" + esc(t.token_id) + '</td>'
+        + "<td>" + (act ? "<button class='ghost' data-revoke='" + esc(t.token_id) + "'>吊销</button>" : '') + '</td></tr>';
+    }).join('') + '</tbody></table>';
+}
+
+async function load(){
+  let response;
+  try { response = await fetch('/api/tokens', {cache: 'no-store'}); }
+  catch (err) { message('bad', '连不上服务，请稍后重试。'); return; }
+  if (response.status === 401){
+    $('me').textContent = '还没登录';
+    message('warn', '请先到<a href="/register">注册页</a>用本人工作协同 Key 登录，再回到这一页。');
+    return;
+  }
+  if (!response.ok){ message('bad', '读取失败（' + response.status + '）。'); return; }
+  const data = await response.json();
+  state.me = data.me;
+  $('me').innerHTML = '当前身份：<b>' + esc(data.me.name) + '</b>' + (data.me.admin ? '（管理员）' : '');
+  const active = data.tokens.filter((t) => t.status === 'active').length;
+  $('mine').innerHTML = "<div class='panel'><h2 style='margin-top:0'>我的令牌 "
+    + "<span class='hint'>（有效 " + active + ' / 上限 ' + data.max_active_per_owner + '）</span></h2>'
+    + rows(data.tokens, true)
+    + (data.my_banks.length
+        ? "<p class='hint'>签出的令牌跟随成员表：你现在是 " + esc(data.my_banks.join('、')) + ' 的成员。</p>'
+        : "<p class='hint'>你还不是任何库的成员，现在签出来的令牌查不到东西——先请管理员把你加进一个库。</p>");
+  $('issue').hidden = false;
+  $('all').innerHTML = data.me.admin
+    ? "<div class='panel'><h2 style='margin-top:0'>其他人的令牌</h2>"
+      + "<p class='hint'>只看得到元数据；不能替别人签，必要时可以吊销。</p>" + rows(data.all_tokens, false) + '</div>'
+    : '';
+  for (const button of document.querySelectorAll('button[data-revoke]')){
+    button.addEventListener('click', () => revoke(button.dataset.revoke));
+  }
+}
+
+$('go').addEventListener('click', async () => {
+  const key = $('key').value, agent = $('agent').value.trim();
+  if (!key){ message('warn', '请先粘贴你的工作协同 Key。'); return; }
+  if (!agent){ message('warn', '请填一个用途标识。'); return; }
+  $('go').disabled = true;
+  message('warn', '正在核实身份并签发…');
+  let response;
+  try {
+    response = await fetch('/api/tokens', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CWK-Members': '1'},
+      body: JSON.stringify({app_key: key, agent_id: agent, label: $('label').value.trim()}),
+      cache: 'no-store'
+    });
+  } catch (err) { $('go').disabled = false; message('bad', '连不上服务。'); return; }
+  $('key').value = '';
+  $('go').disabled = false;
+  let data = {};
+  try { data = await response.json(); } catch (err) {}
+  if (!response.ok){ message('bad', esc(data.message || '签发失败（' + response.status + '）。')); return; }
+  $('agent').value = ''; $('label').value = '';
+  message('ok', '签发成功，到期 ' + esc((data.expires_at || '').slice(0, 10))
+    + '。<b>下面这串只出现这一次</b>，请立刻复制保存；关掉页面就再也拿不到了，只能重签。'
+    + "<div class='secret'>" + esc(data.token) + '</div>');
+  await load();
+});
+
+async function revoke(tokenId){
+  if (!window.confirm('吊销后这支令牌立刻失效，确定吗？')) return;
+  let response;
+  try {
+    response = await fetch('/api/tokens/revoke', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CWK-Members': '1'},
+      body: JSON.stringify({token_id: tokenId}), cache: 'no-store'
+    });
+  } catch (err) { message('bad', '连不上服务。'); return; }
+  let data = {};
+  try { data = await response.json(); } catch (err) {}
+  if (!response.ok){ message('bad', esc(data.message || '吊销失败（' + response.status + '）。')); return; }
+  await load();
+  message('ok', '已吊销，立即生效。');
+}
+
+load();
+</script></body></html>"""
 
 
 _MEMBERS_HTML = """<!doctype html>
