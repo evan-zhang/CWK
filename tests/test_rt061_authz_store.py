@@ -116,6 +116,50 @@ class OwnershipTests(unittest.TestCase):
             authz.create_bank(self.data, actor=ALICE.principal, bank_id="bank-b", name="乙库", owner=ALICE.principal, now=NOW)
 
 
+class AdminListTests(unittest.TestCase):
+    """谁能管所有库：只能在服务器上用命令行改，页面给不出这个权力。"""
+
+    def setUp(self) -> None:
+        self.data = seeded()
+
+    def test_an_admin_can_be_added_and_removed(self):
+        self.assertFalse(authz.is_admin(self.data, BOB.principal))
+        self.assertTrue(authz.set_admin(self.data, actor=ADMIN, principal=BOB.principal, admin=True, now=NOW))
+        self.assertTrue(authz.is_admin(self.data, BOB.principal))
+        self.assertFalse(authz.set_admin(self.data, actor=ADMIN, principal=BOB.principal, admin=True, now=NOW),
+                         "已经是管理员就不必再写一次")
+        self.assertTrue(authz.set_admin(self.data, actor=ADMIN, principal=BOB.principal, admin=False, now=NOW))
+        self.assertFalse(authz.is_admin(self.data, BOB.principal))
+
+    def test_a_new_admin_can_manage_every_bank(self):
+        authz.create_bank(self.data, actor=ADMIN, bank_id="bank-b", name="乙库", owner=CAROL.principal, now=NOW)
+        with self.assertRaises(authz.Forbidden):
+            authz.set_member(self.data, actor=BOB.principal, bank_id="bank-b", principal=ALICE.principal,
+                             role="reader", now=NOW)
+        authz.set_admin(self.data, actor=ADMIN, principal=BOB.principal, admin=True, now=NOW)
+        authz.set_member(self.data, actor=BOB.principal, bank_id="bank-b", principal=ALICE.principal,
+                         role="reader", now=NOW)
+        self.assertEqual(authz.role_of(self.data, "bank-b", ALICE.principal), "reader")
+
+    def test_only_admins_hand_out_that_power(self):
+        with self.assertRaises(authz.Forbidden):
+            authz.set_admin(self.data, actor=ALICE.principal, principal=ALICE.principal, admin=True, now=NOW)
+
+    def test_a_service_cannot_be_an_administrator(self):
+        with self.assertRaises(authz.UsageError):
+            authz.set_admin(self.data, actor=ADMIN, principal=SERVICE, admin=True, now=NOW)
+
+    def test_an_unenrolled_person_cannot_be_an_administrator(self):
+        with self.assertRaises(authz.NotFound):
+            authz.set_admin(self.data, actor=ADMIN, principal=f"person:{CORP}:1799999999999999999",
+                            admin=True, now=NOW)
+
+    def test_the_change_leaves_a_receipt(self):
+        authz.set_admin(self.data, actor=ADMIN, principal=BOB.principal, admin=True, now=NOW, operator="evan")
+        receipt = self.data["receipts"][-1]
+        self.assertEqual((receipt["action"], receipt["details"]["principal"]), ("admin_add", BOB.principal))
+
+
 class ServiceIdentityTests(unittest.TestCase):
     def setUp(self):
         self.data = seeded()

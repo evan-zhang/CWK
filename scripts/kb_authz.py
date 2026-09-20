@@ -487,6 +487,38 @@ def upsert_person(data: dict, person: Any, *, now: Optional[datetime] = None, op
     return True
 
 
+def set_admin(
+    data: dict,
+    *,
+    actor: str,
+    principal: str,
+    admin: bool,
+    now: Optional[datetime] = None,
+    operator: str = "",
+    reason: str = "",
+) -> bool:
+    """Add or remove a global administrator.  Returns False when nothing changed.
+
+    Deliberately command-line only: "who may manage every bank" is a decision
+    made by whoever already holds the protected files on the server, not
+    something to hand out from a web page.
+    """
+    moment = now or utc_now()
+    if not is_admin(data, actor):
+        raise Forbidden("只有管理员能增删管理员")
+    principal = validate_principal(principal)
+    if not is_person(principal):
+        raise UsageError("管理员必须是人，不能是服务")
+    _require_known(data, principal)
+    current = list(data.get("admins") or [])
+    if admin == (principal in current):
+        return False
+    data["admins"] = sorted(set(current) | {principal}) if admin else [p for p in current if p != principal]
+    _commit(data, action="admin_add" if admin else "admin_remove", actor=actor, now=moment,
+            operator=operator, reason=reason, details={"principal": principal})
+    return True
+
+
 def create_bank(
     data: dict,
     *,
@@ -880,6 +912,11 @@ def build_parser() -> argparse.ArgumentParser:
     archive = versioned(audit(store(sub.add_parser("bank-archive", help="归档库：所有人立即失去访问"))))
     archive.add_argument("--bank-id", required=True)
 
+    for verb, help_text in (("admin-add", "把某人设为管理员（可管所有库）"),
+                            ("admin-remove", "取消某人的管理员")):
+        p = versioned(audit(store(sub.add_parser(verb, help=help_text))))
+        p.add_argument("--principal", required=True, help="person:<组织ID>:<人员ID>，须已 enroll")
+
     grant = versioned(audit(store(sub.add_parser("grant", help="加成员或改角色"))))
     grant.add_argument("--bank-id", required=True)
     grant.add_argument("--principal", required=True)
@@ -1004,6 +1041,14 @@ def run(
         data, entry = mutate(args.store, lambda d: archive_bank(
             d, actor=OPS_ADMIN, bank_id=args.bank_id, now=now, **audit), expect_version=expect, now=now)
         return _result("bank_archive", data, bank_id=args.bank_id, bank=entry), 0
+
+    if args.command in ("admin-add", "admin-remove"):
+        wanted = args.command == "admin-add"
+        data, changed = mutate(args.store, lambda d: set_admin(
+            d, actor=OPS_ADMIN, principal=args.principal, admin=wanted, now=now, **audit),
+            expect_version=expect, now=now)
+        return _result(args.command.replace("-", "_"), data, principal=args.principal,
+                       changed=changed, admins=data["admins"]), 0
 
     if args.command == "grant":
         data, changed = mutate(args.store, lambda d: set_member(
